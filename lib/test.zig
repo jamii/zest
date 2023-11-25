@@ -10,7 +10,7 @@ fn eval(
 ) ![]const u8 {
     _ = allocator;
     _ = source;
-    return "";
+    return "unimplemented";
 }
 
 fn run(
@@ -52,9 +52,13 @@ pub fn main() !void {
 
         const text = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
-        var cases = std.mem.split(u8, std.mem.trim(u8, text, "\n"), "\n\n");
-        while (cases.next()) |case| {
-            var parts = std.mem.split(u8, case, "---");
+        var cases = std.mem.split(u8, text, "```");
+        while (true) {
+            const not_case = cases.next().?;
+            try writer.writeAll(not_case);
+            try writer.writeAll("```\n");
+            const case = cases.next() orelse break;
+            var parts = std.mem.split(u8, case, "\n\n");
             const source = std.mem.trim(u8, parts.next().?, "\n");
             const expected = std.mem.trim(u8, parts.next().?, "\n");
             assert(parts.next() == null);
@@ -66,9 +70,9 @@ pub fn main() !void {
             )) {
                 std.debug.print(
                     \\{s}
-                    \\---
+                    \\   --- expected ---
                     \\{s}
-                    \\---
+                    \\   --- actual ---
                     \\{s}
                     \\
                     \\
@@ -77,10 +81,9 @@ pub fn main() !void {
             }
             try writer.print(
                 \\{s}
-                \\---
+                \\
                 \\{s}
-                \\
-                \\
+                \\```
             , .{ source, actual });
         }
 
