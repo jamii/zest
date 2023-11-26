@@ -4,24 +4,50 @@ const ArrayList = std.ArrayList;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
+const Tokenizer = @import("./Tokenizer.zig");
+const Parser = @import("./Parser.zig");
+const Semantalyzer = @import("./Semantalyzer.zig");
+
+const Baton = struct {
+    tokenizer: ?Tokenizer = null,
+    parser: ?Parser = null,
+    semantalyzer: ?Semantalyzer = null,
+};
+
 fn eval(
     allocator: Allocator,
     source: []const u8,
+    baton: *Baton,
 ) ![]const u8 {
-    _ = allocator;
-    _ = source;
-    return "unimplemented";
+    baton.tokenizer = Tokenizer.init(allocator, source);
+    try baton.tokenizer.?.tokenize();
+    baton.parser = Parser.init(allocator, baton.tokenizer.?);
+    try baton.parser.?.parse();
+    baton.semantalyzer = Semantalyzer.init(allocator, baton.parser.?);
+    const value = try baton.semantalyzer.?.semantalyze();
+    return std.fmt.allocPrint(allocator, "{}", .{value});
 }
 
 fn run(
     allocator: Allocator,
     source: []const u8,
 ) []const u8 {
-    if (eval(allocator, source)) |result| {
+    var baton = Baton{};
+    if (eval(allocator, source, &baton)) |result| {
         return result;
     } else |err| {
-        _ = err;
-        return "error";
+        //if (baton.tokenizer) |tokenizer|
+        //    std.debug.print("{any}\n\n", .{tokenizer.tokens.items});
+        //if (baton.parser) |parser|
+        //    std.debug.print("{any}\n\n", .{parser.exprs.items});
+        if (@errorReturnTrace()) |trace|
+            std.debug.dumpStackTrace(trace.*);
+        return switch (err) {
+            error.TokenizeError => baton.tokenizer.?.error_message.?,
+            error.ParseError => baton.parser.?.error_message.?,
+            error.SemantalyzeError => baton.semantalyzer.?.error_message.?,
+            error.OutOfMemory => panic("OOM", .{}),
+        };
     }
 }
 
