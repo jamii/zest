@@ -119,18 +119,11 @@ But omitted keys must be written before present keys.
 syntax-error
 ```
 
-## datum equality
-
-Two datums are equal if:
-* They are both numbers, and they are equal (TODO scary can of worms).
-* They are both strings, and they contain the same sequence of unicode characters.
-* They are both objects, and:
-  * They contain the same set of keys.
-  * For each key, they contain the same value.
-
 ## repr
 
-A value constists of a datum and a repr(esentation). A repr:
+A value constists of a datum and a repr(esentation). 
+
+A repr:
 * Maps some subset of datums to bytes in memory.
 * Constrains the available builtin operations on those datums.
 
@@ -248,31 +241,31 @@ Structs allow getting and setting keys, but not deleting or adding keys.
 Lists are objects where the keys are consecutive integers beginning with 0 and the values all have the same repr.
 
 ```
-list[string][]
+list[f64][]
 
-list[string][]
+list[f64][]
 ```
 
 ```
-list[string]['a', 'b', 'c']
+list[f64][0, 1, 2]
 
-list[string]['a', 'b', 'c']
+list[f64][0, 1, 2]
 ```
 
 ```
-list[string][42]
-
-error
-```
-
-```
-list[string]['a' = 'apple']
+list[string][0, 1, 2]
 
 error
 ```
 
 ```
-list[string][1 = 'one']
+list[f64]['a' = 'apple']
+
+error
+```
+
+```
+list[f64][1 = 3.14]
 
 error
 ```
@@ -400,8 +393,146 @@ only[repr]
 
 The in-memory layout of repr is not exposed.
 
+## equality
+
+Two __datums__ are equal if:
+* They are both numbers, and they are equal (TODO scary can of worms).
+* They are both strings, and they contain the same sequence of unicode characters.
+* They are both objects, and:
+  * They contain the same set of keys.
+  * For each key, they contain the same value.
+
+Two __values__ are `==` if they have the same repr and their datums are equal.
+
+```
+i64[42] == i64[42]
+
+true
+```
+
+```
+i64[42] == i64[1]
+
+false
+```
+
+```
+i64[42] == f64[42]
+
+false
+```
+
+```
+["a" = 1, "b" = 2] == ["b" = 2, "a" = 1]
+
+true
+```
+
+```
+["a" = 1, "b" = 2] == ["b" = 100, "a" = 1]
+
+false
+```
+
+```
+["a" = 1, "b" = 2] == ["b" = 2, "a" = 1, "c" = 3]
+
+false
+```
+
+```
+["a" = 1, "b" = 2] == map[string, i64]["b" = 2, "a" = 1]
+
+false
+```
+
+Two __values__ are `~=` if their datums are equal.
+
+```
+i64[42] != i64[42]
+
+true
+```
+
+```
+i64[42] != i64[1]
+
+false
+```
+
+```
+i64[42] != f64[42]
+
+true
+```
+
+```
+["a" = 1, "b" = 2] != ["b" = 2, "a" = 1]
+
+true
+```
+
+```
+["a" = 1, "b" = 2] != ["b" = 100, "a" = 1]
+
+false
+```
+
+```
+["a" = 1, "b" = 2] != ["b" = 2, "a" = 1, "c" = 3]
+
+false
+```
+
+```
+["a" = 1, "b" = 2] != map[string, i64]["b" = 2, "a" = 1]
+
+true
+```
+
+TODO What about NaN? 
+
+TODO What about +0 vs -0.
+
+## ordering
+
+TODO < for type then datum, ~< for datum only
+
+## as
+
+The function `as` creates a new value with the same datum but a different repr.
+
+```
+i64[42]/as[f64]
+
+f64[42]
+```
+
+If the new repr cannot encode the datum, `as` throws an error.
+
+```
+f64[3.14]/as[i64]
+
+error
+```
+
+If the combination of reprs is such that `as` can never throw an error then the return type will not include an error.
+
+```
+as-int = fn [x] x/as[i64]
+[return-type[as-int, [i64]], return-type[as-int, [f64]]
+
+[i64, union[i64, error]]
+```
+
+## errors
+
+TODO so many decisions
+
 ## misc
 
 TODO We use value for both repr+datum and key-value. Think of a better name for the former.
+
+TODO Using [] for both objects and function calls is probably bad for readability.
 
 TODO Add examples of supported operations.
