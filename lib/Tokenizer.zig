@@ -128,6 +128,7 @@ pub fn tokenize(self: *Self) !void {
                 var escaped = false;
                 while (i < source.len) : (i += 1) {
                     switch (source[i]) {
+                        '\n' => return self.fail(start),
                         '\'' => {
                             if (!escaped) {
                                 i += 1;

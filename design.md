@@ -46,7 +46,8 @@ No literal newlines.
 'not a
 string'
 
-syntax-error
+Tokenizer error at 0: 'not a
+string'
 ```
 
 ### objects
