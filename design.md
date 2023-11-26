@@ -536,5 +536,6 @@ TODO so many decisions
 TODO We use value for both representation+notation and key/value. Think of a better name for the former.
 
 TODO Using [] for both objects and function calls is probably bad for readability.
+TODO Is there much point making reprs callable when we have `as`?
 
 TODO Add examples of supported operations.
