@@ -66,6 +66,46 @@ pub const Value = union(Kind) {
         }
     }
 
+    pub fn order(self: Value, other: Value) std.math.Order {
+        switch (std.math.order(@intFromEnum(self.kind()), @intFromEnum(other.kind()))) {
+            .lt => return .lt,
+            .gt => return .gt,
+            .eq => {},
+        }
+        switch (self) {
+            // TODO NaN
+            .number => return std.math.order(self.number, other.number),
+            .string => return std.mem.order(u8, self.string, other.string),
+            .map => {
+                var self_entries = mapSortedEntries(self.map);
+                defer self_entries.deinit();
+
+                var other_entries = mapSortedEntries(other.map);
+                defer other_entries.deinit();
+
+                for (0..@min(self_entries.items.len, other_entries.items.len)) |i| {
+                    const self_entry = self_entries.items[i];
+                    const other_entry = other_entries.items[i];
+                    switch (self_entry.key_ptr.order(other_entry.key_ptr.*)) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {
+                            switch (self_entry.value_ptr.order(other_entry.value_ptr.*)) {
+                                .lt => return .lt,
+                                .gt => return .gt,
+                                .eq => {},
+                            }
+                        },
+                    }
+                }
+                return std.math.order(self_entries.items.len, other_entries.items.len);
+            },
+            .@"fn" => {
+                panic("TODO", .{});
+            },
+        }
+    }
+
     pub fn equal(self: Value, other: Value) bool {
         if (self.kind() != other.kind()) return false;
         switch (self) {
@@ -130,8 +170,10 @@ pub const Value = union(Kind) {
                     }
                 }
 
-                var iter = map.iterator();
-                while (iter.next()) |entry| {
+                var entries = mapSortedEntries(map);
+                defer entries.deinit();
+
+                for (entries.items) |entry| {
                     const key = entry.key_ptr.*;
                     if (key == .number and
                         key.number == @trunc(key.number) and
@@ -206,6 +248,25 @@ pub const Map = std.HashMap(
     },
     std.hash_map.default_max_load_percentage,
 );
+
+// TODO This is stupid expensive. Cache it somewhere.
+fn mapSortedEntries(map: Map) ArrayList(Map.Entry) {
+    var entries = ArrayList(Map.Entry).initCapacity(map.allocator, map.count()) catch panic("OOM", .{});
+    errdefer entries.deinit();
+
+    var iter = map.iterator();
+    while (iter.next()) |entry| {
+        entries.appendAssumeCapacity(entry);
+    }
+
+    std.sort.heap(Map.Entry, entries.items, {}, (struct {
+        fn lessThan(_: void, a: Map.Entry, b: Map.Entry) bool {
+            return a.key_ptr.order(b.key_ptr.*) == .lt;
+        }
+    }).lessThan);
+
+    return entries;
+}
 
 pub const Fn = struct {
     captures: Scope,
