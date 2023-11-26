@@ -371,7 +371,7 @@ fn fail(self: *Self, comptime message: []const u8, args: anytype) error{ParseErr
         self.allocator,
         "At {}. " ++
             message ++
-            "\n\n{s}",
+            "\n{s}",
         .{source_ix} ++
             args ++
             .{self.tokenizer.source[source_ix..@min(source_ix + 100, self.tokenizer.source.len)]},

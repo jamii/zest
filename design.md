@@ -87,7 +87,7 @@ No repeated keys.
 ```
 ['a' = 'apple', 'a' = 'bear']
 
-syntax-error
+Duplicate key in map literal: 'a'
 ```
 
 Omitted keys default to consecutive integers, starting at 0.
@@ -117,7 +117,8 @@ But omitted keys must be written before present keys.
 ```
 ['a', 'default' = 'c', 'b']
 
-syntax-error
+At 23. Positional elems must be before key/value elems
+'b']
 ```
 
 ## repr
