@@ -21,19 +21,21 @@ pub const Binding = struct {
 };
 
 pub const Kind = enum {
-    int64,
-    float64,
+    i64,
+    f64,
     string,
     map,
     @"fn",
+    repr,
 };
 
 pub const Value = union(Kind) {
-    int64: i64,
-    float64: f64,
+    i64: i64,
+    f64: f64,
     string: []u8,
     map: Map,
     @"fn": Fn,
+    repr: Repr,
 
     pub fn kind(self: Value) Kind {
         return std.meta.activeTag(self);
@@ -47,9 +49,9 @@ pub const Value = union(Kind) {
 
     pub fn update(self: Value, hasher: anytype) void {
         switch (self) {
-            .int64 => |int64| hasher.update(std.mem.asBytes(&int64)),
+            .i64 => |int| hasher.update(std.mem.asBytes(&int)),
             // TODO NaN
-            .float64 => |float64| hasher.update(std.mem.asBytes(&float64)),
+            .f64 => |float| hasher.update(std.mem.asBytes(&float)),
             .string => |string| hasher.update(string),
             .map => |map| {
                 // TODO Does seed/ordering matter?
@@ -66,6 +68,9 @@ pub const Value = union(Kind) {
                 }
                 hasher.update(std.mem.asBytes(&@"fn".body));
             },
+            .repr => |repr| {
+                repr.update(hasher);
+            },
         }
     }
 
@@ -76,9 +81,9 @@ pub const Value = union(Kind) {
             .eq => {},
         }
         switch (self) {
-            .int64 => return std.math.order(self.int64, other.int64),
+            .i64 => return std.math.order(self.i64, other.i64),
             // TODO NaN
-            .float64 => return std.math.order(self.float64, other.float64),
+            .f64 => return std.math.order(self.f64, other.f64),
             .string => return std.mem.order(u8, self.string, other.string),
             .map => {
                 var self_entries = mapSortedEntries(self.map);
@@ -93,13 +98,12 @@ pub const Value = union(Kind) {
                     switch (self_entry.key_ptr.order(other_entry.key_ptr.*)) {
                         .lt => return .lt,
                         .gt => return .gt,
-                        .eq => {
-                            switch (self_entry.value_ptr.order(other_entry.value_ptr.*)) {
-                                .lt => return .lt,
-                                .gt => return .gt,
-                                .eq => {},
-                            }
-                        },
+                        .eq => {},
+                    }
+                    switch (self_entry.value_ptr.order(other_entry.value_ptr.*)) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
                     }
                 }
                 return std.math.order(self_entries.items.len, other_entries.items.len);
@@ -107,15 +111,18 @@ pub const Value = union(Kind) {
             .@"fn" => {
                 panic("TODO", .{});
             },
+            .repr => {
+                return self.repr.order(other.repr);
+            },
         }
     }
 
     pub fn equal(self: Value, other: Value) bool {
         if (self.kind() != other.kind()) return false;
         switch (self) {
-            .int64 => return self.int64 == other.int64,
+            .i64 => return self.i64 == other.i64,
             // TODO NaN
-            .float64 => return self.float64 == other.float64,
+            .f64 => return self.f64 == other.f64,
             .string => return std.mem.eql(u8, self.string, other.string),
             .map => {
                 const self_map = self.map;
@@ -139,15 +146,14 @@ pub const Value = union(Kind) {
                 }
                 return true;
             },
+            .repr => return self.repr.order(other.repr) == .eq,
         }
     }
 
     pub fn format(self: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
         switch (self) {
-            .int64 => |int64| try writer.print("{}", .{int64}),
-            .float64 => |float64| try writer.print("{d}", .{float64}),
+            .i64 => |int| try writer.print("{}", .{int}),
+            .f64 => |float| try writer.print("{d}", .{float}),
             .string => |string| {
                 try writer.writeByte('\'');
                 for (string) |char| {
@@ -167,7 +173,7 @@ pub const Value = union(Kind) {
 
                 var ix: f64 = 0;
                 while (true) : (ix += 1) {
-                    if (map.get(.{ .float64 = ix })) |value| {
+                    if (map.get(.{ .f64 = ix })) |value| {
                         if (!first) try writer.writeAll(", ");
                         try writer.print("{}", .{value});
                         first = false;
@@ -181,10 +187,10 @@ pub const Value = union(Kind) {
 
                 for (entries.items) |entry| {
                     const key = entry.key_ptr.*;
-                    if (key == .float64 and
-                        key.float64 == @trunc(key.float64) and
-                        @trunc(key.float64) >= 0 and
-                        @trunc(key.float64) < ix)
+                    if (key == .f64 and
+                        key.f64 == @trunc(key.f64) and
+                        @trunc(key.f64) >= 0 and
+                        @trunc(key.f64) < ix)
                         // Already printed this one.
                         continue;
                     if (!first) try writer.writeAll(", ");
@@ -202,13 +208,16 @@ pub const Value = union(Kind) {
                 }
                 try writer.writeAll("]");
             },
+            .repr => |repr| {
+                try repr.format(fmt, options, writer);
+            },
         }
     }
 
     pub fn copy(self: Value, allocator: Allocator) Value {
         switch (self) {
-            .int64 => |int64| return .{ .int64 = int64 },
-            .float64 => |float64| return .{ .float64 = float64 },
+            .i64 => |int| return .{ .i64 = int },
+            .f64 => |float| return .{ .f64 = float },
             .string => |string| return .{ .string = allocator.dupe(u8, string) catch panic("OOM", .{}) },
             .map => |map| {
                 var map_copy = map.cloneWithAllocator(allocator) catch panic("OOM", .{});
@@ -233,6 +242,8 @@ pub const Value = union(Kind) {
                     .body = @"fn".body,
                 } };
             },
+            // repr are always immutable
+            .repr => return self,
         }
     }
 
@@ -255,6 +266,64 @@ pub const Map = std.HashMap(
     },
     std.hash_map.default_max_load_percentage,
 );
+
+pub const Repr = union(enum) {
+    i64,
+    f64,
+    string,
+    list: *Repr,
+    map: [2]*Repr,
+
+    pub fn update(self: Repr, hasher: anytype) void {
+        hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
+        switch (self) {
+            .i64, .f64, .string => {},
+            .list => |elem| {
+                elem.update(hasher);
+            },
+            .map => |key_value| {
+                key_value[0].update(hasher);
+                key_value[1].update(hasher);
+            },
+        }
+    }
+
+    pub fn order(self: Repr, other: Repr) std.math.Order {
+        switch (std.math.order(@intFromEnum(std.meta.activeTag(self)), @intFromEnum(std.meta.activeTag(other)))) {
+            .lt => return .lt,
+            .gt => return .gt,
+            .eq => {},
+        }
+        switch (self) {
+            .i64, .f64, .string => return .eq,
+            .list => return self.list.order(other.list.*),
+            .map => {
+                switch (self.map[0].order(other.map[0].*)) {
+                    .lt => return .lt,
+                    .gt => return .gt,
+                    .eq => {},
+                }
+                switch (self.map[1].order(other.map[1].*)) {
+                    .lt => return .lt,
+                    .gt => return .gt,
+                    .eq => {},
+                }
+                return .eq;
+            },
+        }
+    }
+
+    pub fn format(self: Repr, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.writeAll(@tagName(self));
+        switch (self) {
+            .i64, .f64, .string => {},
+            .list => |elem| try writer.print("[{}]", .{elem.*}),
+            .map => |key_value| try writer.print("[{}, {}]", .{ key_value[0].*, key_value[1].* }),
+        }
+    }
+};
 
 // TODO This is stupid expensive. Cache it somewhere.
 fn mapSortedEntries(map: Map) ArrayList(Map.Entry) {
@@ -298,8 +367,8 @@ pub fn semantalyze(self: *Self) error{SemantalyzeError}!Value {
 fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
-        .int64 => |int64| return .{ .int64 = int64 },
-        .float64 => |float64| return .{ .float64 = float64 },
+        .i64 => |int| return .{ .i64 = int },
+        .f64 => |float| return .{ .f64 = float },
         .string => |string| return .{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
         .map => |map_expr| {
             var map = Map.init(self.allocator);
@@ -325,12 +394,12 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 .name = let.name,
                 .value = value.copy(self.allocator),
             }) catch panic("OOM", .{});
-            return .{ .float64 = 0 }; // TODO void/null or similar
+            return .{ .f64 = 0 }; // TODO void/null or similar
         },
         .set => |set| {
             const value = try self.eval(set.value);
             try self.pathSet(set.path, value.copy(self.allocator));
-            return .{ .float64 = 0 }; // TODO void/null or similar
+            return .{ .f64 = 0 }; // TODO void/null or similar
         },
         .@"if" => |@"if"| {
             const cond = try self.boolish(try self.eval(@"if".cond));
@@ -339,7 +408,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         .@"while" => |@"while"| {
             while (true) {
                 const cond = try self.boolish(try self.eval(@"while".cond));
-                if (!cond) return .{ .float64 = 0 }; // TODO void/null or similar
+                if (!cond) return .{ .f64 = 0 }; // TODO void/null or similar
                 _ = try self.eval(@"while".body);
             }
         },
@@ -359,23 +428,23 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             const head_expr = self.parser.exprs.items[call.head];
             if (head_expr == .builtin) {
                 if (call.args.len != 2)
-                    return self.fail("Wrong float64 of arguments ({}) to {}", .{ call.args.len, head_expr });
+                    return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head_expr });
                 const value_a = try self.eval(call.args[0]);
                 const value_b = try self.eval(call.args[1]);
                 switch (head_expr.builtin) {
-                    .equal => return if (value_a.equal(value_b)) .{ .float64 = 1 } else .{ .float64 = 0 },
+                    .equal => return if (value_a.equal(value_b)) .{ .f64 = 1 } else .{ .f64 = 0 },
                     .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => panic("TODO", .{}),
                     .add, .subtract, .multiply, .divide => {
-                        if (value_a != .float64) return self.fail("Cannot call {} on {}", .{ head_expr, value_a });
-                        if (value_b != .float64) return self.fail("Cannot call {} on {}", .{ head_expr, value_b });
+                        if (value_a != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, value_a });
+                        if (value_b != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, value_b });
                         const result = switch (head_expr.builtin) {
-                            .add => value_a.float64 + value_b.float64,
-                            .subtract => value_a.float64 - value_b.float64,
-                            .multiply => value_a.float64 * value_b.float64,
-                            .divide => value_a.float64 / value_b.float64,
+                            .add => value_a.f64 + value_b.f64,
+                            .subtract => value_a.f64 - value_b.f64,
+                            .multiply => value_a.f64 * value_b.f64,
+                            .divide => value_a.f64 / value_b.f64,
                             else => unreachable,
                         };
-                        return .{ .float64 = result };
+                        return .{ .f64 = result };
                     },
                 }
             } else {
@@ -383,7 +452,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 switch (head) {
                     .map => |map| {
                         if (call.args.len != 1)
-                            return self.fail("Wrong float64 of arguments ({}) to {}", .{ call.args.len, head });
+                            return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
                         if (call.muts[0] == true)
                             return self.fail("Can't pass mut arg to map", .{});
                         const key = try self.eval(call.args[0]);
@@ -391,7 +460,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                     },
                     .@"fn" => |@"fn"| {
                         if (call.args.len != @"fn".params.len)
-                            return self.fail("Wrong float64 of arguments ({}) to {}", .{ call.args.len, head });
+                            return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
 
                         for (call.muts, @"fn".muts) |arg_mut, param_mut| {
                             if (arg_mut != param_mut)
@@ -452,14 +521,14 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             const value = try self.eval(get_static.map);
             if (value != .map) return self.fail("Cannot get key from non-map {}", .{value});
             const key = switch (get_static.key) {
-                .int64 => |int64| Value{ .int64 = int64 },
+                .i64 => |int| Value{ .i64 = int },
                 .string => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
             };
             return (try self.mapGet(value.map, key)).*;
         },
         .exprs => |exprs| {
             const scope_len = self.scope.items.len;
-            var value = Value{ .float64 = 0 }; // TODO void/null or similar
+            var value = Value{ .f64 = 0 }; // TODO void/null or similar
             for (exprs) |subexpr| {
                 value = try self.eval(subexpr);
             }
@@ -472,7 +541,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
 fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]const u8)) error{SemantalyzeError}!void {
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
-        .int64, .float64, .string, .builtin => {},
+        .i64, .f64, .string, .builtin => {},
         .map => |map| {
             for (map.keys) |key| try self.capture(key, captures, locals);
             for (map.values) |value| try self.capture(value, captures, locals);
@@ -566,7 +635,7 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
             switch (head.*) {
                 .map => |*map| {
                     if (call.args.len != 1)
-                        return self.fail("Wrong float64 of arguments ({}) to {}", .{ call.args.len, head });
+                        return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
                     if (call.muts[0] == true)
                         return self.fail("Can't pass mut arg to map", .{});
                     const key = try self.eval(call.args[0]);
@@ -579,7 +648,7 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
             const value = try self.evalPath(get_static.map);
             if (value.* != .map) return self.fail("Cannot get key from non-map {}", .{value});
             const key = switch (get_static.key) {
-                .int64 => |int64| Value{ .int64 = int64 },
+                .i64 => |int| Value{ .i64 = int },
                 .string => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
             };
             return self.mapGet(value.map, key);
@@ -589,9 +658,9 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
 }
 
 fn boolish(self: *Self, value: Value) error{SemantalyzeError}!bool {
-    if (value == .float64) {
-        if (value.float64 == 1) return true;
-        if (value.float64 == 0) return false;
+    if (value == .f64) {
+        if (value.f64 == 1) return true;
+        if (value.f64 == 0) return false;
     }
     return self.fail("Expected boolean (0 or 1). Found {}", .{value});
 }

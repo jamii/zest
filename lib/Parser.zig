@@ -16,9 +16,9 @@ error_message: ?[]const u8,
 
 pub const ExprId = usize;
 pub const Expr = union(enum) {
-    // TODO Replace int64/float64 with bigInt/bigDec
-    int64: i64,
-    float64: f64,
+    // TODO Replace i64/f64 with bigInt/bigDec
+    i64: i64,
+    f64: f64,
     string: []const u8,
     map: struct {
         keys: []ExprId,
@@ -62,7 +62,7 @@ pub const Expr = union(enum) {
 };
 
 pub const StaticKey = union(enum) {
-    int64: i64,
+    i64: i64,
     string: []const u8,
 };
 
@@ -137,7 +137,7 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
                     .number => number: {
                         const text = self.lastTokenText();
                         if (std.mem.indexOfScalar(u8, text, '.') == null) {
-                            break :number StaticKey{ .int64 = try self.parseInt64(self.lastTokenText()) };
+                            break :number StaticKey{ .i64 = try self.parseInt64(self.lastTokenText()) };
                         } else {
                             return self.fail("Can't use float as key {s}", .{text});
                         }
@@ -188,9 +188,9 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
         .number => {
             const text = self.lastTokenText();
             if (std.mem.indexOfScalar(u8, text, '.') == null) {
-                return self.expr(.{ .int64 = try self.parseInt64(self.lastTokenText()) });
+                return self.expr(.{ .i64 = try self.parseInt64(self.lastTokenText()) });
             } else {
-                return self.expr(.{ .float64 = try self.parseFloat64(self.lastTokenText()) });
+                return self.expr(.{ .f64 = try self.parseFloat64(self.lastTokenText()) });
             }
         },
         .string => {
@@ -216,7 +216,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     if (key_ix == null)
                         return self.fail("Positional elems must be before key/value elems", .{});
                     value = key;
-                    key = self.expr(.{ .float64 = key_ix.? });
+                    key = self.expr(.{ .f64 = key_ix.? });
                     key_ix.? += 1;
                 }
                 keys.append(key) catch panic("OOM", .{});
@@ -305,12 +305,12 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
 
 fn parseInt64(self: *Self, text: []const u8) !i64 {
     return std.fmt.parseInt(i64, text, 10) catch |err|
-        self.fail("Can't parse int64 because {}: {s}", .{ err, text });
+        self.fail("Can't parse i64 because {}: {s}", .{ err, text });
 }
 
 fn parseFloat64(self: *Self, text: []const u8) !f64 {
     return std.fmt.parseFloat(f64, text) catch |err|
-        self.fail("Can't parse float64 because {}: {s}", .{ err, text });
+        self.fail("Can't parse f64 because {}: {s}", .{ err, text });
 }
 
 fn parseString(self: *Self, text: []const u8) ![]u8 {
