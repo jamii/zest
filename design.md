@@ -268,25 +268,25 @@ list[f64][[]]
 ```
 list[f64][[0, 1, 2]]
 
-list[f64][[0, 1, 2]]
+list[f64][[0.0, 1.0, 2.0]]
 ```
 
 ```
 list[string][[0, 1, 2]]
 
-error
+Cannot convert 0 to string
 ```
 
 ```
 list[f64][['a' = 'apple']]
 
-error
+Cannot convert ['a' = 'apple'] to list[f64]
 ```
 
 ```
 list[f64][[1 = 3.14]]
 
-error
+Cannot convert [1 = 3.14] to list[f64]
 ```
 
 Lists are laid out contiguously in memory, in key order.

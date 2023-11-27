@@ -35,7 +35,7 @@ pub const Value = union(Kind) {
     i64: i64,
     f64: f64,
     string: []u8,
-    list: ArrayList(Value),
+    list: List,
     map: Map,
     @"fn": Fn,
     repr: Repr,
@@ -52,21 +52,24 @@ pub const Value = union(Kind) {
     }
 
     pub fn update(self: Value, hasher: anytype) void {
+        hasher.update(std.mem.asBytes(&std.meta.activeTag(self)));
         switch (self) {
             .i64 => |int| hasher.update(std.mem.asBytes(&int)),
             // TODO NaN
             .f64 => |float| hasher.update(std.mem.asBytes(&float)),
             .string => |string| hasher.update(string),
             .list => |list| {
-                for (0.., list.items) |key, value| {
+                list.elem_repr.update(hasher);
+                for (0.., list.elems.items) |key, value| {
                     (Value{ .i64 = @intCast(key) }).update(hasher);
                     value.update(hasher);
                 }
             },
             .map => |map| {
-                // TODO Does seed/ordering matter?
-                var iter = map.iterator();
-                while (iter.next()) |entry| {
+                const entries = mapSortedEntries(map);
+                defer entries.deinit();
+
+                for (entries.items) |entry| {
                     entry.key_ptr.update(hasher);
                     entry.value_ptr.update(hasher);
                 }
@@ -99,8 +102,8 @@ pub const Value = union(Kind) {
             .f64 => return std.math.order(self.f64, other.f64),
             .string => return std.mem.order(u8, self.string, other.string),
             .list => {
-                const self_items = self.list.items;
-                const other_items = other.list.items;
+                const self_items = self.list.elems.items;
+                const other_items = other.list.elems.items;
                 for (0..@min(self_items.len, other_items.len)) |i| {
                     const self_elem = self_items[i];
                     const other_elem = other_items[i];
@@ -113,10 +116,10 @@ pub const Value = union(Kind) {
                 return std.math.order(self_items.len, other_items.len);
             },
             .map => {
-                var self_entries = mapSortedEntries(self.map);
+                const self_entries = mapSortedEntries(self.map);
                 defer self_entries.deinit();
 
-                var other_entries = mapSortedEntries(other.map);
+                const other_entries = mapSortedEntries(other.map);
                 defer other_entries.deinit();
 
                 for (0..@min(self_entries.items.len, other_entries.items.len)) |i| {
@@ -157,8 +160,8 @@ pub const Value = union(Kind) {
             .list => {
                 const self_list = self.list;
                 const other_list = other.list;
-                if (self_list.items.len != other_list.items.len) return false;
-                for (self_list.items, other_list.items) |self_elem, other_elem| {
+                if (self_list.elems.items.len != other_list.elems.items.len) return false;
+                for (self_list.elems.items, other_list.elems.items) |self_elem, other_elem| {
                     if (!self_elem.equal(other_elem)) return false;
                 }
                 return true;
@@ -214,15 +217,16 @@ pub const Value = union(Kind) {
                 try writer.writeByte('\'');
             },
             .list => |list| {
+                try writer.print("{}[", .{Repr{ .list = list.elem_repr }});
+
                 try writer.writeAll("[");
-
                 var first = true;
-
-                for (list.items) |elem| {
+                for (list.elems.items) |elem| {
                     if (!first) try writer.writeAll(", ");
                     try writer.print("{}", .{elem});
                     first = false;
                 }
+                try writer.writeAll("]");
 
                 try writer.writeAll("]");
             },
@@ -242,7 +246,7 @@ pub const Value = union(Kind) {
                     }
                 }
 
-                var entries = mapSortedEntries(map);
+                const entries = mapSortedEntries(map);
                 defer entries.deinit();
 
                 for (entries.items) |entry| {
@@ -282,11 +286,14 @@ pub const Value = union(Kind) {
             .f64 => |float| return .{ .f64 = float },
             .string => |string| return .{ .string = allocator.dupe(u8, string) catch panic("OOM", .{}) },
             .list => |list| {
-                var list_copy = list.clone() catch panic("OOM", .{});
-                for (list_copy.items) |*elem| {
+                var elems_copy = list.elems.clone() catch panic("OOM", .{});
+                for (elems_copy.items) |*elem| {
                     elem.copyInPlace(allocator);
                 }
-                return .{ .list = list_copy };
+                return .{ .list = .{
+                    .elem_repr = list.elem_repr,
+                    .elems = elems_copy,
+                } };
             },
             .map => |map| {
                 var map_copy = map.cloneWithAllocator(allocator) catch panic("OOM", .{});
@@ -320,6 +327,11 @@ pub const Value = union(Kind) {
         const value = self.copy(allocator);
         self.* = value;
     }
+};
+
+pub const List = struct {
+    elem_repr: *Repr,
+    elems: ArrayList(Value),
 };
 
 pub const Map = std.HashMap(
@@ -839,29 +851,27 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
             }
         },
         .list => |elem_repr| {
+            var elems = ArrayList(Value).init(self.allocator);
             switch (value) {
                 .list => |list| {
                     var ix: i64 = 0;
-                    var elems = ArrayList(Value).init(self.allocator);
-                    for (list.items) |elem| {
+                    for (list.elems.items) |elem| {
                         elems.append(try self.convert(elem_repr.*, elem)) catch panic("OOM", .{});
                         ix += 1;
                     }
-                    return .{ .list = elems };
                 },
                 .map => |map| {
                     var ix: i64 = 0;
-                    var elems = ArrayList(Value).init(self.allocator);
                     while (map.get(.{ .i64 = ix })) |elem| {
                         elems.append(try self.convert(elem_repr.*, elem)) catch panic("OOM", .{});
                         ix += 1;
                     }
                     if (map.count() != ix)
                         return self.fail("Cannot convert {} to {}", .{ value, repr });
-                    return .{ .list = elems };
                 },
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
+            return .{ .list = .{ .elem_repr = elem_repr, .elems = elems } };
         },
         else => return self.fail("TODO", .{}),
     }
