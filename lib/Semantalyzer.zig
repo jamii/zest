@@ -27,6 +27,7 @@ pub const Kind = enum {
     map,
     @"fn",
     repr,
+    repr_kind,
 };
 
 pub const Value = union(Kind) {
@@ -36,6 +37,7 @@ pub const Value = union(Kind) {
     map: Map,
     @"fn": Fn,
     repr: Repr,
+    repr_kind: ReprKind,
 
     pub fn kind(self: Value) Kind {
         return std.meta.activeTag(self);
@@ -70,6 +72,9 @@ pub const Value = union(Kind) {
             },
             .repr => |repr| {
                 repr.update(hasher);
+            },
+            .repr_kind => |repr_kind| {
+                repr_kind.update(hasher);
             },
         }
     }
@@ -114,6 +119,9 @@ pub const Value = union(Kind) {
             .repr => {
                 return self.repr.order(other.repr);
             },
+            .repr_kind => {
+                return self.repr_kind.order(other.repr_kind);
+            },
         }
     }
 
@@ -147,6 +155,7 @@ pub const Value = union(Kind) {
                 return true;
             },
             .repr => return self.repr.order(other.repr) == .eq,
+            .repr_kind => return self.repr_kind.order(other.repr_kind) == .eq,
         }
     }
 
@@ -211,6 +220,9 @@ pub const Value = union(Kind) {
             .repr => |repr| {
                 try repr.format(fmt, options, writer);
             },
+            .repr_kind => |repr_kind| {
+                try repr_kind.format(fmt, options, writer);
+            },
         }
     }
 
@@ -243,7 +255,7 @@ pub const Value = union(Kind) {
                 } };
             },
             // repr are always immutable
-            .repr => return self,
+            .repr, .repr_kind => return self,
         }
     }
 
@@ -325,6 +337,25 @@ pub const Repr = union(enum) {
     }
 };
 
+pub const ReprKind = enum {
+    list,
+    map,
+
+    pub fn update(self: ReprKind, hasher: anytype) void {
+        hasher.update(&[1]u8{@intFromEnum(self)});
+    }
+
+    pub fn order(self: ReprKind, other: ReprKind) std.math.Order {
+        return std.math.order(@intFromEnum(self), @intFromEnum(other));
+    }
+
+    pub fn format(self: ReprKind, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.writeAll(@tagName(self));
+    }
+};
+
 // TODO This is stupid expensive. Cache it somewhere.
 fn mapSortedEntries(map: Map) ArrayList(Map.Entry) {
     var entries = ArrayList(Map.Entry).initCapacity(map.allocator, map.count()) catch panic("OOM", .{});
@@ -384,8 +415,20 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             panic("Direct eval of builtin should be unreachable", .{});
         },
         .name => |name| {
-            const binding = try self.lookup(name);
-            return binding.value;
+            if (self.lookup(name)) |binding| {
+                return binding.value;
+            } else |err| {
+                if (std.mem.eql(u8, name, "i64")) {
+                    return .{ .repr = .i64 };
+                }
+                if (std.mem.eql(u8, name, "f64")) {
+                    return .{ .repr = .f64 };
+                }
+                if (std.mem.eql(u8, name, "string")) {
+                    return .{ .repr = .string };
+                }
+                return err;
+            }
         },
         .let => |let| {
             const value = try self.eval(let.value);
