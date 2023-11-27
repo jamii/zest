@@ -130,7 +130,8 @@ A representaton:
 * Constrains the available builtin operations on those notations.
 
 Every notation has a default representation:
-* Numbers default to big-int, or big-dec if they have digits after the decimal point.
+* Numbers default to i64, or f64 if they have digits after the decimal point.
+  * TODO Add big-int and big-dec.
 * Strings default to string.
 * Objects default to structs.
 
@@ -141,19 +142,26 @@ When printing values, the representation can be omitted if it is the default rep
 ```
 i64[42]
 
-i64[42]
+42
 ```
 
 ```
-i64[9,223,372,036,854,775,808]
+i64[9223372036854775808]
 
-error
+At 4. Can't parse i64 because error.Overflow: 9223372036854775808
+9223372036854775808]
+```
+
+```
+i64[3.00]
+
+3
 ```
 
 ```
 i64[3.14]
 
-error
+Cannot convert 3.14 to i64
 ```
 
 ### floats
@@ -161,19 +169,28 @@ error
 ```
 f64[42]
 
-f64[42]
+42.0
 ```
 
 ```
-f64[9,223,372,036,854,775,808]
+f64[9223372036854775808]
 
-error
+At 4. Can't parse i64 because error.Overflow: 9223372036854775808
+9223372036854775808]
+```
+
+TODO Don't allow imprecise float parse.
+
+```
+f64[9223372036854775808.0]
+
+9223372036854776000.0
 ```
 
 ```
 f64[3.14]
 
-f64[3.14]
+3.14
 ```
 
 ### strings
@@ -192,7 +209,7 @@ Strings allow pushing and popping unicode characters.
 
 ### structs
 
-Structs are objects with a fixed, finite set of keys.
+Structs are objects with a fixed finite set of keys.
 
 ```
 struct['a' = i64, 'b' = i64]['a' = 0, 'b' = 1]

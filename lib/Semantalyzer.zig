@@ -162,7 +162,14 @@ pub const Value = union(Kind) {
     pub fn format(self: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         switch (self) {
             .i64 => |int| try writer.print("{}", .{int}),
-            .f64 => |float| try writer.print("{d}", .{float}),
+            .f64 => |float| {
+                if (float == @trunc(float)) {
+                    // Always print .0 so we know it's a float.
+                    try writer.print("{d:.1}", .{float});
+                } else {
+                    try writer.print("{d}", .{float});
+                }
+            },
             .string => |string| {
                 try writer.writeByte('\'');
                 for (string) |char| {
@@ -555,6 +562,49 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         std.mem.swap(Scope, &fn_scope, &self.scope);
 
                         return return_value;
+                    },
+                    .repr => |repr| {
+                        if (call.args.len != 1)
+                            return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
+                        if (call.muts[0] == true)
+                            return self.fail("Can't pass mut arg to repr", .{});
+                        const value = try self.eval(call.args[0]);
+                        switch (repr) {
+                            .i64 => {
+                                switch (value) {
+                                    .i64 => return value.copy(self.allocator),
+                                    .f64 => |float| {
+                                        if (float == @trunc(float)) {
+                                            return .{ .i64 = @intFromFloat(float) };
+                                        } else {
+                                            return self.fail("Cannot convert {} to {}", .{ value, repr });
+                                        }
+                                    },
+                                    else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+                                }
+                            },
+                            .f64 => {
+                                switch (value) {
+                                    .f64 => return value.copy(self.allocator),
+                                    .i64 => |int| {
+                                        const float = std.math.lossyCast(f64, int);
+                                        if (int == @as(i64, @intFromFloat(float))) {
+                                            return .{ .f64 = float };
+                                        } else {
+                                            return self.fail("Cannot convert {} to {}", .{ value, repr });
+                                        }
+                                    },
+                                    else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+                                }
+                            },
+                            .string => {
+                                switch (value) {
+                                    .string => return value.copy(self.allocator),
+                                    else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+                                }
+                            },
+                            else => return self.fail("TODO", .{}),
+                        }
                     },
                     else => return self.fail("Cannot call {}", .{head}),
                 }
