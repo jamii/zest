@@ -24,6 +24,7 @@ pub const Kind = enum {
     i64,
     f64,
     string,
+    @"struct",
     list,
     map,
     @"fn",
@@ -35,6 +36,7 @@ pub const Value = union(Kind) {
     i64: i64,
     f64: f64,
     string: []u8,
+    @"struct": Struct,
     list: List,
     map: Map,
     @"fn": Fn,
@@ -52,14 +54,20 @@ pub const Value = union(Kind) {
     }
 
     pub fn update(self: Value, hasher: anytype) void {
-        hasher.update(std.mem.asBytes(&std.meta.activeTag(self)));
+        hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
         switch (self) {
             .i64 => |int| hasher.update(std.mem.asBytes(&int)),
             // TODO NaN
             .f64 => |float| hasher.update(std.mem.asBytes(&float)),
             .string => |string| hasher.update(string),
+            .@"struct" => |@"struct"| {
+                for (@"struct".repr.keys, @"struct".values) |key, value| {
+                    key.update(hasher);
+                    value.update(hasher);
+                }
+            },
             .list => |list| {
-                list.elem_repr.update(hasher);
+                list.repr.update(hasher);
                 for (0.., list.elems.items) |key, value| {
                     (Value{ .i64 = @intCast(key) }).update(hasher);
                     value.update(hasher);
@@ -101,6 +109,23 @@ pub const Value = union(Kind) {
             // TODO NaN
             .f64 => return std.math.order(self.f64, other.f64),
             .string => return std.mem.order(u8, self.string, other.string),
+            .@"struct" => {
+                const self_struct = self.@"struct";
+                const other_struct = other.@"struct";
+                for (0..@min(self_struct.repr.keys.len, other_struct.repr.keys.len)) |i| {
+                    switch (self_struct.repr.keys[i].order(other_struct.repr.keys[i])) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                    switch (self_struct.values[i].order(other_struct.values[i])) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                }
+                return .eq;
+            },
             .list => {
                 const self_items = self.list.elems.items;
                 const other_items = other.list.elems.items;
@@ -157,6 +182,18 @@ pub const Value = union(Kind) {
             // TODO NaN
             .f64 => return self.f64 == other.f64,
             .string => return std.mem.eql(u8, self.string, other.string),
+            .@"struct" => {
+                const self_struct = self.@"struct";
+                const other_struct = other.@"struct";
+                if (self_struct.repr.keys.len != other_struct.repr.keys.len) return false;
+                for (self_struct.repr.keys, other_struct.repr.keys) |self_key, other_key| {
+                    if (!self_key.equal(other_key)) return false;
+                }
+                for (self_struct.values, other_struct.values) |self_value, other_value| {
+                    if (!self_value.equal(other_value)) return false;
+                }
+                return true;
+            },
             .list => {
                 const self_list = self.list;
                 const other_list = other.list;
@@ -216,8 +253,20 @@ pub const Value = union(Kind) {
                 }
                 try writer.writeByte('\'');
             },
+            .@"struct" => |@"struct"| {
+                try writer.writeAll("[");
+                var first = true;
+                for (0.., @"struct".repr.keys, @"struct".values) |i, key, value| {
+                    if (!first) try writer.writeAll(", ");
+                    if (key != .i64 or key.i64 != i)
+                        try writer.print("{} = ", .{key});
+                    try writer.print("{}", .{value});
+                    first = false;
+                }
+                try writer.writeAll("]");
+            },
             .list => |list| {
-                try writer.print("{}[", .{Repr{ .list = list.elem_repr }});
+                try writer.print("{}[", .{Repr{ .list = list.repr }});
 
                 try writer.writeAll("[");
                 var first = true;
@@ -285,13 +334,23 @@ pub const Value = union(Kind) {
             .i64 => |int| return .{ .i64 = int },
             .f64 => |float| return .{ .f64 = float },
             .string => |string| return .{ .string = allocator.dupe(u8, string) catch panic("OOM", .{}) },
+            .@"struct" => |@"struct"| {
+                var values_copy = allocator.dupe(Value, @"struct".values) catch panic("OOM", .{});
+                for (values_copy) |*value| {
+                    value.copyInPlace(allocator);
+                }
+                return .{ .@"struct" = .{
+                    .repr = @"struct".repr,
+                    .values = values_copy,
+                } };
+            },
             .list => |list| {
                 var elems_copy = list.elems.clone() catch panic("OOM", .{});
                 for (elems_copy.items) |*elem| {
                     elem.copyInPlace(allocator);
                 }
                 return .{ .list = .{
-                    .elem_repr = list.elem_repr,
+                    .repr = list.repr,
                     .elems = elems_copy,
                 } };
             },
@@ -329,8 +388,13 @@ pub const Value = union(Kind) {
     }
 };
 
+pub const Struct = struct {
+    repr: StructRepr,
+    values: []Value,
+};
+
 pub const List = struct {
-    elem_repr: *Repr,
+    repr: *Repr,
     elems: ArrayList(Value),
 };
 
@@ -352,13 +416,20 @@ pub const Repr = union(enum) {
     i64,
     f64,
     string,
-    list: *Repr,
-    map: [2]*Repr,
+    @"struct": StructRepr,
+    list: ListRepr,
+    map: MapRepr,
 
     pub fn update(self: Repr, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
         switch (self) {
             .i64, .f64, .string => {},
+            .@"struct" => |@"struct"| {
+                for (@"struct".keys, @"struct".reprs) |key, repr| {
+                    key.update(hasher);
+                    repr.update(hasher);
+                }
+            },
             .list => |elem| {
                 elem.update(hasher);
             },
@@ -377,6 +448,23 @@ pub const Repr = union(enum) {
         }
         switch (self) {
             .i64, .f64, .string => return .eq,
+            .@"struct" => {
+                const self_struct = self.@"struct";
+                const other_struct = other.@"struct";
+                for (0..@min(self_struct.keys.len, other_struct.keys.len)) |i| {
+                    switch (self_struct.keys[i].order(other_struct.keys[i])) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                    switch (self_struct.reprs[i].order(other_struct.reprs[i])) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                }
+                return .eq;
+            },
             .list => return self.list.order(other.list.*),
             .map => {
                 switch (self.map[0].order(other.map[0].*)) {
@@ -400,13 +488,33 @@ pub const Repr = union(enum) {
         try writer.writeAll(@tagName(self));
         switch (self) {
             .i64, .f64, .string => {},
+            .@"struct" => |@"struct"| {
+                try writer.writeAll("struct[[");
+                var first = true;
+                for (0.., @"struct".keys, @"struct".reprs) |i, key, repr| {
+                    if (!first) try writer.writeAll(", ");
+                    if (key != .i64 or key.i64 != i)
+                        try writer.print("{} = ", .{key});
+                    try writer.print("{}", .{repr});
+                }
+                try writer.writeAll("]]");
+            },
             .list => |elem| try writer.print("[{}]", .{elem.*}),
             .map => |key_value| try writer.print("[{}, {}]", .{ key_value[0].*, key_value[1].* }),
         }
     }
 };
 
+pub const StructRepr = struct {
+    keys: []Value,
+    reprs: []Repr,
+};
+
+pub const ListRepr = *Repr;
+pub const MapRepr = [2]*Repr;
+
 pub const ReprKind = enum {
+    @"struct",
     list,
     map,
 
@@ -495,6 +603,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 }
                 if (std.mem.eql(u8, name, "string")) {
                     return .{ .repr = .string };
+                }
+                if (std.mem.eql(u8, name, "struct")) {
+                    return .{ .repr_kind = .@"struct" };
                 }
                 if (std.mem.eql(u8, name, "list")) {
                     return .{ .repr_kind = .list };
@@ -638,6 +749,25 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                     },
                     .repr_kind => |repr_kind| {
                         switch (repr_kind) {
+                            .@"struct" => {
+                                if (call.args.len != 1)
+                                    return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
+                                if (call.muts[0] == true)
+                                    return self.fail("Can't pass mut arg to repr", .{});
+                                const object = try self.eval(call.args[0]);
+                                if (object != .@"struct")
+                                    return self.fail("Can't pass {} to {}", .{ object, head });
+                                const reprs = self.allocator.alloc(Repr, object.@"struct".values.len) catch panic("OOM", .{});
+                                for (reprs, object.@"struct".values) |*repr, value| {
+                                    if (value != .repr)
+                                        return self.fail("Can't pass {} to {}", .{ object, head });
+                                    repr.* = value.repr;
+                                }
+                                return .{ .repr = .{ .@"struct" = .{
+                                    .keys = object.@"struct".repr.keys,
+                                    .reprs = reprs,
+                                } } };
+                            },
                             .list => {
                                 if (call.args.len != 1)
                                     return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
@@ -850,20 +980,20 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
         },
-        .list => |elem_repr| {
+        .list => |list_repr| {
             var elems = ArrayList(Value).init(self.allocator);
             switch (value) {
                 .list => |list| {
                     var ix: i64 = 0;
                     for (list.elems.items) |elem| {
-                        elems.append(try self.convert(elem_repr.*, elem)) catch panic("OOM", .{});
+                        elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
                         ix += 1;
                     }
                 },
                 .map => |map| {
                     var ix: i64 = 0;
                     while (map.get(.{ .i64 = ix })) |elem| {
-                        elems.append(try self.convert(elem_repr.*, elem)) catch panic("OOM", .{});
+                        elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
                         ix += 1;
                     }
                     if (map.count() != ix)
@@ -871,7 +1001,7 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 },
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
-            return .{ .list = .{ .elem_repr = elem_repr, .elems = elems } };
+            return .{ .list = .{ .repr = list_repr, .elems = elems } };
         },
         else => return self.fail("TODO", .{}),
     }

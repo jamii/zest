@@ -212,25 +212,25 @@ Strings allow pushing and popping unicode characters.
 Structs are objects with a fixed finite set of keys.
 
 ```
-struct['a' = i64, 'b' = i64]['a' = 0, 'b' = 1]
+struct[['a' = i64, 'b' = i64]][['a' = 0, 'b' = 1]]
 
 ['a' = 0, 'b' = 1]
 ```
 
 ```
-struct['a' = f64, 'b' = i64]['a' = 0, 'b' = 1]
+struct[['a' = f64, 'b' = i64]][['a' = 0, 'b' = 1]]
 
 ['a' = f64[0], 'b' = 1]
 ```
 
 ```
-struct['a' = f64, 'b' = i64]['a' = 0]
+struct[['a' = f64, 'b' = i64]][['a' = 0]]
 
 error
 ```
 
 ```
-struct['a' = f64, 'b' = i64]['a' = 0, 'b' = 1, 'c' = 2]
+struct[['a' = f64, 'b' = i64]][['a' = 0, 'b' = 1, 'c' = 2]]
 
 error
 ```
@@ -238,13 +238,13 @@ error
 The keys are not required to be strings!
 
 ```
-struct[f64, i64][0, 1]
+struct[[f64, i64]][[0, 1]]
 
 [f64[0], 1]
 ```
 
 ```
-struct[['a', 'b'] = string][['a', 'b'] = 'c']
+struct[[['a', 'b'] = string]][[['a', 'b'] = 'c']]
 
 [['a', 'b'] = 'c']
 ```
