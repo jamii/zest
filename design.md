@@ -260,31 +260,31 @@ Structs allow getting and setting keys, but not deleting or adding keys.
 Lists are objects where the keys are consecutive integers beginning with 0 and the values all have the same representation.
 
 ```
-list[f64][]
+list[f64][[]]
 
-list[f64][]
+list[f64][[]]
 ```
 
 ```
-list[f64][0, 1, 2]
+list[f64][[0, 1, 2]]
 
-list[f64][0, 1, 2]
+list[f64][[0, 1, 2]]
 ```
 
 ```
-list[string][0, 1, 2]
-
-error
-```
-
-```
-list[f64]['a' = 'apple']
+list[string][[0, 1, 2]]
 
 error
 ```
 
 ```
-list[f64][1 = 3.14]
+list[f64][['a' = 'apple']]
+
+error
+```
+
+```
+list[f64][[1 = 3.14]]
 
 error
 ```
@@ -300,13 +300,13 @@ Lists allow getting and setting keys, and pushing/popping.
 Maps are objects with any number of entries, where all the keys have the same representation and all the values have the same representation.
 
 ```
-map[i64, string][0 = 'zero', 1 = 'one']
+map[i64, string][[0 = 'zero', 1 = 'one']]
 
-map[i64, string][0 = 'zero', 1 = 'one']
+map[i64, string][[0 = 'zero', 1 = 'one']]
 ```
 
 ```
-map[i64, string][0 = 'zero', 1 = 1]
+map[i64, string][[0 = 'zero', 1 = 1]]
 
 error
 ```
@@ -325,19 +325,19 @@ TODO Make a decision about iteration order. Options:
 A union contains one of a fixed set of representations.
 
 ```
-union[string, i64][i64[42]]
+union[[string, i64]][i64[42]]
 
-union[string, i64][i64[42]]
+union[[string, i64]][i64[42]]
 ```
 
 ```
-union[string, i64]["foo"]
+union[[string, i64]]['foo']
 
-union[string, i64]["foo"]
+union[[string, i64]]['foo']
 ```
 
 ```
-union[string, i64][3.14]
+union[[string, i64]][3.14]
 
 error
 ```
@@ -357,9 +357,9 @@ any[i64[42]]
 ```
 
 ```
-any["foo"]
+any['foo']
 
-any["foo"]
+any['foo']
 ```
 
 Anys are represented by a pointer to a value.
@@ -442,25 +442,25 @@ false
 ```
 
 ```
-["a" = 1, "b" = 2] == ["b" = 2, "a" = 1]
+['a' = 1, 'b' = 2] == ['b' = 2, 'a' = 1]
 
 true
 ```
 
 ```
-["a" = 1, "b" = 2] == ["b" = 100, "a" = 1]
+['a' = 1, 'b' = 2] == ['b' = 100, 'a' = 1]
 
 false
 ```
 
 ```
-["a" = 1, "b" = 2] == ["b" = 2, "a" = 1, "c" = 3]
+['a' = 1, 'b' = 2] == ['b' = 2, 'a' = 1, 'c' = 3]
 
 false
 ```
 
 ```
-["a" = 1, "b" = 2] == map[string, i64]["b" = 2, "a" = 1]
+['a' = 1, 'b' = 2] == map[string, i64]['b' = 2, 'a' = 1]
 
 false
 ```
@@ -486,25 +486,25 @@ true
 ```
 
 ```
-["a" = 1, "b" = 2] ~= ["b" = 2, "a" = 1]
+['a' = 1, 'b' = 2] ~= ['b' = 2, 'a' = 1]
 
 true
 ```
 
 ```
-["a" = 1, "b" = 2] ~= ["b" = 100, "a" = 1]
+['a' = 1, 'b' = 2] ~= ['b' = 100, 'a' = 1]
 
 false
 ```
 
 ```
-["a" = 1, "b" = 2] ~= ["b" = 2, "a" = 1, "c" = 3]
+['a' = 1, 'b' = 2] ~= ['b' = 2, 'a' = 1, 'c' = 3]
 
 false
 ```
 
 ```
-["a" = 1, "b" = 2] ~= map[string, i64]["b" = 2, "a" = 1]
+['a' = 1, 'b' = 2] ~= map[string, i64]['b' = 2, 'a' = 1]
 
 true
 ```
@@ -556,3 +556,5 @@ TODO Using [] for both objects and function calls is probably bad for readabilit
 TODO Is there much point making reprs callable when we have `as`?
 
 TODO Add examples of supported operations.
+
+TODO Calling syntax and destructuring that behaves like objects.

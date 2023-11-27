@@ -24,6 +24,7 @@ pub const Kind = enum {
     i64,
     f64,
     string,
+    list,
     map,
     @"fn",
     repr,
@@ -34,6 +35,7 @@ pub const Value = union(Kind) {
     i64: i64,
     f64: f64,
     string: []u8,
+    list: ArrayList(Value),
     map: Map,
     @"fn": Fn,
     repr: Repr,
@@ -55,6 +57,12 @@ pub const Value = union(Kind) {
             // TODO NaN
             .f64 => |float| hasher.update(std.mem.asBytes(&float)),
             .string => |string| hasher.update(string),
+            .list => |list| {
+                for (0.., list.items) |key, value| {
+                    (Value{ .i64 = @intCast(key) }).update(hasher);
+                    value.update(hasher);
+                }
+            },
             .map => |map| {
                 // TODO Does seed/ordering matter?
                 var iter = map.iterator();
@@ -90,6 +98,20 @@ pub const Value = union(Kind) {
             // TODO NaN
             .f64 => return std.math.order(self.f64, other.f64),
             .string => return std.mem.order(u8, self.string, other.string),
+            .list => {
+                const self_items = self.list.items;
+                const other_items = other.list.items;
+                for (0..@min(self_items.len, other_items.len)) |i| {
+                    const self_elem = self_items[i];
+                    const other_elem = other_items[i];
+                    switch (self_elem.order(other_elem)) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                }
+                return std.math.order(self_items.len, other_items.len);
+            },
             .map => {
                 var self_entries = mapSortedEntries(self.map);
                 defer self_entries.deinit();
@@ -132,6 +154,15 @@ pub const Value = union(Kind) {
             // TODO NaN
             .f64 => return self.f64 == other.f64,
             .string => return std.mem.eql(u8, self.string, other.string),
+            .list => {
+                const self_list = self.list;
+                const other_list = other.list;
+                if (self_list.items.len != other_list.items.len) return false;
+                for (self_list.items, other_list.items) |self_elem, other_elem| {
+                    if (!self_elem.equal(other_elem)) return false;
+                }
+                return true;
+            },
             .map => {
                 const self_map = self.map;
                 const other_map = other.map;
@@ -181,6 +212,19 @@ pub const Value = union(Kind) {
                     }
                 }
                 try writer.writeByte('\'');
+            },
+            .list => |list| {
+                try writer.writeAll("[");
+
+                var first = true;
+
+                for (list.items) |elem| {
+                    if (!first) try writer.writeAll(", ");
+                    try writer.print("{}", .{elem});
+                    first = false;
+                }
+
+                try writer.writeAll("]");
             },
             .map => |map| {
                 try writer.writeAll("[");
@@ -237,6 +281,13 @@ pub const Value = union(Kind) {
             .i64 => |int| return .{ .i64 = int },
             .f64 => |float| return .{ .f64 = float },
             .string => |string| return .{ .string = allocator.dupe(u8, string) catch panic("OOM", .{}) },
+            .list => |list| {
+                var list_copy = list.clone() catch panic("OOM", .{});
+                for (list_copy.items) |*elem| {
+                    elem.copyInPlace(allocator);
+                }
+                return .{ .list = list_copy };
+            },
             .map => |map| {
                 var map_copy = map.cloneWithAllocator(allocator) catch panic("OOM", .{});
                 var iter = map_copy.iterator();
@@ -433,6 +484,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 if (std.mem.eql(u8, name, "string")) {
                     return .{ .repr = .string };
                 }
+                if (std.mem.eql(u8, name, "list")) {
+                    return .{ .repr_kind = .list };
+                }
                 return err;
             }
         },
@@ -477,7 +531,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             const head_expr = self.parser.exprs.items[call.head];
             if (head_expr == .builtin) {
                 if (call.args.len != 2)
-                    return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head_expr });
+                    return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head_expr });
                 const value_a = try self.eval(call.args[0]);
                 const value_b = try self.eval(call.args[1]);
                 switch (head_expr.builtin) {
@@ -501,7 +555,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 switch (head) {
                     .map => |map| {
                         if (call.args.len != 1)
-                            return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
                         if (call.muts[0] == true)
                             return self.fail("Can't pass mut arg to map", .{});
                         const key = try self.eval(call.args[0]);
@@ -509,7 +563,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                     },
                     .@"fn" => |@"fn"| {
                         if (call.args.len != @"fn".params.len)
-                            return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
 
                         for (call.muts, @"fn".muts) |arg_mut, param_mut| {
                             if (arg_mut != param_mut)
@@ -564,43 +618,23 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                     },
                     .repr => |repr| {
                         if (call.args.len != 1)
-                            return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
                         if (call.muts[0] == true)
                             return self.fail("Can't pass mut arg to repr", .{});
                         const value = try self.eval(call.args[0]);
-                        switch (repr) {
-                            .i64 => {
-                                switch (value) {
-                                    .i64 => return value.copy(self.allocator),
-                                    .f64 => |float| {
-                                        if (float == @trunc(float)) {
-                                            return .{ .i64 = @intFromFloat(float) };
-                                        } else {
-                                            return self.fail("Cannot convert {} to {}", .{ value, repr });
-                                        }
-                                    },
-                                    else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
-                                }
-                            },
-                            .f64 => {
-                                switch (value) {
-                                    .f64 => return value.copy(self.allocator),
-                                    .i64 => |int| {
-                                        const float = std.math.lossyCast(f64, int);
-                                        if (int == @as(i64, @intFromFloat(float))) {
-                                            return .{ .f64 = float };
-                                        } else {
-                                            return self.fail("Cannot convert {} to {}", .{ value, repr });
-                                        }
-                                    },
-                                    else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
-                                }
-                            },
-                            .string => {
-                                switch (value) {
-                                    .string => return value.copy(self.allocator),
-                                    else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
-                                }
+                        return self.convert(repr, value);
+                    },
+                    .repr_kind => |repr_kind| {
+                        switch (repr_kind) {
+                            .list => {
+                                if (call.args.len != 1)
+                                    return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
+                                if (call.muts[0] == true)
+                                    return self.fail("Can't pass mut arg to repr", .{});
+                                const elem = try self.eval(call.args[0]);
+                                if (elem != .repr)
+                                    return self.fail("Can't pass {} to {}", .{ elem, head });
+                                return .{ .repr = .{ .list = box(self.allocator, elem.repr) } };
                             },
                             else => return self.fail("TODO", .{}),
                         }
@@ -727,7 +761,7 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
             switch (head.*) {
                 .map => |*map| {
                     if (call.args.len != 1)
-                        return self.fail("Wrong f64 of arguments ({}) to {}", .{ call.args.len, head });
+                        return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
                     if (call.muts[0] == true)
                         return self.fail("Can't pass mut arg to map", .{});
                     const key = try self.eval(call.args[0]);
@@ -769,7 +803,77 @@ fn lookup(self: *Self, name: []const u8) error{SemantalyzeError}!*Binding {
     return self.fail("Undefined variable: {s}", .{name});
 }
 
+fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value {
+    switch (repr) {
+        .i64 => {
+            switch (value) {
+                .i64 => return value.copy(self.allocator),
+                .f64 => |float| {
+                    if (float == @trunc(float)) {
+                        return .{ .i64 = @intFromFloat(float) };
+                    } else {
+                        return self.fail("Cannot convert {} to {}", .{ value, repr });
+                    }
+                },
+                else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+            }
+        },
+        .f64 => {
+            switch (value) {
+                .f64 => return value.copy(self.allocator),
+                .i64 => |int| {
+                    const float = std.math.lossyCast(f64, int);
+                    if (int == @as(i64, @intFromFloat(float))) {
+                        return .{ .f64 = float };
+                    } else {
+                        return self.fail("Cannot convert {} to {}", .{ value, repr });
+                    }
+                },
+                else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+            }
+        },
+        .string => {
+            switch (value) {
+                .string => return value.copy(self.allocator),
+                else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+            }
+        },
+        .list => |elem_repr| {
+            switch (value) {
+                .list => |list| {
+                    var ix: i64 = 0;
+                    var elems = ArrayList(Value).init(self.allocator);
+                    for (list.items) |elem| {
+                        elems.append(try self.convert(elem_repr.*, elem)) catch panic("OOM", .{});
+                        ix += 1;
+                    }
+                    return .{ .list = elems };
+                },
+                .map => |map| {
+                    var ix: i64 = 0;
+                    var elems = ArrayList(Value).init(self.allocator);
+                    while (map.get(.{ .i64 = ix })) |elem| {
+                        elems.append(try self.convert(elem_repr.*, elem)) catch panic("OOM", .{});
+                        ix += 1;
+                    }
+                    if (map.count() != ix)
+                        return self.fail("Cannot convert {} to {}", .{ value, repr });
+                    return .{ .list = elems };
+                },
+                else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+            }
+        },
+        else => return self.fail("TODO", .{}),
+    }
+}
+
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{SemantalyzeError} {
     self.error_message = std.fmt.allocPrint(self.allocator, message, args) catch panic("OOM", .{});
     return error.SemantalyzeError;
+}
+
+fn box(allocator: Allocator, value: anytype) *@TypeOf(value) {
+    const value_ptr = allocator.create(@TypeOf(value)) catch panic("OOM", .{});
+    value_ptr.* = value;
+    return value_ptr;
 }
