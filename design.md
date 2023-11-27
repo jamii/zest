@@ -220,19 +220,19 @@ struct[['a' = i64, 'b' = i64]][['a' = 0, 'b' = 1]]
 ```
 struct[['a' = f64, 'b' = i64]][['a' = 0, 'b' = 1]]
 
-['a' = f64[0], 'b' = 1]
+['a' = 0.0, 'b' = 1]
 ```
 
 ```
 struct[['a' = f64, 'b' = i64]][['a' = 0]]
 
-error
+Cannot convert ['a' = 0] to struct[['a' = f64, 'b' = i64]]
 ```
 
 ```
 struct[['a' = f64, 'b' = i64]][['a' = 0, 'b' = 1, 'c' = 2]]
 
-error
+Cannot convert ['a' = 0, 'b' = 1, 'c' = 2] to struct[['a' = f64, 'b' = i64]]
 ```
 
 The keys are not required to be strings!
@@ -240,7 +240,7 @@ The keys are not required to be strings!
 ```
 struct[[f64, i64]][[0, 1]]
 
-[f64[0], 1]
+[0.0, 1]
 ```
 
 ```

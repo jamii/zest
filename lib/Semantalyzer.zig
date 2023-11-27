@@ -503,13 +503,14 @@ pub const Repr = union(enum) {
         switch (self) {
             .i64, .f64, .string => {},
             .@"struct" => |@"struct"| {
-                try writer.writeAll("struct[[");
+                try writer.writeAll("[[");
                 var first = true;
                 for (0.., @"struct".keys, @"struct".reprs) |i, key, repr| {
                     if (!first) try writer.writeAll(", ");
                     if (key != .i64 or key.i64 != i)
                         try writer.print("{} = ", .{key});
                     try writer.print("{}", .{repr});
+                    first = false;
                 }
                 try writer.writeAll("]]");
             },
@@ -1037,6 +1038,24 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 .string => return value.copy(self.allocator),
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
+        },
+        .@"struct" => |struct_repr| {
+            const values = self.allocator.alloc(Value, struct_repr.keys.len) catch panic("OOM", .{});
+            switch (value) {
+                .@"struct" => |@"struct"| {
+                    if (struct_repr.keys.len != @"struct".repr.keys.len)
+                        return self.fail("Cannot convert {} to {}", .{ value, repr });
+                    for (struct_repr.keys, @"struct".repr.keys) |repr_key, key| {
+                        if (!repr_key.equal(key))
+                            return self.fail("Cannot convert {} to {}", .{ value, repr });
+                    }
+                    for (values, @"struct".values, struct_repr.reprs) |*value_new, value_old, repr_new| {
+                        value_new.* = try self.convert(repr_new, value_old);
+                    }
+                },
+                else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+            }
+            return .{ .@"struct" = .{ .repr = struct_repr, .values = values } };
         },
         .list => |list_repr| {
             var elems = ArrayList(Value).init(self.allocator);
