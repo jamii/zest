@@ -386,6 +386,20 @@ pub const Value = union(Kind) {
         const value = self.copy(allocator);
         self.* = value;
     }
+
+    pub fn reprOf(self: Value) Repr {
+        switch (self) {
+            .i64 => return .i64,
+            .f64 => return .f64,
+            .string => return .string,
+            .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
+            .list => |list| return .{ .list = list.repr },
+            .map => return .i64, // TODO, // |map| return .{ .map = map.repr },
+            .@"fn" => return .i64, // TODO,
+            .repr => return .i64, // TODO,
+            .repr_kind => return .i64, // TODO,
+        }
+    }
 };
 
 pub const Struct = struct {
@@ -579,14 +593,58 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         .f64 => |float| return .{ .f64 = float },
         .string => |string| return .{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
         .object => |object_expr| {
-            var map = Map.init(self.allocator);
-            for (object_expr.keys, object_expr.values) |key_id, value_id| {
-                const key = try self.eval(key_id);
-                const value = try self.eval(value_id);
-                const prev = map.fetchPut(key, value) catch panic("OOM", .{});
-                if (prev) |_| return self.fail("Duplicate key in map literal: {}", .{key});
+            var keys = self.allocator.alloc(Value, object_expr.keys.len) catch panic("OOM", .{});
+            var values = self.allocator.alloc(Value, object_expr.values.len) catch panic("OOM", .{});
+            var reprs = self.allocator.alloc(Repr, object_expr.values.len) catch panic("OOM", .{});
+            for (keys, values, reprs, object_expr.keys, object_expr.values) |*key, *value, *repr, key_id, value_id| {
+                key.* = try self.eval(key_id);
+                value.* = try self.eval(value_id);
+                repr.* = value.reprOf();
             }
-            return .{ .map = map };
+            const struct_unsorted = Value{ .@"struct" = .{
+                .repr = .{
+                    .keys = keys,
+                    .reprs = reprs,
+                },
+                .values = values,
+            } };
+            var ixes = self.allocator.alloc(usize, keys.len) catch panic("OOM", .{});
+            for (ixes, 0..) |*ix, i| {
+                ix.* = i;
+            }
+            std.sort.heap(usize, ixes, struct_unsorted, (struct {
+                fn lessThan(context: Value, a: usize, b: usize) bool {
+                    switch (context.@"struct".repr.keys[a].order(context.@"struct".repr.keys[b])) {
+                        .lt => return true,
+                        .gt => return false,
+                        .eq => {},
+                    }
+                    switch (context.@"struct".values[a].order(context.@"struct".values[b])) {
+                        .lt => return true,
+                        .gt => return false,
+                        .eq => {},
+                    }
+                    return false;
+                }
+            }).lessThan);
+            const struct_sorted = Value{ .@"struct" = .{
+                .repr = .{
+                    .keys = permute(self.allocator, ixes, Value, struct_unsorted.@"struct".repr.keys),
+                    .reprs = permute(self.allocator, ixes, Repr, struct_unsorted.@"struct".repr.reprs),
+                },
+                .values = permute(self.allocator, ixes, Value, struct_unsorted.@"struct".values),
+            } };
+            {
+                const sorted_keys = struct_sorted.@"struct".repr.keys;
+                if (sorted_keys.len > 1) {
+                    for (1..sorted_keys.len) |i| {
+                        if (sorted_keys[i - 1].equal(sorted_keys[i])) {
+                            return self.fail("Duplicate key in map literal: {}", .{sorted_keys[i]});
+                        }
+                    }
+                }
+            }
+            return struct_sorted;
         },
         .builtin => {
             panic("Direct eval of builtin should be unreachable", .{});
@@ -1016,4 +1074,12 @@ fn box(allocator: Allocator, value: anytype) *@TypeOf(value) {
     const value_ptr = allocator.create(@TypeOf(value)) catch panic("OOM", .{});
     value_ptr.* = value;
     return value_ptr;
+}
+
+fn permute(allocator: Allocator, ixes: []const usize, comptime T: type, things: []T) []T {
+    const things_copy = allocator.dupe(T, things) catch panic("OOM", .{});
+    for (things_copy, ixes) |*thing, ix| {
+        thing.* = things[ix];
+    }
+    return things_copy;
 }
