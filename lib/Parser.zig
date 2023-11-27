@@ -200,7 +200,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
         .@"[" => {
             var keys = ArrayList(ExprId).init(self.allocator);
             var values = ArrayList(ExprId).init(self.allocator);
-            var key_ix: ?f64 = 0;
+            var key_ix: ?i64 = 0;
             while (true) {
                 if (self.peek() == .@"]") break;
                 var key = try self.parseExpr1();
@@ -216,7 +216,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     if (key_ix == null)
                         return self.fail("Positional elems must be before key/value elems", .{});
                     value = key;
-                    key = self.expr(.{ .f64 = key_ix.? });
+                    key = self.expr(.{ .i64 = key_ix.? });
                     key_ix.? += 1;
                 }
                 keys.append(key) catch panic("OOM", .{});

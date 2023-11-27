@@ -187,9 +187,9 @@ pub const Value = union(Kind) {
 
                 var first = true;
 
-                var ix: f64 = 0;
+                var ix: i64 = 0;
                 while (true) : (ix += 1) {
-                    if (map.get(.{ .f64 = ix })) |value| {
+                    if (map.get(.{ .i64 = ix })) |value| {
                         if (!first) try writer.writeAll(", ");
                         try writer.print("{}", .{value});
                         first = false;
@@ -203,10 +203,9 @@ pub const Value = union(Kind) {
 
                 for (entries.items) |entry| {
                     const key = entry.key_ptr.*;
-                    if (key == .f64 and
-                        key.f64 == @trunc(key.f64) and
-                        @trunc(key.f64) >= 0 and
-                        @trunc(key.f64) < ix)
+                    if (key == .i64 and
+                        key.i64 >= 0 and
+                        key.i64 < ix)
                         // Already printed this one.
                         continue;
                     if (!first) try writer.writeAll(", ");

@@ -40,8 +40,8 @@ fn run(
         //    std.debug.print("{any}\n\n", .{tokenizer.tokens.items});
         //if (baton.parser) |parser|
         //    std.debug.print("{any}\n\n", .{parser.exprs.items});
-        if (@errorReturnTrace()) |trace|
-            std.debug.dumpStackTrace(trace.*);
+        //if (@errorReturnTrace()) |trace|
+        //    std.debug.dumpStackTrace(trace.*);
         return switch (err) {
             error.TokenizeError => baton.tokenizer.?.error_message.?,
             error.ParseError => baton.parser.?.error_message.?,
