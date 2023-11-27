@@ -20,7 +20,7 @@ pub const Expr = union(enum) {
     i64: i64,
     f64: f64,
     string: []const u8,
-    map: struct {
+    object: struct {
         keys: []ExprId,
         values: []ExprId,
     },
@@ -55,7 +55,7 @@ pub const Expr = union(enum) {
         args: []ExprId,
     },
     get_static: struct {
-        map: ExprId,
+        object: ExprId,
         key: StaticKey,
     },
     exprs: []ExprId,
@@ -145,7 +145,7 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
                     else => |other_token| return self.fail("Expected name/string/number, found {}", .{other_token}),
                 };
                 head = self.expr(.{ .get_static = .{
-                    .map = head,
+                    .object = head,
                     .key = static_key,
                 } });
             },
@@ -224,7 +224,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                 if (!self.takeIf(.@",")) break;
             }
             try self.expect(.@"]");
-            return self.expr(.{ .map = .{
+            return self.expr(.{ .object = .{
                 .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
                 .values = values.toOwnedSlice() catch panic("OOM", .{}),
             } });

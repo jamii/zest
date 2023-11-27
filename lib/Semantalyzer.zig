@@ -578,9 +578,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         .i64 => |int| return .{ .i64 = int },
         .f64 => |float| return .{ .f64 = float },
         .string => |string| return .{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
-        .map => |map_expr| {
+        .object => |object_expr| {
             var map = Map.init(self.allocator);
-            for (map_expr.keys, map_expr.values) |key_id, value_id| {
+            for (object_expr.keys, object_expr.values) |key_id, value_id| {
                 const key = try self.eval(key_id);
                 const value = try self.eval(value_id);
                 const prev = map.fetchPut(key, value) catch panic("OOM", .{});
@@ -786,7 +786,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             }
         },
         .get_static => |get_static| {
-            const value = try self.eval(get_static.map);
+            const value = try self.eval(get_static.object);
             if (value != .map) return self.fail("Cannot get key from non-map {}", .{value});
             const key = switch (get_static.key) {
                 .i64 => |int| Value{ .i64 = int },
@@ -810,9 +810,9 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64, .f64, .string, .builtin => {},
-        .map => |map| {
-            for (map.keys) |key| try self.capture(key, captures, locals);
-            for (map.values) |value| try self.capture(value, captures, locals);
+        .object => |object| {
+            for (object.keys) |key| try self.capture(key, captures, locals);
+            for (object.values) |value| try self.capture(value, captures, locals);
         },
         .name => |name| {
             for (locals.items) |local| {
@@ -864,7 +864,7 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
             }
         },
         .get_static => |get_static| {
-            try self.capture(get_static.map, captures, locals);
+            try self.capture(get_static.object, captures, locals);
         },
         .exprs => |exprs| {
             const locals_len = locals.items.len;
@@ -913,7 +913,7 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
             }
         },
         .get_static => |get_static| {
-            const value = try self.evalPath(get_static.map);
+            const value = try self.evalPath(get_static.object);
             if (value.* != .map) return self.fail("Cannot get key from non-map {}", .{value});
             const key = switch (get_static.key) {
                 .i64 => |int| Value{ .i64 = int },
