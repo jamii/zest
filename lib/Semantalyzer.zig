@@ -206,11 +206,11 @@ pub const Value = union(Kind) {
             .map => {
                 const self_map = self.map;
                 const other_map = other.map;
-                if (self_map.count() != other_map.count()) return false;
-                var iter = self_map.iterator();
+                if (self_map.entries.count() != other_map.entries.count()) return false;
+                var iter = self_map.entries.iterator();
                 while (iter.next()) |entry| {
                     const self_key = entry.key_ptr.*;
-                    const other_key = other_map.get(self_key) orelse return false;
+                    const other_key = other_map.entries.get(self_key) orelse return false;
                     if (!self_key.equal(other_key)) return false;
                 }
                 return true;
@@ -286,7 +286,7 @@ pub const Value = union(Kind) {
 
                 var ix: i64 = 0;
                 while (true) : (ix += 1) {
-                    if (map.get(.{ .i64 = ix })) |value| {
+                    if (map.entries.get(.{ .i64 = ix })) |value| {
                         if (!first) try writer.writeAll(", ");
                         try writer.print("{}", .{value});
                         first = false;
@@ -355,13 +355,13 @@ pub const Value = union(Kind) {
                 } };
             },
             .map => |map| {
-                var map_copy = map.cloneWithAllocator(allocator) catch panic("OOM", .{});
-                var iter = map_copy.iterator();
+                var entries_copy = map.entries.cloneWithAllocator(allocator) catch panic("OOM", .{});
+                var iter = entries_copy.iterator();
                 while (iter.next()) |entry| {
                     entry.key_ptr.copyInPlace(allocator);
                     entry.value_ptr.copyInPlace(allocator);
                 }
-                return .{ .map = map_copy };
+                return .{ .map = .{ .repr = map.repr, .entries = entries_copy } };
             },
             .@"fn" => |@"fn"| {
                 // TODO Wait for std.ArrayList.cloneWithAllocator to exist.
@@ -408,11 +408,16 @@ pub const Struct = struct {
 };
 
 pub const List = struct {
-    repr: *Repr,
+    repr: ListRepr,
     elems: ArrayList(Value),
 };
 
-pub const Map = std.HashMap(
+pub const Map = struct {
+    repr: MapRepr,
+    entries: ValueHashMap,
+};
+
+pub const ValueHashMap = std.HashMap(
     Value,
     Value,
     struct {
@@ -549,17 +554,17 @@ pub const ReprKind = enum {
 };
 
 // TODO This is stupid expensive. Cache it somewhere.
-fn mapSortedEntries(map: Map) ArrayList(Map.Entry) {
-    var entries = ArrayList(Map.Entry).initCapacity(map.allocator, map.count()) catch panic("OOM", .{});
+fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
+    var entries = ArrayList(ValueHashMap.Entry).initCapacity(map.entries.allocator, map.entries.count()) catch panic("OOM", .{});
     errdefer entries.deinit();
 
-    var iter = map.iterator();
+    var iter = map.entries.iterator();
     while (iter.next()) |entry| {
         entries.appendAssumeCapacity(entry);
     }
 
-    std.sort.heap(Map.Entry, entries.items, {}, (struct {
-        fn lessThan(_: void, a: Map.Entry, b: Map.Entry) bool {
+    std.sort.heap(ValueHashMap.Entry, entries.items, {}, (struct {
+        fn lessThan(_: void, a: ValueHashMap.Entry, b: ValueHashMap.Entry) bool {
             return a.key_ptr.order(b.key_ptr.*) == .lt;
         }
     }).lessThan);
@@ -936,7 +941,7 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
 }
 
 fn mapGet(self: *Self, map: Map, key: Value) error{SemantalyzeError}!*Value {
-    if (map.getPtr(key)) |value| {
+    if (map.entries.getPtr(key)) |value| {
         return value;
     } else {
         return self.fail("Key {} not found in {}", .{ key, Value{ .map = map } });
@@ -1073,8 +1078,8 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                     }
                 },
                 .map => |map| {
-                    for (0..map.count()) |ix| {
-                        const elem = map.get(.{ .i64 = @intCast(ix) }) orelse
+                    for (0..map.entries.count()) |ix| {
+                        const elem = map.entries.get(.{ .i64 = @intCast(ix) }) orelse
                             return self.fail("Cannot convert {} to {}", .{ value, repr });
                         elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
                     }
