@@ -174,6 +174,8 @@ f64[42]
 42.0
 ```
 
+TODO Represent literals as big-int/big-dec to avoid this problem.
+
 ```
 f64[9223372036854775808]
 
