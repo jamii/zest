@@ -155,17 +155,35 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     self.token_ix -= 1;
                     break;
                 }
-                var muts = ArrayList(bool).init(self.allocator);
-                var args = ArrayList(ExprId).init(self.allocator);
-                while (true) {
-                    if (self.peek() == .@"]") break;
-                    muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
-                    args.append(try self.parseExpr1()) catch panic("OOM", .{});
-                    if (!self.takeIf(.@",")) break;
-                }
-                try self.expect(.@"]");
+                self.token_ix -= 1;
+                const call = try self.parseCall();
                 head = self.expr(.{ .call = .{
                     .head = head,
+                    .muts = call.muts,
+                    .args = call.args,
+                } });
+            },
+            .@"/" => {
+                if (self.prevToken() == .whitespace) {
+                    // `foo / bar` is a division, not a call
+                    self.token_ix -= 1;
+                    break;
+                }
+                const actual_head = try self.parseExpr3();
+
+                var muts = ArrayList(bool).init(self.allocator);
+                var args = ArrayList(ExprId).init(self.allocator);
+                muts.append(false) catch panic("OOM", .{}); // TODO Do we want to allow implicit mut?
+                args.append(head) catch panic("OOM", .{});
+
+                if (self.peek() == .@"[") {
+                    const call = try self.parseCall();
+                    muts.appendSlice(call.muts) catch panic("OOM", .{});
+                    args.appendSlice(call.args) catch panic("OOM", .{});
+                }
+
+                head = self.expr(.{ .call = .{
+                    .head = actual_head,
                     .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
                     .args = args.toOwnedSlice() catch panic("OOM", .{}),
                 } });
@@ -350,6 +368,27 @@ fn parseString(self: *Self, text: []const u8) ![]u8 {
     }
     assert(escaped == false);
     return chars.toOwnedSlice() catch panic("OOM", .{});
+}
+
+const Call = struct {
+    muts: []bool,
+    args: []ExprId,
+};
+fn parseCall(self: *Self) !Call {
+    try self.expect(.@"[");
+    var muts = ArrayList(bool).init(self.allocator);
+    var args = ArrayList(ExprId).init(self.allocator);
+    while (true) {
+        if (self.peek() == .@"]") break;
+        muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
+        args.append(try self.parseExpr1()) catch panic("OOM", .{});
+        if (!self.takeIf(.@",")) break;
+    }
+    try self.expect(.@"]");
+    return Call{
+        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
+        .args = args.toOwnedSlice() catch panic("OOM", .{}),
+    };
 }
 
 fn prevToken(self: *Self) Token {
