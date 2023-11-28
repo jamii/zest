@@ -1060,21 +1060,24 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
         .list => |list_repr| {
             var elems = ArrayList(Value).init(self.allocator);
             switch (value) {
+                .@"struct" => |@"struct"| {
+                    for (0.., @"struct".repr.keys, @"struct".values) |ix, key, elem| {
+                        if (key != .i64 or key.i64 != ix)
+                            return self.fail("Cannot convert {} to {}", .{ value, repr });
+                        elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
+                    }
+                },
                 .list => |list| {
-                    var ix: i64 = 0;
                     for (list.elems.items) |elem| {
                         elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
-                        ix += 1;
                     }
                 },
                 .map => |map| {
-                    var ix: i64 = 0;
-                    while (map.get(.{ .i64 = ix })) |elem| {
+                    for (0..map.count()) |ix| {
+                        const elem = map.get(.{ .i64 = @intCast(ix) }) orelse
+                            return self.fail("Cannot convert {} to {}", .{ value, repr });
                         elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
-                        ix += 1;
                     }
-                    if (map.count() != ix)
-                        return self.fail("Cannot convert {} to {}", .{ value, repr });
                 },
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
