@@ -256,10 +256,13 @@ pub const Value = union(Kind) {
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var first = true;
+                var positional = true;
                 for (0.., @"struct".repr.keys, @"struct".values) |i, key, value| {
                     if (!first) try writer.writeAll(", ");
-                    if (key != .i64 or key.i64 != i)
+                    if (!positional or key != .i64 or key.i64 != i) {
                         try writer.print("{} = ", .{key});
+                        positional = false;
+                    }
                     try writer.print("{}", .{value});
                     first = false;
                 }
@@ -280,35 +283,21 @@ pub const Value = union(Kind) {
                 try writer.writeAll("]");
             },
             .map => |map| {
+                try writer.print("{}[", .{Repr{ .map = map.repr }});
+
                 try writer.writeAll("[");
-
-                var first = true;
-
-                var ix: i64 = 0;
-                while (true) : (ix += 1) {
-                    if (map.entries.get(.{ .i64 = ix })) |value| {
-                        if (!first) try writer.writeAll(", ");
-                        try writer.print("{}", .{value});
-                        first = false;
-                    } else {
-                        break;
-                    }
-                }
 
                 const entries = mapSortedEntries(map);
                 defer entries.deinit();
 
+                var first = true;
                 for (entries.items) |entry| {
-                    const key = entry.key_ptr.*;
-                    if (key == .i64 and
-                        key.i64 >= 0 and
-                        key.i64 < ix)
-                        // Already printed this one.
-                        continue;
                     if (!first) try writer.writeAll(", ");
                     try writer.print("{} = {}", .{ entry.key_ptr.*, entry.value_ptr.* });
                     first = false;
                 }
+
+                try writer.writeAll("]");
 
                 try writer.writeAll("]");
             },
@@ -674,6 +663,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 if (std.mem.eql(u8, name, "list")) {
                     return .{ .repr_kind = .list };
                 }
+                if (std.mem.eql(u8, name, "map")) {
+                    return .{ .repr_kind = .map };
+                }
                 return err;
             }
         },
@@ -842,7 +834,21 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                                     return self.fail("Can't pass {} to {}", .{ elem, head });
                                 return .{ .repr = .{ .list = box(self.allocator, elem.repr) } };
                             },
-                            else => return self.fail("TODO", .{}),
+                            .map => {
+                                if (call.args.len != 2)
+                                    return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
+                                if (call.muts[0] == true)
+                                    return self.fail("Can't pass mut arg to repr", .{});
+                                if (call.muts[1] == true)
+                                    return self.fail("Can't pass mut arg to repr", .{});
+                                const key = try self.eval(call.args[0]);
+                                const value = try self.eval(call.args[1]);
+                                if (key != .repr)
+                                    return self.fail("Can't pass {} to {}", .{ key, head });
+                                if (value != .repr)
+                                    return self.fail("Can't pass {} to {}", .{ value, head });
+                                return .{ .repr = .{ .map = .{ box(self.allocator, key.repr), box(self.allocator, value.repr) } } };
+                            },
                         }
                     },
                     else => return self.fail("Cannot call {}", .{head}),
@@ -1088,7 +1094,38 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
             }
             return .{ .list = .{ .repr = list_repr, .elems = elems } };
         },
-        else => return self.fail("TODO", .{}),
+        .map => |map_repr| {
+            var entries = ValueHashMap.init(self.allocator);
+            switch (value) {
+                .@"struct" => |@"struct"| {
+                    for (@"struct".repr.keys, @"struct".values) |key, val| {
+                        entries.putNoClobber(
+                            try self.convert(map_repr[0].*, key),
+                            try self.convert(map_repr[1].*, val),
+                        ) catch panic("OOM", .{});
+                    }
+                },
+                .list => |list| {
+                    for (0.., list.elems.items) |ix, elem| {
+                        entries.putNoClobber(
+                            try self.convert(map_repr[0].*, .{ .i64 = @intCast(ix) }),
+                            try self.convert(map_repr[1].*, elem),
+                        ) catch panic("OOM", .{});
+                    }
+                },
+                .map => |map| {
+                    var iter = map.entries.iterator();
+                    while (iter.next()) |entry| {
+                        entries.putNoClobber(
+                            try self.convert(map_repr[0].*, entry.key_ptr.*),
+                            try self.convert(map_repr[1].*, entry.value_ptr.*),
+                        ) catch panic("OOM", .{});
+                    }
+                },
+                else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
+            }
+            return .{ .map = .{ .repr = map_repr, .entries = entries } };
+        },
     }
 }
 

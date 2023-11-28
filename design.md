@@ -308,7 +308,7 @@ map[i64, string][[0 = 'zero', 1 = 'one']]
 ```
 map[i64, string][[0 = 'zero', 1 = 1]]
 
-error
+Cannot convert 1 to string
 ```
 
 Maps are hashtables. Keys and values are stored inline.
