@@ -351,9 +351,9 @@ Unions support asking for the representation of their value and casting the valu
 An any can represent any notation.
 
 ```
-any[i64[42]]
+any[42]
 
-any[i64[42]]
+any[42]
 ```
 
 ```

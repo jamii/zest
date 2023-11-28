@@ -28,6 +28,7 @@ pub const Kind = enum {
     list,
     map,
     @"union",
+    any,
     @"fn",
     repr,
     repr_kind,
@@ -41,6 +42,7 @@ pub const Value = union(Kind) {
     list: List,
     map: Map,
     @"union": Union,
+    any: *Value,
     @"fn": Fn,
     repr: Repr,
     repr_kind: ReprKind,
@@ -87,6 +89,9 @@ pub const Value = union(Kind) {
             .@"union" => |@"union"| {
                 @"union".value.update(hasher);
             },
+            .any => |value| {
+                value.update(hasher);
+            },
             .@"fn" => |@"fn"| {
                 for (@"fn".captures.items) |binding| {
                     // For a given `@"fn".body`, the names in the bindings should always be the same.
@@ -104,7 +109,7 @@ pub const Value = union(Kind) {
     }
 
     pub fn order(self: Value, other: Value) std.math.Order {
-        switch (std.math.order(@intFromEnum(self.kind()), @intFromEnum(other.kind()))) {
+        switch (self.reprOf().order(other.reprOf())) {
             .lt => return .lt,
             .gt => return .gt,
             .eq => {},
@@ -178,6 +183,9 @@ pub const Value = union(Kind) {
                 }
                 return self.@"union".value.order(other.@"union".value.*);
             },
+            .any => {
+                return self.any.order(other.any.*);
+            },
             .@"fn" => {
                 panic("TODO", .{});
             },
@@ -232,6 +240,9 @@ pub const Value = union(Kind) {
             },
             .@"union" => {
                 return self.@"union".value.equal(other.@"union".value.*);
+            },
+            .any => {
+                return self.any.equal(other.any.*);
             },
             .@"fn" => {
                 const self_fn = self.@"fn";
@@ -322,6 +333,9 @@ pub const Value = union(Kind) {
             .@"union" => |@"union"| {
                 try writer.print("{}[{}]", .{ Repr{ .@"union" = @"union".repr }, @"union".value.* });
             },
+            .any => |value| {
+                try writer.print("{}[{}]", .{ Repr{ .any = {} }, value.* });
+            },
             .@"fn" => |@"fn"| {
                 // TODO print something parseable
                 try writer.print("fn[{}", .{@"fn".body});
@@ -373,6 +387,9 @@ pub const Value = union(Kind) {
                 }
                 return .{ .map = .{ .repr = map.repr, .entries = entries_copy } };
             },
+            .any => |value| {
+                return .{ .any = box(allocator, value.copy(allocator)) };
+            },
             .@"union" => |@"union"| {
                 const value_copy = @"union".value.copy(allocator);
                 return .{ .@"union" = .{ .repr = @"union".repr, .tag = @"union".tag, .value = box(allocator, value_copy) } };
@@ -410,6 +427,7 @@ pub const Value = union(Kind) {
             .list => |list| return .{ .list = list.repr },
             .map => |map| return .{ .map = map.repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
+            .any => return .any,
             .@"fn" => return .i64, // TODO,
             .repr => return .i64, // TODO,
             .repr_kind => return .i64, // TODO,
@@ -459,12 +477,13 @@ pub const Repr = union(enum) {
     @"struct": StructRepr,
     list: ListRepr,
     map: MapRepr,
+    any,
     @"union": UnionRepr,
 
     pub fn update(self: Repr, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
         switch (self) {
-            .i64, .f64, .string => {},
+            .i64, .f64, .string, .any => {},
             .@"struct" => |@"struct"| {
                 for (@"struct".keys, @"struct".reprs) |key, repr| {
                     key.update(hasher);
@@ -493,7 +512,7 @@ pub const Repr = union(enum) {
             .eq => {},
         }
         switch (self) {
-            .i64, .f64, .string => return .eq,
+            .i64, .f64, .string, .any => return .eq,
             .@"struct" => {
                 const self_struct = self.@"struct";
                 const other_struct = other.@"struct";
@@ -545,7 +564,7 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.writeAll(@tagName(self));
         switch (self) {
-            .i64, .f64, .string => {},
+            .i64, .f64, .string, .any => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[[");
                 var first = true;
@@ -730,6 +749,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 }
                 if (std.mem.eql(u8, name, "union")) {
                     return .{ .repr_kind = .@"union" };
+                }
+                if (std.mem.eql(u8, name, "any")) {
+                    return .{ .repr = .any };
                 }
                 return err;
             }
@@ -1215,6 +1237,9 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 }
             }
             return self.fail("Cannot convert {} to {}", .{ value, repr });
+        },
+        .any => {
+            return .{ .any = box(self.allocator, value) };
         },
     }
 }
