@@ -820,6 +820,14 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const value_b = try self.eval(call.args[1]);
                 switch (head_expr.builtin) {
                     .equal => return fromBool(value_a.equal(value_b)),
+                    .equivalent => {
+                        if (self.convert(value_a.reprOf(), value_b)) |value_b_ish| {
+                            return fromBool(value_a.equal(value_b_ish));
+                        } else |_| {
+                            // Assuming convert is correct, there is no way to represent the notation of value_b in the repr of value_a, so they can't possibly have the same notation.
+                            return fromBool(false);
+                        }
+                    },
                     .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => panic("TODO", .{}),
                     .add, .subtract, .multiply, .divide => {
                         if (value_a != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, value_a });

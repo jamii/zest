@@ -31,6 +31,7 @@ pub const Token = enum {
     @";",
     @"=",
     @"==",
+    @"~=",
     @"<",
     @"<=",
     @">",
@@ -75,6 +76,14 @@ pub fn tokenize(self: *Self) !void {
                     break :token Token.@"==";
                 } else {
                     break :token Token.@"=";
+                }
+            },
+            '~' => token: {
+                if (i < source.len and source[i] == '=') {
+                    i += 1;
+                    break :token Token.@"~=";
+                } else {
+                    return self.fail(start);
                 }
             },
             '<' => token: {
