@@ -2,7 +2,7 @@
 
 Encoded as utf8.
 
-TODO Booleans. Encode as union[[only["true"], only["false"]], but with builtin sugar.
+TODO Booleans. Encode as union[[only["1"], only["0"]], but with builtin sugar.
 
 ### numbers
 
@@ -422,43 +422,43 @@ TODO Should it be a compile error to compare different reprs?
 ```
 i64[42] == i64[42]
 
-true
+1
 ```
 
 ```
 i64[42] == i64[1]
 
-false
+0
 ```
 
 ```
 i64[42] == f64[42]
 
-false
+0
 ```
 
 ```
 ['a' = 1, 'b' = 2] == ['b' = 2, 'a' = 1]
 
-true
+1
 ```
 
 ```
 ['a' = 1, 'b' = 2] == ['b' = 100, 'a' = 1]
 
-false
+0
 ```
 
 ```
 ['a' = 1, 'b' = 2] == ['b' = 2, 'a' = 1, 'c' = 3]
 
-false
+0
 ```
 
 ```
-['a' = 1, 'b' = 2] == map[string, i64]['b' = 2, 'a' = 1]
+['a' = 1, 'b' = 2] == map[string, i64][['b' = 2, 'a' = 1]]
 
-false
+0
 ```
 
 Two __values__ are `~=` if their notations are equal.
@@ -466,43 +466,43 @@ Two __values__ are `~=` if their notations are equal.
 ```
 i64[42] ~= i64[42]
 
-true
+1
 ```
 
 ```
 i64[42] ~= i64[1]
 
-false
+0
 ```
 
 ```
 i64[42] ~= f64[42]
 
-true
+1
 ```
 
 ```
 ['a' = 1, 'b' = 2] ~= ['b' = 2, 'a' = 1]
 
-true
+1
 ```
 
 ```
 ['a' = 1, 'b' = 2] ~= ['b' = 100, 'a' = 1]
 
-false
+0
 ```
 
 ```
 ['a' = 1, 'b' = 2] ~= ['b' = 2, 'a' = 1, 'c' = 3]
 
-false
+0
 ```
 
 ```
-['a' = 1, 'b' = 2] ~= map[string, i64]['b' = 2, 'a' = 1]
+['a' = 1, 'b' = 2] ~= map[string, i64][['b' = 2, 'a' = 1]]
 
-true
+1
 ```
 
 TODO What about NaN?

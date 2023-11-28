@@ -781,21 +781,21 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 .name = let.name,
                 .value = value.copy(self.allocator),
             }) catch panic("OOM", .{});
-            return .{ .f64 = 0 }; // TODO void/null or similar
+            return fromBool(false); // TODO void/null or similar
         },
         .set => |set| {
             const value = try self.eval(set.value);
             try self.pathSet(set.path, value.copy(self.allocator));
-            return .{ .f64 = 0 }; // TODO void/null or similar
+            return fromBool(false); // TODO void/null or similar
         },
         .@"if" => |@"if"| {
-            const cond = try self.boolish(try self.eval(@"if".cond));
+            const cond = try self.toBool(try self.eval(@"if".cond));
             return self.eval(if (cond) @"if".if_true else @"if".if_false);
         },
         .@"while" => |@"while"| {
             while (true) {
-                const cond = try self.boolish(try self.eval(@"while".cond));
-                if (!cond) return .{ .f64 = 0 }; // TODO void/null or similar
+                const cond = try self.toBool(try self.eval(@"while".cond));
+                if (!cond) return fromBool(false); // TODO void/null or similar
                 _ = try self.eval(@"while".body);
             }
         },
@@ -819,7 +819,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const value_a = try self.eval(call.args[0]);
                 const value_b = try self.eval(call.args[1]);
                 switch (head_expr.builtin) {
-                    .equal => return if (value_a.equal(value_b)) .{ .f64 = 1 } else .{ .f64 = 0 },
+                    .equal => return fromBool(value_a.equal(value_b)),
                     .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => panic("TODO", .{}),
                     .add, .subtract, .multiply, .divide => {
                         if (value_a != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, value_a });
@@ -998,7 +998,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .exprs => |exprs| {
             const scope_len = self.scope.items.len;
-            var value = Value{ .f64 = 0 }; // TODO void/null or similar
+            var value = Value{ .i64 = 0 }; // TODO void/null or similar
             for (exprs) |subexpr| {
                 value = try self.eval(subexpr);
             }
@@ -1127,10 +1127,14 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
     }
 }
 
-fn boolish(self: *Self, value: Value) error{SemantalyzeError}!bool {
-    if (value == .f64) {
-        if (value.f64 == 1) return true;
-        if (value.f64 == 0) return false;
+fn fromBool(b: bool) Value {
+    return .{ .i64 = if (b) 1 else 0 };
+}
+
+fn toBool(self: *Self, value: Value) error{SemantalyzeError}!bool {
+    if (value == .i64) {
+        if (value.i64 == 1) return true;
+        if (value.i64 == 0) return false;
     }
     return self.fail("Expected boolean (0 or 1). Found {}", .{value});
 }
