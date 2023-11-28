@@ -109,6 +109,44 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
     while (true) {
         const token = self.take();
         switch (token) {
+            .@"==", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
+                const builtin = switch (token) {
+                    .@"==" => Builtin.equal,
+                    .@"<" => Builtin.less_than,
+                    .@"<=" => Builtin.less_than_or_equal,
+                    .@">" => Builtin.more_than,
+                    .@">=" => Builtin.more_than_or_equal,
+                    .@"+" => Builtin.add,
+                    .@"-" => Builtin.subtract,
+                    .@"*" => Builtin.multiply,
+                    .@"/" => Builtin.divide,
+                    else => unreachable,
+                };
+                if (prev_builtin != null and prev_builtin == builtin) {
+                    return self.fail("Ambiguous precedence: {} vs {}", .{ prev_builtin.?, builtin });
+                }
+                prev_builtin = builtin;
+                const right = try self.parseExpr2();
+                head = self.expr(.{ .call = .{
+                    .head = self.expr(.{ .builtin = builtin }),
+                    .muts = self.allocator.dupe(bool, &.{ false, false }) catch panic("OOM", .{}),
+                    .args = self.allocator.dupe(ExprId, &.{ head, right }) catch panic("OOM", .{}),
+                } });
+            },
+            else => {
+                self.token_ix -= 1;
+                break;
+            },
+        }
+    }
+    return head;
+}
+
+fn parseExpr2(self: *Self) error{ParseError}!ExprId {
+    var head = try self.parseExpr3();
+    while (true) {
+        const token = self.take();
+        switch (token) {
             .@"[" => {
                 if (self.prevToken() == .whitespace) {
                     // `foo [bar]` is a syntax error, not a call
@@ -149,30 +187,6 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
                     .key = static_key,
                 } });
             },
-            .@"==", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
-                const builtin = switch (token) {
-                    .@"==" => Builtin.equal,
-                    .@"<" => Builtin.less_than,
-                    .@"<=" => Builtin.less_than_or_equal,
-                    .@">" => Builtin.more_than,
-                    .@">=" => Builtin.more_than_or_equal,
-                    .@"+" => Builtin.add,
-                    .@"-" => Builtin.subtract,
-                    .@"*" => Builtin.multiply,
-                    .@"/" => Builtin.divide,
-                    else => unreachable,
-                };
-                if (prev_builtin != null and prev_builtin == builtin) {
-                    return self.fail("Ambiguous precedence: {} vs {}", .{ prev_builtin.?, builtin });
-                }
-                prev_builtin = builtin;
-                const right = try self.parseExpr2();
-                head = self.expr(.{ .call = .{
-                    .head = self.expr(.{ .builtin = builtin }),
-                    .muts = self.allocator.dupe(bool, &.{ false, false }) catch panic("OOM", .{}),
-                    .args = self.allocator.dupe(ExprId, &.{ head, right }) catch panic("OOM", .{}),
-                } });
-            },
             else => {
                 self.token_ix -= 1;
                 break;
@@ -182,7 +196,7 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
     return head;
 }
 
-fn parseExpr2(self: *Self) error{ParseError}!ExprId {
+fn parseExpr3(self: *Self) error{ParseError}!ExprId {
     const token = self.take();
     switch (token) {
         .number => {

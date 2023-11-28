@@ -2,6 +2,8 @@
 
 Encoded as utf8.
 
+TODO Booleans. Encode as union[[only["true"], only["false"]], but with builtin sugar.
+
 ### numbers
 
 Arbitrary precision decimals.
@@ -414,6 +416,8 @@ Two __notations__ are equal if:
   * For each key, they contain the same value.
 
 Two __values__ are `==` if they have the same representation and their notations are equal.
+
+TODO Should it be a compile error to compare different reprs?
 
 ```
 i64[42] == i64[42]
