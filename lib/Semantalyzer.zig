@@ -1208,6 +1208,20 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                         value_new.* = try self.convert(repr_new, value_old);
                     }
                 },
+                .list => |list| {
+                    for (struct_repr.keys, values, struct_repr.reprs) |key, *value_new, repr_new| {
+                        if (key != .i64 or key.i64 < 0 or key.i64 >= list.elems.items.len)
+                            return self.fail("Cannot convert {} to {}", .{ value, repr });
+                        value_new.* = try self.convert(repr_new, list.elems.items[@intCast(key.i64)]);
+                    }
+                },
+                .map => |map| {
+                    for (struct_repr.keys, values, struct_repr.reprs) |key, *value_new, repr_new| {
+                        const value_old = map.entries.get(key) orelse
+                            return self.fail("Cannot convert {} to {}", .{ value, repr });
+                        value_new.* = try self.convert(repr_new, value_old);
+                    }
+                },
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
             return .{ .@"struct" = .{ .repr = struct_repr, .values = values } };
