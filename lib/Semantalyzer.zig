@@ -20,21 +20,7 @@ pub const Binding = struct {
     value: Value,
 };
 
-pub const Kind = enum {
-    i64,
-    f64,
-    string,
-    @"struct",
-    list,
-    map,
-    @"union",
-    any,
-    @"fn",
-    repr,
-    repr_kind,
-};
-
-pub const Value = union(Kind) {
+pub const Value = union(enum) {
     i64: i64,
     f64: f64,
     string: []u8,
@@ -43,13 +29,10 @@ pub const Value = union(Kind) {
     map: Map,
     @"union": Union,
     any: *Value,
+    only: Only,
     @"fn": Fn,
     repr: Repr,
     repr_kind: ReprKind,
-
-    pub fn kind(self: Value) Kind {
-        return std.meta.activeTag(self);
-    }
 
     pub fn hash(self: Value) u64 {
         var hasher = std.hash.Wyhash.init(42);
@@ -58,6 +41,7 @@ pub const Value = union(Kind) {
     }
 
     pub fn update(self: Value, hasher: anytype) void {
+        // TODO Should we hash reprs?
         hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
         switch (self) {
             .i64 => |int| hasher.update(std.mem.asBytes(&int)),
@@ -91,6 +75,9 @@ pub const Value = union(Kind) {
             },
             .any => |value| {
                 value.update(hasher);
+            },
+            .only => |only| {
+                only.repr.update(hasher);
             },
             .@"fn" => |@"fn"| {
                 for (@"fn".captures.items) |binding| {
@@ -186,6 +173,9 @@ pub const Value = union(Kind) {
             .any => {
                 return self.any.order(other.any.*);
             },
+            .only => {
+                return .eq;
+            },
             .@"fn" => {
                 panic("TODO", .{});
             },
@@ -243,6 +233,9 @@ pub const Value = union(Kind) {
             },
             .any => {
                 return self.any.equal(other.any.*);
+            },
+            .only => {
+                return true;
             },
             .@"fn" => {
                 const self_fn = self.@"fn";
@@ -336,6 +329,9 @@ pub const Value = union(Kind) {
             .any => |value| {
                 try writer.print("{}[{}]", .{ Repr{ .any = {} }, value.* });
             },
+            .only => |only| {
+                try writer.print("{}[]", .{Repr{ .only = only.repr }});
+            },
             .@"fn" => |@"fn"| {
                 // TODO print something parseable
                 try writer.print("fn[{}", .{@"fn".body});
@@ -390,6 +386,7 @@ pub const Value = union(Kind) {
             .any => |value| {
                 return .{ .any = box(allocator, value.copy(allocator)) };
             },
+            .only => |only| return .{ .only = only },
             .@"union" => |@"union"| {
                 const value_copy = @"union".value.copy(allocator);
                 return .{ .@"union" = .{ .repr = @"union".repr, .tag = @"union".tag, .value = box(allocator, value_copy) } };
@@ -428,6 +425,7 @@ pub const Value = union(Kind) {
             .map => |map| return .{ .map = map.repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
             .any => return .any,
+            .only => |only| return .{ .only = only.repr },
             .@"fn" => return .i64, // TODO,
             .repr => return .i64, // TODO,
             .repr_kind => return .i64, // TODO,
@@ -470,6 +468,10 @@ pub const Union = struct {
     value: *Value,
 };
 
+pub const Only = struct {
+    repr: OnlyRepr,
+};
+
 pub const Repr = union(enum) {
     i64,
     f64,
@@ -478,6 +480,7 @@ pub const Repr = union(enum) {
     list: ListRepr,
     map: MapRepr,
     any,
+    only: OnlyRepr,
     @"union": UnionRepr,
 
     pub fn update(self: Repr, hasher: anytype) void {
@@ -501,6 +504,9 @@ pub const Repr = union(enum) {
                 for (members) |member| {
                     member.update(hasher);
                 }
+            },
+            .only => |value| {
+                value.update(hasher);
             },
         }
     }
@@ -556,6 +562,9 @@ pub const Repr = union(enum) {
                 }
                 return .eq;
             },
+            .only => {
+                return self.only.order(other.only.*);
+            },
         }
     }
 
@@ -589,6 +598,9 @@ pub const Repr = union(enum) {
                 }
                 try writer.writeAll("]]");
             },
+            .only => |value| {
+                try writer.print("[{}]", .{value});
+            },
         }
     }
 };
@@ -601,12 +613,14 @@ pub const StructRepr = struct {
 pub const ListRepr = *Repr;
 pub const MapRepr = [2]*Repr;
 pub const UnionRepr = []Repr;
+pub const OnlyRepr = *Value;
 
 pub const ReprKind = enum {
     @"struct",
     list,
     map,
     @"union",
+    only,
 
     pub fn update(self: ReprKind, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(self)});
@@ -753,6 +767,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 if (std.mem.eql(u8, name, "any")) {
                     return .{ .repr = .any };
                 }
+                if (std.mem.eql(u8, name, "only")) {
+                    return .{ .repr_kind = .only };
+                }
                 return err;
             }
         },
@@ -883,6 +900,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         return return_value;
                     },
                     .repr => |repr| {
+                        if (repr == .only and call.args.len == 0) {
+                            return .{ .only = .{ .repr = repr.only } };
+                        }
                         if (call.args.len != 1)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
                         if (call.muts[0] == true)
@@ -951,6 +971,14 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                                     repr.* = member.repr;
                                 }
                                 return .{ .repr = .{ .@"union" = reprs } };
+                            },
+                            .only => {
+                                if (call.args.len != 1)
+                                    return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
+                                if (call.muts[0] == true)
+                                    return self.fail("Can't pass mut arg to repr", .{});
+                                const only_value = try self.eval(call.args[0]);
+                                return .{ .repr = .{ .only = box(self.allocator, only_value) } };
                             },
                         }
                     },
@@ -1240,6 +1268,13 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
         },
         .any => {
             return .{ .any = box(self.allocator, value) };
+        },
+        .only => |only_repr| {
+            if (value.equal(only_repr.*)) {
+                return .{ .only = .{ .repr = only_repr } };
+            } else {
+                return self.fail("Cannot convert {} to {}", .{ value, repr });
+            }
         },
     }
 }

@@ -371,9 +371,9 @@ Anys support asking for the representation of their value and casting the value 
 An only is an object with exactly one entry. Both the key and the value are stored in the representation itself.
 
 ```
-only[i64[42]][]
+only[42][]
 
-only[i64[42]][]
+only[42][]
 ```
 
 Onlys are zero-sized.
@@ -381,15 +381,15 @@ Onlys are zero-sized.
 Their main purpose is lifting values into representations, where they are visible to specialization, type inference and compile-time computations.
 
 ```
-only[i64[42]][]/get-repr
+only[42][]/get-repr
 
-only[i64[42]]
+only[42]
 ```
 
 ```
-only[i64[42]]/get-value
+only[42]/get-value
 
-i64[42]
+42
 ```
 
 ### repr repr
