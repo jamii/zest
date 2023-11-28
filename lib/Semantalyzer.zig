@@ -27,6 +27,7 @@ pub const Kind = enum {
     @"struct",
     list,
     map,
+    @"union",
     @"fn",
     repr,
     repr_kind,
@@ -39,6 +40,7 @@ pub const Value = union(Kind) {
     @"struct": Struct,
     list: List,
     map: Map,
+    @"union": Union,
     @"fn": Fn,
     repr: Repr,
     repr_kind: ReprKind,
@@ -81,6 +83,9 @@ pub const Value = union(Kind) {
                     entry.key_ptr.update(hasher);
                     entry.value_ptr.update(hasher);
                 }
+            },
+            .@"union" => |@"union"| {
+                @"union".value.update(hasher);
             },
             .@"fn" => |@"fn"| {
                 for (@"fn".captures.items) |binding| {
@@ -163,6 +168,16 @@ pub const Value = union(Kind) {
                 }
                 return std.math.order(self_entries.items.len, other_entries.items.len);
             },
+            .@"union" => {
+                const self_member = self.@"union".repr[self.@"union".tag];
+                const other_member = other.@"union".repr[other.@"union".tag];
+                switch (self_member.order(other_member)) {
+                    .lt => return .lt,
+                    .gt => return .gt,
+                    .eq => {},
+                }
+                return self.@"union".value.order(other.@"union".value.*);
+            },
             .@"fn" => {
                 panic("TODO", .{});
             },
@@ -176,7 +191,7 @@ pub const Value = union(Kind) {
     }
 
     pub fn equal(self: Value, other: Value) bool {
-        if (self.kind() != other.kind()) return false;
+        if (self.reprOf().order(other.reprOf()) != .eq) return false;
         switch (self) {
             .i64 => return self.i64 == other.i64,
             // TODO NaN
@@ -214,6 +229,9 @@ pub const Value = union(Kind) {
                     if (!self_key.equal(other_key)) return false;
                 }
                 return true;
+            },
+            .@"union" => {
+                return self.@"union".value.equal(other.@"union".value.*);
             },
             .@"fn" => {
                 const self_fn = self.@"fn";
@@ -301,6 +319,9 @@ pub const Value = union(Kind) {
 
                 try writer.writeAll("]");
             },
+            .@"union" => |@"union"| {
+                try writer.print("{}[{}]", .{ Repr{ .@"union" = @"union".repr }, @"union".value.* });
+            },
             .@"fn" => |@"fn"| {
                 // TODO print something parseable
                 try writer.print("fn[{}", .{@"fn".body});
@@ -352,6 +373,10 @@ pub const Value = union(Kind) {
                 }
                 return .{ .map = .{ .repr = map.repr, .entries = entries_copy } };
             },
+            .@"union" => |@"union"| {
+                const value_copy = @"union".value.copy(allocator);
+                return .{ .@"union" = .{ .repr = @"union".repr, .tag = @"union".tag, .value = box(allocator, value_copy) } };
+            },
             .@"fn" => |@"fn"| {
                 // TODO Wait for std.ArrayList.cloneWithAllocator to exist.
                 var captures_copy = Scope.initCapacity(allocator, @"fn".captures.items.len) catch panic("OOM", .{});
@@ -383,7 +408,8 @@ pub const Value = union(Kind) {
             .string => return .string,
             .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
             .list => |list| return .{ .list = list.repr },
-            .map => return .i64, // TODO, // |map| return .{ .map = map.repr },
+            .map => |map| return .{ .map = map.repr },
+            .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
             .@"fn" => return .i64, // TODO,
             .repr => return .i64, // TODO,
             .repr_kind => return .i64, // TODO,
@@ -420,6 +446,12 @@ pub const ValueHashMap = std.HashMap(
     std.hash_map.default_max_load_percentage,
 );
 
+pub const Union = struct {
+    repr: UnionRepr,
+    tag: usize,
+    value: *Value,
+};
+
 pub const Repr = union(enum) {
     i64,
     f64,
@@ -427,6 +459,7 @@ pub const Repr = union(enum) {
     @"struct": StructRepr,
     list: ListRepr,
     map: MapRepr,
+    @"union": UnionRepr,
 
     pub fn update(self: Repr, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
@@ -444,6 +477,11 @@ pub const Repr = union(enum) {
             .map => |key_value| {
                 key_value[0].update(hasher);
                 key_value[1].update(hasher);
+            },
+            .@"union" => |members| {
+                for (members) |member| {
+                    member.update(hasher);
+                }
             },
         }
     }
@@ -487,6 +525,18 @@ pub const Repr = union(enum) {
                 }
                 return .eq;
             },
+            .@"union" => {
+                const self_members = self.@"union";
+                const other_members = other.@"union";
+                for (0..@min(self_members.len, other_members.len)) |i| {
+                    switch (self_members[i].order(other_members[i])) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                }
+                return .eq;
+            },
         }
     }
 
@@ -510,6 +560,16 @@ pub const Repr = union(enum) {
             },
             .list => |elem| try writer.print("[{}]", .{elem.*}),
             .map => |key_value| try writer.print("[{}, {}]", .{ key_value[0].*, key_value[1].* }),
+            .@"union" => |members| {
+                try writer.writeAll("[[");
+                var first = true;
+                for (members) |member| {
+                    if (!first) try writer.writeAll(", ");
+                    try writer.print("{}", .{member});
+                    first = false;
+                }
+                try writer.writeAll("]]");
+            },
         }
     }
 };
@@ -521,11 +581,13 @@ pub const StructRepr = struct {
 
 pub const ListRepr = *Repr;
 pub const MapRepr = [2]*Repr;
+pub const UnionRepr = []Repr;
 
 pub const ReprKind = enum {
     @"struct",
     list,
     map,
+    @"union",
 
     pub fn update(self: ReprKind, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(self)});
@@ -665,6 +727,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 }
                 if (std.mem.eql(u8, name, "map")) {
                     return .{ .repr_kind = .map };
+                }
+                if (std.mem.eql(u8, name, "union")) {
+                    return .{ .repr_kind = .@"union" };
                 }
                 return err;
             }
@@ -848,6 +913,22 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                                 if (value != .repr)
                                     return self.fail("Can't pass {} to {}", .{ value, head });
                                 return .{ .repr = .{ .map = .{ box(self.allocator, key.repr), box(self.allocator, value.repr) } } };
+                            },
+                            .@"union" => {
+                                if (call.args.len != 1)
+                                    return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.len, head });
+                                if (call.muts[0] == true)
+                                    return self.fail("Can't pass mut arg to repr", .{});
+                                const object = try self.eval(call.args[0]);
+                                if (object != .@"struct")
+                                    return self.fail("Can't pass {} to {}", .{ object, head });
+                                const reprs = self.allocator.alloc(Repr, object.@"struct".values.len) catch panic("OOM", .{});
+                                for (reprs, object.@"struct".values) |*repr, member| {
+                                    if (member != .repr)
+                                        return self.fail("Can't pass {} to {}", .{ member, head });
+                                    repr.* = member.repr;
+                                }
+                                return .{ .repr = .{ .@"union" = reprs } };
                             },
                         }
                     },
@@ -1125,6 +1206,15 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
             }
             return .{ .map = .{ .repr = map_repr, .entries = entries } };
+        },
+        .@"union" => |union_repr| {
+            const value_repr = value.reprOf();
+            for (0.., union_repr) |tag, member_repr| {
+                if (value_repr.order(member_repr) == .eq) {
+                    return .{ .@"union" = .{ .repr = union_repr, .tag = tag, .value = box(self.allocator, value) } };
+                }
+            }
+            return self.fail("Cannot convert {} to {}", .{ value, repr });
         },
     }
 }

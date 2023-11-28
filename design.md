@@ -325,9 +325,9 @@ TODO Make a decision about iteration order. Options:
 A union contains one of a fixed set of representations.
 
 ```
-union[[string, i64]][i64[42]]
+union[[string, i64]][42]
 
-union[[string, i64]][i64[42]]
+union[[string, i64]][42]
 ```
 
 ```
@@ -339,7 +339,7 @@ union[[string, i64]]['foo']
 ```
 union[[string, i64]][3.14]
 
-error
+Cannot convert 3.14 to union[[string, i64]]
 ```
 
 Unions are represented by an integer tag denoting the representation, followed by the representation of their value.
