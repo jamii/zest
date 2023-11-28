@@ -427,7 +427,7 @@ pub const Value = union(enum) {
             .any => return .any,
             .only => |only| return .{ .only = only.repr },
             .@"fn" => return .i64, // TODO,
-            .repr => return .i64, // TODO,
+            .repr => return .repr,
             .repr_kind => return .i64, // TODO,
         }
     }
@@ -482,11 +482,12 @@ pub const Repr = union(enum) {
     any,
     only: OnlyRepr,
     @"union": UnionRepr,
+    repr,
 
     pub fn update(self: Repr, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
         switch (self) {
-            .i64, .f64, .string, .any => {},
+            .i64, .f64, .string, .any, .repr => {},
             .@"struct" => |@"struct"| {
                 for (@"struct".keys, @"struct".reprs) |key, repr| {
                     key.update(hasher);
@@ -518,7 +519,7 @@ pub const Repr = union(enum) {
             .eq => {},
         }
         switch (self) {
-            .i64, .f64, .string, .any => return .eq,
+            .i64, .f64, .string, .any, .repr => return .eq,
             .@"struct" => {
                 const self_struct = self.@"struct";
                 const other_struct = other.@"struct";
@@ -573,7 +574,7 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.writeAll(@tagName(self));
         switch (self) {
-            .i64, .f64, .string, .any => {},
+            .i64, .f64, .string, .any, .repr => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[[");
                 var first = true;
@@ -1272,6 +1273,13 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
         .only => |only_repr| {
             if (value.equal(only_repr.*)) {
                 return .{ .only = .{ .repr = only_repr } };
+            } else {
+                return self.fail("Cannot convert {} to {}", .{ value, repr });
+            }
+        },
+        .repr => {
+            if (value == .repr) {
+                return value;
             } else {
                 return self.fail("Cannot convert {} to {}", .{ value, repr });
             }

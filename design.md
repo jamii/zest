@@ -402,14 +402,6 @@ i64/get-repr
 repr
 ```
 
-We are saved from infinite recursion by:
-
-```
-repr/get-repr
-
-only[repr]
-```
-
 The in-memory layout of `repr` is not exposed.
 
 ## equality
