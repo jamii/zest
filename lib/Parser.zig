@@ -187,6 +187,11 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
 
                 if (self.peek() == .@"[") {
                     const object = try self.parseObject(true);
+                    for (object.keys) |key| {
+                        const key_expr = &self.exprs.items[key];
+                        if (key_expr.* == .i64)
+                            key_expr.i64 += 1;
+                    }
                     muts.appendSlice(object.muts) catch panic("OOM", .{});
                     keys.appendSlice(object.keys) catch panic("OOM", .{});
                     values.appendSlice(object.values) catch panic("OOM", .{});
