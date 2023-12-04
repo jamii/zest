@@ -536,8 +536,8 @@ error
 If the combination of representations is such that `as` can never throw an error then the return type will not include an error.
 
 ```
-as-int = fn [x] x/as[i64]
-[return-type[as-int, [i64]], return-type[as-int, [f64]]
+let as-int = fn [x] x/as[i64];
+[return-type[as-int, [i64]], return-type[as-int, [f64]]]
 
 [i64, union[i64, error]]
 ```
