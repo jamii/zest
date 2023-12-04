@@ -20,10 +20,7 @@ pub const Expr = union(enum) {
     i64: i64,
     f64: f64,
     string: []const u8,
-    object: struct {
-        keys: []ExprId,
-        values: []ExprId,
-    },
+    object: ObjectExpr,
     builtin: Builtin,
     name: []const u8,
     let: struct {
@@ -51,8 +48,7 @@ pub const Expr = union(enum) {
     },
     call: struct {
         head: ExprId,
-        muts: []bool,
-        args: []ExprId,
+        args: ObjectExpr,
     },
     get_static: struct {
         object: ExprId,
@@ -61,6 +57,13 @@ pub const Expr = union(enum) {
     exprs: []ExprId,
 };
 
+pub const ObjectExpr = struct {
+    muts: []bool,
+    keys: []ExprId,
+    values: []ExprId,
+};
+
+// TODO Expand to Value.
 pub const StaticKey = union(enum) {
     i64: i64,
     string: []const u8,
@@ -129,10 +132,15 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
                 }
                 prev_builtin = builtin;
                 const right = try self.parseExpr2();
+                const zero = self.expr(.{ .i64 = 0 });
+                const one = self.expr(.{ .i64 = 1 });
                 head = self.expr(.{ .call = .{
                     .head = self.expr(.{ .builtin = builtin }),
-                    .muts = self.allocator.dupe(bool, &.{ false, false }) catch panic("OOM", .{}),
-                    .args = self.allocator.dupe(ExprId, &.{ head, right }) catch panic("OOM", .{}),
+                    .args = .{
+                        .muts = self.allocator.dupe(bool, &.{ false, false }) catch panic("OOM", .{}),
+                        .keys = self.allocator.dupe(ExprId, &.{ zero, one }) catch panic("OOM", .{}),
+                        .values = self.allocator.dupe(ExprId, &.{ head, right }) catch panic("OOM", .{}),
+                    },
                 } });
             },
             else => {
@@ -156,11 +164,10 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     break;
                 }
                 self.token_ix -= 1;
-                const call = try self.parseCall();
+                const object = try self.parseObject(true);
                 head = self.expr(.{ .call = .{
                     .head = head,
-                    .muts = call.muts,
-                    .args = call.args,
+                    .args = object,
                 } });
             },
             .@"/" => {
@@ -172,20 +179,26 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                 const actual_head = try self.parseExpr3();
 
                 var muts = ArrayList(bool).init(self.allocator);
-                var args = ArrayList(ExprId).init(self.allocator);
+                var keys = ArrayList(ExprId).init(self.allocator);
+                var values = ArrayList(ExprId).init(self.allocator);
                 muts.append(false) catch panic("OOM", .{}); // TODO Do we want to allow implicit mut?
-                args.append(head) catch panic("OOM", .{});
+                keys.append(self.expr(.{ .i64 = 0 })) catch panic("OOM", .{});
+                values.append(head) catch panic("OOM", .{});
 
                 if (self.peek() == .@"[") {
-                    const call = try self.parseCall();
-                    muts.appendSlice(call.muts) catch panic("OOM", .{});
-                    args.appendSlice(call.args) catch panic("OOM", .{});
+                    const object = try self.parseObject(true);
+                    muts.appendSlice(object.muts) catch panic("OOM", .{});
+                    keys.appendSlice(object.keys) catch panic("OOM", .{});
+                    values.appendSlice(object.values) catch panic("OOM", .{});
                 }
 
                 head = self.expr(.{ .call = .{
                     .head = actual_head,
-                    .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-                    .args = args.toOwnedSlice() catch panic("OOM", .{}),
+                    .args = .{
+                        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
+                        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
+                        .values = values.toOwnedSlice() catch panic("OOM", .{}),
+                    },
                 } });
             },
             .@"." => {
@@ -232,36 +245,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             return self.expr(.{ .string = string });
         },
         .@"[" => {
-            var keys = ArrayList(ExprId).init(self.allocator);
-            var values = ArrayList(ExprId).init(self.allocator);
-            var key_ix: ?i64 = 0;
-            while (true) {
-                if (self.peek() == .@"]") break;
-                var key = try self.parseExpr1();
-                var value: ?ExprId = null;
-                if (self.takeIf(.@"=")) {
-                    value = try self.parseExpr1();
-                    key_ix = null;
-                    const key_expr = self.exprs.items[key];
-                    if (key_expr == .name) {
-                        key = self.expr(.{ .string = key_expr.name });
-                    }
-                } else {
-                    if (key_ix == null)
-                        return self.fail("Positional elems must be before key/value elems", .{});
-                    value = key;
-                    key = self.expr(.{ .i64 = key_ix.? });
-                    key_ix.? += 1;
-                }
-                keys.append(key) catch panic("OOM", .{});
-                values.append(value.?) catch panic("OOM", .{});
-                if (!self.takeIf(.@",")) break;
-            }
-            try self.expect(.@"]");
-            return self.expr(.{ .object = .{
-                .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
-                .values = values.toOwnedSlice() catch panic("OOM", .{}),
-            } });
+            self.token_ix -= 1;
+            const object = try self.parseObject(false);
+            return self.expr(.{ .object = object });
         },
         .name => {
             const name = self.lastTokenText();
@@ -370,24 +356,41 @@ fn parseString(self: *Self, text: []const u8) ![]u8 {
     return chars.toOwnedSlice() catch panic("OOM", .{});
 }
 
-const Call = struct {
-    muts: []bool,
-    args: []ExprId,
-};
-fn parseCall(self: *Self) !Call {
+fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
     try self.expect(.@"[");
     var muts = ArrayList(bool).init(self.allocator);
-    var args = ArrayList(ExprId).init(self.allocator);
+    var keys = ArrayList(ExprId).init(self.allocator);
+    var values = ArrayList(ExprId).init(self.allocator);
+    var key_ix: ?i64 = 0;
     while (true) {
         if (self.peek() == .@"]") break;
-        muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
-        args.append(try self.parseExpr1()) catch panic("OOM", .{});
+        const mut = allow_mut and self.takeIf(.mut);
+        var key: ?ExprId = null;
+        var value = try self.parseExpr1();
+        if (self.takeIf(.@"=")) {
+            key_ix = null;
+            const key_expr = self.exprs.items[value];
+            key = switch (key_expr) {
+                .name => |name| self.expr(.{ .string = name }),
+                else => value,
+            };
+            value = try self.parseExpr1();
+        } else {
+            if (key_ix == null)
+                return self.fail("Positional elems must be before key/value elems", .{});
+            key = self.expr(.{ .i64 = key_ix.? });
+            key_ix.? += 1;
+        }
+        muts.append(mut) catch panic("OOM", .{});
+        keys.append(key.?) catch panic("OOM", .{});
+        values.append(value) catch panic("OOM", .{});
         if (!self.takeIf(.@",")) break;
     }
     try self.expect(.@"]");
-    return Call{
+    return ObjectExpr{
         .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-        .args = args.toOwnedSlice() catch panic("OOM", .{}),
+        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
+        .values = values.toOwnedSlice() catch panic("OOM", .{}),
     };
 }
 
