@@ -382,7 +382,7 @@ only[42][]
 
 Onlys are zero-sized.
 
-Their main purpose is lifting values into representations, where they are visible to specialization, type inference and compile-time computations.
+Their main purpose is lifting values into representations where they are visible to specialization, type inference and compile-time computations.
 
 ```
 only[42][]/get-repr
@@ -543,15 +543,6 @@ If the new representation cannot encode the notation, `as` throws an error.
 3.14/as[i64]
 
 Cannot convert 3.14 to i64
-```
-
-If the combination of representations is such that `as` can never throw an error then the return type will not include an error.
-
-```
-let as-int = fn [x] x/as[i64];
-[return-type[as-int, [i64]], return-type[as-int, [f64]]]
-
-[i64, union[i64, error]]
 ```
 
 ## errors

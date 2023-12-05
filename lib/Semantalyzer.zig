@@ -1193,6 +1193,7 @@ fn lookup(self: *Self, name: []const u8) error{SemantalyzeError}!*Binding {
             return binding;
         }
     }
+    // TODO We should also resolve repr/repr_kind here, but needs some refactoring.
     return self.fail("Undefined variable: {s}", .{name});
 }
 
