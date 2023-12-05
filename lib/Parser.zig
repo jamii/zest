@@ -85,6 +85,7 @@ pub const Builtin = enum {
     // named functions
     as,
     @"get-repr",
+    @"get-only",
 };
 
 pub fn init(allocator: Allocator, tokenizer: Tokenizer) Self {
@@ -266,6 +267,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             }
             if (std.mem.eql(u8, name, "get-repr")) {
                 return self.expr(.{ .builtin = .@"get-repr" });
+            }
+            if (std.mem.eql(u8, name, "get-only")) {
+                return self.expr(.{ .builtin = .@"get-only" });
             }
             return self.expr(.{ .name = name });
         },

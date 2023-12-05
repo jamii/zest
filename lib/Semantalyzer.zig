@@ -766,11 +766,6 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             const args = try self.evalObject(call.args);
             if (head_expr == .builtin) {
                 switch (head_expr.builtin) {
-                    .@"get-repr" => {
-                        if (args.values.len != 1)
-                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
-                        return .{ .repr = args.values[0].reprOf() };
-                    },
                     .as => {
                         if (args.values.len != 2)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
@@ -779,6 +774,19 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         if (repr != .repr)
                             return self.fail("Cannot pass {} to {}", .{ args.values.len, head_expr });
                         return self.convert(repr.repr, value);
+                    },
+                    .@"get-repr" => {
+                        if (args.values.len != 1)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        return .{ .repr = args.values[0].reprOf() };
+                    },
+                    .@"get-only" => {
+                        if (args.values.len != 1)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        const value = args.values[0];
+                        if (value != .repr or value.repr != .only)
+                            return self.fail("Cannot pass {} to {}", .{ value, head_expr });
+                        return value.repr.only.*;
                     },
                     else => {
                         if (args.values.len != 2)

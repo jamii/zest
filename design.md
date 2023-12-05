@@ -391,7 +391,7 @@ only[42]
 ```
 
 ```
-only[42]/get-value
+only[42]/get-only
 
 42
 ```
