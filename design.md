@@ -532,17 +532,17 @@ TODO < for type then notation, ~< for notation only
 The function `as` creates a new value with the same notation but a different representation.
 
 ```
-i64[42]/as[f64]
+42/as[f64]
 
-f64[42]
+42.0
 ```
 
 If the new representation cannot encode the notation, `as` throws an error.
 
 ```
-f64[3.14]/as[i64]
+3.14/as[i64]
 
-error
+Cannot convert 3.14 to i64
 ```
 
 If the combination of representations is such that `as` can never throw an error then the return type will not include an error.

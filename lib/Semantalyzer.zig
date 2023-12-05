@@ -771,6 +771,15 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
                         return .{ .repr = args.values[0].reprOf() };
                     },
+                    .as => {
+                        if (args.values.len != 2)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        const value = args.values[0];
+                        const repr = args.values[1];
+                        if (repr != .repr)
+                            return self.fail("Cannot pass {} to {}", .{ args.values.len, head_expr });
+                        return self.convert(repr.repr, value);
+                    },
                     else => {
                         if (args.values.len != 2)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });

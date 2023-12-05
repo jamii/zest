@@ -83,6 +83,7 @@ pub const Builtin = enum {
     divide,
 
     // named functions
+    as,
     @"get-repr",
 };
 
@@ -260,6 +261,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
         },
         .name => {
             const name = self.lastTokenText();
+            if (std.mem.eql(u8, name, "as")) {
+                return self.expr(.{ .builtin = .as });
+            }
             if (std.mem.eql(u8, name, "get-repr")) {
                 return self.expr(.{ .builtin = .@"get-repr" });
             }
