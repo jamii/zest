@@ -574,6 +574,13 @@ Tokenizer error at 0: NoCaps: 'foo'
 ```
 
 ```
+0digits-at-start: 'foo'
+
+At 1. Expected Tokenizer.Token.eof, found Tokenizer.Token.name
+digits-at-start: 'foo'
+```
+
+```
 0-digits-at-start: 'foo'
 
 Cannot call Parser.Expr{ .builtin = Parser.Builtin.subtract } on 0
