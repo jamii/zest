@@ -15,7 +15,6 @@ pub const Token = enum {
     number,
     string,
     name,
-    let,
     mut,
     set,
     @"fn",
@@ -29,6 +28,7 @@ pub const Token = enum {
     @",",
     @".",
     @";",
+    @":",
     @"=",
     @"==",
     @"~=",
@@ -69,6 +69,7 @@ pub fn tokenize(self: *Self) !void {
             ']' => Token.@"]",
             ',' => Token.@",",
             '.' => Token.@".",
+            ':' => Token.@":",
             ';' => Token.@";",
             '=' => token: {
                 if (i < source.len and source[i] == '=') {
@@ -123,7 +124,6 @@ pub fn tokenize(self: *Self) !void {
                 }
                 const name = source[start..i];
                 const keywords = [_]Token{
-                    .let,
                     .mut,
                     .set,
                     .@"fn",

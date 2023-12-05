@@ -63,31 +63,31 @@ Zero or more key-value pairs, separated by commas.
 ```
 
 ```
-['a' = 'apple', 'b' = 'bear']
+['a': 'apple', 'b': 'bear']
 
-['a' = 'apple', 'b' = 'bear']
+['a': 'apple', 'b': 'bear']
 ```
 
 Optional trailing comma.
 
 ```
-['a' = 'apple', 'b' = 'bear',]
+['a': 'apple', 'b': 'bear',]
 
-['a' = 'apple', 'b' = 'bear']
+['a': 'apple', 'b': 'bear']
 ```
 
 Key order doesn't matter. Keys may be printed in any order.
 
 ```
-['b' = 'bear', 'a' = 'apple']
+['b': 'bear', 'a': 'apple']
 
-['a' = 'apple', 'b' = 'bear']
+['a': 'apple', 'b': 'bear']
 ```
 
 No repeated keys.
 
 ```
-['a' = 'apple', 'a' = 'bear']
+['a': 'apple', 'a': 'bear']
 
 Duplicate key in map literal: 'a'
 ```
@@ -101,7 +101,7 @@ Omitted keys default to consecutive integers, starting at 0.
 ```
 
 ```
-[0 = 'a', 1 = 'b']
+[0: 'a', 1: 'b']
 
 ['a', 'b']
 ```
@@ -109,17 +109,17 @@ Omitted keys default to consecutive integers, starting at 0.
 Can mix omitted and present keys.
 
 ```
-['a', 1 = 'b', 'default' = 'c']
+['a', 1: 'b', 'default': 'c']
 
-['a', 'b', 'default' = 'c']
+['a', 'b', 'default': 'c']
 ```
 
 But omitted keys must be written before present keys.
 
 ```
-['a', 'default' = 'c', 'b']
+['a', 'default': 'c', 'b']
 
-At 23. Positional elems must be before key/value elems
+At 22. Positional elems must be before key/value elems
 'b']
 ```
 
@@ -216,27 +216,27 @@ Strings allow pushing and popping unicode characters.
 Structs are objects with a fixed finite set of keys.
 
 ```
-struct['a' = i64, 'b' = i64]['a' = 0, 'b' = 1]
+struct['a': i64, 'b': i64]['a': 0, 'b': 1]
 
-['a' = 0, 'b' = 1]
+['a': 0, 'b': 1]
 ```
 
 ```
-struct['a' = f64, 'b' = i64]['a' = 0, 'b' = 1]
+struct['a': f64, 'b': i64]['a': 0, 'b': 1]
 
-['a' = 0.0, 'b' = 1]
+['a': 0.0, 'b': 1]
 ```
 
 ```
-struct['a' = f64, 'b' = i64]['a' = 0]
+struct['a': f64, 'b': i64]['a': 0]
 
-Cannot convert ['a' = 0] to struct['a' = f64, 'b' = i64]
+Cannot convert ['a': 0] to struct['a': f64, 'b': i64]
 ```
 
 ```
-struct['a' = f64, 'b' = i64]['a' = 0, 'b' = 1, 'c' = 2]
+struct['a': f64, 'b': i64]['a': 0, 'b': 1, 'c': 2]
 
-Cannot convert ['a' = 0, 'b' = 1, 'c' = 2] to struct['a' = f64, 'b' = i64]
+Cannot convert ['a': 0, 'b': 1, 'c': 2] to struct['a': f64, 'b': i64]
 ```
 
 The keys are not required to be strings!
@@ -248,9 +248,9 @@ struct[f64, i64][0, 1]
 ```
 
 ```
-struct[['a', 'b'] = string][['a', 'b'] = 'c']
+struct[['a', 'b']: string][['a', 'b']: 'c']
 
-[['a', 'b'] = 'c']
+[['a', 'b']: 'c']
 ```
 
 Structs are laid out contiguously in memory, in some implementation-defined order.
@@ -282,15 +282,15 @@ Cannot convert 0 to string
 ```
 
 ```
-list[f64][['a' = 'apple']]
+list[f64][['a': 'apple']]
 
-Cannot convert ['a' = 'apple'] to list[f64]
+Cannot convert ['a': 'apple'] to list[f64]
 ```
 
 ```
-list[f64][[1 = 3.14]]
+list[f64][[1: 3.14]]
 
-Cannot convert [1 = 3.14] to list[f64]
+Cannot convert [1: 3.14] to list[f64]
 ```
 
 Lists are laid out contiguously in memory, in key order.
@@ -304,13 +304,13 @@ Lists allow getting and setting keys, and pushing/popping.
 Maps are objects with any number of entries, where all the keys have the same representation and all the values have the same representation.
 
 ```
-map[i64, string][[0 = 'zero', 1 = 'one']]
+map[i64, string][[0: 'zero', 1: 'one']]
 
-map[i64, string][[0 = 'zero', 1 = 'one']]
+map[i64, string][[0: 'zero', 1: 'one']]
 ```
 
 ```
-map[i64, string][[0 = 'zero', 1 = 1]]
+map[i64, string][[0: 'zero', 1: 1]]
 
 Cannot convert 1 to string
 ```
@@ -440,25 +440,25 @@ i64[42] == f64[42]
 ```
 
 ```
-['a' = 1, 'b' = 2] == ['b' = 2, 'a' = 1]
+['a': 1, 'b': 2] == ['b': 2, 'a': 1]
 
 1
 ```
 
 ```
-['a' = 1, 'b' = 2] == ['b' = 100, 'a' = 1]
+['a': 1, 'b': 2] == ['b': 100, 'a': 1]
 
 0
 ```
 
 ```
-['a' = 1, 'b' = 2] == ['b' = 2, 'a' = 1, 'c' = 3]
+['a': 1, 'b': 2] == ['b': 2, 'a': 1, 'c': 3]
 
 0
 ```
 
 ```
-['a' = 1, 'b' = 2] == map[string, i64][['b' = 2, 'a' = 1]]
+['a': 1, 'b': 2] == map[string, i64][['b': 2, 'a': 1]]
 
 0
 ```
@@ -490,25 +490,25 @@ i64[42] ~= f64[42]
 ```
 
 ```
-['a' = 1, 'b' = 2] ~= ['b' = 2, 'a' = 1]
+['a': 1, 'b': 2] ~= ['b': 2, 'a': 1]
 
 1
 ```
 
 ```
-['a' = 1, 'b' = 2] ~= ['b' = 100, 'a' = 1]
+['a': 1, 'b': 2] ~= ['b': 100, 'a': 1]
 
 0
 ```
 
 ```
-['a' = 1, 'b' = 2] ~= ['b' = 2, 'a' = 1, 'c' = 3]
+['a': 1, 'b': 2] ~= ['b': 2, 'a': 1, 'c': 3]
 
 0
 ```
 
 ```
-['a' = 1, 'b' = 2] ~= map[string, i64][['b' = 2, 'a' = 1]]
+['a': 1, 'b': 2] ~= map[string, i64][['b': 2, 'a': 1]]
 
 1
 ```

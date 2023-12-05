@@ -283,7 +283,7 @@ pub const Value = union(enum) {
                 for (0.., @"struct".repr.keys, @"struct".values) |i, key, value| {
                     if (!first) try writer.writeAll(", ");
                     if (!positional or key != .i64 or key.i64 != i) {
-                        try writer.print("{} = ", .{key});
+                        try writer.print("{}: ", .{key});
                         positional = false;
                     }
                     try writer.print("{}", .{value});
@@ -316,7 +316,7 @@ pub const Value = union(enum) {
                 var first = true;
                 for (entries.items) |entry| {
                     if (!first) try writer.writeAll(", ");
-                    try writer.print("{} = {}", .{ entry.key_ptr.*, entry.value_ptr.* });
+                    try writer.print("{}: {}", .{ entry.key_ptr.*, entry.value_ptr.* });
                     first = false;
                 }
 
@@ -337,7 +337,7 @@ pub const Value = union(enum) {
                 // TODO print something parseable
                 try writer.print("fn[{}", .{@"fn".body});
                 for (@"fn".captures.items) |binding| {
-                    try writer.print(", {s}={}", .{ binding.name, binding.value });
+                    try writer.print(", {s}: {}", .{ binding.name, binding.value });
                 }
                 try writer.writeAll("]");
             },
@@ -582,7 +582,7 @@ pub const Repr = union(enum) {
                 for (0.., @"struct".keys, @"struct".reprs) |i, key, repr| {
                     if (!first) try writer.writeAll(", ");
                     if (key != .i64 or key.i64 != i)
-                        try writer.print("{} = ", .{key});
+                        try writer.print("{}: ", .{key});
                     try writer.print("{}", .{repr});
                     first = false;
                 }

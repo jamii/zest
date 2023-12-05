@@ -262,6 +262,15 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
         },
         .name => {
             const name = self.lastTokenText();
+            if (self.takeIf(.@":")) {
+                const mut = self.takeIf(.mut);
+                const value = try self.parseExpr1();
+                return self.expr(.{ .let = .{
+                    .mut = mut,
+                    .name = name,
+                    .value = value,
+                } });
+            }
             if (std.mem.eql(u8, name, "as")) {
                 return self.expr(.{ .builtin = .as });
             }
@@ -273,21 +282,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             }
             return self.expr(.{ .name = name });
         },
-        .let => {
-            const mut = self.takeIf(.mut);
-            try self.expect(.name);
-            const name = self.lastTokenText();
-            try self.expect(.@"=");
-            const value = try self.parseExpr1();
-            return self.expr(.{ .let = .{
-                .mut = mut,
-                .name = name,
-                .value = value,
-            } });
-        },
         .set => {
             const path = try self.parseExpr1();
-            try self.expect(.@"=");
+            try self.expect(.@":");
             const value = try self.parseExpr1();
             return self.expr(.{ .set = .{
                 .path = path,
@@ -387,7 +384,7 @@ fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
         const mut = allow_mut and self.takeIf(.mut);
         var key: ?ExprId = null;
         var value = try self.parseExpr1();
-        if (self.takeIf(.@"=")) {
+        if (self.takeIf(.@":")) {
             key_ix = null;
             const key_expr = self.exprs.items[value];
             key = switch (key_expr) {
