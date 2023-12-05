@@ -119,10 +119,10 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
     while (true) {
         const token = self.take();
         switch (token) {
-            .@"==", .@"~=", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
+            .@"=", .@"~", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
                 const builtin = switch (token) {
-                    .@"==" => Builtin.equal,
-                    .@"~=" => Builtin.equivalent,
+                    .@"=" => Builtin.equal,
+                    .@"~" => Builtin.equivalent,
                     .@"<" => Builtin.less_than,
                     .@"<=" => Builtin.less_than_or_equal,
                     .@">" => Builtin.more_than,

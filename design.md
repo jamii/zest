@@ -417,104 +417,104 @@ Two __notations__ are equal if:
   * They contain the same set of keys.
   * For each key, they contain the same value.
 
-Two __values__ are `==` if they have the same representation and their notations are equal.
+Two __values__ are `=` if they have the same representation and their notations are equal.
 
 TODO Should it be a compile error to compare different reprs?
 
 ```
-i64[42] == i64[42]
+i64[42] = i64[42]
 
 1
 ```
 
 ```
-i64[42] == i64[1]
+i64[42] = i64[1]
 
 0
 ```
 
 ```
-i64[42] == f64[42]
+i64[42] = f64[42]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] == ['b': 2, 'a': 1]
+['a': 1, 'b': 2] = ['b': 2, 'a': 1]
 
 1
 ```
 
 ```
-['a': 1, 'b': 2] == ['b': 100, 'a': 1]
+['a': 1, 'b': 2] = ['b': 100, 'a': 1]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] == ['b': 2, 'a': 1, 'c': 3]
+['a': 1, 'b': 2] = ['b': 2, 'a': 1, 'c': 3]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] == map[string, i64][['b': 2, 'a': 1]]
+['a': 1, 'b': 2] = map[string, i64][['b': 2, 'a': 1]]
 
 0
 ```
 
 ```
-union[string, i64][42] == 42
+union[string, i64][42] = 42
 
 0
 ```
 
-Two __values__ are `~=` if their notations are equal.
+Two __values__ are `~` if their notations are equal.
 
 ```
-i64[42] ~= i64[42]
+i64[42] ~ i64[42]
 
 1
 ```
 
 ```
-i64[42] ~= i64[1]
+i64[42] ~ i64[1]
 
 0
 ```
 
 ```
-i64[42] ~= f64[42]
+i64[42] ~ f64[42]
 
 1
 ```
 
 ```
-['a': 1, 'b': 2] ~= ['b': 2, 'a': 1]
+['a': 1, 'b': 2] ~ ['b': 2, 'a': 1]
 
 1
 ```
 
 ```
-['a': 1, 'b': 2] ~= ['b': 100, 'a': 1]
+['a': 1, 'b': 2] ~ ['b': 100, 'a': 1]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] ~= ['b': 2, 'a': 1, 'c': 3]
+['a': 1, 'b': 2] ~ ['b': 2, 'a': 1, 'c': 3]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] ~= map[string, i64][['b': 2, 'a': 1]]
+['a': 1, 'b': 2] ~ map[string, i64][['b': 2, 'a': 1]]
 
 1
 ```
 
 ```
-union[string, i64][42] ~= 42
+union[string, i64][42] ~ 42
 
 1
 ```
