@@ -740,12 +740,16 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .let => |let| {
             const value = try self.eval(let.value);
-            self.scope.append(.{
-                .mut = let.mut,
-                .name = let.name,
-                .value = value.copy(self.allocator),
-            }) catch panic("OOM", .{});
-            return fromBool(false); // TODO void/null or similar
+            if (self.lookup(let.name)) |_| {
+                return self.fail("Name {s} shadows earlier definition", .{let.name});
+            } else |_| {
+                self.scope.append(.{
+                    .mut = let.mut,
+                    .name = let.name,
+                    .value = value.copy(self.allocator),
+                }) catch panic("OOM", .{});
+                return fromBool(false); // TODO void/null or similar
+            }
         },
         .set => |set| {
             const value = try self.eval(set.value);

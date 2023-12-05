@@ -606,6 +606,33 @@ foo: 'the number';
 [foo: 'the number']
 ```
 
+Names may not be shadowed.
+
+```
+foo: 1;
+foo: 2
+
+Name foo shadows earlier definition
+```
+
+```
+foo: 1;
+bar: fn [] (
+  foo: 2;
+)
+// TODO Name foo shadows earlier definition
+
+0
+```
+
+```
+foo: 1;
+bar: fn [foo] 2
+// TODO Name foo shadows earlier definition
+
+0
+```
+
 ## misc
 
 TODO We use value for both representation+notation and key/value. Think of a better name for the former.
@@ -615,4 +642,4 @@ TODO Is there much point making reprs callable when we have `as`?
 
 TODO Add examples of supported operations.
 
-TODO Calling syntax and destructuring that behaves like objects.```
+TODO Calling syntax and destructuring that behaves like objects.
