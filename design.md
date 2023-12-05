@@ -65,7 +65,7 @@ Zero or more key-value pairs, separated by commas.
 ```
 ['a': 'apple', 'b': 'bear']
 
-['a': 'apple', 'b': 'bear']
+[a: 'apple', b: 'bear']
 ```
 
 Optional trailing comma.
@@ -73,7 +73,7 @@ Optional trailing comma.
 ```
 ['a': 'apple', 'b': 'bear',]
 
-['a': 'apple', 'b': 'bear']
+[a: 'apple', b: 'bear']
 ```
 
 Key order doesn't matter. Keys may be printed in any order.
@@ -81,7 +81,7 @@ Key order doesn't matter. Keys may be printed in any order.
 ```
 ['b': 'bear', 'a': 'apple']
 
-['a': 'apple', 'b': 'bear']
+[a: 'apple', b: 'bear']
 ```
 
 No repeated keys.
@@ -111,7 +111,7 @@ Can mix omitted and present keys.
 ```
 ['a', 1: 'b', 'default': 'c']
 
-['a', 'b', 'default': 'c']
+['a', 'b', default: 'c']
 ```
 
 But omitted keys must be written before present keys.
@@ -218,25 +218,25 @@ Structs are objects with a fixed finite set of keys.
 ```
 struct['a': i64, 'b': i64]['a': 0, 'b': 1]
 
-['a': 0, 'b': 1]
+[a: 0, b: 1]
 ```
 
 ```
 struct['a': f64, 'b': i64]['a': 0, 'b': 1]
 
-['a': 0.0, 'b': 1]
+[a: 0.0, b: 1]
 ```
 
 ```
 struct['a': f64, 'b': i64]['a': 0]
 
-Cannot convert ['a': 0] to struct['a': f64, 'b': i64]
+Cannot convert [a: 0] to struct['a': f64, 'b': i64]
 ```
 
 ```
 struct['a': f64, 'b': i64]['a': 0, 'b': 1, 'c': 2]
 
-Cannot convert ['a': 0, 'b': 1, 'c': 2] to struct['a': f64, 'b': i64]
+Cannot convert [a: 0, b: 1, c: 2] to struct['a': f64, 'b': i64]
 ```
 
 The keys are not required to be strings!
@@ -284,7 +284,7 @@ Cannot convert 0 to string
 ```
 list[f64][['a': 'apple']]
 
-Cannot convert ['a': 'apple'] to list[f64]
+Cannot convert [a: 'apple'] to list[f64]
 ```
 
 ```
@@ -549,6 +549,63 @@ TODO < for type then notation, ~< for notation only
 
 TODO so many decisions
 
+## names
+
+Names start with a lowercase letter and can contain lowercase letters, numbers and hyphens.
+
+TODO Assignment should return null/void.
+
+```
+some-name: 'foo'
+
+0
+```
+
+```
+side2side: 'foo'
+
+0
+```
+
+```
+NoCaps: 'foo'
+
+Tokenizer error at 0: NoCaps: 'foo'
+```
+
+```
+0-digits-at-start: 'foo'
+
+Cannot call Parser.Expr{ .builtin = Parser.Builtin.subtract } on 0
+```
+
+In objects, if a key is a valid name then it is treated as a string.
+
+```
+foo: 'the number';
+[foo: 42]
+
+[foo: 42]
+```
+
+Use parentheses to treat the key as a name.
+
+```
+foo: 'the number';
+[(foo): 42]
+
+['the number': 42]
+```
+
+If the key is a valid name then the value can be omitted and will be replaced by the value of that name.
+
+```
+foo: 'the number';
+[foo:]
+
+[foo: 'the number']
+```
+
 ## misc
 
 TODO We use value for both representation+notation and key/value. Think of a better name for the former.
@@ -558,4 +615,4 @@ TODO Is there much point making reprs callable when we have `as`?
 
 TODO Add examples of supported operations.
 
-TODO Calling syntax and destructuring that behaves like objects.
+TODO Calling syntax and destructuring that behaves like objects.```

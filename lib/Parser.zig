@@ -383,24 +383,43 @@ fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
         if (self.peek() == .@"]") break;
         const mut = allow_mut and self.takeIf(.mut);
         var key: ?ExprId = null;
-        var value = try self.parseExpr1();
-        if (self.takeIf(.@":")) {
+        var value: ?ExprId = null;
+
+        const start = self.token_ix;
+        if (self.takeIf(.name) and self.takeIf(.@":")) {
+            const name = self.tokenText(self.token_ix - 2);
             key_ix = null;
-            const key_expr = self.exprs.items[value];
-            key = switch (key_expr) {
-                .name => |name| self.expr(.{ .string = name }),
-                else => value,
-            };
-            value = try self.parseExpr1();
+            key = self.expr(.{ .string = name });
+            if (self.peek() == .@"," or self.peek() == .@"]") {
+                value = self.expr(.{ .name = name });
+            } else {
+                value = try self.parseExpr1();
+            }
         } else {
-            if (key_ix == null)
-                return self.fail("Positional elems must be before key/value elems", .{});
-            key = self.expr(.{ .i64 = key_ix.? });
-            key_ix.? += 1;
+            self.token_ix = start;
+            value = try self.parseExpr1();
+            if (self.takeIf(.@":")) {
+                key_ix = null;
+                const key_expr = self.exprs.items[value.?];
+                key = switch (key_expr) {
+                    .name => |name| self.expr(.{ .string = name }),
+                    else => value,
+                };
+                value = if (key_expr == .name and (self.peek() == .@"," or self.peek() == .@"]"))
+                    self.expr(.{ .name = key_expr.name })
+                else
+                    try self.parseExpr1();
+            } else {
+                if (key_ix == null)
+                    return self.fail("Positional elems must be before key/value elems", .{});
+                key = self.expr(.{ .i64 = key_ix.? });
+                key_ix.? += 1;
+            }
         }
+
         muts.append(mut) catch panic("OOM", .{});
         keys.append(key.?) catch panic("OOM", .{});
-        values.append(value) catch panic("OOM", .{});
+        values.append(value.?) catch panic("OOM", .{});
         if (!self.takeIf(.@",")) break;
     }
     try self.expect(.@"]");
@@ -448,7 +467,11 @@ fn expect(self: *Self, expected: Token) !void {
 }
 
 fn lastTokenText(self: *Self) []const u8 {
-    const range = self.tokenizer.ranges.items[self.token_ix - 1];
+    return self.tokenText(self.token_ix - 1);
+}
+
+fn tokenText(self: *Self, token_ix: usize) []const u8 {
+    const range = self.tokenizer.ranges.items[token_ix];
     return self.tokenizer.source[range[0]..range[1]];
 }
 

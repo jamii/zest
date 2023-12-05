@@ -253,6 +253,20 @@ pub const Value = union(enum) {
         }
     }
 
+    const FormatKey = struct {
+        key: Value,
+
+        pub fn format(self: FormatKey, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+            _ = fmt;
+            _ = options;
+            if (self.key == .string and isName(self.key.string)) {
+                try writer.print("{s}", .{self.key.string});
+            } else {
+                try writer.print("{}", .{self.key});
+            }
+        }
+    };
+
     pub fn format(self: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         switch (self) {
             .i64 => |int| try writer.print("{}", .{int}),
@@ -283,7 +297,7 @@ pub const Value = union(enum) {
                 for (0.., @"struct".repr.keys, @"struct".values) |i, key, value| {
                     if (!first) try writer.writeAll(", ");
                     if (!positional or key != .i64 or key.i64 != i) {
-                        try writer.print("{}: ", .{key});
+                        try writer.print("{}: ", .{FormatKey{ .key = key }});
                         positional = false;
                     }
                     try writer.print("{}", .{value});
@@ -316,7 +330,7 @@ pub const Value = union(enum) {
                 var first = true;
                 for (entries.items) |entry| {
                     if (!first) try writer.writeAll(", ");
-                    try writer.print("{}: {}", .{ entry.key_ptr.*, entry.value_ptr.* });
+                    try writer.print("{}: {}", .{ FormatKey{ .key = entry.key_ptr.* }, entry.value_ptr.* });
                     first = false;
                 }
 
@@ -1368,4 +1382,14 @@ fn permute(allocator: Allocator, ixes: []const usize, comptime T: type, things: 
         thing.* = things[ix];
     }
     return things_copy;
+}
+
+fn isName(text: []const u8) bool {
+    for (text) |char| {
+        switch (char) {
+            'a'...'z', '0'...'9', '-' => {},
+            else => return false,
+        }
+    }
+    return true;
 }

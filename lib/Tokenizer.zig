@@ -103,7 +103,7 @@ pub fn tokenize(self: *Self) !void {
                 i -= 1;
                 while (i < source.len) {
                     switch (source[i]) {
-                        'a'...'z', 'A'...'Z', '0'...'9', '-' => i += 1,
+                        'a'...'z', '0'...'9', '-' => i += 1,
                         else => break,
                     }
                 }
