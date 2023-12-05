@@ -2,7 +2,7 @@
 
 Encoded as utf8.
 
-TODO Booleans. Encode as union[[only["1"], only["0"]], but with builtin sugar.
+TODO Booleans. Encode as `union[only["true"], only["false"]]`, but with builtin sugar.
 
 ### numbers
 
@@ -216,39 +216,39 @@ Strings allow pushing and popping unicode characters.
 Structs are objects with a fixed finite set of keys.
 
 ```
-struct[['a' = i64, 'b' = i64]][['a' = 0, 'b' = 1]]
+struct['a' = i64, 'b' = i64]['a' = 0, 'b' = 1]
 
 ['a' = 0, 'b' = 1]
 ```
 
 ```
-struct[['a' = f64, 'b' = i64]][['a' = 0, 'b' = 1]]
+struct['a' = f64, 'b' = i64]['a' = 0, 'b' = 1]
 
 ['a' = 0.0, 'b' = 1]
 ```
 
 ```
-struct[['a' = f64, 'b' = i64]][['a' = 0]]
+struct['a' = f64, 'b' = i64]['a' = 0]
 
-Cannot convert ['a' = 0] to struct[['a' = f64, 'b' = i64]]
+Cannot convert ['a' = 0] to struct['a' = f64, 'b' = i64]
 ```
 
 ```
-struct[['a' = f64, 'b' = i64]][['a' = 0, 'b' = 1, 'c' = 2]]
+struct['a' = f64, 'b' = i64]['a' = 0, 'b' = 1, 'c' = 2]
 
-Cannot convert ['a' = 0, 'b' = 1, 'c' = 2] to struct[['a' = f64, 'b' = i64]]
+Cannot convert ['a' = 0, 'b' = 1, 'c' = 2] to struct['a' = f64, 'b' = i64]
 ```
 
 The keys are not required to be strings!
 
 ```
-struct[[f64, i64]][[0, 1]]
+struct[f64, i64][0, 1]
 
 [0.0, 1]
 ```
 
 ```
-struct[[['a', 'b'] = string]][[['a', 'b'] = 'c']]
+struct[['a', 'b'] = string][['a', 'b'] = 'c']
 
 [['a', 'b'] = 'c']
 ```
@@ -329,21 +329,21 @@ TODO Make a decision about iteration order. Options:
 A union contains one of a fixed set of representations.
 
 ```
-union[[string, i64]][42]
+union[string, i64][42]
 
-union[[string, i64]][42]
+union[string, i64][42]
 ```
 
 ```
-union[[string, i64]]['foo']
+union[string, i64]['foo']
 
-union[[string, i64]]['foo']
+union[string, i64]['foo']
 ```
 
 ```
-union[[string, i64]][3.14]
+union[string, i64][3.14]
 
-Cannot convert 3.14 to union[[string, i64]]
+Cannot convert 3.14 to union[string, i64]
 ```
 
 Unions are represented by an integer tag denoting the representation, followed by the representation of their value.
@@ -463,6 +463,12 @@ i64[42] == f64[42]
 0
 ```
 
+```
+union[string, i64][42] == 42
+
+0
+```
+
 Two __values__ are `~=` if their notations are equal.
 
 ```
@@ -503,6 +509,12 @@ i64[42] ~= f64[42]
 
 ```
 ['a' = 1, 'b' = 2] ~= map[string, i64][['b' = 2, 'a' = 1]]
+
+1
+```
+
+```
+union[string, i64][42] ~= 42
 
 1
 ```
