@@ -70,6 +70,7 @@ pub const StaticKey = union(enum) {
 };
 
 pub const Builtin = enum {
+    // operators
     equal,
     equivalent,
     less_than,
@@ -80,6 +81,9 @@ pub const Builtin = enum {
     subtract,
     multiply,
     divide,
+
+    // named functions
+    @"get-repr",
 };
 
 pub fn init(allocator: Allocator, tokenizer: Tokenizer) Self {
@@ -256,6 +260,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
         },
         .name => {
             const name = self.lastTokenText();
+            if (std.mem.eql(u8, name, "get-repr")) {
+                return self.expr(.{ .builtin = .@"get-repr" });
+            }
             return self.expr(.{ .name = name });
         },
         .let => {

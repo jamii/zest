@@ -765,34 +765,44 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             const head_expr = self.parser.exprs.items[call.head];
             const args = try self.evalObject(call.args);
             if (head_expr == .builtin) {
-                if (args.values.len != 2)
-                    return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
-                if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
-                    return self.fail("Can't pass named key to {}", .{head_expr});
-                if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
-                    return self.fail("Can't pass named key to {}", .{head_expr});
                 switch (head_expr.builtin) {
-                    .equal => return fromBool(args.values[0].equal(args.values[1])),
-                    .equivalent => {
-                        if (self.convert(args.values[0].reprOf(), args.values[1])) |values_1_ish| {
-                            return fromBool(args.values[0].equal(values_1_ish));
-                        } else |_| {
-                            // Assuming convert is correct, there is no way to represent the notation of args.values[1] in the repr of args.values[0], so they can't possibly have the same notation.
-                            return fromBool(false);
-                        }
+                    .@"get-repr" => {
+                        if (args.values.len != 1)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        return .{ .repr = args.values[0].reprOf() };
                     },
-                    .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => panic("TODO", .{}),
-                    .add, .subtract, .multiply, .divide => {
-                        if (args.values[0] != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, args.values[0] });
-                        if (args.values[1] != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, args.values[1] });
-                        const result = switch (head_expr.builtin) {
-                            .add => args.values[0].f64 + args.values[1].f64,
-                            .subtract => args.values[0].f64 - args.values[1].f64,
-                            .multiply => args.values[0].f64 * args.values[1].f64,
-                            .divide => args.values[0].f64 / args.values[1].f64,
+                    else => {
+                        if (args.values.len != 2)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        switch (head_expr.builtin) {
+                            .equal => return fromBool(args.values[0].equal(args.values[1])),
+                            .equivalent => {
+                                if (self.convert(args.values[0].reprOf(), args.values[1])) |values_1_ish| {
+                                    return fromBool(args.values[0].equal(values_1_ish));
+                                } else |_| {
+                                    // Assuming convert is correct, there is no way to represent the notation of args.values[1] in the repr of args.values[0], so they can't possibly have the same notation.
+                                    return fromBool(false);
+                                }
+                            },
+                            .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => panic("TODO", .{}),
+                            .add, .subtract, .multiply, .divide => {
+                                if (args.values[0] != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, args.values[0] });
+                                if (args.values[1] != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, args.values[1] });
+                                const result = switch (head_expr.builtin) {
+                                    .add => args.values[0].f64 + args.values[1].f64,
+                                    .subtract => args.values[0].f64 - args.values[1].f64,
+                                    .multiply => args.values[0].f64 * args.values[1].f64,
+                                    .divide => args.values[0].f64 / args.values[1].f64,
+                                    else => unreachable,
+                                };
+                                return .{ .f64 = result };
+                            },
                             else => unreachable,
-                        };
-                        return .{ .f64 = result };
+                        }
                     },
                 }
             } else {
