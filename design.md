@@ -545,10 +545,6 @@ TODO What about +0 vs -0.
 
 TODO < for type then notation, ~< for notation only
 
-## errors
-
-TODO so many decisions
-
 ## names
 
 Names start with a lowercase letter and can contain lowercase letters, numbers and hyphens.
@@ -595,11 +591,11 @@ foo: 'the number';
 [foo: 42]
 ```
 
-Use parentheses to treat the key as a name.
+Use brackets to treat the key as a name.
 
 ```
 foo: 'the number';
-[(foo): 42]
+[{foo}: 42]
 
 ['the number': 42]
 ```
@@ -624,9 +620,9 @@ Name foo shadows earlier definition
 
 ```
 foo: 1;
-bar: fn [] (
+bar: () {
   foo: 2;
-)
+}
 // TODO Name foo shadows earlier definition
 
 0
@@ -634,19 +630,222 @@ bar: fn [] (
 
 ```
 foo: 1;
-bar: fn [foo] 2
+bar: (foo) 2
 // TODO Name foo shadows earlier definition
 
 0
 ```
 
+## fields
+
+The `get` function retrieves the value associated with a key in an object.
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc/get('b')
+
+2
+```
+
+When the key is a string which is a valid name, this can be abbreviated to:
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc:b
+
+2
+```
+
+If the key is not present in the map then an error is returned:
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc/get('d')
+
+error
+```
+
+The `try-get` function instead returns an optional value.
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc/try-get('b')
+
+[some: 2]
+```
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc/try-get('d')
+
+'none'
+```
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc/try-get('b'):some
+
+2
+```
+
+```
+abc: [a: 1, b: 2, c: 3];
+abc/try-get('d'):some
+
+error
+```
+
+## functions
+
+```
+foo: (x) x+1;
+foo(1)
+
+2
+```
+
+Functions close over variables in their scope:
+
+```
+n: 1;
+inc: (x) x+n;
+inc(1)
+
+2
+```
+
+Function definitions can only appear in variable definitions or as the argument to a function call.
+
+```
+foo: (x) x+1
+
+0
+```
+
+```
+foo: {(x) x+1}
+
+error
+```
+
+```
+{(x) x+1}(1)
+
+error
+```
+
+```
+twice: (x, f) f(f(x));
+twice(1, (x) x+1);
+
+3
+```
+
+```
+twice: (x, f) f(f(x));
+twice(1, if 1 then (x) x+1 else (x) x+2);
+3
+
+error
+```
+
+Function definitions immediately after a function call are interpreted as additional positional or named arguments to the function call.
+
+```
+twice: (x, f) f(f(x));
+twice(1)
+  (x) x+1;
+
+3
+```
+
+```
+twice: (x, f:) f(f(x));
+twice(1)
+  f: (x) x+1;
+
+3
+```
+
+If a post-fix argument is a function with no arguments, then the `()` can be omitted:
+
+```
+try: (body, catch:) body(throw: catch)
+try()
+  (throw:)
+    throw('oh no!')
+  catch: (error)
+    return-to(try, [error:])
+```
+
+Functions can only be referenced as the head of an argument call or the argument to a function call.
+
+```
+foo: () 42;
+['nope': foo]
+
+error
+```
+
+```
+foo: () 42;
+[{foo}: 'nope']
+
+error
+```
+
+```
+zero: () 0;
+one: () 1;
+if 1 one else zero
+
+error
+```
+
+```
+foo: () 42;
+bar: () foo;
+bar()
+
+error
+```
+
+TODO control flow capture
+
+TODO some way to indicate functions which always return?
+
+TODO patterns
+
+## mutation
+
+TODO mutable value semantics
+
+## errors
+
+TODO throw/panic as implicit arguments. try sets throw argument for body.
+
+## syntax hunches
+
+`[]` always indicates constructing a value. The result looks like the syntax.
+
+`()` always indicates computation: either defining (`(x) x+1`) or performing (`inc(x)`).
+
+`{}` is used for grouping instead of `()` to avoid ambiguity.
+
+`:` is used for definition to avoid ambiguity with equality (`=`) and assignment (TODO).
+
+`foo:bar` is used for field access to mirror definition `foo: [bar: 42]`.
+
+The syntax for function patterns is consistent with the syntax for creating structs - as if functions take a struct of arguments.
+
+The syntax for passing function arguments outside a function is intended to allow builtin control flow (if/each/try etc) to look like function calls.
+
+Parsing requires only 2-token lookahead (TODO verify once all tests pass).
+
+I gave up on trying to avoid the shift key - there aren't enough good shiftless symbols to indicate all the major groups of syntax.
+
 ## misc
 
 TODO We use value for both representation+notation and key/value. Think of a better name for the former.
-
-TODO Using [] for both objects and function calls is probably bad for readability.
-TODO Is there much point making reprs callable when we have `as`?
-
-TODO Add examples of supported operations.
 
 TODO Calling syntax and destructuring that behaves like objects.
