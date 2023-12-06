@@ -329,9 +329,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
                 .body = body,
             } });
         },
-        .@"(" => {
-            const inner = self.parseExpr0(.@")");
-            try self.expect(.@")");
+        .@"{" => {
+            const inner = self.parseExpr0(.@"}");
+            try self.expect(.@"}");
             return inner;
         },
         else => {
