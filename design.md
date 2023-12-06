@@ -692,7 +692,7 @@ abc/try-get('b'):some
 abc: [a: 1, b: 2, c: 3];
 abc/try-get('d'):some
 
-error
+Cannot get key 'some' from non-object 'none'
 ```
 
 ## functions

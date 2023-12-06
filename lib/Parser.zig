@@ -229,7 +229,11 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     },
                 } });
             },
-            .@"." => {
+            .@":" => {
+                if (self.peekWhitespace()) {
+                    self.token_ix -= 1;
+                    break;
+                }
                 const static_key = switch (self.take()) {
                     .name => StaticKey{ .string = self.lastTokenText() },
                     .string => StaticKey{ .string = try self.parseString(self.lastTokenText()) },
@@ -278,7 +282,8 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
         },
         .name => {
             const name = self.lastTokenText();
-            if (self.takeIf(.@":")) {
+            const start = self.token_ix;
+            if (self.takeIf(.@":") and self.peekWhitespace()) {
                 const mut = self.takeIf(.mut);
                 const value = try self.parseExpr1();
                 return self.expr(.{ .let = .{
@@ -286,23 +291,25 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
                     .name = name,
                     .value = value,
                 } });
+            } else {
+                self.token_ix = start;
+                if (std.mem.eql(u8, name, "as")) {
+                    return self.expr(.{ .builtin = .as });
+                }
+                if (std.mem.eql(u8, name, "get")) {
+                    return self.expr(.{ .builtin = .get });
+                }
+                if (std.mem.eql(u8, name, "try-get")) {
+                    return self.expr(.{ .builtin = .@"try-get" });
+                }
+                if (std.mem.eql(u8, name, "get-repr")) {
+                    return self.expr(.{ .builtin = .@"get-repr" });
+                }
+                if (std.mem.eql(u8, name, "get-only")) {
+                    return self.expr(.{ .builtin = .@"get-only" });
+                }
+                return self.expr(.{ .name = name });
             }
-            if (std.mem.eql(u8, name, "as")) {
-                return self.expr(.{ .builtin = .as });
-            }
-            if (std.mem.eql(u8, name, "get")) {
-                return self.expr(.{ .builtin = .get });
-            }
-            if (std.mem.eql(u8, name, "try-get")) {
-                return self.expr(.{ .builtin = .@"try-get" });
-            }
-            if (std.mem.eql(u8, name, "get-repr")) {
-                return self.expr(.{ .builtin = .@"get-repr" });
-            }
-            if (std.mem.eql(u8, name, "get-only")) {
-                return self.expr(.{ .builtin = .@"get-only" });
-            }
-            return self.expr(.{ .name = name });
         },
         .set => {
             const path = try self.parseExpr1();
@@ -463,6 +470,10 @@ fn peek(self: *Self) Token {
             else => return token,
         }
     }
+}
+
+fn peekWhitespace(self: *Self) bool {
+    return self.tokenizer.tokens.items[self.token_ix] == .whitespace;
 }
 
 fn take(self: *Self) Token {

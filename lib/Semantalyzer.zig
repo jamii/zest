@@ -1029,12 +1029,11 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .get_static => |get_static| {
             const value = try self.eval(get_static.object);
-            if (value != .map) return self.fail("Cannot get key from non-map {}", .{value});
             const key = switch (get_static.key) {
                 .i64 => |int| Value{ .i64 = int },
                 .string => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
             };
-            return (try self.mapGet(value.map, key)).*;
+            return (try self.objectGet(value, key)).*;
         },
         .exprs => |exprs| {
             const scope_len = self.scope.items.len;
@@ -1190,7 +1189,7 @@ fn objectGet(self: *Self, object: Value, key: Value) error{SemantalyzeError}!*Va
         .@"struct" => |@"struct"| self.structGet(@"struct", key),
         .list => |list| self.listGet(list, key),
         .map => |map| self.mapGet(map, key),
-        else => return self.fail("{} is not an object", .{object}),
+        else => return self.fail("Cannot get key {} from non-object {}", .{ key, object }),
     };
 }
 
