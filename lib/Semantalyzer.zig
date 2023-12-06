@@ -779,10 +779,92 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 .body = @"fn".body,
             } };
         },
+        .make => |make| {
+            const head = try self.eval(make.head);
+            const args = try self.evalObject(make.args);
+            switch (head) {
+                .repr => |repr| {
+                    switch (repr) {
+                        .@"struct" => {
+                            return self.convert(repr, .{ .@"struct" = args });
+                        },
+                        else => {
+                            if (repr == .only and args.values.len == 0) {
+                                return .{ .only = .{ .repr = repr.only } };
+                            }
+                            if (args.values.len != 1)
+                                return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
+                            if (make.args.muts[0] == true)
+                                return self.fail("Can't pass mut arg to repr", .{});
+                            return self.convert(repr, args.values[0]);
+                        },
+                    }
+                },
+                .repr_kind => |repr_kind| {
+                    switch (repr_kind) {
+                        .@"struct" => {
+                            const reprs = self.allocator.alloc(Repr, args.values.len) catch panic("OOM", .{});
+                            for (reprs, args.values) |*repr, value| {
+                                if (value != .repr)
+                                    return self.fail("Can't pass {} to {}", .{ value, head });
+                                repr.* = value.repr;
+                            }
+                            return .{ .repr = .{ .@"struct" = .{
+                                .keys = args.repr.keys,
+                                .reprs = reprs,
+                            } } };
+                        },
+                        .list => {
+                            if (args.values.len != 1)
+                                return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
+                            if (make.args.muts[0] == true)
+                                return self.fail("Can't pass mut arg to repr", .{});
+                            const elem = args.values[0];
+                            if (elem != .repr)
+                                return self.fail("Can't pass {} to {}", .{ elem, head });
+                            return .{ .repr = .{ .list = box(self.allocator, elem.repr) } };
+                        },
+                        .map => {
+                            if (args.values.len != 2)
+                                return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
+                            if (make.args.muts[0] == true)
+                                return self.fail("Can't pass mut arg to repr", .{});
+                            if (make.args.muts[1] == true)
+                                return self.fail("Can't pass mut arg to repr", .{});
+                            const key = args.values[0];
+                            const value = args.values[1];
+                            if (key != .repr)
+                                return self.fail("Can't pass {} to {}", .{ key, head });
+                            if (value != .repr)
+                                return self.fail("Can't pass {} to {}", .{ value, head });
+                            return .{ .repr = .{ .map = .{ box(self.allocator, key.repr), box(self.allocator, value.repr) } } };
+                        },
+                        .@"union" => {
+                            const reprs = self.allocator.alloc(Repr, args.values.len) catch panic("OOM", .{});
+                            for (reprs, args.values) |*repr, member| {
+                                if (member != .repr)
+                                    return self.fail("Can't pass {} to {}", .{ member, head });
+                                repr.* = member.repr;
+                            }
+                            return .{ .repr = .{ .@"union" = reprs } };
+                        },
+                        .only => {
+                            if (args.values.len != 1)
+                                return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
+                            if (make.args.muts[0] == true)
+                                return self.fail("Can't pass mut arg to repr", .{});
+                            const only_value = args.values[0];
+                            return .{ .repr = .{ .only = box(self.allocator, only_value) } };
+                        },
+                    }
+                },
+                else => return self.fail("Cannot make {}", .{head}),
+            }
+        },
         .call => |call| {
             const head_expr = self.parser.exprs.items[call.head];
-            const args = try self.evalObject(call.args);
             if (head_expr == .builtin) {
+                const args = try self.evalObject(call.args);
                 switch (head_expr.builtin) {
                     .as => {
                         if (args.values.len != 2)
@@ -842,6 +924,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 }
             } else {
                 const head = try self.eval(call.head);
+                const args = try self.evalObject(call.args);
                 switch (head) {
                     .map => |map| {
                         if (args.values.len != 1)
@@ -909,81 +992,6 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         std.mem.swap(Scope, &fn_scope, &self.scope);
 
                         return return_value;
-                    },
-                    .repr => |repr| {
-                        switch (repr) {
-                            .@"struct" => {
-                                return self.convert(repr, .{ .@"struct" = args });
-                            },
-                            else => {
-                                if (repr == .only and args.values.len == 0) {
-                                    return .{ .only = .{ .repr = repr.only } };
-                                }
-                                if (args.values.len != 1)
-                                    return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                                if (call.args.muts[0] == true)
-                                    return self.fail("Can't pass mut arg to repr", .{});
-                                return self.convert(repr, args.values[0]);
-                            },
-                        }
-                    },
-                    .repr_kind => |repr_kind| {
-                        switch (repr_kind) {
-                            .@"struct" => {
-                                const reprs = self.allocator.alloc(Repr, args.values.len) catch panic("OOM", .{});
-                                for (reprs, args.values) |*repr, value| {
-                                    if (value != .repr)
-                                        return self.fail("Can't pass {} to {}", .{ value, head });
-                                    repr.* = value.repr;
-                                }
-                                return .{ .repr = .{ .@"struct" = .{
-                                    .keys = args.repr.keys,
-                                    .reprs = reprs,
-                                } } };
-                            },
-                            .list => {
-                                if (args.values.len != 1)
-                                    return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                                if (call.args.muts[0] == true)
-                                    return self.fail("Can't pass mut arg to repr", .{});
-                                const elem = args.values[0];
-                                if (elem != .repr)
-                                    return self.fail("Can't pass {} to {}", .{ elem, head });
-                                return .{ .repr = .{ .list = box(self.allocator, elem.repr) } };
-                            },
-                            .map => {
-                                if (args.values.len != 2)
-                                    return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                                if (call.args.muts[0] == true)
-                                    return self.fail("Can't pass mut arg to repr", .{});
-                                if (call.args.muts[1] == true)
-                                    return self.fail("Can't pass mut arg to repr", .{});
-                                const key = args.values[0];
-                                const value = args.values[1];
-                                if (key != .repr)
-                                    return self.fail("Can't pass {} to {}", .{ key, head });
-                                if (value != .repr)
-                                    return self.fail("Can't pass {} to {}", .{ value, head });
-                                return .{ .repr = .{ .map = .{ box(self.allocator, key.repr), box(self.allocator, value.repr) } } };
-                            },
-                            .@"union" => {
-                                const reprs = self.allocator.alloc(Repr, args.values.len) catch panic("OOM", .{});
-                                for (reprs, args.values) |*repr, member| {
-                                    if (member != .repr)
-                                        return self.fail("Can't pass {} to {}", .{ member, head });
-                                    repr.* = member.repr;
-                                }
-                                return .{ .repr = .{ .@"union" = reprs } };
-                            },
-                            .only => {
-                                if (args.values.len != 1)
-                                    return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                                if (call.args.muts[0] == true)
-                                    return self.fail("Can't pass mut arg to repr", .{});
-                                const only_value = args.values[0];
-                                return .{ .repr = .{ .only = box(self.allocator, only_value) } };
-                            },
-                        }
                     },
                     else => return self.fail("Cannot call {}", .{head}),
                 }
@@ -1115,6 +1123,15 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
             }
             try self.capture(@"fn".body, captures, locals);
             locals.shrinkRetainingCapacity(locals_len);
+        },
+        .make => |make| {
+            try self.capture(make.head, captures, locals);
+            for (make.args.keys) |key| {
+                try self.capture(key, captures, locals);
+            }
+            for (make.args.values) |value| {
+                try self.capture(value, captures, locals);
+            }
         },
         .call => |call| {
             try self.capture(call.head, captures, locals);

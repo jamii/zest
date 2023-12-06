@@ -413,7 +413,7 @@ The in-memory layout of `repr` is not exposed.
 The function `as` creates a new value with the same notation but a different representation.
 
 ```
-42/as[f64]
+42/as(f64)
 
 42.0
 ```
@@ -421,7 +421,7 @@ The function `as` creates a new value with the same notation but a different rep
 If the new representation cannot encode the notation, `as` throws an error.
 
 ```
-3.14/as[i64]
+3.14/as(i64)
 
 Cannot convert 3.14 to i64
 ```

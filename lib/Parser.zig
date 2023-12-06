@@ -46,6 +46,10 @@ pub const Expr = union(enum) {
         params: [][]const u8,
         body: ExprId,
     },
+    make: struct {
+        head: ExprId,
+        args: ObjectExpr,
+    },
     call: struct {
         head: ExprId,
         args: ObjectExpr,
@@ -169,8 +173,19 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     self.token_ix -= 1;
                     break;
                 }
-                self.token_ix -= 1;
-                const object = try self.parseObject(true);
+                const object = try self.parseObject(true, .@"]");
+                head = self.expr(.{ .make = .{
+                    .head = head,
+                    .args = object,
+                } });
+            },
+            .@"(" => {
+                if (self.prevToken() == .whitespace) {
+                    // `foo [bar]` is a syntax error, not a call
+                    self.token_ix -= 1;
+                    break;
+                }
+                const object = try self.parseObject(true, .@")");
                 head = self.expr(.{ .call = .{
                     .head = head,
                     .args = object,
@@ -191,8 +206,8 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                 keys.append(self.expr(.{ .i64 = 0 })) catch panic("OOM", .{});
                 values.append(head) catch panic("OOM", .{});
 
-                if (self.peek() == .@"[") {
-                    const object = try self.parseObject(true);
+                if (self.takeIf(.@"(")) {
+                    const object = try self.parseObject(true, .@")");
                     for (object.keys) |key| {
                         const key_expr = &self.exprs.items[key];
                         if (key_expr.* == .i64)
@@ -256,8 +271,7 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             return self.expr(.{ .string = string });
         },
         .@"[" => {
-            self.token_ix -= 1;
-            const object = try self.parseObject(false);
+            const object = try self.parseObject(false, .@"]");
             return self.expr(.{ .object = object });
         },
         .name => {
@@ -310,18 +324,17 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
                 .body = body,
             } });
         },
-        .@"fn" => {
-            try self.expect(.@"[");
+        .@"(" => {
             var muts = ArrayList(bool).init(self.allocator);
             var params = ArrayList([]const u8).init(self.allocator);
             while (true) {
-                if (self.peek() == .@"]") break;
+                if (self.peek() == .@")") break;
                 muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
                 try self.expect(.name);
                 params.append(self.lastTokenText()) catch panic("OOM", .{});
                 if (!self.takeIf(.@",")) break;
             }
-            try self.expect(.@"]");
+            try self.expect(.@")");
             const body = try self.parseExpr1();
             return self.expr(.{ .@"fn" = .{
                 .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
@@ -373,8 +386,7 @@ fn parseString(self: *Self, text: []const u8) ![]u8 {
     return chars.toOwnedSlice() catch panic("OOM", .{});
 }
 
-fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
-    try self.expect(.@"[");
+fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
     var muts = ArrayList(bool).init(self.allocator);
     var keys = ArrayList(ExprId).init(self.allocator);
     var values = ArrayList(ExprId).init(self.allocator);
@@ -390,7 +402,7 @@ fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
             const name = self.tokenText(self.token_ix - 2);
             key_ix = null;
             key = self.expr(.{ .string = name });
-            if (self.peek() == .@"," or self.peek() == .@"]") {
+            if (self.peek() == .@"," or self.peek() == end) {
                 value = self.expr(.{ .name = name });
             } else {
                 value = try self.parseExpr1();
@@ -405,7 +417,7 @@ fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
                     .name => |name| self.expr(.{ .string = name }),
                     else => value,
                 };
-                value = if (key_expr == .name and (self.peek() == .@"," or self.peek() == .@"]"))
+                value = if (key_expr == .name and (self.peek() == .@"," or self.peek() == end))
                     self.expr(.{ .name = key_expr.name })
                 else
                     try self.parseExpr1();
@@ -422,7 +434,7 @@ fn parseObject(self: *Self, allow_mut: bool) !ObjectExpr {
         values.append(value.?) catch panic("OOM", .{});
         if (!self.takeIf(.@",")) break;
     }
-    try self.expect(.@"]");
+    try self.expect(end);
     return ObjectExpr{
         .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
         .keys = keys.toOwnedSlice() catch panic("OOM", .{}),

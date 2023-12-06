@@ -17,7 +17,6 @@ pub const Token = enum {
     name,
     mut,
     set,
-    @"fn",
     @"if",
     @"else",
     @"while",
@@ -115,7 +114,6 @@ pub fn tokenize(self: *Self) !void {
                 const keywords = [_]Token{
                     .mut,
                     .set,
-                    .@"fn",
                     .@"if",
                     .@"else",
                     .@"while",
