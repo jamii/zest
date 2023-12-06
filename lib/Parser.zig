@@ -88,6 +88,8 @@ pub const Builtin = enum {
 
     // named functions
     as,
+    get,
+    @"try-get",
     @"get-repr",
     @"get-only",
 };
@@ -287,6 +289,12 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             }
             if (std.mem.eql(u8, name, "as")) {
                 return self.expr(.{ .builtin = .as });
+            }
+            if (std.mem.eql(u8, name, "get")) {
+                return self.expr(.{ .builtin = .get });
+            }
+            if (std.mem.eql(u8, name, "try-get")) {
+                return self.expr(.{ .builtin = .@"try-get" });
             }
             if (std.mem.eql(u8, name, "get-repr")) {
                 return self.expr(.{ .builtin = .@"get-repr" });

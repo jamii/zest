@@ -662,7 +662,7 @@ If the key is not present in the map then an error is returned:
 abc: [a: 1, b: 2, c: 3];
 abc/get('d')
 
-error
+Key 'd' not found in [a: 1, b: 2, c: 3]
 ```
 
 The `try-get` function instead returns an optional value.

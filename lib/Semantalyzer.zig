@@ -875,6 +875,46 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                             return self.fail("Cannot pass {} to {}", .{ args.values.len, head_expr });
                         return self.convert(repr.repr, value);
                     },
+                    .get => {
+                        if (args.values.len != 2)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        if (call.args.muts[0] == true)
+                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        if (call.args.muts[1] == true)
+                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        const object = args.values[0];
+                        const key = args.values[1];
+                        return (try self.objectGet(object, key)).*;
+                    },
+                    .@"try-get" => {
+                        if (args.values.len != 2)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        if (call.args.muts[0] == true)
+                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        if (call.args.muts[1] == true)
+                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        const object = args.values[0];
+                        const key = args.values[1];
+                        if (self.objectGet(object, key)) |value| {
+                            return .{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = self.allocator.dupe(Value, &[_]Value{.{ .string = self.allocator.dupe(u8, "some") catch panic("OOM", .{}) }}) catch panic("OOM", .{}),
+                                    .reprs = self.allocator.dupe(Repr, &[_]Repr{value.reprOf()}) catch panic("OOM", .{}),
+                                },
+                                .values = self.allocator.dupe(Value, &[_]Value{value.*}) catch panic("OOM", .{}),
+                            } };
+                        } else |_| {
+                            return .{ .string = self.allocator.dupe(u8, "none") catch panic("OOM", .{}) };
+                        }
+                    },
                     .@"get-repr" => {
                         if (args.values.len != 1)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
@@ -926,16 +966,6 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const head = try self.eval(call.head);
                 const args = try self.evalObject(call.args);
                 switch (head) {
-                    .map => |map| {
-                        if (args.values.len != 1)
-                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                        if (call.args.muts[0] == true)
-                            return self.fail("Can't pass mut arg to map", .{});
-                        if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
-                            return self.fail("Can't pass named key to map", .{});
-                        const key = args.values[0];
-                        return (try self.mapGet(map, key)).*;
-                    },
                     .@"fn" => |@"fn"| {
                         if (args.values.len != @"fn".params.len)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
@@ -1152,6 +1182,31 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
             }
             locals.shrinkRetainingCapacity(locals_len);
         },
+    }
+}
+
+fn objectGet(self: *Self, object: Value, key: Value) error{SemantalyzeError}!*Value {
+    return switch (object) {
+        .@"struct" => |@"struct"| self.structGet(@"struct", key),
+        .list => |list| self.listGet(list, key),
+        .map => |map| self.mapGet(map, key),
+        else => return self.fail("{} is not an object", .{object}),
+    };
+}
+
+fn structGet(self: *Self, @"struct": Struct, key: Value) error{SemantalyzeError}!*Value {
+    for (@"struct".repr.keys, @"struct".values) |struct_key, *value| {
+        if (struct_key.equal(key)) return value;
+    } else {
+        return self.fail("Key {} not found in {}", .{ key, Value{ .@"struct" = @"struct" } });
+    }
+}
+
+fn listGet(self: *Self, list: List, key: Value) error{SemantalyzeError}!*Value {
+    if (key == .i64 and key.i64 >= 0 and key.i64 < list.elems.items.len) {
+        return &list.elems.items[@intCast(key.i64)];
+    } else {
+        return self.fail("Key {} not found in {}", .{ key, Value{ .list = list } });
     }
 }
 
