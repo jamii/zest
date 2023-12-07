@@ -656,7 +656,7 @@ abc:b
 2
 ```
 
-If the key is not present in the map then an error is returned:
+If the key is not present in the map then an error is returned.
 
 ```
 abc: [a: 1, b: 2, c: 3];
@@ -704,7 +704,7 @@ foo(1)
 2
 ```
 
-Functions close over variables in their scope:
+Functions close over variables in their scope.
 
 ```
 n: 1;
