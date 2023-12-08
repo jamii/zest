@@ -713,6 +713,12 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .name => |name| {
             if (self.lookup(name)) |binding| {
+                if (binding.value == .@"fn") {
+                    const parent_id = self.parser.parents[expr_id];
+                    if (parent_id == null or
+                        self.parser.exprs.items[parent_id.?] != .call)
+                        return self.fail("Functions may only be reference as the head of a call or an argument to a call", .{});
+                }
                 return binding.value;
             } else |err| {
                 if (std.mem.eql(u8, name, "i64")) {

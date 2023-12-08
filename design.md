@@ -787,14 +787,14 @@ Functions can only be referenced as the head of an argument call or the argument
 foo: () 42;
 ['nope': foo]
 
-error
+Functions may only be reference as the head of a call or an argument to a call
 ```
 
 ```
 foo: () 42;
 [{foo}: 'nope']
 
-error
+Functions may only be reference as the head of a call or an argument to a call
 ```
 
 ```
@@ -802,7 +802,7 @@ zero: () 0;
 one: () 1;
 if 1 one else zero
 
-error
+Functions may only be reference as the head of a call or an argument to a call
 ```
 
 ```
@@ -810,7 +810,7 @@ foo: () 42;
 bar: () foo;
 bar()
 
-error
+Functions may only be reference as the head of a call or an argument to a call
 ```
 
 TODO control flow capture
