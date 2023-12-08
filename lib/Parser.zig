@@ -389,22 +389,8 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             } });
         },
         .@"(" => {
-            var muts = ArrayList(bool).init(self.allocator);
-            var params = ArrayList([]const u8).init(self.allocator);
-            while (true) {
-                if (self.peek() == .@")") break;
-                muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
-                try self.expect(.name);
-                params.append(self.lastTokenText()) catch panic("OOM", .{});
-                if (!self.takeIf(.@",")) break;
-            }
-            try self.expect(.@")");
-            const body = try self.parseExpr1();
-            return self.expr(.{ .@"fn" = .{
-                .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-                .params = params.toOwnedSlice() catch panic("OOM", .{}),
-                .body = body,
-            } });
+            self.token_ix -= 1;
+            return self.parseFn();
         },
         .@"{" => {
             const inner = self.parseExpr0(.@"}");
@@ -499,11 +485,79 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
         if (!self.takeIf(.@",")) break;
     }
     try self.expect(end);
+
+    if (end == .@")") {
+        while (true) {
+            {
+                const start = self.token_ix;
+                if (self.peekWhitespace() and self.peek() == .@"(") {
+                    const value = try self.parseFn();
+
+                    if (key_ix == null)
+                        // TODO Should we just slot them in after existing positional elems instead?
+                        return self.fail("Positional elems must be before key/value elems", .{});
+                    const key = self.expr(.{ .i64 = key_ix.? });
+                    key_ix.? += 1;
+
+                    muts.append(false) catch panic("OOM", .{});
+                    keys.append(key) catch panic("OOM", .{});
+                    values.append(value) catch panic("OOM", .{});
+
+                    continue;
+                }
+                self.token_ix = start;
+            }
+
+            {
+                const start = self.token_ix;
+                if (self.peekWhitespace() and self.takeIf(.name) and self.takeIf(.@":") and self.takeIf(.@"(")) {
+                    self.token_ix = start;
+                    try self.expect(.name);
+                    const name = self.lastTokenText();
+                    try self.expect(.@":");
+
+                    const value = try self.parseFn();
+
+                    const key = self.expr(.{ .string = name });
+
+                    muts.append(false) catch panic("OOM", .{});
+                    keys.append(key) catch panic("OOM", .{});
+                    values.append(value) catch panic("OOM", .{});
+
+                    continue;
+                }
+                self.token_ix = start;
+            }
+
+            break;
+        }
+    }
+
     return ObjectExpr{
         .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
         .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
         .values = values.toOwnedSlice() catch panic("OOM", .{}),
     };
+}
+
+fn parseFn(self: *Self) !ExprId {
+    try self.expect(.@"(");
+    var muts = ArrayList(bool).init(self.allocator);
+    var params = ArrayList([]const u8).init(self.allocator);
+    while (true) {
+        if (self.peek() == .@")") break;
+        muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
+        try self.expect(.name);
+        params.append(self.lastTokenText()) catch panic("OOM", .{});
+        if (!self.takeIf(.@",")) break;
+    }
+    try self.expect(.@")");
+    const body = try self.parseExpr1();
+    return self.expr(.{ .@"fn" = .{
+        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
+        .params = params.toOwnedSlice() catch panic("OOM", .{}),
+        .body = body,
+    } });
 }
 
 fn prevToken(self: *Self) Token {
