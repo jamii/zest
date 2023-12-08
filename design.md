@@ -726,13 +726,13 @@ foo: (x) x + 1
 ```
 foo: {(x) x + 1}
 
-error
+Functions may only be defined at the top of definitions or call arguments
 ```
 
 ```
 {(x) x + 1}(1)
 
-error
+Functions may only be defined at the top of definitions or call arguments
 ```
 
 ```
@@ -744,10 +744,10 @@ twice(1, (x) x + 1);
 
 ```
 twice: (x, f) f(f(x));
-twice(1, if 1 then (x) x + 1 else (x) x + 2);
+twice(1, if 1 (x) x + 1 else (x) x + 2);
 3
 
-error
+Functions may only be defined at the top of definitions or call arguments
 ```
 
 Function definitions immediately after a function call are interpreted as additional positional or named arguments to the function call.

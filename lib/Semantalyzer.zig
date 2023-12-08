@@ -694,6 +694,13 @@ pub fn semantalyze(self: *Self) error{SemantalyzeError}!Value {
 
 fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
     const expr = self.parser.exprs.items[expr_id];
+    if (expr == .@"fn") {
+        const parent_id = self.parser.parents[expr_id];
+        if (parent_id == null or
+            (self.parser.exprs.items[parent_id.?] != .let and
+            self.parser.exprs.items[parent_id.?] != .call))
+            return self.fail("Functions may only be defined at the top of definitions or call arguments", .{});
+    }
     switch (expr) {
         .i64 => |int| return .{ .i64 = int },
         .f64 => |float| return .{ .f64 = float },
