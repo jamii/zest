@@ -768,8 +768,6 @@ twice(1)
 3
 ```
 
-If a post-fix argument is a function with no arguments, then the `()` can be omitted:
-
 ```
 try: (body, catch:) body(throw: catch)
 try()
@@ -780,6 +778,10 @@ try()
 
 [error: 'oh no!']
 ```
+
+If a post-fix argument is a function with no arguments, then the `()` can be omitted:
+
+TODO example requires mutation
 
 Functions can only be referenced as the head of an argument call or the argument to a function call.
 
