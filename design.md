@@ -755,7 +755,7 @@ Function definitions immediately after a function call are interpreted as additi
 ```
 twice: (x, f) f(f(x));
 twice(1)
-  (x) x + 1;
+  (x) x + 1
 
 3
 ```
@@ -763,7 +763,7 @@ twice(1)
 ```
 twice: (x, f:) f(f(x));
 twice(1)
-  f: (x) x + 1;
+  f: (x) x + 1
 
 3
 ```
