@@ -442,7 +442,7 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
     var values = ArrayList(ExprId).init(self.allocator);
     var key_ix: ?i64 = 0;
     while (true) {
-        if (self.peek() == .@"]") break;
+        if (self.peek() == end) break;
         const mut = allow_mut and self.takeIf(.mut);
         var key: ?ExprId = null;
         var value: ?ExprId = null;
