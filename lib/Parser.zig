@@ -126,6 +126,11 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
         const token = self.take();
         switch (token) {
             .@"=", .@"~", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
+                if (self.prevToken() != .whitespace or !self.peekWhitespace()) {
+                    // Operators need to have whitespace on both sides.
+                    self.token_ix -= 1;
+                    break;
+                }
                 const builtin = switch (token) {
                     .@"=" => Builtin.equal,
                     .@"~" => Builtin.equivalent,
@@ -183,7 +188,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
             },
             .@"(" => {
                 if (self.prevToken() == .whitespace) {
-                    // `foo [bar]` is a syntax error, not a call
+                    // `foo (bar)` is a syntax error, not a call
                     self.token_ix -= 1;
                     break;
                 }

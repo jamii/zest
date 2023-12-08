@@ -579,7 +579,8 @@ digits-at-start: 'foo'
 ```
 0-digits-at-start: 'foo'
 
-error
+At 1. Expected Tokenizer.Token.eof, found Tokenizer.Token.-
+-digits-at-start: 'foo'
 ```
 
 In objects, if a key is a valid name then it is treated as a string.
@@ -698,7 +699,7 @@ Cannot get key 'some' from non-object 'none'
 ## functions
 
 ```
-foo: (x) x+1;
+foo: (x) x + 1;
 foo(1)
 
 2
@@ -708,7 +709,7 @@ Functions close over variables in their scope.
 
 ```
 n: 1;
-inc: (x) x+n;
+inc: (x) x + n;
 inc(1)
 
 2
@@ -717,33 +718,33 @@ inc(1)
 Function definitions can only appear in variable definitions or as the argument to a function call.
 
 ```
-foo: (x) x+1
+foo: (x) x + 1
 
 0
 ```
 
 ```
-foo: {(x) x+1}
+foo: {(x) x + 1}
 
 error
 ```
 
 ```
-{(x) x+1}(1)
+{(x) x + 1}(1)
 
 error
 ```
 
 ```
 twice: (x, f) f(f(x));
-twice(1, (x) x+1);
+twice(1, (x) x + 1);
 
 3
 ```
 
 ```
 twice: (x, f) f(f(x));
-twice(1, if 1 then (x) x+1 else (x) x+2);
+twice(1, if 1 then (x) x + 1 else (x) x + 2);
 3
 
 error
@@ -754,7 +755,7 @@ Function definitions immediately after a function call are interpreted as additi
 ```
 twice: (x, f) f(f(x));
 twice(1)
-  (x) x+1;
+  (x) x + 1;
 
 3
 ```
@@ -762,7 +763,7 @@ twice(1)
 ```
 twice: (x, f:) f(f(x));
 twice(1)
-  f: (x) x+1;
+  f: (x) x + 1;
 
 3
 ```
@@ -776,6 +777,8 @@ try()
     throw('oh no!')
   catch: (error)
     return-to(try, [error:])
+
+[error: 'oh no!']
 ```
 
 Functions can only be referenced as the head of an argument call or the argument to a function call.
@@ -828,7 +831,7 @@ TODO throw/panic as implicit arguments. try sets throw argument for body.
 
 `[]` always indicates constructing a value. The result looks like the syntax.
 
-`()` always indicates computation: either defining (`(x) x+1`) or performing (`inc(x)`).
+`()` always indicates computation: either defining (`(x) x + 1`) or performing (`inc(x)`).
 
 `{}` is used for grouping instead of `()` to avoid ambiguity.
 
