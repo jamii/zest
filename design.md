@@ -579,7 +579,7 @@ digits-at-start: 'foo'
 ```
 0-digits-at-start: 'foo'
 
-Cannot call Parser.Expr{ .builtin = Parser.Builtin.subtract } on 0
+error
 ```
 
 In objects, if a key is a valid name then it is treated as a string.

@@ -947,16 +947,28 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                             },
                             .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => panic("TODO", .{}),
                             .add, .subtract, .multiply, .divide => {
-                                if (args.values[0] != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, args.values[0] });
-                                if (args.values[1] != .f64) return self.fail("Cannot call {} on {}", .{ head_expr, args.values[1] });
-                                const result = switch (head_expr.builtin) {
-                                    .add => args.values[0].f64 + args.values[1].f64,
-                                    .subtract => args.values[0].f64 - args.values[1].f64,
-                                    .multiply => args.values[0].f64 * args.values[1].f64,
-                                    .divide => args.values[0].f64 / args.values[1].f64,
-                                    else => unreachable,
-                                };
-                                return .{ .f64 = result };
+                                if (!(args.values[0] == .i64 and args.values[1] == .i64) and
+                                    !(args.values[0] == .f64 and args.values[1] == .f64))
+                                    return self.fail("Cannot call {} on {} and {}", .{ head_expr, args.values[0], args.values[1] });
+                                if (args.values[0] == .f64) {
+                                    const result = switch (head_expr.builtin) {
+                                        .add => args.values[0].f64 + args.values[1].f64,
+                                        .subtract => args.values[0].f64 - args.values[1].f64,
+                                        .multiply => args.values[0].f64 * args.values[1].f64,
+                                        .divide => args.values[0].f64 / args.values[1].f64,
+                                        else => unreachable,
+                                    };
+                                    return .{ .f64 = result };
+                                } else {
+                                    const result = switch (head_expr.builtin) {
+                                        .add => args.values[0].i64 + args.values[1].i64,
+                                        .subtract => args.values[0].i64 - args.values[1].i64,
+                                        .multiply => args.values[0].i64 * args.values[1].i64,
+                                        .divide => return self.fail("Cannot call {} on {} and {}", .{ head_expr, args.values[0], args.values[1] }),
+                                        else => unreachable,
+                                    };
+                                    return .{ .i64 = result };
+                                }
                             },
                             else => unreachable,
                         }
