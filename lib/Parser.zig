@@ -12,6 +12,7 @@ allocator: Allocator,
 tokenizer: Tokenizer,
 token_ix: usize,
 exprs: ArrayList(Expr),
+parents: []?ExprId,
 error_message: ?[]const u8,
 
 pub const ExprId = usize;
@@ -100,6 +101,7 @@ pub fn init(allocator: Allocator, tokenizer: Tokenizer) Self {
         .tokenizer = tokenizer,
         .token_ix = 0,
         .exprs = ArrayList(Expr).init(allocator),
+        .parents = &[_]?ExprId{},
         .error_message = null,
     };
 }
@@ -107,6 +109,48 @@ pub fn init(allocator: Allocator, tokenizer: Tokenizer) Self {
 pub fn parse(self: *Self) !void {
     _ = try self.parseExpr0(.eof);
     try self.expect(.eof);
+
+    self.parents = self.allocator.alloc(?ExprId, self.exprs.items.len) catch panic("OOM", .{});
+    for (self.parents) |*parent| parent.* = null;
+    for (0.., self.exprs.items) |expr_id, an_expr| {
+        switch (an_expr) {
+            .i64, .f64, .string, .builtin, .name => {},
+            .object => |object| {
+                for (object.keys) |key| self.parents[key] = expr_id;
+                for (object.values) |value| self.parents[value] = expr_id;
+            },
+            .let => |let| {
+                self.parents[let.value] = expr_id;
+            },
+            .set => |set| {
+                self.parents[set.path] = expr_id;
+                self.parents[set.value] = expr_id;
+            },
+            .@"if" => |@"if"| {
+                self.parents[@"if".cond] = expr_id;
+                self.parents[@"if".if_true] = expr_id;
+                self.parents[@"if".if_false] = expr_id;
+            },
+            .@"while" => |@"while"| {
+                self.parents[@"while".cond] = expr_id;
+                self.parents[@"while".body] = expr_id;
+            },
+            .@"fn" => |@"fn"| {
+                self.parents[@"fn".body] = expr_id;
+            },
+            inline .make, .call => |make| {
+                self.parents[make.head] = expr_id;
+                for (make.args.keys) |key| self.parents[key] = expr_id;
+                for (make.args.values) |value| self.parents[value] = expr_id;
+            },
+            .get_static => |get_static| {
+                self.parents[get_static.object] = expr_id;
+            },
+            .exprs => |exprs| {
+                for (exprs) |child_expr_id| self.parents[child_expr_id] = expr_id;
+            },
+        }
+    }
 }
 
 fn parseExpr0(self: *Self, end: Token) error{ParseError}!ExprId {
