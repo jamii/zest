@@ -815,7 +815,7 @@ TODO patterns
 TODO control flow capture
 
 ```
-try: (body, catch:) body(throw: catch)
+try: (body, catch:) body(throw: catch);
 try()
   (throw:)
     throw('oh no!')

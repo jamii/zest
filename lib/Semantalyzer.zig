@@ -1001,18 +1001,12 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const args = try self.evalObject(call.args);
                 switch (head) {
                     .@"fn" => |@"fn"| {
-                        if (args.values.len != @"fn".params.values.len)
-                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
                         for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
                             if (arg_mut != param_mut)
                                 return self.fail("Expected {s} arg, found {s} arg", .{
                                     if (param_mut) "mut" else "const",
                                     if (arg_mut) "mut" else "const",
                                 });
-                        }
-                        for (args.repr.keys, 0..) |key, i| {
-                            if (key != .i64 or key.i64 != i)
-                                return self.fail("Can't pass named key to fn", .{});
                         }
 
                         // Set up fn scope.
@@ -1028,13 +1022,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
 
                         // Add args to scope.
                         // TODO check all args are disjoint
-                        for (@"fn".params.values, call.args.muts, args.values) |param, arg_mut, arg| {
-                            fn_scope.append(.{
-                                .mut = arg_mut,
-                                .name = param,
-                                .value = arg.copy(self.allocator),
-                            }) catch panic("OOM", .{});
-                        }
+                        try self.matchObject(@"fn".params, .{ .@"struct" = args }, &fn_scope);
 
                         // Call fn.
                         std.mem.swap(Scope, &fn_scope, &self.scope);
@@ -1089,11 +1077,22 @@ fn evalStaticKey(self: *Self, static_key: StaticKey) Value {
 }
 
 fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPattern {
-    const keys = self.allocator.alloc(Value, object_pattern.keys.len) catch panic("OOM", .{});
-    for (keys, object_pattern.keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
+    const keys_unsorted = self.allocator.alloc(Value, object_pattern.keys.len) catch panic("OOM", .{});
+    for (keys_unsorted, object_pattern.keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
+
+    var ixes = self.allocator.alloc(usize, keys_unsorted.len) catch panic("OOM", .{});
+    for (ixes, 0..) |*ix, i| ix.* = i;
+    std.sort.heap(usize, ixes, keys_unsorted, (struct {
+        fn lessThan(context: []Value, a: usize, b: usize) bool {
+            switch (context[a].order(context[b])) {
+                .lt => return true,
+                .gt, .eq => return false,
+            }
+        }
+    }).lessThan);
     return .{
-        .keys = keys,
-        .values = object_pattern.values,
+        .keys = permute(self.allocator, ixes, Value, keys_unsorted),
+        .values = permute(self.allocator, ixes, []const u8, object_pattern.values),
     };
 }
 
@@ -1114,9 +1113,7 @@ fn evalObject(self: *Self, object_expr: ObjectExpr) error{SemantalyzeError}!Stru
         .values = values,
     };
     var ixes = self.allocator.alloc(usize, keys.len) catch panic("OOM", .{});
-    for (ixes, 0..) |*ix, i| {
-        ix.* = i;
-    }
+    for (ixes, 0..) |*ix, i| ix.* = i;
     std.sort.heap(usize, ixes, struct_unsorted, (struct {
         fn lessThan(context: Struct, a: usize, b: usize) bool {
             switch (context.repr.keys[a].order(context.repr.keys[b])) {
@@ -1484,6 +1481,30 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 return self.fail("Cannot convert {} to {}", .{ value, repr });
             }
         },
+    }
+}
+
+fn matchObject(self: *Self, pattern: ObjectPattern, object: Value, scope: *Scope) !void {
+    switch (object) {
+        .@"struct" => |@"struct"| {
+            const start = scope.items.len;
+            errdefer scope.shrinkRetainingCapacity(start);
+
+            if (pattern.keys.len != @"struct".repr.keys.len)
+                return self.fail("Wrong number of keys in {} to match object pattern", .{object});
+
+            for (pattern.keys, pattern.values, @"struct".repr.keys, @"struct".values) |pattern_key, pattern_value, object_key, object_value| {
+                if (!pattern_key.equal(object_key))
+                    return self.fail("Key {} in pattern not found in object {}", .{ pattern_key, object });
+                scope.append(.{
+                    .mut = false,
+                    .name = pattern_value,
+                    .value = object_value,
+                }) catch panic("OOM", .{});
+            }
+        },
+        .map, .list => return self.fail("TODO match object/list", .{}),
+        else => return self.fail("Cannot match {} against object pattern", .{object}),
     }
 }
 
