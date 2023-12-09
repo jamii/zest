@@ -511,6 +511,8 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
             {
                 const start = self.token_ix;
                 if (self.peekWhitespace() and self.takeIf(.name) and self.takeIf(.@":") and self.takeIf(.@"(")) {
+                    key_ix = null;
+
                     self.token_ix = start;
                     try self.expect(.name);
                     const name = self.lastTokenText();

@@ -768,17 +768,6 @@ twice(1)
 3
 ```
 
-```
-try: (body, catch:) body(throw: catch)
-try()
-  (throw:)
-    throw('oh no!')
-  catch: (error)
-    return-to(try, [error:])
-
-[error: 'oh no!']
-```
-
 If a post-fix argument is a function with no arguments, then the `()` can be omitted:
 
 TODO example requires mutation
@@ -815,11 +804,22 @@ bar()
 Functions may only be reference as the head of a call or an argument to a call
 ```
 
+TODO patterns
+
 TODO control flow capture
 
-TODO some way to indicate functions which always return?
+```
+try: (body, catch:) body(throw: catch)
+try()
+  (throw:)
+    throw('oh no!')
+  catch: (error)
+    return-to(try, [error:])
 
-TODO patterns
+[error: 'oh no!']
+```
+
+TODO some way to indicate functions which always return?
 
 ## mutation
 
