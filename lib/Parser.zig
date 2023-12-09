@@ -558,19 +558,34 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
 
 fn parseFn(self: *Self) !ExprId {
     try self.expect(.@"(");
+    const params = try self.parseObjectPattern(.@")");
+    try self.expect(.@")");
+
+    // TODO design mut patterns.
     var muts = ArrayList(bool).init(self.allocator);
+    for (params.values) |_| muts.append(false) catch panic("OOM", .{});
+
+    const body = try self.parseExpr1();
+
+    return self.expr(.{ .@"fn" = .{
+        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
+        .params = params,
+        .body = body,
+    } });
+}
+
+fn parseObjectPattern(self: *Self, end: Token) !ObjectPattern {
     var keys = ArrayList(StaticKey).init(self.allocator);
     var values = ArrayList([]const u8).init(self.allocator);
     var key_ix: ?i64 = 0;
     while (true) {
-        if (self.peek() == .@")") break;
-        muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
+        if (self.peek() == end) break;
 
         var key = try self.parseStaticKey();
         var value: ?[]const u8 = null;
         if (self.takeIf(.@":")) {
             key_ix = null;
-            if (self.peek() == .@"," or self.peek() == .@")") {
+            if (self.peek() == .@"," or self.peek() == end) {
                 if (key != .name)
                     return self.fail("Cannot use {} as parameter name", .{key});
                 value = key.name;
@@ -591,16 +606,10 @@ fn parseFn(self: *Self) !ExprId {
         values.append(value.?) catch panic("OOM", .{});
         if (!self.takeIf(.@",")) break;
     }
-    try self.expect(.@")");
-    const body = try self.parseExpr1();
-    return self.expr(.{ .@"fn" = .{
-        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-        .params = .{
-            .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
-            .values = values.toOwnedSlice() catch panic("OOM", .{}),
-        },
-        .body = body,
-    } });
+    return .{
+        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
+        .values = values.toOwnedSlice() catch panic("OOM", .{}),
+    };
 }
 
 fn prevToken(self: *Self) Token {
