@@ -768,10 +768,6 @@ twice(1)
 3
 ```
 
-If a post-fix argument is a function with no arguments, then the `()` can be omitted:
-
-TODO example requires mutation
-
 Functions can only be referenced as the head of an argument call or the argument to a function call.
 
 ```
@@ -802,6 +798,16 @@ bar: () foo;
 bar()
 
 Functions may only be reference as the head of a call or an argument to a call
+```
+
+Functions can take keyword arguments, with the same syntax as object fields:
+
+```
+foo (x, y:, 'also z': z) [x,y,z];
+y: 2;
+foo (1, 'also z': 3, y:)
+
+[1, 2, 3]
 ```
 
 TODO patterns

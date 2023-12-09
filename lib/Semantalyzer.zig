@@ -7,6 +7,7 @@ const Parser = @import("./Parser.zig");
 const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
 const ObjectExpr = Parser.ObjectExpr;
+const StaticKey = Parser.StaticKey;
 
 const Self = @This();
 allocator: Allocator,
@@ -416,7 +417,8 @@ pub const Value = union(enum) {
                 return .{ .@"fn" = .{
                     .captures = captures_copy,
                     .muts = @"fn".muts,
-                    .params = @"fn".params,
+                    .keys = @"fn".keys,
+                    .values = @"fn".values,
                     .body = @"fn".body,
                 } };
             },
@@ -675,7 +677,8 @@ fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
 pub const Fn = struct {
     captures: Scope,
     muts: []bool,
-    params: [][]const u8,
+    keys: []Value,
+    values: [][]const u8,
     body: ExprId,
 };
 
@@ -782,13 +785,16 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .@"fn" => |@"fn"| {
             var captures = Scope.init(self.allocator);
-            var locals = ArrayList([]const u8).initCapacity(self.allocator, @"fn".params.len) catch panic("OOM", .{});
-            locals.appendSliceAssumeCapacity(@"fn".params);
+            var locals = ArrayList([]const u8).initCapacity(self.allocator, @"fn".values.len) catch panic("OOM", .{});
+            locals.appendSliceAssumeCapacity(@"fn".values);
             try self.capture(@"fn".body, &captures, &locals);
+            const keys = self.allocator.alloc(Value, @"fn".keys.len) catch panic("OOM", .{});
+            for (keys, @"fn".keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
             return .{ .@"fn" = .{
                 .captures = captures,
                 .muts = @"fn".muts,
-                .params = @"fn".params,
+                .keys = keys,
+                .values = @"fn".values,
                 .body = @"fn".body,
             } };
         },
@@ -992,7 +998,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const args = try self.evalObject(call.args);
                 switch (head) {
                     .@"fn" => |@"fn"| {
-                        if (args.values.len != @"fn".params.len)
+                        if (args.values.len != @"fn".values.len)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
                         for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
                             if (arg_mut != param_mut)
@@ -1019,7 +1025,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
 
                         // Add args to scope.
                         // TODO check all args are disjoint
-                        for (@"fn".params, call.args.muts, args.values) |param, arg_mut, arg| {
+                        for (@"fn".values, call.args.muts, args.values) |param, arg_mut, arg| {
                             fn_scope.append(.{
                                 .mut = arg_mut,
                                 .name = param,
@@ -1032,7 +1038,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         const return_value = try self.eval(@"fn".body);
 
                         // Copy mut args back to original locations.
-                        for (@"fn".params, call.args.muts, call.args.keys) |param, arg_mut, arg| {
+                        for (@"fn".values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
                             if (arg_mut) {
                                 // Lookup param in fn_scope.
                                 const binding = try self.lookup(param);
@@ -1056,7 +1062,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             const value = try self.eval(get_static.object);
             const key = switch (get_static.key) {
                 .i64 => |int| Value{ .i64 = int },
-                .string => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
+                .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
             };
             return (try self.objectGet(value, key)).*;
         },
@@ -1070,6 +1076,13 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             return value;
         },
     }
+}
+
+fn evalStaticKey(self: *Self, static_key: StaticKey) Value {
+    return switch (static_key) {
+        .i64 => |int| Value{ .i64 = int },
+        .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
+    };
 }
 
 fn evalObject(self: *Self, object_expr: ObjectExpr) error{SemantalyzeError}!Struct {
@@ -1172,7 +1185,7 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
         },
         .@"fn" => |@"fn"| {
             const locals_len = locals.items.len;
-            for (@"fn".params) |param| {
+            for (@"fn".values) |param| {
                 locals.append(param) catch panic("OOM", .{});
             }
             try self.capture(@"fn".body, captures, locals);
@@ -1276,10 +1289,7 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
         .get_static => |get_static| {
             const value = try self.evalPath(get_static.object);
             if (value.* != .map) return self.fail("Cannot get key from non-map {}", .{value});
-            const key = switch (get_static.key) {
-                .i64 => |int| Value{ .i64 = int },
-                .string => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
-            };
+            const key = self.evalStaticKey(get_static.key);
             return self.mapGet(value.map, key);
         },
         else => return self.fail("Not allowed in set/mut expr {}", .{expr}),

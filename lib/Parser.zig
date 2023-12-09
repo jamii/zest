@@ -44,7 +44,8 @@ pub const Expr = union(enum) {
     },
     @"fn": struct {
         muts: []bool,
-        params: [][]const u8,
+        keys: []StaticKey,
+        values: [][]const u8,
         body: ExprId,
     },
     make: struct {
@@ -72,6 +73,7 @@ pub const ObjectExpr = struct {
 pub const StaticKey = union(enum) {
     i64: i64,
     string: []const u8,
+    name: []const u8,
 };
 
 pub const Builtin = enum {
@@ -283,19 +285,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                     self.token_ix -= 1;
                     break;
                 }
-                const static_key = switch (self.take()) {
-                    .name => StaticKey{ .string = self.lastTokenText() },
-                    .string => StaticKey{ .string = try self.parseString(self.lastTokenText()) },
-                    .number => number: {
-                        const text = self.lastTokenText();
-                        if (std.mem.indexOfScalar(u8, text, '.') == null) {
-                            break :number StaticKey{ .i64 = try self.parseInt64(self.lastTokenText()) };
-                        } else {
-                            return self.fail("Can't use float as key {s}", .{text});
-                        }
-                    },
-                    else => |other_token| return self.fail("Expected name/string/number, found {}", .{other_token}),
-                };
+                const static_key = try self.parseStaticKey();
                 head = self.expr(.{ .get_static = .{
                     .object = head,
                     .key = static_key,
@@ -436,6 +426,23 @@ fn parseString(self: *Self, text: []const u8) ![]u8 {
     return chars.toOwnedSlice() catch panic("OOM", .{});
 }
 
+fn parseStaticKey(self: *Self) !StaticKey {
+    switch (self.take()) {
+        .name => return StaticKey{ .name = self.lastTokenText() },
+        .string => return StaticKey{ .string = try self.parseString(self.lastTokenText()) },
+        .number => {
+            const text = self.lastTokenText();
+            if (std.mem.indexOfScalar(u8, text, '.') == null) {
+                return StaticKey{ .i64 = try self.parseInt64(self.lastTokenText()) };
+            } else {
+                // TODO Is this still necessary?
+                return self.fail("Can't use float as key {s}", .{text});
+            }
+        },
+        else => |other_token| return self.fail("Expected name/string/number, found {}", .{other_token}),
+    }
+}
+
 fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
     var muts = ArrayList(bool).init(self.allocator);
     var keys = ArrayList(ExprId).init(self.allocator);
@@ -545,19 +552,44 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
 fn parseFn(self: *Self) !ExprId {
     try self.expect(.@"(");
     var muts = ArrayList(bool).init(self.allocator);
-    var params = ArrayList([]const u8).init(self.allocator);
+    var keys = ArrayList(StaticKey).init(self.allocator);
+    var values = ArrayList([]const u8).init(self.allocator);
+    var key_ix: ?i64 = 0;
     while (true) {
         if (self.peek() == .@")") break;
         muts.append(self.takeIf(.mut)) catch panic("OOM", .{});
-        try self.expect(.name);
-        params.append(self.lastTokenText()) catch panic("OOM", .{});
+
+        var key = try self.parseStaticKey();
+        var value: ?[]const u8 = null;
+        if (self.takeIf(.@":")) {
+            key_ix = null;
+            if (self.peek() == .@"," or self.peek() == .@")") {
+                if (key != .name)
+                    return self.fail("Cannot use {} as parameter name", .{key});
+                value = key.name;
+            } else {
+                try self.expect(.name);
+                value = self.lastTokenText();
+            }
+        } else {
+            if (key != .name)
+                return self.fail("Cannot use {} as parameter name", .{key});
+            if (key_ix == null)
+                return self.fail("Positional elems must be before key/value elems", .{});
+            value = key.name;
+            key = .{ .i64 = key_ix.? };
+            key_ix.? += 1;
+        }
+        keys.append(key) catch panic("OOM", .{});
+        values.append(value.?) catch panic("OOM", .{});
         if (!self.takeIf(.@",")) break;
     }
     try self.expect(.@")");
     const body = try self.parseExpr1();
     return self.expr(.{ .@"fn" = .{
         .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-        .params = params.toOwnedSlice() catch panic("OOM", .{}),
+        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
+        .values = values.toOwnedSlice() catch panic("OOM", .{}),
         .body = body,
     } });
 }
