@@ -803,9 +803,9 @@ Functions may only be reference as the head of a call or an argument to a call
 Functions can take keyword arguments, with the same syntax as object fields:
 
 ```
-foo (x, y:, 'also z': z) [x,y,z];
+foo: (x, y:, 'also z': z) [x,y,z];
 y: 2;
-foo (1, 'also z': 3, y:)
+foo(1, 'also z': 3, y:)
 
 [1, 2, 3]
 ```

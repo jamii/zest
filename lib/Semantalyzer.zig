@@ -417,8 +417,7 @@ pub const Value = union(enum) {
                 return .{ .@"fn" = .{
                     .captures = captures_copy,
                     .muts = @"fn".muts,
-                    .keys = @"fn".keys,
-                    .values = @"fn".values,
+                    .params = @"fn".params,
                     .body = @"fn".body,
                 } };
             },
@@ -677,10 +676,17 @@ fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
 pub const Fn = struct {
     captures: Scope,
     muts: []bool,
-    keys: []Value,
-    values: [][]const u8,
+    params: ObjectPattern,
     body: ExprId,
 };
+
+pub const ObjectPattern = struct {
+    keys: []Value,
+    values: []Pattern,
+};
+
+// TODO Flesh out.
+pub const Pattern = []const u8;
 
 pub fn init(allocator: Allocator, parser: Parser) Self {
     return .{
@@ -785,16 +791,13 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .@"fn" => |@"fn"| {
             var captures = Scope.init(self.allocator);
-            var locals = ArrayList([]const u8).initCapacity(self.allocator, @"fn".values.len) catch panic("OOM", .{});
-            locals.appendSliceAssumeCapacity(@"fn".values);
+            var locals = ArrayList([]const u8).initCapacity(self.allocator, @"fn".params.values.len) catch panic("OOM", .{});
+            locals.appendSliceAssumeCapacity(@"fn".params.values);
             try self.capture(@"fn".body, &captures, &locals);
-            const keys = self.allocator.alloc(Value, @"fn".keys.len) catch panic("OOM", .{});
-            for (keys, @"fn".keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
             return .{ .@"fn" = .{
                 .captures = captures,
                 .muts = @"fn".muts,
-                .keys = keys,
-                .values = @"fn".values,
+                .params = self.evalObjectPattern(@"fn".params),
                 .body = @"fn".body,
             } };
         },
@@ -998,7 +1001,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const args = try self.evalObject(call.args);
                 switch (head) {
                     .@"fn" => |@"fn"| {
-                        if (args.values.len != @"fn".values.len)
+                        if (args.values.len != @"fn".params.values.len)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
                         for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
                             if (arg_mut != param_mut)
@@ -1025,7 +1028,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
 
                         // Add args to scope.
                         // TODO check all args are disjoint
-                        for (@"fn".values, call.args.muts, args.values) |param, arg_mut, arg| {
+                        for (@"fn".params.values, call.args.muts, args.values) |param, arg_mut, arg| {
                             fn_scope.append(.{
                                 .mut = arg_mut,
                                 .name = param,
@@ -1038,7 +1041,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         const return_value = try self.eval(@"fn".body);
 
                         // Copy mut args back to original locations.
-                        for (@"fn".values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
+                        for (@"fn".params.values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
                             if (arg_mut) {
                                 // Lookup param in fn_scope.
                                 const binding = try self.lookup(param);
@@ -1082,6 +1085,15 @@ fn evalStaticKey(self: *Self, static_key: StaticKey) Value {
     return switch (static_key) {
         .i64 => |int| Value{ .i64 = int },
         .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
+    };
+}
+
+fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPattern {
+    const keys = self.allocator.alloc(Value, object_pattern.keys.len) catch panic("OOM", .{});
+    for (keys, object_pattern.keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
+    return .{
+        .keys = keys,
+        .values = object_pattern.values,
     };
 }
 
@@ -1185,7 +1197,7 @@ fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]
         },
         .@"fn" => |@"fn"| {
             const locals_len = locals.items.len;
-            for (@"fn".values) |param| {
+            for (@"fn".params.values) |param| {
                 locals.append(param) catch panic("OOM", .{});
             }
             try self.capture(@"fn".body, captures, locals);

@@ -44,8 +44,7 @@ pub const Expr = union(enum) {
     },
     @"fn": struct {
         muts: []bool,
-        keys: []StaticKey,
-        values: [][]const u8,
+        params: ObjectPattern,
         body: ExprId,
     },
     make: struct {
@@ -68,6 +67,14 @@ pub const ObjectExpr = struct {
     keys: []ExprId,
     values: []ExprId,
 };
+
+pub const ObjectPattern = struct {
+    keys: []StaticKey,
+    values: []Pattern,
+};
+
+// TODO Flesh out.
+pub const Pattern = []const u8;
 
 // TODO Expand to Value.
 pub const StaticKey = union(enum) {
@@ -588,8 +595,10 @@ fn parseFn(self: *Self) !ExprId {
     const body = try self.parseExpr1();
     return self.expr(.{ .@"fn" = .{
         .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
-        .values = values.toOwnedSlice() catch panic("OOM", .{}),
+        .params = .{
+            .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
+            .values = values.toOwnedSlice() catch panic("OOM", .{}),
+        },
         .body = body,
     } });
 }
