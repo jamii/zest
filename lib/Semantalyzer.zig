@@ -81,12 +81,8 @@ pub const Value = union(enum) {
             .only => |only| {
                 only.repr.update(hasher);
             },
-            .@"fn" => |@"fn"| {
-                for (@"fn".captures.items) |binding| {
-                    // For a given `@"fn".body`, the names in the bindings should always be the same.
-                    binding.value.update(hasher);
-                }
-                hasher.update(std.mem.asBytes(&@"fn".body));
+            .@"fn" => {
+                panic("Fn used as value", .{});
             },
             .repr => |repr| {
                 repr.update(hasher);
@@ -179,7 +175,7 @@ pub const Value = union(enum) {
                 return .eq;
             },
             .@"fn" => {
-                panic("TODO", .{});
+                panic("Fn used as value", .{});
             },
             .repr => {
                 return self.repr.order(other.repr);
@@ -240,14 +236,7 @@ pub const Value = union(enum) {
                 return true;
             },
             .@"fn" => {
-                const self_fn = self.@"fn";
-                const other_fn = other.@"fn";
-                if (self_fn.body != other_fn.body) return false;
-                if (self_fn.captures.items.len != other_fn.captures.items.len) return false;
-                for (self_fn.captures.items, other_fn.captures.items) |self_binding, other_binding| {
-                    if (!self_binding.value.equal(other_binding.value)) return false;
-                }
-                return true;
+                panic("Fn used as value", .{});
             },
             .repr => return self.repr.order(other.repr) == .eq,
             .repr_kind => return self.repr_kind.order(other.repr_kind) == .eq,
@@ -348,13 +337,8 @@ pub const Value = union(enum) {
             .only => |only| {
                 try writer.print("{}[]", .{Repr{ .only = only.repr }});
             },
-            .@"fn" => |@"fn"| {
-                // TODO print something parseable
-                try writer.print("fn[{}", .{@"fn".body});
-                for (@"fn".captures.items) |binding| {
-                    try writer.print(", {s}: {}", .{ binding.name, binding.value });
-                }
-                try writer.writeAll("]");
+            .@"fn" => {
+                panic("Fn used as value", .{});
             },
             .repr => |repr| {
                 try repr.format(fmt, options, writer);
@@ -407,20 +391,8 @@ pub const Value = union(enum) {
                 const value_copy = @"union".value.copy(allocator);
                 return .{ .@"union" = .{ .repr = @"union".repr, .tag = @"union".tag, .value = box(allocator, value_copy) } };
             },
-            .@"fn" => |@"fn"| {
-                // TODO Wait for std.ArrayList.cloneWithAllocator to exist.
-                var captures_copy = Scope.initCapacity(allocator, @"fn".captures.items.len) catch panic("OOM", .{});
-                captures_copy.appendSliceAssumeCapacity(@"fn".captures.items);
-                for (captures_copy.items) |*binding| {
-                    binding.value.copyInPlace(allocator);
-                }
-                return .{ .@"fn" = .{
-                    .captures = captures_copy,
-                    .muts = @"fn".muts,
-                    .params = @"fn".params,
-                    .body = @"fn".body,
-                } };
-            },
+            // TODO
+            .@"fn" => return self,
             // repr are always immutable
             .repr, .repr_kind => return self,
         }
@@ -674,7 +646,7 @@ fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
 }
 
 pub const Fn = struct {
-    captures: Scope,
+    origin: usize, // self.scope.items[0..origin]
     muts: []bool,
     params: ObjectPattern,
     body: ExprId,
@@ -790,12 +762,8 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             }
         },
         .@"fn" => |@"fn"| {
-            var captures = Scope.init(self.allocator);
-            var locals = ArrayList([]const u8).initCapacity(self.allocator, @"fn".params.values.len) catch panic("OOM", .{});
-            locals.appendSliceAssumeCapacity(@"fn".params.values);
-            try self.capture(@"fn".body, &captures, &locals);
             return .{ .@"fn" = .{
-                .captures = captures,
+                .origin = self.scope.items.len,
                 .muts = @"fn".muts,
                 .params = self.evalObjectPattern(@"fn".params),
                 .body = @"fn".body,
@@ -1001,6 +969,9 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                 const args = try self.evalObject(call.args);
                 switch (head) {
                     .@"fn" => |@"fn"| {
+                        if (@"fn".muts.len != call.args.muts.len)
+                            return self.fail("Expected {} arguments, found {} arguments", .{ @"fn".muts.len, call.args.muts.len });
+
                         for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
                             if (arg_mut != param_mut)
                                 return self.fail("Expected {s} arg, found {s} arg", .{
@@ -1009,39 +980,28 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                                 });
                         }
 
-                        // Set up fn scope.
-                        // TODO Wait for std.ArrayList.cloneWithAllocator to exist.
-                        var fn_scope = Scope.initCapacity(self.allocator, @"fn".captures.items.len) catch panic("OOM", .{});
-                        fn_scope.appendSliceAssumeCapacity(@"fn".captures.items);
-                        for (fn_scope.items) |binding| {
-                            // (Don't have to copy scope items because they can't be mutated.)
-                            if (binding.mut) {
-                                panic("Mut capture", .{});
-                            }
-                        }
+                        // Move back to fn scope.
+                        const rest_of_scope = self.allocator.dupe(Binding, self.scope.items[@"fn".origin..]) catch panic("OOM", .{});
+                        self.scope.shrinkRetainingCapacity(@"fn".origin);
 
                         // Add args to scope.
                         // TODO check all args are disjoint
-                        try self.matchObject(@"fn".params, .{ .@"struct" = args }, &fn_scope);
+                        try self.matchObject(@"fn".params, .{ .@"struct" = args });
 
                         // Call fn.
-                        std.mem.swap(Scope, &fn_scope, &self.scope);
                         const return_value = try self.eval(@"fn".body);
 
                         // Copy mut args back to original locations.
                         for (@"fn".params.values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
                             if (arg_mut) {
-                                // Lookup param in fn_scope.
                                 const binding = try self.lookup(param);
-                                // Set in current scope.
-                                std.mem.swap(Scope, &fn_scope, &self.scope);
                                 try self.pathSet(arg, binding.value);
-                                std.mem.swap(Scope, &fn_scope, &self.scope);
                             }
                         }
 
                         // Restore current scope.
-                        std.mem.swap(Scope, &fn_scope, &self.scope);
+                        self.scope.shrinkRetainingCapacity(@"fn".origin);
+                        self.scope.appendSlice(rest_of_scope) catch panic("OOM", .{});
 
                         return return_value;
                     },
@@ -1147,88 +1107,6 @@ fn evalObject(self: *Self, object_expr: ObjectExpr) error{SemantalyzeError}!Stru
         }
     }
     return struct_sorted;
-}
-
-fn capture(self: *Self, expr_id: ExprId, captures: *Scope, locals: *ArrayList([]const u8)) error{SemantalyzeError}!void {
-    const expr = self.parser.exprs.items[expr_id];
-    switch (expr) {
-        .i64, .f64, .string, .builtin => {},
-        .object => |object| {
-            for (object.keys) |key| try self.capture(key, captures, locals);
-            for (object.values) |value| try self.capture(value, captures, locals);
-        },
-        .name => |name| {
-            for (locals.items) |local| {
-                if (std.mem.eql(u8, name, local)) {
-                    return; // Not a capture - bound locally.
-                }
-            }
-            for (captures.items) |binding| {
-                if (std.mem.eql(u8, name, binding.name)) {
-                    return; // Already captured.
-                }
-            }
-            const binding = try self.lookup(name);
-            captures.append(.{
-                .mut = false, // TODO decide whether to allow mutable capture
-                .name = name,
-                .value = binding.value.copy(self.allocator),
-            }) catch panic("OOM", .{});
-        },
-        .let => |let| {
-            try self.capture(let.value, captures, locals);
-            locals.append(let.name) catch panic("OOM", .{});
-        },
-        .set => |set| {
-            try self.capture(set.path, captures, locals);
-            try self.capture(set.value, captures, locals);
-        },
-        .@"if" => |@"if"| {
-            try self.capture(@"if".cond, captures, locals);
-            try self.capture(@"if".if_true, captures, locals);
-            try self.capture(@"if".if_false, captures, locals);
-        },
-        .@"while" => |@"while"| {
-            try self.capture(@"while".cond, captures, locals);
-            try self.capture(@"while".body, captures, locals);
-        },
-        .@"fn" => |@"fn"| {
-            const locals_len = locals.items.len;
-            for (@"fn".params.values) |param| {
-                locals.append(param) catch panic("OOM", .{});
-            }
-            try self.capture(@"fn".body, captures, locals);
-            locals.shrinkRetainingCapacity(locals_len);
-        },
-        .make => |make| {
-            try self.capture(make.head, captures, locals);
-            for (make.args.keys) |key| {
-                try self.capture(key, captures, locals);
-            }
-            for (make.args.values) |value| {
-                try self.capture(value, captures, locals);
-            }
-        },
-        .call => |call| {
-            try self.capture(call.head, captures, locals);
-            for (call.args.keys) |key| {
-                try self.capture(key, captures, locals);
-            }
-            for (call.args.values) |value| {
-                try self.capture(value, captures, locals);
-            }
-        },
-        .get_static => |get_static| {
-            try self.capture(get_static.object, captures, locals);
-        },
-        .exprs => |exprs| {
-            const locals_len = locals.items.len;
-            for (exprs) |subexpr| {
-                try self.capture(subexpr, captures, locals);
-            }
-            locals.shrinkRetainingCapacity(locals_len);
-        },
-    }
 }
 
 fn objectGet(self: *Self, object: Value, key: Value) error{SemantalyzeError}!*Value {
@@ -1484,11 +1362,11 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
     }
 }
 
-fn matchObject(self: *Self, pattern: ObjectPattern, object: Value, scope: *Scope) !void {
+fn matchObject(self: *Self, pattern: ObjectPattern, object: Value) !void {
     switch (object) {
         .@"struct" => |@"struct"| {
-            const start = scope.items.len;
-            errdefer scope.shrinkRetainingCapacity(start);
+            const start = self.scope.items.len;
+            errdefer self.scope.shrinkRetainingCapacity(start);
 
             if (pattern.keys.len != @"struct".repr.keys.len)
                 return self.fail("Wrong number of keys in {} to match object pattern", .{object});
@@ -1496,7 +1374,7 @@ fn matchObject(self: *Self, pattern: ObjectPattern, object: Value, scope: *Scope
             for (pattern.keys, pattern.values, @"struct".repr.keys, @"struct".values) |pattern_key, pattern_value, object_key, object_value| {
                 if (!pattern_key.equal(object_key))
                     return self.fail("Key {} in pattern not found in object {}", .{ pattern_key, object });
-                scope.append(.{
+                self.scope.append(.{
                     .mut = false,
                     .name = pattern_value,
                     .value = object_value,
