@@ -816,11 +816,14 @@ TODO control flow capture
 
 ```
 try: (body, catch:) body(throw: catch);
-try()
-  (throw:)
-    throw('oh no!')
-  catch: (error)
-    return-to(try, [error:])
+foo: ()
+  try(
+    (throw:)
+      throw('oh no!'),
+    catch: (error)
+      return-to('foo', [error:]),
+  );
+foo()
 
 [error: 'oh no!']
 ```

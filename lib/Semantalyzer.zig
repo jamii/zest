@@ -13,13 +13,26 @@ const Self = @This();
 allocator: Allocator,
 parser: Parser,
 scope: Scope,
+next_call_id: usize,
+return_to: ?struct {
+    call_id: usize,
+    value: Value,
+},
 error_message: ?[]const u8,
 
-pub const Scope = ArrayList(Binding);
+pub const Scope = ArrayList(ScopeItem);
+pub const ScopeItem = union(enum) {
+    binding: Binding,
+    call: Call,
+};
 pub const Binding = struct {
     mut: bool,
     name: []const u8,
     value: Value,
+};
+pub const Call = struct {
+    call_id: usize,
+    name: []const u8,
 };
 
 pub const Value = union(enum) {
@@ -337,8 +350,8 @@ pub const Value = union(enum) {
             .only => |only| {
                 try writer.print("{}[]", .{Repr{ .only = only.repr }});
             },
-            .@"fn" => {
-                panic("Fn used as value", .{});
+            .@"fn" => |@"fn"| {
+                try writer.print("{{fn {}}}", .{@"fn"});
             },
             .repr => |repr| {
                 try repr.format(fmt, options, writer);
@@ -646,7 +659,8 @@ fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
 }
 
 pub const Fn = struct {
-    origin: usize, // self.scope.items[0..origin]
+    name: ?[]const u8,
+    scope: []ScopeItem,
     muts: []bool,
     params: ObjectPattern,
     body: ExprId,
@@ -665,23 +679,23 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .allocator = allocator,
         .parser = parser,
         .scope = Scope.init(allocator),
+        .next_call_id = 0,
+        .return_to = null,
         .error_message = null,
     };
 }
 
 pub fn semantalyze(self: *Self) error{SemantalyzeError}!Value {
-    return self.eval(self.parser.exprs.items.len - 1);
+    return self.eval(self.parser.exprs.items.len - 1) catch |err| {
+        switch (err) {
+            error.SemantalyzeError => |err2| return err2,
+            error.ReturnTo => unreachable,
+        }
+    };
 }
 
-fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
+fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value {
     const expr = self.parser.exprs.items[expr_id];
-    if (expr == .@"fn") {
-        const parent_id = self.parser.parents[expr_id];
-        if (parent_id == null or
-            (self.parser.exprs.items[parent_id.?] != .let and
-            self.parser.exprs.items[parent_id.?] != .call))
-            return self.fail("Functions may only be defined at the top of definitions or call arguments", .{});
-    }
     switch (expr) {
         .i64 => |int| return .{ .i64 = int },
         .f64 => |float| return .{ .f64 = float },
@@ -693,7 +707,7 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             panic("Direct eval of builtin should be unreachable", .{});
         },
         .name => |name| {
-            if (self.lookup(name)) |binding| {
+            if (self.lookupBinding(name)) |binding| {
                 if (binding.value == .@"fn") {
                     const parent_id = self.parser.parents[expr_id];
                     if (parent_id == null or
@@ -734,14 +748,14 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
         },
         .let => |let| {
             const value = try self.eval(let.value);
-            if (self.lookup(let.name)) |_| {
+            if (self.lookupBinding(let.name)) |_| {
                 return self.fail("Name {s} shadows earlier definition", .{let.name});
             } else |_| {
-                self.scope.append(.{
+                self.scope.append(.{ .binding = .{
                     .mut = let.mut,
                     .name = let.name,
                     .value = value.copy(self.allocator),
-                }) catch panic("OOM", .{});
+                } }) catch panic("OOM", .{});
                 return fromBool(false); // TODO void/null or similar
             }
         },
@@ -762,8 +776,18 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
             }
         },
         .@"fn" => |@"fn"| {
+            const parent_id = self.parser.parents[expr_id];
+            if (parent_id == null)
+                return self.fail("Functions may only be defined at the top of definitions or call arguments", .{});
+            const parent = self.parser.exprs.items[parent_id.?];
+            const name = switch (parent) {
+                .let => |let| let.name,
+                .call => null,
+                else => return self.fail("Functions may only be defined at the top of definitions or call arguments", .{}),
+            };
             return .{ .@"fn" = .{
-                .origin = self.scope.items.len,
+                .name = name,
+                .scope = self.allocator.dupe(ScopeItem, self.scope.items) catch panic("OOM", .{}),
                 .muts = @"fn".muts,
                 .params = self.evalObjectPattern(@"fn".params),
                 .body = @"fn".body,
@@ -918,6 +942,26 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                             return self.fail("Cannot pass {} to {}", .{ value, head_expr });
                         return value.repr.only.*;
                     },
+                    .@"return-to" => {
+                        if (args.values.len != 2)
+                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
+                        if (call.args.muts[0] == true)
+                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        if (call.args.muts[1] == true)
+                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
+                            return self.fail("Can't pass named key to {}", .{head_expr});
+                        const to_expr = self.parser.exprs.items[call.args.values[0]];
+                        if (to_expr != .string)
+                            return self.fail("Can't return to {}", .{to_expr});
+                        self.return_to = .{
+                            .call_id = (try self.lookupCall(to_expr.string)).call_id,
+                            .value = args.values[1],
+                        };
+                        return error.ReturnTo;
+                    },
                     else => {
                         if (args.values.len != 2)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
@@ -981,27 +1025,40 @@ fn eval(self: *Self, expr_id: ExprId) error{SemantalyzeError}!Value {
                         }
 
                         // Move back to fn scope.
-                        const rest_of_scope = self.allocator.dupe(Binding, self.scope.items[@"fn".origin..]) catch panic("OOM", .{});
-                        self.scope.shrinkRetainingCapacity(@"fn".origin);
+                        const old_scope = self.scope.toOwnedSlice() catch panic("OOM", .{});
+                        self.scope.appendSlice(@"fn".scope) catch panic("OOM", .{});
+                        defer {
+                            self.scope.shrinkRetainingCapacity(0);
+                            self.scope.appendSlice(old_scope) catch panic("OOM", .{});
+                        }
+
+                        // Add call to scope.
+                        const call_id = self.next_call_id;
+                        self.next_call_id += 1;
+                        if (@"fn".name) |name|
+                            self.scope.append(.{ .call = .{ .call_id = call_id, .name = name } }) catch panic("OOM", .{});
 
                         // Add args to scope.
                         // TODO check all args are disjoint
                         try self.matchObject(@"fn".params, .{ .@"struct" = args });
 
                         // Call fn.
-                        const return_value = try self.eval(@"fn".body);
+                        const return_value = self.eval(@"fn".body) catch |err| return_to: {
+                            if (err == error.ReturnTo and self.return_to.?.call_id == call_id) {
+                                const value = self.return_to.?.value;
+                                self.return_to = null;
+                                break :return_to value;
+                            }
+                            return err;
+                        };
 
                         // Copy mut args back to original locations.
                         for (@"fn".params.values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
                             if (arg_mut) {
-                                const binding = try self.lookup(param);
+                                const binding = try self.lookupBinding(param);
                                 try self.pathSet(arg, binding.value);
                             }
                         }
-
-                        // Restore current scope.
-                        self.scope.shrinkRetainingCapacity(@"fn".origin);
-                        self.scope.appendSlice(rest_of_scope) catch panic("OOM", .{});
 
                         return return_value;
                     },
@@ -1056,7 +1113,7 @@ fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPa
     };
 }
 
-fn evalObject(self: *Self, object_expr: ObjectExpr) error{SemantalyzeError}!Struct {
+fn evalObject(self: *Self, object_expr: ObjectExpr) error{ ReturnTo, SemantalyzeError }!Struct {
     var keys = self.allocator.alloc(Value, object_expr.keys.len) catch panic("OOM", .{});
     var values = self.allocator.alloc(Value, object_expr.values.len) catch panic("OOM", .{});
     var reprs = self.allocator.alloc(Repr, object_expr.values.len) catch panic("OOM", .{});
@@ -1152,26 +1209,9 @@ fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .name => |name| {
-            const binding = try self.lookup(name);
+            const binding = try self.lookupBinding(name);
             if (!binding.mut) return self.fail("Cannot set a non-mut variable: {}", .{std.zig.fmtEscapes(name)});
             return &binding.value;
-        },
-        .call => |call| {
-            const head = try self.evalPath(call.head);
-            switch (head.*) {
-                .map => |*map| {
-                    if (call.args.values.len != 1)
-                        return self.fail("Wrong number of arguments ({}) to {}", .{ call.args.values.len, head });
-                    if (call.args.muts[0] == true)
-                        return self.fail("Can't pass mut arg to map", .{});
-                    const key_expr = self.parser.exprs.items[call.args.keys[0]];
-                    if (key_expr != .i64 or key_expr.i64 != 0)
-                        return self.fail("Can't pass named key to map", .{});
-                    const value = try self.eval(call.args.values[0]);
-                    return self.mapGet(map.*, value);
-                },
-                else => return self.fail("Cannot call {}", .{head}),
-            }
         },
         .get_static => |get_static| {
             const value = try self.evalPath(get_static.object);
@@ -1195,17 +1235,29 @@ fn toBool(self: *Self, value: Value) error{SemantalyzeError}!bool {
     return self.fail("Expected boolean (0 or 1). Found {}", .{value});
 }
 
-fn lookup(self: *Self, name: []const u8) error{SemantalyzeError}!*Binding {
-    const bindings = self.scope.items;
-    var i = bindings.len;
+fn lookupBinding(self: *Self, name: []const u8) error{SemantalyzeError}!*Binding {
+    const items = self.scope.items;
+    var i = items.len;
     while (i > 0) : (i -= 1) {
-        const binding = &bindings[i - 1];
-        if (std.mem.eql(u8, binding.name, name)) {
-            return binding;
+        const item = &items[i - 1];
+        if (item.* == .binding and std.mem.eql(u8, item.binding.name, name)) {
+            return &item.binding;
         }
     }
     // TODO We should also resolve repr/repr_kind here, but needs some refactoring.
     return self.fail("Undefined variable: {s}", .{name});
+}
+
+fn lookupCall(self: *Self, name: []const u8) error{SemantalyzeError}!*Call {
+    const items = self.scope.items;
+    var i = items.len;
+    while (i > 0) : (i -= 1) {
+        const item = &items[i - 1];
+        if (item.* == .call and std.mem.eql(u8, item.call.name, name)) {
+            return &item.call;
+        }
+    }
+    return self.fail("Undefined function: {s}", .{name});
 }
 
 fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value {
@@ -1374,11 +1426,11 @@ fn matchObject(self: *Self, pattern: ObjectPattern, object: Value) !void {
             for (pattern.keys, pattern.values, @"struct".repr.keys, @"struct".values) |pattern_key, pattern_value, object_key, object_value| {
                 if (!pattern_key.equal(object_key))
                     return self.fail("Key {} in pattern not found in object {}", .{ pattern_key, object });
-                self.scope.append(.{
+                self.scope.append(.{ .binding = .{
                     .mut = false,
                     .name = pattern_value,
                     .value = object_value,
-                }) catch panic("OOM", .{});
+                } }) catch panic("OOM", .{});
             }
         },
         .map, .list => return self.fail("TODO match object/list", .{}),

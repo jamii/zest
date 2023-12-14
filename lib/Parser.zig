@@ -102,6 +102,7 @@ pub const Builtin = enum {
     @"try-get",
     @"get-repr",
     @"get-only",
+    @"return-to",
 };
 
 pub fn init(allocator: Allocator, tokenizer: Tokenizer) Self {
@@ -353,6 +354,9 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
                 }
                 if (std.mem.eql(u8, name, "get-only")) {
                     return self.expr(.{ .builtin = .@"get-only" });
+                }
+                if (std.mem.eql(u8, name, "return-to")) {
+                    return self.expr(.{ .builtin = .@"return-to" });
                 }
                 return self.expr(.{ .name = name });
             }
