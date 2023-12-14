@@ -821,14 +821,13 @@ Since functions can't escape the scope they were defined in, they may return to 
 ```
 try: (body, catch:) body(throw: catch);
 foo: ()
-  try(
+  try()
     (throw:) {
       throw('oh no!'); 
       throw('unreachable');
-    },
+    }
     catch: (error)
-      return-to(foo, [error:]),
-  );
+      return-to(foo, [error:]);
 foo()
 
 [error: 'oh no!']
@@ -839,14 +838,13 @@ foo()
 ```
 try: (body, catch:) body(throw: catch);
 foo: ()
-  try(
+  try()
     (throw:) {
       throw('oh no!'); 
       throw('unreachable');
-    },
+    }
     catch: (error)
-      return-to(try, [error:]),
-  );
+      return-to(try, [error:]);
 foo()
 
 Can't return to `try` from here

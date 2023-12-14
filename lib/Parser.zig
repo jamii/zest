@@ -177,12 +177,13 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
     var head = try self.parseExpr2();
     var prev_builtin: ?Builtin = null;
     while (true) {
+        const start = self.token_ix;
         const token = self.take();
         switch (token) {
             .@"=", .@"~", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
                 if (self.prevToken() != .whitespace or !self.peekWhitespace()) {
                     // Operators need to have whitespace on both sides.
-                    self.token_ix -= 1;
+                    self.token_ix = start;
                     break;
                 }
                 const builtin = switch (token) {
@@ -215,7 +216,7 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
                 } });
             },
             else => {
-                self.token_ix -= 1;
+                self.token_ix = start;
                 break;
             },
         }
@@ -226,12 +227,13 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
 fn parseExpr2(self: *Self) error{ParseError}!ExprId {
     var head = try self.parseExpr3();
     while (true) {
+        const start = self.token_ix;
         const token = self.take();
         switch (token) {
             .@"[" => {
                 if (self.prevToken() == .whitespace) {
                     // `foo [bar]` is a syntax error, not a call
-                    self.token_ix -= 1;
+                    self.token_ix = start;
                     break;
                 }
                 const object = try self.parseObject(true, .@"]");
@@ -243,7 +245,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
             .@"(" => {
                 if (self.prevToken() == .whitespace) {
                     // `foo (bar)` is a syntax error, not a call
-                    self.token_ix -= 1;
+                    self.token_ix = start;
                     break;
                 }
                 const object = try self.parseObject(true, .@")");
@@ -255,7 +257,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
             .@"/" => {
                 if (self.prevToken() == .whitespace) {
                     // `foo / bar` is a division, not a call
-                    self.token_ix -= 1;
+                    self.token_ix = start;
                     break;
                 }
                 const actual_head = try self.parseExpr3();
@@ -290,7 +292,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
             },
             .@":" => {
                 if (self.peekWhitespace()) {
-                    self.token_ix -= 1;
+                    self.token_ix = start;
                     break;
                 }
                 const static_key = try self.parseStaticKey();
@@ -300,7 +302,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                 } });
             },
             else => {
-                self.token_ix -= 1;
+                self.token_ix = start;
                 break;
             },
         }
@@ -309,6 +311,7 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
 }
 
 fn parseExpr3(self: *Self) error{ParseError}!ExprId {
+    const start = self.token_ix;
     const token = self.take();
     switch (token) {
         .number => {
@@ -329,7 +332,7 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
         },
         .name => {
             const name = self.lastTokenText();
-            const start = self.token_ix;
+            const name_start = self.token_ix;
             if (self.takeIf(.@":") and self.peekWhitespace()) {
                 const mut = self.takeIf(.mut);
                 const value = try self.parseExpr1();
@@ -339,7 +342,7 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
                     .value = value,
                 } });
             } else {
-                self.token_ix = start;
+                self.token_ix = name_start;
                 if (std.mem.eql(u8, name, "as")) {
                     return self.expr(.{ .builtin = .as });
                 }
@@ -390,7 +393,7 @@ fn parseExpr3(self: *Self) error{ParseError}!ExprId {
             } });
         },
         .@"(" => {
-            self.token_ix -= 1;
+            self.token_ix = start;
             return self.parseFn();
         },
         .@"{" => {
@@ -621,14 +624,10 @@ fn prevToken(self: *Self) Token {
 }
 
 fn peek(self: *Self) Token {
-    while (true) {
-        const tokens = self.tokenizer.tokens.items;
-        const token = if (self.token_ix > tokens.len) .eof else tokens[self.token_ix];
-        switch (token) {
-            .whitespace, .comment => self.token_ix += 1,
-            else => return token,
-        }
-    }
+    const start = self.token_ix;
+    const token = self.take();
+    self.token_ix = start;
+    return token;
 }
 
 fn peekWhitespace(self: *Self) bool {
@@ -636,15 +635,22 @@ fn peekWhitespace(self: *Self) bool {
 }
 
 fn take(self: *Self) Token {
-    const token = self.peek();
-    self.token_ix += 1;
-    return token;
+    const tokens = self.tokenizer.tokens.items;
+    while (true) {
+        const token = if (self.token_ix > tokens.len) .eof else tokens[self.token_ix];
+        self.token_ix += 1;
+        switch (token) {
+            .whitespace, .comment => {},
+            else => return token,
+        }
+    }
 }
 
 fn takeIf(self: *Self, wanted: Token) bool {
+    const start = self.token_ix;
     const found = self.take();
     if (found != wanted) {
-        self.token_ix -= 1;
+        self.token_ix = start;
     }
     return found == wanted;
 }
