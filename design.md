@@ -1,3 +1,12 @@
+TODO:
+* Mutation
+* Control flow (if/while/each/do)
+* Implicit throw function
+* Parameter/variables types
+* Type-checking / specialization
+* Comptime
+* Pattern matching
+
 ## notation
 
 Encoded as utf8.
