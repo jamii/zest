@@ -812,23 +812,58 @@ foo(1, 'also z': 3, y:)
 
 TODO patterns
 
-TODO control flow capture
+Since functions can't escape the scope they were defined in, they may return to enclosing functions in that scope.
 
 ```
 try: (body, catch:) body(throw: catch);
 foo: ()
   try(
-    (throw:)
-      throw('oh no!'),
+    (throw:) {
+      throw('oh no!'); 
+      throw('unreachable');
+    },
     catch: (error)
-      return-to('foo', [error:]),
+      return-to(foo, [error:]),
   );
 foo()
 
 [error: 'oh no!']
 ```
 
-TODO some way to indicate functions which always return?
+`return-to` is lexically scoped - you can't return to a function that doesn't lexically enclose the `return-to` expression.
+
+```
+try: (body, catch:) body(throw: catch);
+foo: ()
+  try(
+    (throw:) {
+      throw('oh no!'); 
+      throw('unreachable');
+    },
+    catch: (error)
+      return-to(try, [error:]),
+  );
+foo()
+
+Can't return to `try` from here
+```
+
+```
+foo: (x, f) 
+  if {x = 0} 
+    f(x) 
+  else 
+    foo(
+      x - 1,
+      // Returns to *this* instance of foo, not the nearest foo on the stack.
+      (x) return-to(foo, x + 1),
+    );
+foo(10, (x) x)
+
+1
+```
+
+TODO indicate functions and calls which may return past caller with `!`
 
 ## mutation
 

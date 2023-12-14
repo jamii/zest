@@ -20,19 +20,12 @@ return_to: ?struct {
 },
 error_message: ?[]const u8,
 
-pub const Scope = ArrayList(ScopeItem);
-pub const ScopeItem = union(enum) {
-    binding: Binding,
-    call: Call,
-};
+pub const Scope = ArrayList(Binding);
 pub const Binding = struct {
     mut: bool,
+    call_id: ?usize,
     name: []const u8,
     value: Value,
-};
-pub const Call = struct {
-    call_id: usize,
-    name: []const u8,
 };
 
 pub const Value = union(enum) {
@@ -660,7 +653,7 @@ fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
 
 pub const Fn = struct {
     name: ?[]const u8,
-    scope: []ScopeItem,
+    scope: []Binding,
     muts: []bool,
     params: ObjectPattern,
     body: ExprId,
@@ -751,11 +744,12 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             if (self.lookupBinding(let.name)) |_| {
                 return self.fail("Name {s} shadows earlier definition", .{let.name});
             } else |_| {
-                self.scope.append(.{ .binding = .{
+                self.scope.append(.{
                     .mut = let.mut,
+                    .call_id = null,
                     .name = let.name,
                     .value = value.copy(self.allocator),
-                } }) catch panic("OOM", .{});
+                }) catch panic("OOM", .{});
                 return fromBool(false); // TODO void/null or similar
             }
         },
@@ -787,7 +781,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             };
             return .{ .@"fn" = .{
                 .name = name,
-                .scope = self.allocator.dupe(ScopeItem, self.scope.items) catch panic("OOM", .{}),
+                .scope = self.allocator.dupe(Binding, self.scope.items) catch panic("OOM", .{}),
                 .muts = @"fn".muts,
                 .params = self.evalObjectPattern(@"fn".params),
                 .body = @"fn".body,
@@ -954,10 +948,12 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
                             return self.fail("Can't pass named key to {}", .{head_expr});
                         const to_expr = self.parser.exprs.items[call.args.values[0]];
-                        if (to_expr != .string)
+                        if (to_expr != .name)
                             return self.fail("Can't return to {}", .{to_expr});
+                        const to = try self.lookupBinding(to_expr.name);
+                        const call_id = to.call_id orelse return self.fail("Can't return to `{s}` from here", .{to_expr.name});
                         self.return_to = .{
-                            .call_id = (try self.lookupCall(to_expr.string)).call_id,
+                            .call_id = call_id,
                             .value = args.values[1],
                         };
                         return error.ReturnTo;
@@ -1036,7 +1032,12 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         const call_id = self.next_call_id;
                         self.next_call_id += 1;
                         if (@"fn".name) |name|
-                            self.scope.append(.{ .call = .{ .call_id = call_id, .name = name } }) catch panic("OOM", .{});
+                            self.scope.append(.{
+                                .mut = false,
+                                .name = name,
+                                .call_id = call_id,
+                                .value = .{ .@"fn" = @"fn" },
+                            }) catch panic("OOM", .{});
 
                         // Add args to scope.
                         // TODO check all args are disjoint
@@ -1236,28 +1237,16 @@ fn toBool(self: *Self, value: Value) error{SemantalyzeError}!bool {
 }
 
 fn lookupBinding(self: *Self, name: []const u8) error{SemantalyzeError}!*Binding {
-    const items = self.scope.items;
-    var i = items.len;
+    const bindings = self.scope.items;
+    var i = bindings.len;
     while (i > 0) : (i -= 1) {
-        const item = &items[i - 1];
-        if (item.* == .binding and std.mem.eql(u8, item.binding.name, name)) {
-            return &item.binding;
+        const binding = &bindings[i - 1];
+        if (std.mem.eql(u8, binding.name, name)) {
+            return binding;
         }
     }
     // TODO We should also resolve repr/repr_kind here, but needs some refactoring.
     return self.fail("Undefined variable: {s}", .{name});
-}
-
-fn lookupCall(self: *Self, name: []const u8) error{SemantalyzeError}!*Call {
-    const items = self.scope.items;
-    var i = items.len;
-    while (i > 0) : (i -= 1) {
-        const item = &items[i - 1];
-        if (item.* == .call and std.mem.eql(u8, item.call.name, name)) {
-            return &item.call;
-        }
-    }
-    return self.fail("Undefined function: {s}", .{name});
 }
 
 fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value {
@@ -1426,11 +1415,12 @@ fn matchObject(self: *Self, pattern: ObjectPattern, object: Value) !void {
             for (pattern.keys, pattern.values, @"struct".repr.keys, @"struct".values) |pattern_key, pattern_value, object_key, object_value| {
                 if (!pattern_key.equal(object_key))
                     return self.fail("Key {} in pattern not found in object {}", .{ pattern_key, object });
-                self.scope.append(.{ .binding = .{
+                self.scope.append(.{
                     .mut = false,
+                    .call_id = null,
                     .name = pattern_value,
                     .value = object_value,
-                } }) catch panic("OOM", .{});
+                }) catch panic("OOM", .{});
             }
         },
         .map, .list => return self.fail("TODO match object/list", .{}),
