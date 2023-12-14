@@ -800,6 +800,8 @@ bar()
 Functions may only be reference as the head of a call or an argument to a call
 ```
 
+### patterns
+
 Functions can take keyword arguments, with the same syntax as object fields:
 
 ```
@@ -810,7 +812,9 @@ foo(1, 'also z': 3, y:)
 [1, 2, 3]
 ```
 
-TODO patterns
+TODO other patterns
+
+### return-to
 
 Since functions can't escape the scope they were defined in, they may return to enclosing functions in that scope.
 
@@ -875,7 +879,7 @@ TODO throw/panic as implicit arguments. try sets throw argument for body.
 
 ## syntax hunches
 
-`[]` always indicates constructing a value. The result looks like the syntax.
+`[]` always indicates constructing a value. The result prints like the syntax.
 
 `()` always indicates computation: either defining (`(x) x + 1`) or performing (`inc(x)`).
 
@@ -896,5 +900,3 @@ I gave up on trying to avoid the shift key - there aren't enough good shiftless 
 ## misc
 
 TODO We use value for both representation+notation and key/value. Think of a better name for the former.
-
-TODO Calling syntax and destructuring that behaves like objects.
