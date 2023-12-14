@@ -4,6 +4,9 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const startsWith = std.mem.startsWith;
 
+const util = @import("./util.zig");
+const oom = util.oom;
+
 const Self = @This();
 allocator: Allocator,
 source: []const u8,
@@ -159,12 +162,12 @@ pub fn tokenize(self: *Self) !void {
             },
             else => return self.fail(start),
         };
-        self.tokens.append(token) catch panic("OOM", .{});
-        self.ranges.append(.{ start, i }) catch panic("OOM", .{});
+        self.tokens.append(token) catch oom();
+        self.ranges.append(.{ start, i }) catch oom();
     }
 
-    self.tokens.append(.eof) catch panic("OOM", .{});
-    self.ranges.append(.{ i, i }) catch panic("OOM", .{});
+    self.tokens.append(.eof) catch oom();
+    self.ranges.append(.{ i, i }) catch oom();
 }
 
 fn match(name: []const u8, comptime tokens: []const Token) ?Token {
@@ -179,6 +182,6 @@ fn fail(self: *Self, pos: usize) error{TokenizeError} {
     self.error_message = std.fmt.allocPrint(self.allocator, "Tokenizer error at {}: {s}", .{
         pos,
         self.source[pos..@min(pos + 100, self.source.len)],
-    }) catch panic("OOM", .{});
+    }) catch oom();
     return error.TokenizeError;
 }

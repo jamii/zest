@@ -3,6 +3,9 @@ const panic = std.debug.panic;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const util = @import("./util.zig");
+const oom = util.oom;
+
 const Parser = @import("./Parser.zig");
 const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
@@ -359,9 +362,9 @@ pub const Value = union(enum) {
         switch (self) {
             .i64 => |int| return .{ .i64 = int },
             .f64 => |float| return .{ .f64 = float },
-            .string => |string| return .{ .string = allocator.dupe(u8, string) catch panic("OOM", .{}) },
+            .string => |string| return .{ .string = allocator.dupe(u8, string) catch oom() },
             .@"struct" => |@"struct"| {
-                var values_copy = allocator.dupe(Value, @"struct".values) catch panic("OOM", .{});
+                var values_copy = allocator.dupe(Value, @"struct".values) catch oom();
                 for (values_copy) |*value| {
                     value.copyInPlace(allocator);
                 }
@@ -371,7 +374,7 @@ pub const Value = union(enum) {
                 } };
             },
             .list => |list| {
-                var elems_copy = list.elems.clone() catch panic("OOM", .{});
+                var elems_copy = list.elems.clone() catch oom();
                 for (elems_copy.items) |*elem| {
                     elem.copyInPlace(allocator);
                 }
@@ -381,7 +384,7 @@ pub const Value = union(enum) {
                 } };
             },
             .map => |map| {
-                var entries_copy = map.entries.cloneWithAllocator(allocator) catch panic("OOM", .{});
+                var entries_copy = map.entries.cloneWithAllocator(allocator) catch oom();
                 var iter = entries_copy.iterator();
                 while (iter.next()) |entry| {
                     entry.key_ptr.copyInPlace(allocator);
@@ -634,7 +637,7 @@ pub const ReprKind = enum {
 
 // TODO This is stupid expensive. Cache it somewhere.
 fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
-    var entries = ArrayList(ValueHashMap.Entry).initCapacity(map.entries.allocator, map.entries.count()) catch panic("OOM", .{});
+    var entries = ArrayList(ValueHashMap.Entry).initCapacity(map.entries.allocator, map.entries.count()) catch oom();
     errdefer entries.deinit();
 
     var iter = map.entries.iterator();
@@ -692,7 +695,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
     switch (expr) {
         .i64 => |int| return .{ .i64 = int },
         .f64 => |float| return .{ .f64 = float },
-        .string => |string| return .{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
+        .string => |string| return .{ .string = self.allocator.dupe(u8, string) catch oom() },
         .object => |object_expr| {
             return .{ .@"struct" = try self.evalObject(object_expr) };
         },
@@ -749,7 +752,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                     .call_id = null,
                     .name = let.name,
                     .value = value.copy(self.allocator),
-                }) catch panic("OOM", .{});
+                }) catch oom();
                 return fromBool(false); // TODO void/null or similar
             }
         },
@@ -781,7 +784,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             };
             return .{ .@"fn" = .{
                 .name = name,
-                .scope = self.allocator.dupe(Binding, self.scope.items) catch panic("OOM", .{}),
+                .scope = self.allocator.dupe(Binding, self.scope.items) catch oom(),
                 .muts = @"fn".muts,
                 .params = self.evalObjectPattern(@"fn".params),
                 .body = @"fn".body,
@@ -811,7 +814,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 .repr_kind => |repr_kind| {
                     switch (repr_kind) {
                         .@"struct" => {
-                            const reprs = self.allocator.alloc(Repr, args.values.len) catch panic("OOM", .{});
+                            const reprs = self.allocator.alloc(Repr, args.values.len) catch oom();
                             for (reprs, args.values) |*repr, value| {
                                 if (value != .repr)
                                     return self.fail("Can't pass {} to {}", .{ value, head });
@@ -848,7 +851,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             return .{ .repr = .{ .map = .{ box(self.allocator, key.repr), box(self.allocator, value.repr) } } };
                         },
                         .@"union" => {
-                            const reprs = self.allocator.alloc(Repr, args.values.len) catch panic("OOM", .{});
+                            const reprs = self.allocator.alloc(Repr, args.values.len) catch oom();
                             for (reprs, args.values) |*repr, member| {
                                 if (member != .repr)
                                     return self.fail("Can't pass {} to {}", .{ member, head });
@@ -914,13 +917,13 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         if (self.objectGet(object, key)) |value| {
                             return .{ .@"struct" = .{
                                 .repr = .{
-                                    .keys = self.allocator.dupe(Value, &[_]Value{.{ .string = self.allocator.dupe(u8, "some") catch panic("OOM", .{}) }}) catch panic("OOM", .{}),
-                                    .reprs = self.allocator.dupe(Repr, &[_]Repr{value.reprOf()}) catch panic("OOM", .{}),
+                                    .keys = self.allocator.dupe(Value, &[_]Value{.{ .string = self.allocator.dupe(u8, "some") catch oom() }}) catch oom(),
+                                    .reprs = self.allocator.dupe(Repr, &[_]Repr{value.reprOf()}) catch oom(),
                                 },
-                                .values = self.allocator.dupe(Value, &[_]Value{value.*}) catch panic("OOM", .{}),
+                                .values = self.allocator.dupe(Value, &[_]Value{value.*}) catch oom(),
                             } };
                         } else |_| {
-                            return .{ .string = self.allocator.dupe(u8, "none") catch panic("OOM", .{}) };
+                            return .{ .string = self.allocator.dupe(u8, "none") catch oom() };
                         }
                     },
                     .@"get-repr" => {
@@ -1021,11 +1024,11 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         }
 
                         // Move back to fn scope.
-                        const old_scope = self.scope.toOwnedSlice() catch panic("OOM", .{});
-                        self.scope.appendSlice(@"fn".scope) catch panic("OOM", .{});
+                        const old_scope = self.scope.toOwnedSlice() catch oom();
+                        self.scope.appendSlice(@"fn".scope) catch oom();
                         defer {
                             self.scope.shrinkRetainingCapacity(0);
-                            self.scope.appendSlice(old_scope) catch panic("OOM", .{});
+                            self.scope.appendSlice(old_scope) catch oom();
                         }
 
                         // Add call to scope.
@@ -1037,7 +1040,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                                 .name = name,
                                 .call_id = call_id,
                                 .value = .{ .@"fn" = @"fn" },
-                            }) catch panic("OOM", .{});
+                            }) catch oom();
 
                         // Add args to scope.
                         // TODO check all args are disjoint
@@ -1071,7 +1074,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             const value = try self.eval(get_static.object);
             const key = switch (get_static.key) {
                 .i64 => |int| Value{ .i64 = int },
-                .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
+                .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch oom() },
             };
             return (try self.objectGet(value, key)).*;
         },
@@ -1090,15 +1093,15 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
 fn evalStaticKey(self: *Self, static_key: StaticKey) Value {
     return switch (static_key) {
         .i64 => |int| Value{ .i64 = int },
-        .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch panic("OOM", .{}) },
+        .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch oom() },
     };
 }
 
 fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPattern {
-    const keys_unsorted = self.allocator.alloc(Value, object_pattern.keys.len) catch panic("OOM", .{});
+    const keys_unsorted = self.allocator.alloc(Value, object_pattern.keys.len) catch oom();
     for (keys_unsorted, object_pattern.keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
 
-    var ixes = self.allocator.alloc(usize, keys_unsorted.len) catch panic("OOM", .{});
+    var ixes = self.allocator.alloc(usize, keys_unsorted.len) catch oom();
     for (ixes, 0..) |*ix, i| ix.* = i;
     std.sort.heap(usize, ixes, keys_unsorted, (struct {
         fn lessThan(context: []Value, a: usize, b: usize) bool {
@@ -1115,9 +1118,9 @@ fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPa
 }
 
 fn evalObject(self: *Self, object_expr: ObjectExpr) error{ ReturnTo, SemantalyzeError }!Struct {
-    var keys = self.allocator.alloc(Value, object_expr.keys.len) catch panic("OOM", .{});
-    var values = self.allocator.alloc(Value, object_expr.values.len) catch panic("OOM", .{});
-    var reprs = self.allocator.alloc(Repr, object_expr.values.len) catch panic("OOM", .{});
+    var keys = self.allocator.alloc(Value, object_expr.keys.len) catch oom();
+    var values = self.allocator.alloc(Value, object_expr.values.len) catch oom();
+    var reprs = self.allocator.alloc(Repr, object_expr.values.len) catch oom();
     for (keys, values, reprs, object_expr.keys, object_expr.values) |*key, *value, *repr, key_id, value_id| {
         key.* = try self.eval(key_id);
         value.* = try self.eval(value_id);
@@ -1130,7 +1133,7 @@ fn evalObject(self: *Self, object_expr: ObjectExpr) error{ ReturnTo, Semantalyze
         },
         .values = values,
     };
-    var ixes = self.allocator.alloc(usize, keys.len) catch panic("OOM", .{});
+    var ixes = self.allocator.alloc(usize, keys.len) catch oom();
     for (ixes, 0..) |*ix, i| ix.* = i;
     std.sort.heap(usize, ixes, struct_unsorted, (struct {
         fn lessThan(context: Struct, a: usize, b: usize) bool {
@@ -1285,7 +1288,7 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
             }
         },
         .@"struct" => |struct_repr| {
-            const values = self.allocator.alloc(Value, struct_repr.keys.len) catch panic("OOM", .{});
+            const values = self.allocator.alloc(Value, struct_repr.keys.len) catch oom();
             switch (value) {
                 .@"struct" => |@"struct"| {
                     if (struct_repr.keys.len != @"struct".repr.keys.len)
@@ -1323,19 +1326,19 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                     for (0.., @"struct".repr.keys, @"struct".values) |ix, key, elem| {
                         if (key != .i64 or key.i64 != ix)
                             return self.fail("Cannot convert {} to {}", .{ value, repr });
-                        elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
+                        elems.append(try self.convert(list_repr.*, elem)) catch oom();
                     }
                 },
                 .list => |list| {
                     for (list.elems.items) |elem| {
-                        elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
+                        elems.append(try self.convert(list_repr.*, elem)) catch oom();
                     }
                 },
                 .map => |map| {
                     for (0..map.entries.count()) |ix| {
                         const elem = map.entries.get(.{ .i64 = @intCast(ix) }) orelse
                             return self.fail("Cannot convert {} to {}", .{ value, repr });
-                        elems.append(try self.convert(list_repr.*, elem)) catch panic("OOM", .{});
+                        elems.append(try self.convert(list_repr.*, elem)) catch oom();
                     }
                 },
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
@@ -1350,7 +1353,7 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                         entries.putNoClobber(
                             try self.convert(map_repr[0].*, key),
                             try self.convert(map_repr[1].*, val),
-                        ) catch panic("OOM", .{});
+                        ) catch oom();
                     }
                 },
                 .list => |list| {
@@ -1358,7 +1361,7 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                         entries.putNoClobber(
                             try self.convert(map_repr[0].*, .{ .i64 = @intCast(ix) }),
                             try self.convert(map_repr[1].*, elem),
-                        ) catch panic("OOM", .{});
+                        ) catch oom();
                     }
                 },
                 .map => |map| {
@@ -1367,7 +1370,7 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                         entries.putNoClobber(
                             try self.convert(map_repr[0].*, entry.key_ptr.*),
                             try self.convert(map_repr[1].*, entry.value_ptr.*),
-                        ) catch panic("OOM", .{});
+                        ) catch oom();
                     }
                 },
                 else => return self.fail("Cannot convert {} to {}", .{ value, repr }),
@@ -1420,7 +1423,7 @@ fn matchObject(self: *Self, pattern: ObjectPattern, object: Value) !void {
                     .call_id = null,
                     .name = pattern_value,
                     .value = object_value,
-                }) catch panic("OOM", .{});
+                }) catch oom();
             }
         },
         .map, .list => return self.fail("TODO match object/list", .{}),
@@ -1429,18 +1432,18 @@ fn matchObject(self: *Self, pattern: ObjectPattern, object: Value) !void {
 }
 
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{SemantalyzeError} {
-    self.error_message = std.fmt.allocPrint(self.allocator, message, args) catch panic("OOM", .{});
+    self.error_message = std.fmt.allocPrint(self.allocator, message, args) catch oom();
     return error.SemantalyzeError;
 }
 
 fn box(allocator: Allocator, value: anytype) *@TypeOf(value) {
-    const value_ptr = allocator.create(@TypeOf(value)) catch panic("OOM", .{});
+    const value_ptr = allocator.create(@TypeOf(value)) catch oom();
     value_ptr.* = value;
     return value_ptr;
 }
 
 fn permute(allocator: Allocator, ixes: []const usize, comptime T: type, things: []T) []T {
-    const things_copy = allocator.dupe(T, things) catch panic("OOM", .{});
+    const things_copy = allocator.dupe(T, things) catch oom();
     for (things_copy, ixes) |*thing, ix| {
         thing.* = things[ix];
     }

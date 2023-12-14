@@ -4,6 +4,9 @@ const ArrayList = std.ArrayList;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
+const util = @import("./util.zig");
+const oom = util.oom;
+
 const Tokenizer = @import("./Tokenizer.zig");
 const Parser = @import("./Parser.zig");
 const Semantalyzer = @import("./Semantalyzer.zig");
@@ -46,7 +49,7 @@ fn run(
             error.TokenizeError => baton.tokenizer.?.error_message.?,
             error.ParseError => baton.parser.?.error_message.?,
             error.SemantalyzeError => baton.semantalyzer.?.error_message.?,
-            error.OutOfMemory => panic("OOM", .{}),
+            error.OutOfMemory => oom(),
         };
     }
 }

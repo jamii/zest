@@ -4,6 +4,9 @@ const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const util = @import("./util.zig");
+const oom = util.oom;
+
 const Tokenizer = @import("./Tokenizer.zig");
 const Token = Tokenizer.Token;
 
@@ -120,7 +123,7 @@ pub fn parse(self: *Self) !void {
     _ = try self.parseExpr0(.eof);
     try self.expect(.eof);
 
-    self.parents = self.allocator.alloc(?ExprId, self.exprs.items.len) catch panic("OOM", .{});
+    self.parents = self.allocator.alloc(?ExprId, self.exprs.items.len) catch oom();
     for (self.parents) |*parent| parent.* = null;
     for (0.., self.exprs.items) |expr_id, an_expr| {
         switch (an_expr) {
@@ -167,10 +170,10 @@ fn parseExpr0(self: *Self, end: Token) error{ParseError}!ExprId {
     var exprs = ArrayList(ExprId).init(self.allocator);
     while (true) {
         if (self.peek() == end) break;
-        exprs.append(try self.parseExpr1()) catch panic("OOM", .{});
+        exprs.append(try self.parseExpr1()) catch oom();
         if (!self.takeIf(.@";")) break;
     }
-    return self.expr(.{ .exprs = exprs.toOwnedSlice() catch panic("OOM", .{}) });
+    return self.expr(.{ .exprs = exprs.toOwnedSlice() catch oom() });
 }
 
 fn parseExpr1(self: *Self) error{ParseError}!ExprId {
@@ -209,9 +212,9 @@ fn parseExpr1(self: *Self) error{ParseError}!ExprId {
                 head = self.expr(.{ .call = .{
                     .head = self.expr(.{ .builtin = builtin }),
                     .args = .{
-                        .muts = self.allocator.dupe(bool, &.{ false, false }) catch panic("OOM", .{}),
-                        .keys = self.allocator.dupe(ExprId, &.{ zero, one }) catch panic("OOM", .{}),
-                        .values = self.allocator.dupe(ExprId, &.{ head, right }) catch panic("OOM", .{}),
+                        .muts = self.allocator.dupe(bool, &.{ false, false }) catch oom(),
+                        .keys = self.allocator.dupe(ExprId, &.{ zero, one }) catch oom(),
+                        .values = self.allocator.dupe(ExprId, &.{ head, right }) catch oom(),
                     },
                 } });
             },
@@ -265,9 +268,9 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                 var muts = ArrayList(bool).init(self.allocator);
                 var keys = ArrayList(ExprId).init(self.allocator);
                 var values = ArrayList(ExprId).init(self.allocator);
-                muts.append(false) catch panic("OOM", .{}); // TODO Do we want to allow implicit mut?
-                keys.append(self.expr(.{ .i64 = 0 })) catch panic("OOM", .{});
-                values.append(head) catch panic("OOM", .{});
+                muts.append(false) catch oom(); // TODO Do we want to allow implicit mut?
+                keys.append(self.expr(.{ .i64 = 0 })) catch oom();
+                values.append(head) catch oom();
 
                 if (self.takeIf(.@"(")) {
                     const object = try self.parseObject(true, .@")");
@@ -276,17 +279,17 @@ fn parseExpr2(self: *Self) error{ParseError}!ExprId {
                         if (key_expr.* == .i64)
                             key_expr.i64 += 1;
                     }
-                    muts.appendSlice(object.muts) catch panic("OOM", .{});
-                    keys.appendSlice(object.keys) catch panic("OOM", .{});
-                    values.appendSlice(object.values) catch panic("OOM", .{});
+                    muts.appendSlice(object.muts) catch oom();
+                    keys.appendSlice(object.keys) catch oom();
+                    values.appendSlice(object.values) catch oom();
                 }
 
                 head = self.expr(.{ .call = .{
                     .head = actual_head,
                     .args = .{
-                        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-                        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
-                        .values = values.toOwnedSlice() catch panic("OOM", .{}),
+                        .muts = muts.toOwnedSlice() catch oom(),
+                        .keys = keys.toOwnedSlice() catch oom(),
+                        .values = values.toOwnedSlice() catch oom(),
                     },
                 } });
             },
@@ -418,7 +421,7 @@ fn parseFloat64(self: *Self, text: []const u8) !f64 {
 }
 
 fn parseString(self: *Self, text: []const u8) ![]u8 {
-    var chars = ArrayList(u8).initCapacity(self.allocator, text.len) catch panic("OOM", .{});
+    var chars = ArrayList(u8).initCapacity(self.allocator, text.len) catch oom();
     var escaped = false;
     for (text[1 .. text.len - 1]) |char| {
         if (escaped) {
@@ -437,7 +440,7 @@ fn parseString(self: *Self, text: []const u8) ![]u8 {
         }
     }
     assert(escaped == false);
-    return chars.toOwnedSlice() catch panic("OOM", .{});
+    return chars.toOwnedSlice() catch oom();
 }
 
 fn parseStaticKey(self: *Self) !StaticKey {
@@ -500,9 +503,9 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
             }
         }
 
-        muts.append(mut) catch panic("OOM", .{});
-        keys.append(key.?) catch panic("OOM", .{});
-        values.append(value.?) catch panic("OOM", .{});
+        muts.append(mut) catch oom();
+        keys.append(key.?) catch oom();
+        values.append(value.?) catch oom();
         if (!self.takeIf(.@",")) break;
     }
     try self.expect(end);
@@ -520,9 +523,9 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
                     const key = self.expr(.{ .i64 = key_ix.? });
                     key_ix.? += 1;
 
-                    muts.append(false) catch panic("OOM", .{});
-                    keys.append(key) catch panic("OOM", .{});
-                    values.append(value) catch panic("OOM", .{});
+                    muts.append(false) catch oom();
+                    keys.append(key) catch oom();
+                    values.append(value) catch oom();
 
                     continue;
                 }
@@ -543,9 +546,9 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
 
                     const key = self.expr(.{ .string = name });
 
-                    muts.append(false) catch panic("OOM", .{});
-                    keys.append(key) catch panic("OOM", .{});
-                    values.append(value) catch panic("OOM", .{});
+                    muts.append(false) catch oom();
+                    keys.append(key) catch oom();
+                    values.append(value) catch oom();
 
                     continue;
                 }
@@ -557,9 +560,9 @@ fn parseObject(self: *Self, allow_mut: bool, end: Token) !ObjectExpr {
     }
 
     return ObjectExpr{
-        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
-        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
-        .values = values.toOwnedSlice() catch panic("OOM", .{}),
+        .muts = muts.toOwnedSlice() catch oom(),
+        .keys = keys.toOwnedSlice() catch oom(),
+        .values = values.toOwnedSlice() catch oom(),
     };
 }
 
@@ -570,12 +573,12 @@ fn parseFn(self: *Self) !ExprId {
 
     // TODO design mut patterns.
     var muts = ArrayList(bool).init(self.allocator);
-    for (params.values) |_| muts.append(false) catch panic("OOM", .{});
+    for (params.values) |_| muts.append(false) catch oom();
 
     const body = try self.parseExpr1();
 
     return self.expr(.{ .@"fn" = .{
-        .muts = muts.toOwnedSlice() catch panic("OOM", .{}),
+        .muts = muts.toOwnedSlice() catch oom(),
         .params = params,
         .body = body,
     } });
@@ -609,13 +612,13 @@ fn parseObjectPattern(self: *Self, end: Token) !ObjectPattern {
             key = .{ .i64 = key_ix.? };
             key_ix.? += 1;
         }
-        keys.append(key) catch panic("OOM", .{});
-        values.append(value.?) catch panic("OOM", .{});
+        keys.append(key) catch oom();
+        values.append(value.?) catch oom();
         if (!self.takeIf(.@",")) break;
     }
     return .{
-        .keys = keys.toOwnedSlice() catch panic("OOM", .{}),
-        .values = values.toOwnedSlice() catch panic("OOM", .{}),
+        .keys = keys.toOwnedSlice() catch oom(),
+        .values = values.toOwnedSlice() catch oom(),
     };
 }
 
@@ -673,7 +676,7 @@ fn tokenText(self: *Self, token_ix: usize) []const u8 {
 
 fn expr(self: *Self, expr_value: Expr) ExprId {
     const id = self.exprs.items.len;
-    self.exprs.append(expr_value) catch panic("OOM", .{});
+    self.exprs.append(expr_value) catch oom();
     return id;
 }
 
@@ -687,6 +690,6 @@ fn fail(self: *Self, comptime message: []const u8, args: anytype) error{ParseErr
         .{source_ix} ++
             args ++
             .{self.tokenizer.source[source_ix..@min(source_ix + 100, self.tokenizer.source.len)]},
-    ) catch panic("OOM", .{});
+    ) catch oom();
     return error.ParseError;
 }
