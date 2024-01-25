@@ -306,8 +306,6 @@ pub const Value = union(enum) {
             },
             .list => |list| {
                 try writer.print("{}[", .{Repr{ .list = list.repr }});
-
-                try writer.writeAll("[");
                 var first = true;
                 for (list.elems.items) |elem| {
                     if (!first) try writer.writeAll(", ");
@@ -315,13 +313,9 @@ pub const Value = union(enum) {
                     first = false;
                 }
                 try writer.writeAll("]");
-
-                try writer.writeAll("]");
             },
             .map => |map| {
                 try writer.print("{}[", .{Repr{ .map = map.repr }});
-
-                try writer.writeAll("[");
 
                 const entries = mapSortedEntries(map);
                 defer entries.deinit();
@@ -332,8 +326,6 @@ pub const Value = union(enum) {
                     try writer.print("{}: {}", .{ FormatKey{ .key = entry.key_ptr.* }, entry.value_ptr.* });
                     first = false;
                 }
-
-                try writer.writeAll("]");
 
                 try writer.writeAll("]");
             },
@@ -796,7 +788,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             switch (head) {
                 .repr => |repr| {
                     switch (repr) {
-                        .@"struct" => {
+                        .@"struct", .list, .map => {
                             return self.convert(repr, .{ .@"struct" = args });
                         },
                         else => {
