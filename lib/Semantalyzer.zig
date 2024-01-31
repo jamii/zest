@@ -700,7 +700,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                     const parent_id = self.parser.parents[expr_id];
                     if (parent_id == null or
                         self.parser.exprs.items[parent_id.?] != .call)
-                        return self.fail("Functions may only be reference as the head of a call or an argument to a call", .{});
+                        return self.fail("Functions may only be referenced as the head of a call or an argument to a call", .{});
                 }
                 return binding.value;
             } else |err| {

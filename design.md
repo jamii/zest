@@ -783,14 +783,14 @@ Functions can only be referenced as the head of an argument call or the argument
 foo: () 42;
 ['nope': foo]
 
-Functions may only be reference as the head of a call or an argument to a call
+Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ```
 foo: () 42;
 [{foo}: 'nope']
 
-Functions may only be reference as the head of a call or an argument to a call
+Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ```
@@ -798,7 +798,7 @@ zero: () 0;
 one: () 1;
 if 1 one else zero
 
-Functions may only be reference as the head of a call or an argument to a call
+Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ```
@@ -806,7 +806,7 @@ foo: () 42;
 bar: () foo;
 bar()
 
-Functions may only be reference as the head of a call or an argument to a call
+Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ### patterns
@@ -821,7 +821,7 @@ foo(1, 'also z': 3, y:)
 [1, 2, 3]
 ```
 
-TODO other patterns
+TODO pattern-matching, mirroring construction syntax
 
 ### return-to
 
@@ -866,7 +866,7 @@ foo: (x, f)
   else 
     foo(
       x - 1,
-      // Returns to *this* instance of foo, not the nearest foo on the stack.
+      // Returns to this instance of foo, not the nearest foo on the stack.
       (x) return-to(foo, x + 1),
     );
 foo(10, (x) x)
