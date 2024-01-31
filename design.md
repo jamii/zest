@@ -821,7 +821,7 @@ foo(1, 'also z': 3, y:)
 [1, 2, 3]
 ```
 
-TODO pattern-matching, mirroring construction syntax
+TODO full pattern-matching mirroring construction syntax
 
 ### return-to
 
@@ -876,13 +876,145 @@ foo(10, (x) x)
 
 TODO indicate functions and calls which may return past caller with `!`
 
-## mutation
-
-TODO mutable value semantics
-
 ## errors
 
 TODO throw/panic as implicit arguments. try sets throw argument for body.
+
+## mutation
+
+Mutable variables can be defined using `@` and referenced as usual. 
+
+```
+@a: 1;
+a
+
+1
+```
+
+To pass a mutable reference to a function, use `@` in the function call.
+
+```
+@a: 1;
+set(@a, 2);
+a
+
+2
+```
+
+```
+@a: 1;
+set(a, 2);
+a
+
+Can't pass non-mut arg to Parser.Expr{ .builtin = Parser.Builtin.set }
+```
+
+```
+a: 1;
+set(@a, 2);
+a
+
+Cannot set a non-mut variable: a
+```
+
+If a mutable reference contains an object, mutable references may be constructed to fields of that object.
+
+```
+a: [b: 1];
+set(@a:b, 2);
+a
+
+[b: 2]
+```
+
+```
+a: [b: 1];
+set(@a/get('b'), 2);
+a
+
+[b: 2]
+```
+
+```
+a: [b: 1];
+@a:b/set(2);
+a
+
+[b: 2]
+```
+
+```
+a: [b: 1];
+@a/get('b')/set(2);
+a
+
+[b: 2]
+```
+
+To define a function which takes mutable references as arguments, use `@` in the parameters:
+
+```
+inc: (@x) @x/set(x+1);
+a: 1;
+@a/inc;
+a
+
+2
+```
+
+```
+inc: (x) @x/set(x+1);
+a: 1;
+@a/inc;
+a
+
+Cannot take mutable reference to immutable reference `x`.
+```
+
+```
+inc: (@x) @x/set(x+1);
+a: 1;
+a/inc;
+a
+
+Function `inc` expects mutable reference but found immutable reference `a`.
+```
+
+Mutable references never alias - setting the value of one mutable variable will never change the value of another mutable variable. To enforce this, all of the mutable arguments to a function call must be disjoint.
+
+```
+a: [b: 1, c: 2];
+swap(@a:b, @a:c);
+a
+
+[b: 2, c: 1]
+```
+
+```
+a: [b: 1, c: 2];
+swap(@a:b, @a:b);
+a
+
+Cannot pass overlapping references `@a:b` and `@a:b` in call to function.
+```
+
+```
+a: [b: 1, c: 2];
+swap(@a, @a:b);
+a
+
+Cannot pass overlapping references `@a` and `@a:b` in call to function.
+```
+
+Only the mutable arguments are required to be disjoint - other arguments may overlap.
+
+```
+a: [b: 1, c: 2];
+set(@a, a:b);
+a
+
+1
+```
 
 ## syntax hunches
 
