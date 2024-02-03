@@ -1,0 +1,49 @@
+statements = statement (break statement)*
+break = 
+  | n => n
+  | ";" => ";"
+statement =
+  | name => name "=" expr-plus
+  | "@" => "@" path "=" expr
+  | expr
+expr-plus = 
+  | "(" => "(" n? args ")" expr
+  | "@" expr-atom
+  | expr
+path = name ("/" expr-atom)*
+expr = expr-loose
+expr-loose = expr-tight expr-loose-tail*
+expr-tight = expr-atom expr-tight-tail*
+expr-loose-tail =
+  | s binop => s binop s n? expr-tight
+expr-tight-tail =
+  | "/" => "/" expr-atom
+  | "(" => "(" n? args ")"
+  | "[" => "[" n? fields "]"
+  | "." => "." n? expr-atom "(" n? args ")"
+expr-atom =
+  | name => name
+  | number => number
+  | text => text
+  | "[" => "[" n? fields "]"
+  | "{" => "{" n? statements "}"
+// TODO allow @a.inc?
+fields = field*field-sep
+field-sep = "," n
+field = 
+  | "/" name ("," | "]") => "/" name
+  | "/" => "/" expr-atom s expr
+  | expr
+args = arg*arg-sep
+arg-sep = "," n
+arg = 
+  | "/" "@"? name ("," | ")") => "/" "@"? name
+  | "/" => "/" expr-atom s expr-plus
+  | expr-plus
+
+// s consumes one or more spaces/comments
+// n consumes one or more spaces/comments/newlines
+
+// TODO
+// probably easier to mark places where spaces are not allowed rather than where they are allowed
+// peek, take, peekIncSpace, takeIncSpace
