@@ -72,33 +72,41 @@ Zero or more key-value pairs, separated by commas.
 ```
 
 ```
-['a': 'apple', 'b': 'bear']
+[/'a' 'apple', /'b' 'bear']
 
-[a: 'apple', b: 'bear']
+[/a 'apple', /b 'bear']
 ```
 
 Optional trailing comma.
 
 ```
-['a': 'apple', 'b': 'bear',]
+[/'a' 'apple', /'b' 'bear',]
 
-[a: 'apple', b: 'bear']
+[/a 'apple', /b 'bear']
 ```
 
 Key order doesn't matter. Keys may be printed in any order.
 
 ```
-['b': 'bear', 'a': 'apple']
+[/'b' 'bear', /'a' 'apple']
 
-[a: 'apple', b: 'bear']
+[/a 'apple', /b 'bear']
 ```
 
 No repeated keys.
 
 ```
-['a': 'apple', 'a': 'bear']
+[/'a' 'apple', /'a' 'bear']
 
 Duplicate key in map literal: 'a'
+```
+
+If the key is string which is a valid name, the quotes may be omitted.
+
+```
+[/a 'apple', /b 'bear']
+
+[/a 'apple', /b 'bear']
 ```
 
 Omitted keys default to consecutive integers, starting at 0.
@@ -110,7 +118,7 @@ Omitted keys default to consecutive integers, starting at 0.
 ```
 
 ```
-[0: 'a', 1: 'b']
+[/0 'a', /1 'b']
 
 ['a', 'b']
 ```
@@ -118,15 +126,15 @@ Omitted keys default to consecutive integers, starting at 0.
 Can mix omitted and present keys.
 
 ```
-['a', 1: 'b', 'default': 'c']
+['a', /1 'b', /default 'c']
 
-['a', 'b', default: 'c']
+['a', 'b', /default 'c']
 ```
 
 But omitted keys must be written before present keys.
 
 ```
-['a', 'default': 'c', 'b']
+['a', /default 'c', 'b']
 
 At 22. Positional elems must be before key/value elems
 'b']
@@ -136,7 +144,7 @@ At 22. Positional elems must be before key/value elems
 
 A value constists of a notation and a representation.
 
-A representaton:
+A representation:
 * Maps some subset of notations to bytes in memory.
 * Constrains the available builtin operations on those notations.
 
@@ -225,27 +233,27 @@ Strings allow pushing and popping unicode characters.
 Structs are objects with a fixed finite set of keys.
 
 ```
-struct['a': i64, 'b': i64]['a': 0, 'b': 1]
+struct[/a i64, /b i64][/a 0, /b 1]
 
-[a: 0, b: 1]
+[/a 0, /b 1]
 ```
 
 ```
-struct['a': f64, 'b': i64]['a': 0, 'b': 1]
+struct[/a f64, /b i64][/a 0, /b 1]
 
-[a: 0.0, b: 1]
+[/a 0.0, /b 1]
 ```
 
 ```
-struct['a': f64, 'b': i64]['a': 0]
+struct[/a f64, /b i64][/a 0]
 
-Cannot convert [a: 0] to struct['a': f64, 'b': i64]
+Cannot convert [/a 0] to struct[/a f64, /b i64]
 ```
 
 ```
-struct['a': f64, 'b': i64]['a': 0, 'b': 1, 'c': 2]
+struct[/a f64, /b i64][/a 0, /b 1, /c 2]
 
-Cannot convert [a: 0, b: 1, c: 2] to struct['a': f64, 'b': i64]
+Cannot convert [/a 0, /b 1, /c 2] to struct[/a f64, /b i64]
 ```
 
 The keys are not required to be strings!
@@ -257,9 +265,9 @@ struct[f64, i64][0, 1]
 ```
 
 ```
-struct[['a', 'b']: string][['a', 'b']: 'c']
+struct[/['a', 'b'] string][/['a', 'b'] 'c']
 
-[['a', 'b']: 'c']
+[/['a', 'b'] 'c']
 ```
 
 Structs are laid out contiguously in memory, in some implementation-defined order.
@@ -291,15 +299,15 @@ Cannot convert 0 to string
 ```
 
 ```
-list[f64]['a': 'apple']
+list[f64][/a 'apple']
 
-Cannot convert [a: 'apple'] to list[f64]
+Cannot convert [/a 'apple'] to list[f64]
 ```
 
 ```
-list[f64][1: 3.14]
+list[f64][/1 3.14]
 
-Cannot convert [1: 3.14] to list[f64]
+Cannot convert [/1 3.14] to list[f64]
 ```
 
 Lists are laid out contiguously in memory, in key order.
@@ -313,13 +321,13 @@ Lists allow getting and setting keys, and pushing/popping.
 Maps are objects with any number of entries, where all the keys have the same representation and all the values have the same representation.
 
 ```
-map[i64, string][0: 'zero', 1: 'one']
+map[i64, string][/0 'zero', /1 'one']
 
-map[i64, string][0: 'zero', 1: 'one']
+map[i64, string][/0 'zero', /1 'one']
 ```
 
 ```
-map[i64, string][0: 'zero', 1: 1]
+map[i64, string][/0 'zero', /1 1]
 
 Cannot convert 1 to string
 ```
@@ -467,25 +475,25 @@ i64[42] = f64[42]
 ```
 
 ```
-['a': 1, 'b': 2] = ['b': 2, 'a': 1]
+[/a 1, /b 2] = [/b 2, /a 1]
 
 1
 ```
 
 ```
-['a': 1, 'b': 2] = ['b': 100, 'a': 1]
+[/a 1, /b 2] = [/b 100, /a 1]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] = ['b': 2, 'a': 1, 'c': 3]
+[/a 1, /b 2] = [/b 2, /a 1, /c 3]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] = map[string, i64]['b': 2, 'a': 1]
+[/a 1, /b 2] = map[string, i64][/b 2, /a 1]
 
 0
 ```
@@ -517,25 +525,25 @@ i64[42] ~ f64[42]
 ```
 
 ```
-['a': 1, 'b': 2] ~ ['b': 2, 'a': 1]
+[/a 1, /b 2] ~ [/b 2, /a 1]
 
 1
 ```
 
 ```
-['a': 1, 'b': 2] ~ ['b': 100, 'a': 1]
+[/a 1, /b 2] ~ [/b 100, /a 1]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] ~ ['b': 2, 'a': 1, 'c': 3]
+[/a 1, /b 2] ~ [/b 2, /a 1, /c 3]
 
 0
 ```
 
 ```
-['a': 1, 'b': 2] ~ map[string, i64]['b': 2, 'a': 1]
+[/a 1, /b 2] ~ map[string, i64][/b 2, /a 1]
 
 1
 ```
@@ -561,86 +569,85 @@ Names start with a lowercase letter and can contain lowercase letters, numbers a
 TODO Assignment should return null/void.
 
 ```
-some-name: 'foo'
+some-name = 'foo'
 
 0
 ```
 
 ```
-side2side: 'foo'
+side2side = 'foo'
 
 0
 ```
 
 ```
-NoCaps: 'foo'
+NoCaps = 'foo'
 
-Tokenizer error at 0: NoCaps: 'foo'
+Tokenizer error at 0: NoCaps = 'foo'
 ```
 
 ```
-0digits-at-start: 'foo'
+0digits-at-start = 'foo'
 
 At 1. Expected Tokenizer.Token.eof, found Tokenizer.Token.name
-digits-at-start: 'foo'
+digits-at-start = 'foo'
 ```
 
 ```
-0-digits-at-start: 'foo'
+0-digits-at-start = 'foo'
 
 At 1. Expected Tokenizer.Token.eof, found Tokenizer.Token.-
--digits-at-start: 'foo'
+-digits-at-start = 'foo'
 ```
 
 In objects, if a key is a valid name then it is treated as a string.
 
 ```
-foo: 'the number';
-[foo: 42]
+foo = 'the number'
+[/foo 42]
 
-[foo: 42]
+[/foo 42]
 ```
 
 Use brackets to treat the key as a name.
 
 ```
-foo: 'the number';
-[{foo}: 42]
+foo = 'the number'
+[/{foo} 42]
 
-['the number': 42]
+[/'the number' 42]
 ```
 
 If the key is a valid name then the value can be omitted and will be replaced by the value of that name.
 
 ```
-foo: 'the number';
-[foo:]
+foo = 'the number'
+[/foo]
 
-[foo: 'the number']
+[/foo 'the number']
 ```
 
 Names may not be shadowed.
 
 ```
-foo: 1;
-foo: 2
+foo = 1
+foo = 2
 
 Name foo shadows earlier definition
 ```
 
 ```
-foo: 1;
-bar: () {
-  foo: 2;
-}
+foo = 1
+bar = ()
+  foo = 2
 // TODO Name foo shadows earlier definition
 
 0
 ```
 
 ```
-foo: 1;
-bar: (foo) 2
+foo = 1
+bar = (foo) 2
 // TODO Name foo shadows earlier definition
 
 0
@@ -648,20 +655,20 @@ bar: (foo) 2
 
 ## fields
 
-The `get` function retrieves the value associated with a key in an object.
+The `/` operator retrieves the value associated with a key in an object.
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc/get('b')
+abc = [/a 1, /b 2, /c 3]
+abc/b
 
 2
 ```
 
-When the key is a string which is a valid name, this can be abbreviated to:
+When the key is a string which is a valid name, the quotes can be omitted:
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc:b
+abc = [/a 1, /b 2, /c 3]
+abc/b
 
 2
 ```
@@ -669,38 +676,38 @@ abc:b
 If the key is not present in the map then an error is returned.
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc/get('d')
+abc = [/a 1, /b 2, /c 3]
+abc/d
 
-Key 'd' not found in [a: 1, b: 2, c: 3]
+Key 'd' not found in [/a 1, /b 2, /c 3]
 ```
 
-The `try-get` function instead returns an optional value.
+The `get` function instead returns an optional value.
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc/try-get('b')
+abc = [/a 1, /b 2, /c 3]
+abc.get('b')
 
-[some: 2]
+[/some 2]
 ```
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc/try-get('d')
+abc = [/a 1, /b 2, /c 3]
+abc.get('d')
 
 'none'
 ```
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc/try-get('b'):some
+abc = [/a 1, /b 2, /c 3]
+abc.get('b')/some
 
 2
 ```
 
 ```
-abc: [a: 1, b: 2, c: 3];
-abc/try-get('d'):some
+abc = [/a 1, /b 2, /c 3]
+abc.get('d')/some
 
 Cannot get key 'some' from non-object 'none'
 ```
@@ -708,7 +715,7 @@ Cannot get key 'some' from non-object 'none'
 ## functions
 
 ```
-foo: (x) x + 1;
+foo = (x) x + 1
 foo(1)
 
 2
@@ -717,8 +724,8 @@ foo(1)
 Functions close over variables in their scope.
 
 ```
-n: 1;
-inc: (x) x + n;
+n = 1
+inc = (x) x + n
 inc(1)
 
 2
@@ -727,13 +734,13 @@ inc(1)
 Function definitions can only appear in variable definitions or as the argument to a function call.
 
 ```
-foo: (x) x + 1
+foo = (x) x + 1
 
 0
 ```
 
 ```
-foo: {(x) x + 1}
+foo = {(x) x + 1}
 
 Functions may only be defined at the top of definitions or call arguments
 ```
@@ -745,65 +752,47 @@ Functions may only be defined at the top of definitions or call arguments
 ```
 
 ```
-twice: (x, f) f(f(x));
-twice(1, (x) x + 1);
+twice = (x, f) f(f(x))
+twice(1, (x) x + 1)
 
 3
 ```
 
 ```
-twice: (x, f) f(f(x));
-twice(1, if 1 (x) x + 1 else (x) x + 2);
+twice = (x, f) f(f(x))
+twice(1, if 1 (x) x + 1 else (x) x + 2)
 3
 
 Functions may only be defined at the top of definitions or call arguments
 ```
 
-Function definitions immediately after a function call are interpreted as additional positional or named arguments to the function call.
-
-```
-twice: (x, f) f(f(x));
-twice(1)
-  (x) x + 1
-
-3
-```
-
-```
-twice: (x, f:) f(f(x));
-twice(1)
-  f: (x) x + 1
-
-3
-```
-
 Functions can only be referenced as the head of an argument call or the argument to a function call.
 
 ```
-foo: () 42;
-['nope': foo]
+foo = () 42
+[/nope foo]
 
 Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ```
-foo: () 42;
-[{foo}: 'nope']
+foo = () 42
+[/{foo} 'nope']
 
 Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ```
-zero: () 0;
-one: () 1;
+zero = () 0
+one = () 1
 if 1 one else zero
 
 Functions may only be referenced as the head of a call or an argument to a call
 ```
 
 ```
-foo: () 42;
-bar: () foo;
+foo = () 42
+bar = () foo
 bar()
 
 Functions may only be referenced as the head of a call or an argument to a call
@@ -814,9 +803,9 @@ Functions may only be referenced as the head of a call or an argument to a call
 Functions can take keyword arguments, with the same syntax as object fields:
 
 ```
-foo: (x, y:, 'also z': z) [x,y,z];
-y: 2;
-foo(1, 'also z': 3, y:)
+foo = (x, /y, /'also z' z) [x,y,z]
+y = 2
+foo(1, /'also z' 3, /y)
 
 [1, 2, 3]
 ```
@@ -828,39 +817,39 @@ TODO full pattern-matching mirroring construction syntax
 Since functions can't escape the scope they were defined in, they may return to enclosing functions in that scope.
 
 ```
-try: (body, catch:) body(throw: catch);
-foo: ()
+try = (body, /catch) body(/throw catch)
+foo = ()
   try()
-    (throw:) {
-      throw('oh no!'); 
-      throw('unreachable');
+    (/throw) {
+      throw('oh no!') 
+      throw('unreachable')
     }
-    catch: (error)
-      return-to(foo, [error:]);
+    /catch (error)
+      return-to(foo, [/error])
 foo()
 
-[error: 'oh no!']
+[/error 'oh no!']
 ```
 
 `return-to` is lexically scoped - you can't return to a function that doesn't lexically enclose the `return-to` expression.
 
 ```
-try: (body, catch:) body(throw: catch);
-foo: ()
+try = (body, /catch) body(/throw catch)
+foo = ()
   try()
-    (throw:) {
-      throw('oh no!'); 
-      throw('unreachable');
+    (/throw) {
+      throw('oh no!') 
+      throw('unreachable')
     }
-    catch: (error)
-      return-to(try, [error:]);
+    /catch (error)
+      return-to(try, [/error])
 foo()
 
 Can't return to `try` from here
 ```
 
 ```
-foo: (x, f) 
+foo = (x, f) 
   if {x = 0} 
     f(x) 
   else 
@@ -868,7 +857,7 @@ foo: (x, f)
       x - 1,
       // Returns to this instance of foo, not the nearest foo on the stack.
       (x) return-to(foo, x + 1),
-    );
+    )
 foo(10, (x) x)
 
 1
@@ -885,33 +874,34 @@ TODO throw/panic as implicit arguments. try sets throw argument for body.
 Mutable variables can be defined using `@` and referenced as usual. 
 
 ```
-@a: 1;
+a = @1
+@a = a + 1
 a
 
-1
+2
 ```
 
 To pass a mutable reference to a function, use `@` in the function call.
 
 ```
-@a: 1;
-set(@a, 2);
+a = @1
+set(@a, 2)
 a
 
 2
 ```
 
 ```
-@a: 1;
-set(a, 2);
+a = @1
+set(a, 2)
 a
 
 Can't pass non-mut arg to Parser.Expr{ .builtin = Parser.Builtin.set }
 ```
 
 ```
-a: 1;
-set(@a, 2);
+a = 1
+set(@a, 2)
 a
 
 Cannot set a non-mut variable: a
@@ -920,61 +910,45 @@ Cannot set a non-mut variable: a
 If a mutable reference contains an object, mutable references may be constructed to fields of that object.
 
 ```
-a: [b: 1];
-set(@a:b, 2);
+a = @[/b 1]
+@a/b = 2
 a
 
-[b: 2]
+[/b 2]
 ```
 
 ```
-a: [b: 1];
-set(@a/get('b'), 2);
+a = @[/b 1]
+set(@a/b, 2)
 a
 
-[b: 2]
-```
-
-```
-a: [b: 1];
-@a:b/set(2);
-a
-
-[b: 2]
-```
-
-```
-a: [b: 1];
-@a/get('b')/set(2);
-a
-
-[b: 2]
+[/b 2]
 ```
 
 To define a function which takes mutable references as arguments, use `@` in the parameters:
 
 ```
-inc: (@x) @x/set(x+1);
-a: 1;
-@a/inc;
+inc = (@x) @x = x+1
+a = 1
+@a.inc()
 a
 
 2
 ```
 
 ```
-inc: (x) @x/set(x+1);
-a: 1;
-@a/inc;
+inc = (x) @x/set(x+1)
+a = 1
+@a.inc()
 a
 
 Cannot take mutable reference to immutable reference `x`.
 ```
 
 ```
-inc: (@x) @x/set(x+1);
-a: 1;
-a/inc;
+inc = (@x) @x = x+1
+a = 1
+a.inc()
 a
 
 Function `inc` expects mutable reference but found immutable reference `a`.
@@ -983,34 +957,34 @@ Function `inc` expects mutable reference but found immutable reference `a`.
 Mutable references never alias - setting the value of one mutable variable will never change the value of another mutable variable. To enforce this, all of the mutable arguments to a function call must be disjoint.
 
 ```
-a: [b: 1, c: 2];
-swap(@a:b, @a:c);
+a = [/b 1, /c 2]
+swap(@a/b, @a/c)
 a
 
-[b: 2, c: 1]
+[/b 2, /c 1]
 ```
 
 ```
-a: [b: 1, c: 2];
-swap(@a:b, @a:b);
+a = [/b 1, /c 2]
+swap(@a/b, @a/b)
 a
 
-Cannot pass overlapping references `@a:b` and `@a:b` in call to function.
+Cannot pass overlapping references `@a/b` and `@a/b` in call to function.
 ```
 
 ```
-a: [b: 1, c: 2];
-swap(@a, @a:b);
+a = [/b 1, /c 2]
+swap(@a, @a/b)
 a
 
-Cannot pass overlapping references `@a` and `@a:b` in call to function.
+Cannot pass overlapping references `@a` and `@a/b` in call to function.
 ```
 
 Only the mutable arguments are required to be disjoint - other arguments may overlap.
 
 ```
-a: [b: 1, c: 2];
-set(@a, a:b);
+a = [/b 1, /c 2]
+set(@a, a/b)
 a
 
 1
@@ -1024,9 +998,7 @@ a
 
 `{}` is used for grouping instead of `()` to avoid ambiguity.
 
-`:` is used for definition to avoid ambiguity with equality (`=`) and assignment (TODO).
-
-`foo:bar` is used for field access to mirror definition `foo: [bar: 42]`.
+`foo/bar` is used for field access to mirror definition `foo = [/bar 42]`.
 
 The syntax for function patterns is consistent with the syntax for creating structs - as if functions take a struct of arguments.
 
