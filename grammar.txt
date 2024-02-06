@@ -27,6 +27,8 @@ expr-atom =
   | text => text
   | "[" => "[" n? fields "]"
   | "{" => "{" n? statements "}"
+  | "if" => "if" expr-atom expr "else" expr
+  | "while" => "while" expr-atom expr
 // TODO allow @a.inc?
 fields = field*field-sep
 field-sep = "," n

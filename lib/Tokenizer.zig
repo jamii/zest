@@ -18,11 +18,10 @@ pub const Token = enum {
     number,
     string,
     name,
-    mut,
-    set,
     @"if",
     @"else",
     @"while",
+    @"@",
     @"(",
     @")",
     @"[",
@@ -32,9 +31,9 @@ pub const Token = enum {
     @",",
     @".",
     @";",
-    @":",
     @"=",
-    @"~",
+    @"==",
+    @"~=",
     @"<",
     @"<=",
     @">",
@@ -44,7 +43,8 @@ pub const Token = enum {
     @"/",
     @"*",
     comment,
-    whitespace,
+    space,
+    newline,
     eof,
 };
 
@@ -66,6 +66,7 @@ pub fn tokenize(self: *Self) !void {
         const char = source[i];
         i += 1;
         const token: Token = switch (char) {
+            '@' => Token.@"@",
             '(' => Token.@"(",
             ')' => Token.@")",
             '[' => Token.@"[",
@@ -74,10 +75,23 @@ pub fn tokenize(self: *Self) !void {
             '{' => Token.@"{",
             ',' => Token.@",",
             '.' => Token.@".",
-            ':' => Token.@":",
             ';' => Token.@";",
-            '=' => Token.@"=",
-            '~' => Token.@"~",
+            '=' => token: {
+                if (i < source.len and source[i] == '=') {
+                    i += 1;
+                    break :token Token.@"==";
+                } else {
+                    break :token Token.@"=";
+                }
+            },
+            '~' => token: {
+                if (i < source.len and source[i] == '=') {
+                    i += 1;
+                    break :token Token.@"~=";
+                } else {
+                    return self.fail(start);
+                }
+            },
             '<' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;
@@ -115,8 +129,6 @@ pub fn tokenize(self: *Self) !void {
                 }
                 const name = source[start..i];
                 const keywords = [_]Token{
-                    .mut,
-                    .set,
                     .@"if",
                     .@"else",
                     .@"while",
@@ -151,15 +163,13 @@ pub fn tokenize(self: *Self) !void {
                 }
                 break :token Token.number;
             },
-            ' ', '\n' => token: {
-                while (i < source.len) {
-                    switch (source[i]) {
-                        ' ', '\n' => i += 1,
-                        else => break,
-                    }
+            ' ' => token: {
+                while (i < source.len and source[i] == ' ') {
+                    i += 1;
                 }
-                break :token Token.whitespace;
+                break :token Token.space;
             },
+            '\n' => Token.newline,
             else => return self.fail(start),
         };
         self.tokens.append(token) catch oom();

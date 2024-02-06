@@ -998,6 +998,8 @@ a
 
 `{}` is used for grouping instead of `()` to avoid ambiguity.
 
+`/` is used as a prefix for fields to maintain LL(k) grammar and to avoid ambiguity in positional arguments.
+
 `foo/bar` is used for field access to mirror definition `foo = [/bar 42]`.
 
 The syntax for function patterns is consistent with the syntax for creating structs - as if functions take a struct of arguments.
