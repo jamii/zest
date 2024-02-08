@@ -311,17 +311,19 @@ fn parseCallDot(self: *Self, arg: ExprId) error{ParseError}!ExprId {
 }
 
 fn parseExprPath(self: *Self) error{ParseError}!ExprId {
-    const mut = self.takeIf(.@"@");
-    var head = try self.parseExprAtom();
-    while (true) {
-        if (self.peekSpace()) break;
-        switch (self.peek()) {
-            .@"/" => head = try self.parseGet(head),
-            else => break,
+    if (self.takeIf(.@"@")) {
+        var head = try self.parseExprAtom();
+        while (true) {
+            if (self.peekSpace()) break;
+            switch (self.peek()) {
+                .@"/" => head = try self.parseGet(head),
+                else => break,
+            }
         }
+        return self.expr(.{ .mut = head });
+    } else {
+        return self.parseExprAtom();
     }
-    if (mut) head = self.expr(.{ .mut = head });
-    return head;
 }
 
 fn parseExprAtom(self: *Self) error{ParseError}!ExprId {
