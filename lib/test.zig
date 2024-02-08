@@ -88,9 +88,10 @@ pub fn main() !void {
             try writer.writeAll("```\n");
             const case = cases.next() orelse break;
             var parts = std.mem.split(u8, case, "\n\n");
-            const source = std.mem.trim(u8, parts.next().?, "\n");
-            const expected = std.mem.trim(u8, parts.next().?, "\n");
-            assert(parts.next() == null);
+            const source_untrimmed = parts.next().?;
+            const source = std.mem.trim(u8, source_untrimmed, "\n");
+            const expected = std.mem.trim(u8, case[source_untrimmed.len..], "\n");
+            //assert(parts.next() == null);
             const actual = run(allocator, source);
             if (!std.mem.eql(
                 u8,

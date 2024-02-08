@@ -148,10 +148,16 @@ pub fn parse(self: *Self) !void {
 
 fn parseStatements(self: *Self, end: Token) error{ParseError}!ExprId {
     var statements = ArrayList(ExprId).init(self.allocator);
+
+    self.allowNewline();
+
     while (true) {
         if (self.peek() == end) break;
         const statement = try self.parseExpr();
-        if (self.takeIf(.@"=")) {
+        if (self.peek() == .@"=") {
+            try self.expectSpace();
+            try self.expect(.@"=");
+            try self.expectSpace();
             const value = try self.parseExpr();
             const let = self.expr(.{ .let = .{ .path = statement, .value = value } });
             statements.append(let) catch oom();
@@ -159,6 +165,7 @@ fn parseStatements(self: *Self, end: Token) error{ParseError}!ExprId {
             statements.append(statement) catch oom();
         }
         if (!(self.takeIf(.@";") or self.takeIf(.newline))) break;
+        self.allowNewline();
     }
     return self.expr(.{ .statements = statements.toOwnedSlice() catch oom() });
 }
@@ -200,7 +207,7 @@ fn parseExprLoose(self: *Self) error{ParseError}!ExprId {
     var head = try self.parseExprTight();
     var prev_builtin: ?Builtin = null;
     while (true) {
-        // TODO require space
+        if (!self.peekSpace()) break;
         switch (self.peek()) {
             .@"==", .@"~=", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
                 const token = self.take();
@@ -221,6 +228,9 @@ fn parseExprLoose(self: *Self) error{ParseError}!ExprId {
                     return self.fail("Ambiguous precedence: {} vs {}", .{ prev_builtin.?, builtin });
                 }
                 prev_builtin = builtin;
+
+                try self.expectSpaceOrNewline();
+                self.allowNewline();
                 const right = try self.parseExprTight();
                 const zero = self.expr(.{ .i64 = 0 });
                 const one = self.expr(.{ .i64 = 1 });
@@ -241,7 +251,7 @@ fn parseExprLoose(self: *Self) error{ParseError}!ExprId {
 fn parseExprTight(self: *Self) error{ParseError}!ExprId {
     var head = try self.parseExprPath();
     while (true) {
-        // TODO don't allow space
+        if (self.peekSpace()) break;
         switch (self.peek()) {
             .@"(" => head = try self.parseCall(head),
             .@"[" => head = try self.parseMake(head),
@@ -268,7 +278,9 @@ fn parseMake(self: *Self, head: ExprId) error{ParseError}!ExprId {
 
 fn parseCallDot(self: *Self, arg: ExprId) error{ParseError}!ExprId {
     try self.expect(.@".");
+    self.allowNewline();
     const head = try self.parseName();
+    try self.expectNoSpace();
     try self.expect(.@"(");
     const args = try self.parseArgs(.@")", 1);
     try self.expect(.@")");
@@ -294,7 +306,7 @@ fn parseExprPath(self: *Self) error{ParseError}!ExprId {
     const mut = self.takeIf(.@"@");
     var head = try self.parseExprAtom();
     while (true) {
-        // TODO don't allow space
+        if (self.peekSpace()) break;
         switch (self.peek()) {
             .@"/" => head = try self.parseGet(head),
             else => break,
@@ -306,6 +318,7 @@ fn parseExprPath(self: *Self) error{ParseError}!ExprId {
 
 fn parseGet(self: *Self, object: ExprId) error{ParseError}!ExprId {
     try self.expect(.@"/");
+    try self.expectNoSpace();
     const key = try self.parseExprAtom();
     return self.expr(.{ .get = .{ .object = object, .key = key } });
 }
@@ -318,7 +331,10 @@ fn parseExprAtom(self: *Self) error{ParseError}!ExprId {
         .@"[" => return self.parseObject(),
         .@"{" => return self.parseGroup(),
         .@"@" => return self.expr(.{ .mut = try self.parseExprAtom() }),
-        else => |token| return self.fail("Expected expr-atom, found {}", .{token}),
+        else => {
+            const token = self.take();
+            return self.fail("Expected expr-atom, found {}", .{token});
+        },
     }
 }
 
@@ -397,6 +413,8 @@ fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ObjectExp
     var keys = ArrayList(ExprId).init(self.allocator);
     var values = ArrayList(ExprId).init(self.allocator);
 
+    self.allowNewline();
+
     // positional args
     var ix: i64 = start_ix;
     while (self.peek() != end and self.peek() != .@"/") {
@@ -406,6 +424,7 @@ fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ObjectExp
         keys.append(key) catch oom();
         values.append(value) catch oom();
         if (!self.takeIf(.@",")) break;
+        self.allowNewline();
     }
 
     // keyed args
@@ -431,6 +450,7 @@ fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ObjectExp
         keys.append(key) catch oom();
         values.append(value.?) catch oom();
         if (!self.takeIf(.@",")) break;
+        self.allowNewline();
     }
 
     return .{
@@ -448,6 +468,10 @@ fn peek(self: *Self) Token {
 
 fn peekSpace(self: *Self) bool {
     return self.tokenizer.tokens.items[self.token_ix] == .space;
+}
+
+fn peekNewline(self: *Self) bool {
+    return self.tokenizer.tokens.items[self.token_ix] == .newline;
 }
 
 fn take(self: *Self) Token {
@@ -481,6 +505,31 @@ fn expect(self: *Self, expected: Token) !void {
 fn lastTokenText(self: *Self) []const u8 {
     const range = self.tokenizer.ranges.items[self.token_ix - 1];
     return self.tokenizer.source[range[0]..range[1]];
+}
+
+fn allowNewline(self: *Self) void {
+    while (self.takeIf(.space) or self.takeIf(.newline)) {}
+}
+
+fn expectSpace(self: *Self) !void {
+    if (!self.peekSpace()) {
+        const token = self.take();
+        return self.fail("Expected space, found {}", .{token});
+    }
+}
+
+fn expectSpaceOrNewline(self: *Self) !void {
+    if (!self.peekSpace() and !self.peekNewline()) {
+        const token = self.take();
+        return self.fail("Expected space or newline, found {}", .{token});
+    }
+}
+
+fn expectNoSpace(self: *Self) !void {
+    if (self.peekSpace()) {
+        _ = self.take();
+        return self.fail("Unexpected space", .{});
+    }
 }
 
 fn expr(self: *Self, expr_value: Expr) ExprId {

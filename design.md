@@ -592,7 +592,9 @@ Name foo shadows earlier definition
 
 ```
 foo = 1
-bar = () foo = 2
+bar = () { 
+  foo = 2 
+}
 // TODO Name foo shadows earlier definition
 
 0
@@ -954,6 +956,86 @@ a
 ```
 
 ## syntax hunches
+
+To make semicolon insertion safe, newlines are only allowed between items in `{}`, `()` and `[]` and after binary ops.
+
+```
+[/a 1,
+ /b 2]
+
+[/a 1, /b 2]
+```
+
+```
+[
+  /a 1,
+  /b 2,
+]
+
+[/a 1, /b 2]
+```
+
+```
+inc = (@a)
+  @a = a + 1
+
+At 10. Expected expr-atom, found Tokenizer.Token.newline
+
+  @a = a + 1
+```
+
+```
+inc = (@a) {
+  @a = a + 1
+}
+
+0
+```
+
+```
+swap = (
+  @x, 
+  @y,
+) { 
+  tmp = y
+  @y = x
+  @x = tmp 
+}
+
+0
+```
+
+```
+1
++ 1
+
+At 2. Expected expr-atom, found Tokenizer.Token.+
++ 1
+```
+
+```
+1 +
+  1
+
+2
+```
+
+Spaces are required between arithmetic ops and banned between other ops.
+
+```
+1 +1
+
+At 3. Expected space or newline, found Tokenizer.Token.number
+1
+```
+
+```
+a = 1
+b = 1
+a-b
+
+Undefined variable: a-b
+```
 
 `[]` always indicates constructing a value. The result prints like the syntax.
 
