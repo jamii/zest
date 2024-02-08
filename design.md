@@ -592,8 +592,7 @@ Name foo shadows earlier definition
 
 ```
 foo = 1
-bar = ()
-  foo = 2
+bar = () foo = 2
 // TODO Name foo shadows earlier definition
 
 0
@@ -773,13 +772,14 @@ Since functions can't escape the scope they were defined in, they may return to 
 ```
 try = (body, /catch) body(/throw catch)
 foo = ()
-  try()
+  try(
     (/throw) {
       throw('oh no!') 
       throw('unreachable')
-    }
+    },
     /catch (error)
-      return-to(foo, [/error])
+      return-to(foo, [/error]),
+  )
 foo()
 
 [/error 'oh no!']
@@ -790,13 +790,14 @@ foo()
 ```
 try = (body, /catch) body(/throw catch)
 foo = ()
-  try()
+  try(
     (/throw) {
       throw('oh no!') 
       throw('unreachable')
-    }
+    },
     /catch (error)
-      return-to(try, [/error])
+      return-to(try, [/error]),
+  )
 foo()
 
 Can't return to `try` from here
@@ -839,6 +840,7 @@ To pass a mutable reference to a function, use `@` in the function call.
 
 ```
 a = @1
+set = (@var, val) { @var = val }
 set(@a, 2)
 a
 
@@ -847,6 +849,7 @@ a
 
 ```
 a = @1
+set = (@var, val) { @var = val }
 set(a, 2)
 a
 
@@ -855,6 +858,7 @@ Can't pass non-mut arg to Parser.Expr{ .builtin = Parser.Builtin.set }
 
 ```
 a = 1
+set = (@var, val) { @var = val }
 set(@a, 2)
 a
 
@@ -873,6 +877,7 @@ a
 
 ```
 a = @[/b 1]
+set = (@var, val) { @var = val }
 set(@a/b, 2)
 a
 
@@ -911,7 +916,8 @@ Function `inc` expects mutable reference but found immutable reference `a`.
 Mutable references never alias - setting the value of one mutable variable will never change the value of another mutable variable. To enforce this, all of the mutable arguments to a function call must be disjoint.
 
 ```
-a = [/b 1, /c 2]
+a = @[/b 1, /c 2]
+swap = (@x, @y) { tmp = y; @y = x; @x = tmp }
 swap(@a/b, @a/c)
 a
 
@@ -919,7 +925,8 @@ a
 ```
 
 ```
-a = [/b 1, /c 2]
+a = @[/b 1, /c 2]
+swap = (@x, @y) { tmp = y; @y = x; @x = tmp }
 swap(@a/b, @a/b)
 a
 
@@ -927,7 +934,8 @@ Cannot pass overlapping references `@a/b` and `@a/b` in call to function.
 ```
 
 ```
-a = [/b 1, /c 2]
+a = @[/b 1, /c 2]
+swap = (@x, @y) { tmp = y; @y = x; @x = tmp }
 swap(@a, @a/b)
 a
 
@@ -937,7 +945,8 @@ Cannot pass overlapping references `@a` and `@a/b` in call to function.
 Only the mutable arguments are required to be disjoint - other arguments may overlap.
 
 ```
-a = [/b 1, /c 2]
+a = @[/b 1, /c 2]
+set = (@var, val) { @var = val }
 set(@a, a/b)
 a
 

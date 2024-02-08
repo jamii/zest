@@ -1058,7 +1058,8 @@ fn evalObject(self: *Self, object_expr: ObjectExpr) error{ ReturnTo, Semantalyze
     var reprs = self.allocator.alloc(Repr, object_expr.values.len) catch oom();
     for (keys, values, reprs, object_expr.keys, object_expr.values) |*key, *value, *repr, key_id, value_id| {
         key.* = try self.evalKey(key_id);
-        value.* = try self.eval(value_id);
+        const value_expr = self.parser.exprs.items[value_id];
+        value.* = try self.eval(if (value_expr == .mut) value_expr.mut else value_id);
         repr.* = value.reprOf();
     }
     const struct_unsorted = Struct{
