@@ -39,8 +39,6 @@ pub const Value = union(enum) {
     list: List,
     map: Map,
     @"union": Union,
-    any: *Value,
-    only: Only,
     @"fn": Fn,
     repr: Repr,
     repr_kind: ReprKind,
@@ -83,12 +81,6 @@ pub const Value = union(enum) {
             },
             .@"union" => |@"union"| {
                 @"union".value.update(hasher);
-            },
-            .any => |value| {
-                value.update(hasher);
-            },
-            .only => |only| {
-                only.repr.update(hasher);
             },
             .@"fn" => {
                 panic("Fn used as value", .{});
@@ -177,12 +169,6 @@ pub const Value = union(enum) {
                 }
                 return self.@"union".value.order(other.@"union".value.*);
             },
-            .any => {
-                return self.any.order(other.any.*);
-            },
-            .only => {
-                return .eq;
-            },
             .@"fn" => {
                 panic("Fn used as value", .{});
             },
@@ -237,12 +223,6 @@ pub const Value = union(enum) {
             },
             .@"union" => {
                 return self.@"union".value.equal(other.@"union".value.*);
-            },
-            .any => {
-                return self.any.equal(other.any.*);
-            },
-            .only => {
-                return true;
             },
             .@"fn" => {
                 panic("Fn used as value", .{});
@@ -332,12 +312,6 @@ pub const Value = union(enum) {
             .@"union" => |@"union"| {
                 try writer.print("{}[{}]", .{ Repr{ .@"union" = @"union".repr }, @"union".value.* });
             },
-            .any => |value| {
-                try writer.print("{}[{}]", .{ Repr{ .any = {} }, value.* });
-            },
-            .only => |only| {
-                try writer.print("{}[]", .{Repr{ .only = only.repr }});
-            },
             .@"fn" => |@"fn"| {
                 try writer.print("{{fn {}}}", .{@"fn"});
             },
@@ -384,10 +358,6 @@ pub const Value = union(enum) {
                 }
                 return .{ .map = .{ .repr = map.repr, .entries = entries_copy } };
             },
-            .any => |value| {
-                return .{ .any = box(allocator, value.copy(allocator)) };
-            },
-            .only => |only| return .{ .only = only },
             .@"union" => |@"union"| {
                 const value_copy = @"union".value.copy(allocator);
                 return .{ .@"union" = .{ .repr = @"union".repr, .tag = @"union".tag, .value = box(allocator, value_copy) } };
@@ -413,8 +383,6 @@ pub const Value = union(enum) {
             .list => |list| return .{ .list = list.repr },
             .map => |map| return .{ .map = map.repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
-            .any => return .any,
-            .only => |only| return .{ .only = only.repr },
             .@"fn" => return .i64, // TODO,
             .repr => return .repr,
             .repr_kind => return .i64, // TODO,
@@ -457,10 +425,6 @@ pub const Union = struct {
     value: *Value,
 };
 
-pub const Only = struct {
-    repr: OnlyRepr,
-};
-
 pub const Repr = union(enum) {
     i64,
     f64,
@@ -468,15 +432,13 @@ pub const Repr = union(enum) {
     @"struct": StructRepr,
     list: ListRepr,
     map: MapRepr,
-    any,
-    only: OnlyRepr,
     @"union": UnionRepr,
     repr,
 
     pub fn update(self: Repr, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(std.meta.activeTag(self))});
         switch (self) {
-            .i64, .f64, .string, .any, .repr => {},
+            .i64, .f64, .string, .repr => {},
             .@"struct" => |@"struct"| {
                 for (@"struct".keys, @"struct".reprs) |key, repr| {
                     key.update(hasher);
@@ -495,9 +457,6 @@ pub const Repr = union(enum) {
                     member.update(hasher);
                 }
             },
-            .only => |value| {
-                value.update(hasher);
-            },
         }
     }
 
@@ -508,7 +467,7 @@ pub const Repr = union(enum) {
             .eq => {},
         }
         switch (self) {
-            .i64, .f64, .string, .any, .repr => return .eq,
+            .i64, .f64, .string, .repr => return .eq,
             .@"struct" => {
                 const self_struct = self.@"struct";
                 const other_struct = other.@"struct";
@@ -552,9 +511,6 @@ pub const Repr = union(enum) {
                 }
                 return .eq;
             },
-            .only => {
-                return self.only.order(other.only.*);
-            },
         }
     }
 
@@ -563,7 +519,7 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.writeAll(@tagName(self));
         switch (self) {
-            .i64, .f64, .string, .any, .repr => {},
+            .i64, .f64, .string, .repr => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var first = true;
@@ -588,9 +544,6 @@ pub const Repr = union(enum) {
                 }
                 try writer.writeAll("]");
             },
-            .only => |value| {
-                try writer.print("[{}]", .{value});
-            },
         }
     }
 };
@@ -603,14 +556,12 @@ pub const StructRepr = struct {
 pub const ListRepr = *Repr;
 pub const MapRepr = [2]*Repr;
 pub const UnionRepr = []Repr;
-pub const OnlyRepr = *Value;
 
 pub const ReprKind = enum {
     @"struct",
     list,
     map,
     @"union",
-    only,
 
     pub fn update(self: ReprKind, hasher: anytype) void {
         hasher.update(&[1]u8{@intFromEnum(self)});
@@ -649,12 +600,12 @@ fn mapSortedEntries(map: Map) ArrayList(ValueHashMap.Entry) {
 pub const Fn = struct {
     name: ?[]const u8,
     scope: []Binding,
-    muts: []bool,
     params: ObjectPattern,
     body: ExprId,
 };
 
 pub const ObjectPattern = struct {
+    muts: []bool,
     keys: []Value,
     values: []Pattern,
 };
@@ -725,37 +676,44 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 if (std.mem.eql(u8, name, "union")) {
                     return .{ .repr_kind = .@"union" };
                 }
-                if (std.mem.eql(u8, name, "any")) {
-                    return .{ .repr = .any };
-                }
-                if (std.mem.eql(u8, name, "only")) {
-                    return .{ .repr_kind = .only };
-                }
                 return err;
             }
         },
-        .let => |let| {
-            const value = try self.eval(let.value);
-            if (self.lookupBinding(let.name)) |_| {
-                return self.fail("Name {s} shadows earlier definition", .{let.name});
-            } else |_| {
-                self.scope.append(.{
-                    .mut = let.mut,
-                    .call_id = null,
-                    .name = let.name,
-                    .value = value.copy(self.allocator),
-                }) catch oom();
-                return fromBool(false); // TODO void/null or similar
-            }
+        .mut => {
+            return self.fail("Mut not allowed here", .{});
         },
-        .set => |set| {
-            const value = try self.eval(set.value);
-            try self.pathSet(set.path, value.copy(self.allocator));
-            return fromBool(false); // TODO void/null or similar
+        .let => |let| {
+            const path_expr = self.parser.exprs.items[let.path];
+            const value_expr = self.parser.exprs.items[let.value];
+            switch (path_expr) {
+                .name => |name| {
+                    // Looks like `name = expr`
+                    const mut = value_expr == .mut;
+                    const value = try self.eval(if (mut) value_expr.mut else let.value);
+                    if (self.lookupBinding(name)) |_| {
+                        return self.fail("Name {s} shadows earlier definition", .{name});
+                    } else |_| {
+                        self.scope.append(.{
+                            .mut = mut,
+                            .call_id = null,
+                            .name = name,
+                            .value = value.copy(self.allocator),
+                        }) catch oom();
+                        return fromBool(false); // TODO void/null or similar
+                    }
+                },
+                .mut => |mut| {
+                    // Should look like `@path = expr`
+                    const value = try self.eval(let.value);
+                    try self.pathSet(mut, value.copy(self.allocator));
+                    return fromBool(false); // TODO void/null or similar
+                },
+                else => return self.fail("Illegal left-hand side of `=`: {}", .{path_expr}),
+            }
         },
         .@"if" => |@"if"| {
             const cond = try self.toBool(try self.eval(@"if".cond));
-            return self.eval(if (cond) @"if".if_true else @"if".if_false);
+            return self.eval(if (cond) @"if".then else @"if".@"else");
         },
         .@"while" => |@"while"| {
             while (true) {
@@ -770,15 +728,17 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 return self.fail("Functions may only be defined at the top of definitions or call arguments", .{});
             const parent = self.parser.exprs.items[parent_id.?];
             const name = switch (parent) {
-                .let => |let| let.name,
+                .let => |let| switch (self.parser.exprs.items[let.path]) {
+                    .name => |name| name,
+                    else => return self.fail("Functions may only be defined at the top of definitions or call arguments", .{}),
+                },
                 .call => null,
                 else => return self.fail("Functions may only be defined at the top of definitions or call arguments", .{}),
             };
             return .{ .@"fn" = .{
                 .name = name,
                 .scope = self.allocator.dupe(Binding, self.scope.items) catch oom(),
-                .muts = @"fn".muts,
-                .params = self.evalObjectPattern(@"fn".params),
+                .params = try self.evalObjectPattern(@"fn".params),
                 .body = @"fn".body,
             } };
         },
@@ -792,13 +752,10 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             return self.convert(repr, .{ .@"struct" = args });
                         },
                         else => {
-                            if (repr == .only and args.values.len == 0) {
-                                return .{ .only = .{ .repr = repr.only } };
-                            }
                             if (args.values.len != 1)
                                 return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                            if (make.args.muts[0] == true)
-                                return self.fail("Can't pass mut arg to repr", .{});
+                            //if (make.args.muts[0] == true)
+                            //return self.fail("Can't pass mut arg to repr", .{});
                             return self.convert(repr, args.values[0]);
                         },
                     }
@@ -820,8 +777,8 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         .list => {
                             if (args.values.len != 1)
                                 return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                            if (make.args.muts[0] == true)
-                                return self.fail("Can't pass mut arg to repr", .{});
+                            //if (make.args.muts[0] == true)
+                            //    return self.fail("Can't pass mut arg to repr", .{});
                             const elem = args.values[0];
                             if (elem != .repr)
                                 return self.fail("Can't pass {} to {}", .{ elem, head });
@@ -830,10 +787,10 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         .map => {
                             if (args.values.len != 2)
                                 return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                            if (make.args.muts[0] == true)
-                                return self.fail("Can't pass mut arg to repr", .{});
-                            if (make.args.muts[1] == true)
-                                return self.fail("Can't pass mut arg to repr", .{});
+                            //if (make.args.muts[0] == true)
+                            //return self.fail("Can't pass mut arg to repr", .{});
+                            //if (make.args.muts[1] == true)
+                            //return self.fail("Can't pass mut arg to repr", .{});
                             const key = args.values[0];
                             const value = args.values[1];
                             if (key != .repr)
@@ -850,14 +807,6 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                                 repr.* = member.repr;
                             }
                             return .{ .repr = .{ .@"union" = reprs } };
-                        },
-                        .only => {
-                            if (args.values.len != 1)
-                                return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head });
-                            if (make.args.muts[0] == true)
-                                return self.fail("Can't pass mut arg to repr", .{});
-                            const only_value = args.values[0];
-                            return .{ .repr = .{ .only = box(self.allocator, only_value) } };
                         },
                     }
                 },
@@ -881,25 +830,10 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                     .get => {
                         if (args.values.len != 2)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
-                        if (call.args.muts[0] == true)
-                            return self.fail("Can't pass mut arg to {}", .{head_expr});
-                        if (call.args.muts[1] == true)
-                            return self.fail("Can't pass mut arg to {}", .{head_expr});
-                        if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
-                            return self.fail("Can't pass named key to {}", .{head_expr});
-                        if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
-                            return self.fail("Can't pass named key to {}", .{head_expr});
-                        const object = args.values[0];
-                        const key = args.values[1];
-                        return (try self.objectGet(object, key)).*;
-                    },
-                    .@"try-get" => {
-                        if (args.values.len != 2)
-                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
-                        if (call.args.muts[0] == true)
-                            return self.fail("Can't pass mut arg to {}", .{head_expr});
-                        if (call.args.muts[1] == true)
-                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        //if (call.args.muts[0] == true)
+                        //    return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        //if (call.args.muts[1] == true)
+                        //    return self.fail("Can't pass mut arg to {}", .{head_expr});
                         if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
                             return self.fail("Can't pass named key to {}", .{head_expr});
                         if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
@@ -923,21 +857,13 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
                         return .{ .repr = args.values[0].reprOf() };
                     },
-                    .@"get-only" => {
-                        if (args.values.len != 1)
-                            return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
-                        const value = args.values[0];
-                        if (value != .repr or value.repr != .only)
-                            return self.fail("Cannot pass {} to {}", .{ value, head_expr });
-                        return value.repr.only.*;
-                    },
                     .@"return-to" => {
                         if (args.values.len != 2)
                             return self.fail("Wrong number of arguments ({}) to {}", .{ args.values.len, head_expr });
-                        if (call.args.muts[0] == true)
-                            return self.fail("Can't pass mut arg to {}", .{head_expr});
-                        if (call.args.muts[1] == true)
-                            return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        //if (call.args.muts[0] == true)
+                        //    return self.fail("Can't pass mut arg to {}", .{head_expr});
+                        //if (call.args.muts[1] == true)
+                        //    return self.fail("Can't pass mut arg to {}", .{head_expr});
                         if (args.repr.keys[0] != .i64 or args.repr.keys[0].i64 != 0)
                             return self.fail("Can't pass named key to {}", .{head_expr});
                         if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
@@ -1004,16 +930,16 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 const args = try self.evalObject(call.args);
                 switch (head) {
                     .@"fn" => |@"fn"| {
-                        if (@"fn".muts.len != call.args.muts.len)
-                            return self.fail("Expected {} arguments, found {} arguments", .{ @"fn".muts.len, call.args.muts.len });
+                        //if (@"fn".muts.len != call.args.muts.len)
+                        //    return self.fail("Expected {} arguments, found {} arguments", .{ @"fn".muts.len, call.args.muts.len });
 
-                        for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
-                            if (arg_mut != param_mut)
-                                return self.fail("Expected {s} arg, found {s} arg", .{
-                                    if (param_mut) "mut" else "const",
-                                    if (arg_mut) "mut" else "const",
-                                });
-                        }
+                        //for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
+                        //    if (arg_mut != param_mut)
+                        //        return self.fail("Expected {s} arg, found {s} arg", .{
+                        //            if (param_mut) "mut" else "const",
+                        //            if (arg_mut) "mut" else "const",
+                        //        });
+                        //}
 
                         // Move back to fn scope.
                         const old_scope = self.scope.toOwnedSlice() catch oom();
@@ -1049,12 +975,12 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         };
 
                         // Copy mut args back to original locations.
-                        for (@"fn".params.values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
-                            if (arg_mut) {
-                                const binding = try self.lookupBinding(param);
-                                try self.pathSet(arg, binding.value);
-                            }
-                        }
+                        //for (@"fn".params.values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
+                        //    if (arg_mut) {
+                        //        const binding = try self.lookupBinding(param);
+                        //        try self.pathSet(arg, binding.value);
+                        //    }
+                        //}
 
                         return return_value;
                     },
@@ -1062,19 +988,16 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 }
             }
         },
-        .get_static => |get_static| {
-            const value = try self.eval(get_static.object);
-            const key = switch (get_static.key) {
-                .i64 => |int| Value{ .i64 = int },
-                .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch oom() },
-            };
+        .get => |get| {
+            const value = try self.eval(get.object);
+            const key = try self.evalKey(get.key);
             return (try self.objectGet(value, key)).*;
         },
-        .exprs => |exprs| {
+        .statements => |statements| {
             const scope_len = self.scope.items.len;
             var value = Value{ .i64 = 0 }; // TODO void/null or similar
-            for (exprs) |subexpr| {
-                value = try self.eval(subexpr);
+            for (statements) |statement| {
+                value = try self.eval(statement);
             }
             self.scope.shrinkRetainingCapacity(scope_len);
             return value;
@@ -1082,16 +1005,34 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
     }
 }
 
-fn evalStaticKey(self: *Self, static_key: StaticKey) Value {
-    return switch (static_key) {
-        .i64 => |int| Value{ .i64 = int },
-        .string, .name => |string| Value{ .string = self.allocator.dupe(u8, string) catch oom() },
+fn evalKey(self: *Self, key: ExprId) error{ ReturnTo, SemantalyzeError }!Value {
+    return switch (self.parser.exprs.items[key]) {
+        .name => |name| Value{ .string = self.allocator.dupe(u8, name) catch oom() },
+        else => return self.eval(key),
     };
 }
 
-fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPattern {
+fn evalObjectPattern(self: *Self, object_pattern: ObjectExpr) error{ ReturnTo, SemantalyzeError }!ObjectPattern {
     const keys_unsorted = self.allocator.alloc(Value, object_pattern.keys.len) catch oom();
-    for (keys_unsorted, object_pattern.keys) |*key, static_key| key.* = self.evalStaticKey(static_key);
+    for (keys_unsorted, object_pattern.keys) |*key, pattern_key| key.* = try self.evalKey(pattern_key);
+
+    const muts_unsorted = self.allocator.alloc(bool, object_pattern.values.len) catch oom();
+    const values_unsorted = self.allocator.alloc([]const u8, object_pattern.values.len) catch oom();
+    for (muts_unsorted, values_unsorted, object_pattern.values) |*mut, *value, pattern_value|
+        switch (self.parser.exprs.items[pattern_value]) {
+            .name => |name| {
+                mut.* = false;
+                value.* = name;
+            },
+            .mut => |mut_id| switch (self.parser.exprs.items[mut_id]) {
+                .name => |name| {
+                    mut.* = true;
+                    value.* = name;
+                },
+                else => return self.fail("Only name patterns are currently supported", .{}),
+            },
+            else => return self.fail("Only name patterns are currently supported", .{}),
+        };
 
     var ixes = self.allocator.alloc(usize, keys_unsorted.len) catch oom();
     for (ixes, 0..) |*ix, i| ix.* = i;
@@ -1103,9 +1044,11 @@ fn evalObjectPattern(self: *Self, object_pattern: Parser.ObjectPattern) ObjectPa
             }
         }
     }).lessThan);
+
     return .{
+        .muts = permute(self.allocator, ixes, bool, muts_unsorted),
         .keys = permute(self.allocator, ixes, Value, keys_unsorted),
-        .values = permute(self.allocator, ixes, []const u8, object_pattern.values),
+        .values = permute(self.allocator, ixes, []const u8, values_unsorted),
     };
 }
 
@@ -1201,21 +1144,21 @@ fn pathSet(self: *Self, expr_id: ExprId, value: Value) !void {
 }
 
 // This should only be called from `set` - too footgunny otherwise.
-fn evalPath(self: *Self, expr_id: ExprId) error{SemantalyzeError}!*Value {
+fn evalPath(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!*Value {
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .name => |name| {
             const binding = try self.lookupBinding(name);
-            if (!binding.mut) return self.fail("Cannot set a non-mut variable: {}", .{std.zig.fmtEscapes(name)});
+            if (!binding.mut) return self.fail("Cannot use a non-mut variable in a path: {}", .{std.zig.fmtEscapes(name)});
             return &binding.value;
         },
-        .get_static => |get_static| {
-            const value = try self.evalPath(get_static.object);
+        .get => |get| {
+            const value = try self.evalPath(get.object);
             if (value.* != .map) return self.fail("Cannot get key from non-map {}", .{value});
-            const key = self.evalStaticKey(get_static.key);
+            const key = try self.evalKey(get.key);
             return self.mapGet(value.map, key);
         },
-        else => return self.fail("Not allowed in set/mut expr {}", .{expr}),
+        else => return self.fail("Not allowed in set expr {}", .{expr}),
     }
 }
 
@@ -1377,16 +1320,6 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
                 }
             }
             return self.fail("Cannot convert {} to {}", .{ value, repr });
-        },
-        .any => {
-            return .{ .any = box(self.allocator, value) };
-        },
-        .only => |only_repr| {
-            if (value.equal(only_repr.*)) {
-                return .{ .only = .{ .repr = only_repr } };
-            } else {
-                return self.fail("Cannot convert {} to {}", .{ value, repr });
-            }
         },
         .repr => {
             if (value == .repr) {

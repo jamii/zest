@@ -24,7 +24,7 @@ pub const Expr = union(enum) {
     i64: i64,
     f64: f64,
     string: []const u8,
-    object: ArgsExpr,
+    object: ObjectExpr,
     builtin: Builtin,
     name: []const u8,
     mut: ExprId,
@@ -42,16 +42,16 @@ pub const Expr = union(enum) {
         body: ExprId,
     },
     @"fn": struct {
-        params: ArgsExpr,
+        params: ObjectExpr,
         body: ExprId,
     },
     make: struct {
         head: ExprId,
-        args: ArgsExpr,
+        args: ObjectExpr,
     },
     call: struct {
         head: ExprId,
-        args: ArgsExpr,
+        args: ObjectExpr,
     },
     get: struct {
         object: ExprId,
@@ -60,9 +60,9 @@ pub const Expr = union(enum) {
     statements: []ExprId,
 };
 
-pub const ArgsExpr = struct {
+pub const ObjectExpr = struct {
     keys: []ExprId,
-    values: []?ExprId,
+    values: []ExprId,
 };
 
 pub const Builtin = enum {
@@ -108,9 +108,7 @@ pub fn parse(self: *Self) !void {
             .i64, .f64, .string, .builtin, .name => {},
             .object => |object| {
                 for (object.keys) |key| self.parents[key] = expr_id;
-                for (object.values) |value_or_null| {
-                    if (value_or_null) |value| self.parents[value] = expr_id;
-                }
+                for (object.values) |value| self.parents[value] = expr_id;
             },
             .mut => |mut| {
                 self.parents[mut] = expr_id;
@@ -129,17 +127,13 @@ pub fn parse(self: *Self) !void {
             },
             .@"fn" => |@"fn"| {
                 for (@"fn".params.keys) |key| self.parents[key] = expr_id;
-                for (@"fn".params.values) |value_or_null| {
-                    if (value_or_null) |value| self.parents[value] = expr_id;
-                }
+                for (@"fn".params.values) |value| self.parents[value] = expr_id;
                 self.parents[@"fn".body] = expr_id;
             },
             inline .make, .call => |make| {
                 self.parents[make.head] = expr_id;
                 for (make.args.keys) |key| self.parents[key] = expr_id;
-                for (make.args.values) |value_or_null| {
-                    if (value_or_null) |value| self.parents[value] = expr_id;
-                }
+                for (make.args.values) |value| self.parents[value] = expr_id;
             },
             .get => |get| {
                 self.parents[get.object] = expr_id;
@@ -234,7 +228,7 @@ fn parseExprLoose(self: *Self) error{ParseError}!ExprId {
                     .head = self.expr(.{ .builtin = builtin }),
                     .args = .{
                         .keys = self.allocator.dupe(ExprId, &.{ zero, one }) catch oom(),
-                        .values = self.allocator.dupe(?ExprId, &.{ head, right }) catch oom(),
+                        .values = self.allocator.dupe(ExprId, &.{ head, right }) catch oom(),
                     },
                 } });
             },
@@ -245,11 +239,10 @@ fn parseExprLoose(self: *Self) error{ParseError}!ExprId {
 }
 
 fn parseExprTight(self: *Self) error{ParseError}!ExprId {
-    var head = try self.parseExprAtom();
+    var head = try self.parseExprPath();
     while (true) {
         // TODO don't allow space
         switch (self.peek()) {
-            .@"/" => head = try self.parseGet(head),
             .@"(" => head = try self.parseCall(head),
             .@"[" => head = try self.parseMake(head),
             .@"." => head = try self.parseCallDot(head),
@@ -257,12 +250,6 @@ fn parseExprTight(self: *Self) error{ParseError}!ExprId {
         }
     }
     return head;
-}
-
-fn parseGet(self: *Self, object: ExprId) error{ParseError}!ExprId {
-    try self.expect(.@"/");
-    const key = try self.parseExprAtom();
-    return self.expr(.{ .get = .{ .object = object, .key = key } });
 }
 
 fn parseCall(self: *Self, head: ExprId) error{ParseError}!ExprId {
@@ -290,7 +277,7 @@ fn parseCallDot(self: *Self, arg: ExprId) error{ParseError}!ExprId {
     keys.append(self.expr(.{ .i64 = 0 })) catch oom();
     keys.appendSlice(args.keys) catch oom();
 
-    var values = ArrayList(?ExprId).init(self.allocator);
+    var values = ArrayList(ExprId).init(self.allocator);
     values.append(arg) catch oom();
     values.appendSlice(args.values) catch oom();
 
@@ -301,6 +288,26 @@ fn parseCallDot(self: *Self, arg: ExprId) error{ParseError}!ExprId {
             .values = values.toOwnedSlice() catch oom(),
         },
     } });
+}
+
+fn parseExprPath(self: *Self) error{ParseError}!ExprId {
+    const mut = self.takeIf(.@"@");
+    var head = try self.parseExprAtom();
+    while (true) {
+        // TODO don't allow space
+        switch (self.peek()) {
+            .@"/" => head = try self.parseGet(head),
+            else => break,
+        }
+    }
+    if (mut) head = self.expr(.{ .mut = head });
+    return head;
+}
+
+fn parseGet(self: *Self, object: ExprId) error{ParseError}!ExprId {
+    try self.expect(.@"/");
+    const key = try self.parseExprAtom();
+    return self.expr(.{ .get = .{ .object = object, .key = key } });
 }
 
 fn parseExprAtom(self: *Self) error{ParseError}!ExprId {
@@ -386,9 +393,9 @@ fn parseGroup(self: *Self) error{ParseError}!ExprId {
     return statements;
 }
 
-fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ArgsExpr {
+fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ObjectExpr {
     var keys = ArrayList(ExprId).init(self.allocator);
-    var values = ArrayList(?ExprId).init(self.allocator);
+    var values = ArrayList(ExprId).init(self.allocator);
 
     // positional args
     var ix: i64 = start_ix;
@@ -404,13 +411,25 @@ fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ArgsExpr 
     // keyed args
     while (self.peek() != end) {
         try self.expect(.@"/");
-        const key = try self.parseExprAtom();
-        const value = if (self.peek() == .@"," or self.peek() == end)
-            null
-        else
-            try self.parseExpr();
+        var key = try self.parseExprAtom();
+        var value: ?ExprId = null;
+        if (self.peek() == .@"," or self.peek() == end) {
+            value = key;
+            switch (self.exprs.items[key]) {
+                .name => {},
+                .mut => |mut| {
+                    switch (self.exprs.items[mut]) {
+                        .name => key = mut,
+                        else => return self.fail("Short keys must be either /name or /@name", .{}),
+                    }
+                },
+                else => return self.fail("Short keys must be either /name or /@name", .{}),
+            }
+        } else {
+            value = try self.parseExpr();
+        }
         keys.append(key) catch oom();
-        values.append(value) catch oom();
+        values.append(value.?) catch oom();
         if (!self.takeIf(.@",")) break;
     }
 

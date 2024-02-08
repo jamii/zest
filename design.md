@@ -367,52 +367,6 @@ Unions are represented by an integer tag denoting the representation, followed b
 
 Unions support asking for the representation of their value and casting the value to a given representation.
 
-### any
-
-An any can represent any notation.
-
-```
-any[42]
-
-any[42]
-```
-
-```
-any['foo']
-
-any['foo']
-```
-
-Anys are represented by a pointer to a value.
-
-Anys support asking for the representation of their value and casting the value to a given representation.
-
-### only
-
-An only is an object with exactly one entry. Both the key and the value are stored in the representation itself.
-
-```
-only[42][]
-
-only[42][]
-```
-
-Onlys are zero-sized.
-
-Their main purpose is lifting values into representations where they are visible to specialization, type inference and compile-time computations.
-
-```
-only[42][]/get-repr
-
-only[42]
-```
-
-```
-only[42]/get-only
-
-42
-```
-
 ### repr repr
 
 Representations are themselves notations. Their default representation is `repr`.
