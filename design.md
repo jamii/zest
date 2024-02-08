@@ -136,7 +136,7 @@ But omitted keys must be written before present keys.
 ```
 ['a', /default 'c', 'b']
 
-At 22. Positional elems must be before key/value elems
+At 20. Expected Tokenizer.Token./, found Tokenizer.Token.string
 'b']
 ```
 
@@ -372,7 +372,7 @@ Unions support asking for the representation of their value and casting the valu
 Representations are themselves notations. Their default representation is `repr`.
 
 ```
-i64/get-repr
+i64.get-repr()
 
 repr
 ```
@@ -384,7 +384,7 @@ The in-memory layout of `repr` is not exposed.
 The function `as` creates a new value with the same notation but a different representation.
 
 ```
-42/as(f64)
+42.as(f64)
 
 42.0
 ```
@@ -392,7 +392,7 @@ The function `as` creates a new value with the same notation but a different rep
 If the new representation cannot encode the notation, `as` throws an error.
 
 ```
-3.14/as(i64)
+3.14.as(i64)
 
 Cannot convert 3.14 to i64
 ```
@@ -406,104 +406,104 @@ Two __notations__ are equal if:
   * They contain the same set of keys.
   * For each key, they contain the same value.
 
-Two __values__ are `=` if they have the same representation and their notations are equal.
+Two __values__ are `==` if they have the same representation and their notations are equal.
 
 TODO Should it be a compile error to compare different reprs?
 
 ```
-i64[42] = i64[42]
+i64[42] == i64[42]
 
 1
 ```
 
 ```
-i64[42] = i64[1]
+i64[42] == i64[1]
 
 0
 ```
 
 ```
-i64[42] = f64[42]
+i64[42] == f64[42]
 
 0
 ```
 
 ```
-[/a 1, /b 2] = [/b 2, /a 1]
+[/a 1, /b 2] == [/b 2, /a 1]
 
 1
 ```
 
 ```
-[/a 1, /b 2] = [/b 100, /a 1]
+[/a 1, /b 2] == [/b 100, /a 1]
 
 0
 ```
 
 ```
-[/a 1, /b 2] = [/b 2, /a 1, /c 3]
+[/a 1, /b 2] == [/b 2, /a 1, /c 3]
 
 0
 ```
 
 ```
-[/a 1, /b 2] = map[string, i64][/b 2, /a 1]
+[/a 1, /b 2] == map[string, i64][/b 2, /a 1]
 
 0
 ```
 
 ```
-union[string, i64][42] = 42
+union[string, i64][42] == 42
 
 0
 ```
 
-Two __values__ are `~` if their notations are equal.
+Two __values__ are `~=` if their notations are equal.
 
 ```
-i64[42] ~ i64[42]
+i64[42] ~= i64[42]
 
 1
 ```
 
 ```
-i64[42] ~ i64[1]
+i64[42] ~= i64[1]
 
 0
 ```
 
 ```
-i64[42] ~ f64[42]
+i64[42] ~= f64[42]
 
 1
 ```
 
 ```
-[/a 1, /b 2] ~ [/b 2, /a 1]
+[/a 1, /b 2] ~= [/b 2, /a 1]
 
 1
 ```
 
 ```
-[/a 1, /b 2] ~ [/b 100, /a 1]
+[/a 1, /b 2] ~= [/b 100, /a 1]
 
 0
 ```
 
 ```
-[/a 1, /b 2] ~ [/b 2, /a 1, /c 3]
+[/a 1, /b 2] ~= [/b 2, /a 1, /c 3]
 
 0
 ```
 
 ```
-[/a 1, /b 2] ~ map[string, i64][/b 2, /a 1]
+[/a 1, /b 2] ~= map[string, i64][/b 2, /a 1]
 
 1
 ```
 
 ```
-union[string, i64][42] ~ 42
+union[string, i64][42] ~= 42
 
 1
 ```
@@ -514,7 +514,7 @@ TODO What about +0 vs -0.
 
 ## ordering
 
-TODO < for type then notation, ~< for notation only
+TODO < for type then notation, ~=< for notation only
 
 ## names
 

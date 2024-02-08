@@ -31,6 +31,20 @@ pub const Binding = struct {
     value: Value,
 };
 
+const FormatKey = struct {
+    key: Value,
+
+    pub fn format(self: FormatKey, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        if (self.key == .string and isName(self.key.string)) {
+            try writer.print("/{s}", .{self.key.string});
+        } else {
+            try writer.print("/{}", .{self.key});
+        }
+    }
+};
+
 pub const Value = union(enum) {
     i64: i64,
     f64: f64,
@@ -232,20 +246,6 @@ pub const Value = union(enum) {
         }
     }
 
-    const FormatKey = struct {
-        key: Value,
-
-        pub fn format(self: FormatKey, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-            _ = fmt;
-            _ = options;
-            if (self.key == .string and isName(self.key.string)) {
-                try writer.print("{s}", .{self.key.string});
-            } else {
-                try writer.print("{}", .{self.key});
-            }
-        }
-    };
-
     pub fn format(self: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         switch (self) {
             .i64 => |int| try writer.print("{}", .{int}),
@@ -276,7 +276,7 @@ pub const Value = union(enum) {
                 for (0.., @"struct".repr.keys, @"struct".values) |i, key, value| {
                     if (!first) try writer.writeAll(", ");
                     if (!positional or key != .i64 or key.i64 != i) {
-                        try writer.print("{}: ", .{FormatKey{ .key = key }});
+                        try writer.print("{} ", .{FormatKey{ .key = key }});
                         positional = false;
                     }
                     try writer.print("{}", .{value});
@@ -303,7 +303,7 @@ pub const Value = union(enum) {
                 var first = true;
                 for (entries.items) |entry| {
                     if (!first) try writer.writeAll(", ");
-                    try writer.print("{}: {}", .{ FormatKey{ .key = entry.key_ptr.* }, entry.value_ptr.* });
+                    try writer.print("{} {}", .{ FormatKey{ .key = entry.key_ptr.* }, entry.value_ptr.* });
                     first = false;
                 }
 
@@ -526,7 +526,7 @@ pub const Repr = union(enum) {
                 for (0.., @"struct".keys, @"struct".reprs) |i, key, repr| {
                     if (!first) try writer.writeAll(", ");
                     if (key != .i64 or key.i64 != i)
-                        try writer.print("{}: ", .{key});
+                        try writer.print("{} ", .{FormatKey{ .key = key }});
                     try writer.print("{}", .{repr});
                     first = false;
                 }
@@ -643,7 +643,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             return .{ .@"struct" = try self.evalObject(object_expr) };
         },
         .builtin => {
-            panic("Direct eval of builtin should be unreachable", .{});
+            return self.fail("Direct eval of builtin should be unreachable", .{});
         },
         .name => |name| {
             if (self.lookupBinding(name)) |binding| {
@@ -1057,7 +1057,7 @@ fn evalObject(self: *Self, object_expr: ObjectExpr) error{ ReturnTo, Semantalyze
     var values = self.allocator.alloc(Value, object_expr.values.len) catch oom();
     var reprs = self.allocator.alloc(Repr, object_expr.values.len) catch oom();
     for (keys, values, reprs, object_expr.keys, object_expr.values) |*key, *value, *repr, key_id, value_id| {
-        key.* = try self.eval(key_id);
+        key.* = try self.evalKey(key_id);
         value.* = try self.eval(value_id);
         repr.* = value.reprOf();
     }

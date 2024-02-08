@@ -157,9 +157,21 @@ pub fn tokenize(self: *Self) !void {
             '0'...'9' => token: {
                 while (i < source.len) {
                     switch (source[i]) {
-                        '0'...'9', '.' => i += 1,
+                        '0'...'9' => i += 1,
                         else => break,
                     }
+                }
+                const before_decimal = i;
+                if (i < source.len and source[i] == '.') {
+                    i += 1;
+                    while (i < source.len) {
+                        switch (source[i]) {
+                            '0'...'9' => i += 1,
+                            else => break,
+                        }
+                    }
+                    // Tokenize `42. ` as an `number . space` rather than `number space`
+                    if (i - before_decimal == 1) i = before_decimal;
                 }
                 break :token Token.number;
             },
