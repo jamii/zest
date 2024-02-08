@@ -62,7 +62,7 @@ pub const Expr = union(enum) {
 
 pub const ArgsExpr = struct {
     keys: []ExprId,
-    values: []ExprId,
+    values: []?ExprId,
 };
 
 pub const Builtin = enum {
@@ -108,7 +108,9 @@ pub fn parse(self: *Self) !void {
             .i64, .f64, .string, .builtin, .name => {},
             .object => |object| {
                 for (object.keys) |key| self.parents[key] = expr_id;
-                for (object.values) |value| self.parents[value] = expr_id;
+                for (object.values) |value_or_null| {
+                    if (value_or_null) |value| self.parents[value] = expr_id;
+                }
             },
             .mut => |mut| {
                 self.parents[mut] = expr_id;
@@ -127,13 +129,17 @@ pub fn parse(self: *Self) !void {
             },
             .@"fn" => |@"fn"| {
                 for (@"fn".params.keys) |key| self.parents[key] = expr_id;
-                for (@"fn".params.values) |value| self.parents[value] = expr_id;
+                for (@"fn".params.values) |value_or_null| {
+                    if (value_or_null) |value| self.parents[value] = expr_id;
+                }
                 self.parents[@"fn".body] = expr_id;
             },
             inline .make, .call => |make| {
                 self.parents[make.head] = expr_id;
                 for (make.args.keys) |key| self.parents[key] = expr_id;
-                for (make.args.values) |value| self.parents[value] = expr_id;
+                for (make.args.values) |value_or_null| {
+                    if (value_or_null) |value| self.parents[value] = expr_id;
+                }
             },
             .get => |get| {
                 self.parents[get.object] = expr_id;
@@ -228,7 +234,7 @@ fn parseExprLoose(self: *Self) error{ParseError}!ExprId {
                     .head = self.expr(.{ .builtin = builtin }),
                     .args = .{
                         .keys = self.allocator.dupe(ExprId, &.{ zero, one }) catch oom(),
-                        .values = self.allocator.dupe(ExprId, &.{ head, right }) catch oom(),
+                        .values = self.allocator.dupe(?ExprId, &.{ head, right }) catch oom(),
                     },
                 } });
             },
@@ -284,7 +290,7 @@ fn parseCallDot(self: *Self, arg: ExprId) error{ParseError}!ExprId {
     keys.append(self.expr(.{ .i64 = 0 })) catch oom();
     keys.appendSlice(args.keys) catch oom();
 
-    var values = ArrayList(ExprId).init(self.allocator);
+    var values = ArrayList(?ExprId).init(self.allocator);
     values.append(arg) catch oom();
     values.appendSlice(args.values) catch oom();
 
@@ -382,7 +388,7 @@ fn parseGroup(self: *Self) error{ParseError}!ExprId {
 
 fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ArgsExpr {
     var keys = ArrayList(ExprId).init(self.allocator);
-    var values = ArrayList(ExprId).init(self.allocator);
+    var values = ArrayList(?ExprId).init(self.allocator);
 
     // positional args
     var ix: i64 = start_ix;
@@ -400,7 +406,7 @@ fn parseArgs(self: *Self, end: Token, start_ix: i64) error{ParseError}!ArgsExpr 
         try self.expect(.@"/");
         const key = try self.parseExprAtom();
         const value = if (self.peek() == .@"," or self.peek() == end)
-            key
+            null
         else
             try self.parseExpr();
         keys.append(key) catch oom();
