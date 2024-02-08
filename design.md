@@ -773,15 +773,17 @@ Since functions can't escape the scope they were defined in, they may return to 
 
 ```
 try = (body, /catch) body(/throw catch)
-foo = ()
+foo = () {
   try(
     (/throw) {
       throw('oh no!') 
       throw('unreachable')
     },
-    /catch (error)
-      return-to(foo, [/error]),
+    /catch (error) {
+      return-to(foo, [/error])
+    },
   )
+}
 foo()
 
 [/error 'oh no!']
@@ -791,30 +793,34 @@ foo()
 
 ```
 try = (body, /catch) body(/throw catch)
-foo = ()
+foo = () {
   try(
     (/throw) {
       throw('oh no!') 
       throw('unreachable')
     },
-    /catch (error)
-      return-to(try, [/error]),
+    /catch (error) {
+      return-to(try, [/error])
+    },
   )
+}
 foo()
 
 Can't return to `try` from here
 ```
 
 ```
-foo = (x, f) 
-  if {x = 0} 
+foo = (x, f) {
+  if {x == 0} {
     f(x) 
-  else 
+  } else {
     foo(
       x - 1,
       // Returns to this instance of foo, not the nearest foo on the stack.
-      (x) return-to(foo, x + 1),
+      (y) return-to(foo, y + 1),
     )
+  }
+}
 foo(10, (x) x)
 
 1

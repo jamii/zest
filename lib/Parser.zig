@@ -253,6 +253,7 @@ fn parseExprTight(self: *Self) error{ParseError}!ExprId {
     while (true) {
         if (self.peekSpace()) break;
         switch (self.peek()) {
+            .@"/" => head = try self.parseGet(head),
             .@"(" => head = try self.parseCall(head),
             .@"[" => head = try self.parseMake(head),
             .@"." => head = try self.parseCallDot(head),
@@ -260,6 +261,13 @@ fn parseExprTight(self: *Self) error{ParseError}!ExprId {
         }
     }
     return head;
+}
+
+fn parseGet(self: *Self, object: ExprId) error{ParseError}!ExprId {
+    try self.expect(.@"/");
+    try self.expectNoSpace();
+    const key = try self.parseExprAtom();
+    return self.expr(.{ .get = .{ .object = object, .key = key } });
 }
 
 fn parseCall(self: *Self, head: ExprId) error{ParseError}!ExprId {
@@ -316,13 +324,6 @@ fn parseExprPath(self: *Self) error{ParseError}!ExprId {
     return head;
 }
 
-fn parseGet(self: *Self, object: ExprId) error{ParseError}!ExprId {
-    try self.expect(.@"/");
-    try self.expectNoSpace();
-    const key = try self.parseExprAtom();
-    return self.expr(.{ .get = .{ .object = object, .key = key } });
-}
-
 fn parseExprAtom(self: *Self) error{ParseError}!ExprId {
     switch (self.peek()) {
         .name => return self.parseName(),
@@ -330,7 +331,6 @@ fn parseExprAtom(self: *Self) error{ParseError}!ExprId {
         .string => return self.parseString(),
         .@"[" => return self.parseObject(),
         .@"{" => return self.parseGroup(),
-        .@"@" => return self.expr(.{ .mut = try self.parseExprAtom() }),
         else => {
             const token = self.take();
             return self.fail("Expected expr-atom, found {}", .{token});
