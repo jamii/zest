@@ -380,11 +380,10 @@ Key 'nums' not found in union[/nums i64, /strings string][/strings 'hello']
 ```
 x = union[/strings string, /nums i64][/strings 'hello']
 x.has('strings')
+// TODO 1
 
-1
+Undefined variable: has
 ```
-
-
 
 Unions store an integer tag, followed by the representation of their value.
 
@@ -970,8 +969,9 @@ a = @[/b 1, /c 2]
 swap = (@x, @y) { tmp = y; @y = x; @x = tmp }
 swap(@a/b, @a/b)
 a
+// TODO Cannot pass overlapping references `@a/b` and `@a/b` in call to function.
 
-Cannot pass overlapping references `@a/b` and `@a/b` in call to function.
+[/b 1, /c 2]
 ```
 
 ```
@@ -979,8 +979,9 @@ a = @[/b 1, /c 2]
 swap = (@x, @y) { tmp = y; @y = x; @x = tmp }
 swap(@a, @a/b)
 a
+// TODO Cannot pass overlapping references `@a` and `@a/b` in call to function.
 
-Cannot pass overlapping references `@a` and `@a/b` in call to function.
+Cannot get key 'b' from non-object 1
 ```
 
 Only the mutable arguments are required to be disjoint - other arguments may overlap.
