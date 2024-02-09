@@ -343,29 +343,50 @@ TODO Make a decision about iteration order. Options:
 
 ### union
 
-A union contains one of a fixed set of representations.
+A union represents one of a finite number of single-field records.
 
 ```
-union[string, i64][42]
+union[/strings string, /nums i64][/strings 'hello']
 
-union[string, i64][42]
-```
-
-```
-union[string, i64]['foo']
-
-union[string, i64]['foo']
+union[/nums i64, /strings string][/strings 'hello']
 ```
 
 ```
-union[string, i64][3.14]
+union[/strings string, /nums i64][/nums 'hello']
 
-Cannot convert 3.14 to union[string, i64]
+Cannot convert 'hello' to i64
 ```
 
-Unions are represented by an integer tag denoting the representation, followed by the representation of their value.
+```
+union[/strings string, /nums i64][/floats 3.14]
 
-Unions support asking for the representation of their value and casting the value to a given representation.
+Cannot convert [/floats 3.14] to union[/nums i64, /strings string]
+```
+
+```
+x = union[/strings string, /nums i64][/strings 'hello']
+x/strings
+
+'hello'
+```
+
+```
+x = union[/strings string, /nums i64][/strings 'hello']
+x/nums
+
+Key 'nums' not found in union[/nums i64, /strings string][/strings 'hello']
+```
+
+```
+x = union[/strings string, /nums i64][/strings 'hello']
+x.has('strings')
+
+1
+```
+
+
+
+Unions store an integer tag, followed by the representation of their value.
 
 ### repr repr
 
@@ -453,9 +474,15 @@ i64[42] == f64[42]
 ```
 
 ```
-union[string, i64][42] == 42
+union[/strings string, /nums i64][/nums 42] == [/nums 42]
 
 0
+```
+
+```
+struct[/name string, /age i64] == struct[/age i64, /name string]
+
+1
 ```
 
 Two __values__ are `~=` if their notations are equal.
@@ -503,7 +530,13 @@ i64[42] ~= f64[42]
 ```
 
 ```
-union[string, i64][42] ~= 42
+union[/strings string, /nums i64][/nums 42] ~= [/nums 42]
+
+1
+```
+
+```
+struct[/name string, /age i64] ~= struct[/age i64, /name string]
 
 1
 ```

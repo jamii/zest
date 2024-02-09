@@ -174,9 +174,9 @@ pub const Value = union(enum) {
                 return std.math.order(self_entries.items.len, other_entries.items.len);
             },
             .@"union" => {
-                const self_member = self.@"union".repr[self.@"union".tag];
-                const other_member = other.@"union".repr[other.@"union".tag];
-                switch (self_member.order(other_member)) {
+                const self_key = self.@"union".repr.keys[self.@"union".tag];
+                const other_key = other.@"union".repr.keys[other.@"union".tag];
+                switch (self_key.order(other_key)) {
                     .lt => return .lt,
                     .gt => return .gt,
                     .eq => {},
@@ -310,7 +310,14 @@ pub const Value = union(enum) {
                 try writer.writeAll("]");
             },
             .@"union" => |@"union"| {
-                try writer.print("{}[{}]", .{ Repr{ .@"union" = @"union".repr }, @"union".value.* });
+                try writer.print("{}[", .{Repr{ .@"union" = @"union".repr }});
+                const key = @"union".repr.keys[@"union".tag];
+                const value = @"union".value;
+                if (key != .i64 or key.i64 != 0) {
+                    try writer.print("{} ", .{FormatKey{ .key = key }});
+                }
+                try writer.print("{}", .{value});
+                try writer.writeAll("]");
             },
             .@"fn" => |@"fn"| {
                 try writer.print("{{fn {}}}", .{@"fn"});
@@ -452,9 +459,12 @@ pub const Repr = union(enum) {
                 key_value[0].update(hasher);
                 key_value[1].update(hasher);
             },
-            .@"union" => |members| {
-                for (members) |member| {
-                    member.update(hasher);
+            .@"union" => |@"union"| {
+                for (@"union".keys) |key| {
+                    key.update(hasher);
+                }
+                for (@"union".reprs) |repr| {
+                    repr.update(hasher);
                 }
             },
         }
@@ -483,7 +493,7 @@ pub const Repr = union(enum) {
                         .eq => {},
                     }
                 }
-                return .eq;
+                return std.math.order(self_struct.keys.len, other_struct.keys.len);
             },
             .list => return self.list.order(other.list.*),
             .map => {
@@ -500,16 +510,21 @@ pub const Repr = union(enum) {
                 return .eq;
             },
             .@"union" => {
-                const self_members = self.@"union";
-                const other_members = other.@"union";
-                for (0..@min(self_members.len, other_members.len)) |i| {
-                    switch (self_members[i].order(other_members[i])) {
+                const self_union = self.@"union";
+                const other_union = other.@"union";
+                for (0..@min(self_union.keys.len, other_union.keys.len)) |i| {
+                    switch (self_union.keys[i].order(other_union.keys[i])) {
+                        .lt => return .lt,
+                        .gt => return .gt,
+                        .eq => {},
+                    }
+                    switch (self_union.reprs[i].order(other_union.reprs[i])) {
                         .lt => return .lt,
                         .gt => return .gt,
                         .eq => {},
                     }
                 }
-                return .eq;
+                return std.math.order(self_union.keys.len, other_union.keys.len);
             },
         }
     }
@@ -534,12 +549,17 @@ pub const Repr = union(enum) {
             },
             .list => |elem| try writer.print("[{}]", .{elem.*}),
             .map => |key_value| try writer.print("[{}, {}]", .{ key_value[0].*, key_value[1].* }),
-            .@"union" => |members| {
+            .@"union" => |@"union"| {
                 try writer.writeAll("[");
                 var first = true;
-                for (members) |member| {
+                var positional = true;
+                for (0.., @"union".keys, @"union".reprs) |i, key, repr| {
                     if (!first) try writer.writeAll(", ");
-                    try writer.print("{}", .{member});
+                    if (!positional or key != .i64 or key.i64 != i) {
+                        try writer.print("{} ", .{FormatKey{ .key = key }});
+                        positional = false;
+                    }
+                    try writer.print("{}", .{repr});
                     first = false;
                 }
                 try writer.writeAll("]");
@@ -555,7 +575,11 @@ pub const StructRepr = struct {
 
 pub const ListRepr = *Repr;
 pub const MapRepr = [2]*Repr;
-pub const UnionRepr = []Repr;
+
+pub const UnionRepr = struct {
+    keys: []Value,
+    reprs: []Repr,
+};
 
 pub const ReprKind = enum {
     @"struct",
@@ -748,7 +772,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             switch (head) {
                 .repr => |repr| {
                     switch (repr) {
-                        .@"struct", .list, .map => {
+                        .@"struct", .list, .map, .@"union" => {
                             return self.convert(repr, .{ .@"struct" = args });
                         },
                         else => {
@@ -800,13 +824,18 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             return .{ .repr = .{ .map = .{ box(self.allocator, key.repr), box(self.allocator, value.repr) } } };
                         },
                         .@"union" => {
+                            const keys = self.allocator.alloc(Value, args.repr.keys.len) catch oom();
                             const reprs = self.allocator.alloc(Repr, args.values.len) catch oom();
-                            for (reprs, args.values) |*repr, member| {
-                                if (member != .repr)
-                                    return self.fail("Can't pass {} to {}", .{ member, head });
-                                repr.* = member.repr;
+                            for (keys, reprs, args.repr.keys, args.values) |*key, *repr, arg_key, arg_value| {
+                                if (arg_value != .repr)
+                                    return self.fail("Can't pass {} to {}", .{ arg_value, head });
+                                key.* = arg_key;
+                                repr.* = arg_value.repr;
                             }
-                            return .{ .repr = .{ .@"union" = reprs } };
+                            return .{ .repr = .{ .@"union" = .{
+                                .keys = keys,
+                                .reprs = reprs,
+                            } } };
                         },
                     }
                 },
@@ -1125,6 +1154,7 @@ fn objectGet(self: *Self, object: *Value, key: Value) error{SemantalyzeError}!*V
         .@"struct" => |*@"struct"| self.structGet(@"struct", key),
         .list => |*list| self.listGet(list, key),
         .map => |*map| self.mapGet(map, key),
+        .@"union" => |*@"union"| self.unionGet(@"union", key),
         else => return self.fail("Cannot get key {} from non-object {}", .{ key, object }),
     };
 }
@@ -1151,6 +1181,14 @@ fn mapGet(self: *Self, map: *Map, key: Value) error{SemantalyzeError}!*Value {
     } else {
         return self.fail("Key {} not found in {}", .{ key, Value{ .map = map.* } });
     }
+}
+
+fn unionGet(self: *Self, @"union": *Union, key: Value) error{SemantalyzeError}!*Value {
+    const union_key = @"union".repr.keys[@"union".tag];
+    if (union_key.equal(key))
+        return @"union".value
+    else
+        return self.fail("Key {} not found in {}", .{ key, Value{ .@"union" = @"union".* } });
 }
 
 fn pathSet(self: *Self, expr_id: ExprId, value: Value) !void {
@@ -1327,10 +1365,17 @@ fn convert(self: *Self, repr: Repr, value: Value) error{SemantalyzeError}!Value 
             return .{ .map = .{ .repr = map_repr, .entries = entries } };
         },
         .@"union" => |union_repr| {
-            const value_repr = value.reprOf();
-            for (0.., union_repr) |tag, member_repr| {
-                if (value_repr.order(member_repr) == .eq) {
-                    return .{ .@"union" = .{ .repr = union_repr, .tag = tag, .value = box(self.allocator, value) } };
+            for (0.., union_repr.keys, union_repr.reprs) |tag, key, value_repr| {
+                if (value == .@"struct" and
+                    value.@"struct".repr.keys.len == 1 and
+                    value.@"struct".repr.keys[0].equal(key))
+                {
+                    const value_new = try self.convert(value_repr, value.@"struct".values[0]);
+                    return .{ .@"union" = .{
+                        .repr = union_repr,
+                        .tag = tag,
+                        .value = box(self.allocator, value_new),
+                    } };
                 }
             }
             return self.fail("Cannot convert {} to {}", .{ value, repr });
