@@ -946,7 +946,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         // Move back to fn scope.
                         const old_scope = self.scope.toOwnedSlice() catch oom();
                         self.scope.appendSlice(@"fn".scope) catch oom();
-                        defer {
+                        errdefer {
                             self.scope.shrinkRetainingCapacity(0);
                             self.scope.appendSlice(old_scope) catch oom();
                         }
@@ -976,12 +976,23 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             return err;
                         };
 
-                        // Copy mut args back to original locations.
-                        for (@"fn".params.muts, @"fn".params.values, call.args.values) |mut, param, arg| {
+                        // Record new values of mut args
+                        var args_after = self.allocator.alloc(Value, @"fn".params.values.len) catch oom();
+                        for (@"fn".params.muts, @"fn".params.values, args_after) |mut, param, *arg_after| {
                             if (mut) {
-                                const binding = try self.lookupBinding(param);
+                                arg_after.* = (try self.lookupBinding(param)).value.copy(self.allocator);
+                            }
+                        }
+
+                        // Restore old scope
+                        self.scope.shrinkRetainingCapacity(0);
+                        self.scope.appendSlice(old_scope) catch oom();
+
+                        // Copy mut args back to original locations.
+                        for (@"fn".params.muts, call.args.values, args_after) |mut, arg, arg_after| {
+                            if (mut) {
                                 const path = self.parser.exprs.items[arg].mut;
-                                try self.pathSet(path, binding.value);
+                                try self.pathSet(path, arg_after);
                             }
                         }
 

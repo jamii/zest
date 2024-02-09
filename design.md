@@ -896,7 +896,7 @@ To define a function which takes mutable references as arguments, use `@` in the
 
 ```
 inc = (@x) { @x = x + 1 }
-a = 1
+a = @1
 @a.inc()
 a
 
@@ -905,7 +905,7 @@ a
 
 ```
 inc = (x) { @x = x + 1 }
-a = 1
+a = @1
 @a.inc()
 a
 
@@ -914,7 +914,7 @@ Expected const arg, found mut arg
 
 ```
 inc = (@x) { @x = x + 1 }
-a = 1
+a = @1
 a.inc()
 a
 
