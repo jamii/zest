@@ -861,7 +861,7 @@ set = (@var, val) { @var = val }
 set(a, 2)
 a
 
-Can't pass non-mut arg to Parser.Expr{ .builtin = Parser.Builtin.set }
+Expected mut arg, found const arg
 ```
 
 ```
@@ -870,7 +870,7 @@ set = (@var, val) { @var = val }
 set(@a, 2)
 a
 
-Cannot set a non-mut variable: a
+Cannot use a non-mut variable in a path: a
 ```
 
 If a mutable reference contains an object, mutable references may be constructed to fields of that object.
@@ -895,7 +895,7 @@ a
 To define a function which takes mutable references as arguments, use `@` in the parameters:
 
 ```
-inc = (@x) @x = x+1
+inc = (@x) { @x = x + 1 }
 a = 1
 @a.inc()
 a
@@ -904,21 +904,21 @@ a
 ```
 
 ```
-inc = (x) @x/set(x+1)
+inc = (x) { @x = x + 1 }
 a = 1
 @a.inc()
 a
 
-Cannot take mutable reference to immutable reference `x`.
+Expected const arg, found mut arg
 ```
 
 ```
-inc = (@x) @x = x+1
+inc = (@x) { @x = x + 1 }
 a = 1
 a.inc()
 a
 
-Function `inc` expects mutable reference but found immutable reference `a`.
+Expected mut arg, found const arg
 ```
 
 Mutable references never alias - setting the value of one mutable variable will never change the value of another mutable variable. To enforce this, all of the mutable arguments to a function call must be disjoint.

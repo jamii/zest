@@ -838,9 +838,9 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             return self.fail("Can't pass named key to {}", .{head_expr});
                         if (args.repr.keys[1] != .i64 or args.repr.keys[1].i64 != 1)
                             return self.fail("Can't pass named key to {}", .{head_expr});
-                        const object = args.values[0];
+                        var object = args.values[0];
                         const key = args.values[1];
-                        if (self.objectGet(object, key)) |value| {
+                        if (self.objectGet(&object, key)) |value| {
                             return .{ .@"struct" = .{
                                 .repr = .{
                                     .keys = self.allocator.dupe(Value, &[_]Value{.{ .string = self.allocator.dupe(u8, "some") catch oom() }}) catch oom(),
@@ -930,16 +930,18 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 const args = try self.evalObject(call.args);
                 switch (head) {
                     .@"fn" => |@"fn"| {
-                        //if (@"fn".muts.len != call.args.muts.len)
-                        //    return self.fail("Expected {} arguments, found {} arguments", .{ @"fn".muts.len, call.args.muts.len });
+                        if (@"fn".params.values.len != call.args.values.len)
+                            return self.fail("Expected {} arguments, found {} arguments", .{ @"fn".params.values.len, call.args.values.len });
 
-                        //for (call.args.muts, @"fn".muts) |arg_mut, param_mut| {
-                        //    if (arg_mut != param_mut)
-                        //        return self.fail("Expected {s} arg, found {s} arg", .{
-                        //            if (param_mut) "mut" else "const",
-                        //            if (arg_mut) "mut" else "const",
-                        //        });
-                        //}
+                        for (call.args.values, @"fn".params.muts) |arg, param_mut| {
+                            const arg_expr = self.parser.exprs.items[arg];
+                            const arg_mut = arg_expr == .mut;
+                            if (param_mut != arg_mut)
+                                return self.fail("Expected {s} arg, found {s} arg", .{
+                                    if (param_mut) "mut" else "const",
+                                    if (arg_mut) "mut" else "const",
+                                });
+                        }
 
                         // Move back to fn scope.
                         const old_scope = self.scope.toOwnedSlice() catch oom();
@@ -975,12 +977,13 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                         };
 
                         // Copy mut args back to original locations.
-                        //for (@"fn".params.values, call.args.muts, call.args.keys) |param, arg_mut, arg| {
-                        //    if (arg_mut) {
-                        //        const binding = try self.lookupBinding(param);
-                        //        try self.pathSet(arg, binding.value);
-                        //    }
-                        //}
+                        for (@"fn".params.muts, @"fn".params.values, call.args.values) |mut, param, arg| {
+                            if (mut) {
+                                const binding = try self.lookupBinding(param);
+                                const path = self.parser.exprs.items[arg].mut;
+                                try self.pathSet(path, binding.value);
+                            }
+                        }
 
                         return return_value;
                     },
@@ -989,9 +992,9 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             }
         },
         .get => |get| {
-            const value = try self.eval(get.object);
+            var value = try self.eval(get.object);
             const key = try self.evalKey(get.key);
-            return (try self.objectGet(value, key)).*;
+            return (try self.objectGet(&value, key)).*;
         },
         .statements => |statements| {
             const scope_len = self.scope.items.len;
@@ -1106,36 +1109,36 @@ fn evalObject(self: *Self, object_expr: ObjectExpr) error{ ReturnTo, Semantalyze
     return struct_sorted;
 }
 
-fn objectGet(self: *Self, object: Value, key: Value) error{SemantalyzeError}!*Value {
-    return switch (object) {
-        .@"struct" => |@"struct"| self.structGet(@"struct", key),
-        .list => |list| self.listGet(list, key),
-        .map => |map| self.mapGet(map, key),
+fn objectGet(self: *Self, object: *Value, key: Value) error{SemantalyzeError}!*Value {
+    return switch (object.*) {
+        .@"struct" => |*@"struct"| self.structGet(@"struct", key),
+        .list => |*list| self.listGet(list, key),
+        .map => |*map| self.mapGet(map, key),
         else => return self.fail("Cannot get key {} from non-object {}", .{ key, object }),
     };
 }
 
-fn structGet(self: *Self, @"struct": Struct, key: Value) error{SemantalyzeError}!*Value {
+fn structGet(self: *Self, @"struct": *Struct, key: Value) error{SemantalyzeError}!*Value {
     for (@"struct".repr.keys, @"struct".values) |struct_key, *value| {
         if (struct_key.equal(key)) return value;
     } else {
-        return self.fail("Key {} not found in {}", .{ key, Value{ .@"struct" = @"struct" } });
+        return self.fail("Key {} not found in {}", .{ key, Value{ .@"struct" = @"struct".* } });
     }
 }
 
-fn listGet(self: *Self, list: List, key: Value) error{SemantalyzeError}!*Value {
+fn listGet(self: *Self, list: *List, key: Value) error{SemantalyzeError}!*Value {
     if (key == .i64 and key.i64 >= 0 and key.i64 < list.elems.items.len) {
         return &list.elems.items[@intCast(key.i64)];
     } else {
-        return self.fail("Key {} not found in {}", .{ key, Value{ .list = list } });
+        return self.fail("Key {} not found in {}", .{ key, Value{ .list = list.* } });
     }
 }
 
-fn mapGet(self: *Self, map: Map, key: Value) error{SemantalyzeError}!*Value {
+fn mapGet(self: *Self, map: *Map, key: Value) error{SemantalyzeError}!*Value {
     if (map.entries.getPtr(key)) |value| {
         return value;
     } else {
-        return self.fail("Key {} not found in {}", .{ key, Value{ .map = map } });
+        return self.fail("Key {} not found in {}", .{ key, Value{ .map = map.* } });
     }
 }
 
@@ -1155,9 +1158,8 @@ fn evalPath(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!*V
         },
         .get => |get| {
             const value = try self.evalPath(get.object);
-            if (value.* != .map) return self.fail("Cannot get key from non-map {}", .{value});
             const key = try self.evalKey(get.key);
-            return self.mapGet(value.map, key);
+            return self.objectGet(value, key);
         },
         else => return self.fail("Not allowed in set expr {}", .{expr}),
     }
@@ -1341,11 +1343,11 @@ fn matchObject(self: *Self, pattern: ObjectPattern, object: Value) !void {
             if (pattern.keys.len != @"struct".repr.keys.len)
                 return self.fail("Wrong number of keys in {} to match object pattern", .{object});
 
-            for (pattern.keys, pattern.values, @"struct".repr.keys, @"struct".values) |pattern_key, pattern_value, object_key, object_value| {
+            for (pattern.muts, pattern.keys, pattern.values, @"struct".repr.keys, @"struct".values) |mut, pattern_key, pattern_value, object_key, object_value| {
                 if (!pattern_key.equal(object_key))
                     return self.fail("Key {} in pattern not found in object {}", .{ pattern_key, object });
                 self.scope.append(.{
-                    .mut = false,
+                    .mut = mut,
                     .call_id = null,
                     .name = pattern_value,
                     .value = object_value,
