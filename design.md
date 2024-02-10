@@ -1,8 +1,6 @@
 TODO:
-* Mutation
-* Control flow (if/while/each/do)
 * Implicit throw function
-* Parameter/variables types
+* Parameter/variable types
 * Type-checking / specialization
 * Comptime
 * Pattern matching
@@ -11,7 +9,7 @@ TODO:
 
 Encoded as utf8.
 
-TODO Booleans. Encode as `union[only["true"], only["false"]]`, but with builtin sugar.
+TODO Booleans. Encode as enum or union, but with builtin sugar.
 
 ### numbers
 
@@ -546,7 +544,7 @@ TODO What about +0 vs -0.
 
 ## ordering
 
-TODO < for type then notation, ~=< for notation only
+TODO < for type then notation, ~< for notation only
 
 ## names
 
@@ -993,7 +991,7 @@ a
 1
 ```
 
-## syntax hunches
+## spaces and newlines
 
 To make semicolon insertion safe, newlines are only allowed between items in `{}`, `()` and `[]` and after binary ops.
 
@@ -1074,6 +1072,8 @@ a-b
 
 Undefined variable: a-b
 ```
+
+## syntax hunches
 
 `[]` always indicates constructing a value. The result prints like the syntax.
 
