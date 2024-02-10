@@ -552,18 +552,16 @@ TODO < for type then notation, ~=< for notation only
 
 Names start with a lowercase letter and can contain lowercase letters, numbers and hyphens.
 
-TODO Assignment should return null/void.
-
 ```
 some-name = 'foo'
 
-0
+[]
 ```
 
 ```
 side2side = 'foo'
 
-0
+[]
 ```
 
 ```
@@ -629,7 +627,7 @@ bar = () {
 }
 // TODO Name foo shadows earlier definition
 
-0
+[]
 ```
 
 ```
@@ -637,7 +635,7 @@ foo = 1
 bar = (foo) 2
 // TODO Name foo shadows earlier definition
 
-0
+[]
 ```
 
 ## fields
@@ -723,7 +721,7 @@ Function definitions can only appear in variable definitions or as the argument 
 ```
 foo = (x) x + 1
 
-0
+[]
 ```
 
 ```
@@ -1029,7 +1027,7 @@ inc = (@a) {
   @a = a + 1
 }
 
-0
+[]
 ```
 
 ```
@@ -1042,7 +1040,7 @@ swap = (
   @x = tmp 
 }
 
-0
+[]
 ```
 
 ```

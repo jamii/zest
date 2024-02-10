@@ -395,6 +395,10 @@ pub const Value = union(enum) {
             .repr_kind => return .i64, // TODO,
         }
     }
+
+    fn emptyStruct() Value {
+        return .{ .@"struct" = .{ .repr = .{ .keys = &.{}, .reprs = &.{} }, .values = &.{} } };
+    }
 };
 
 pub const Struct = struct {
@@ -723,14 +727,14 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                             .name = name,
                             .value = value.copy(self.allocator),
                         }) catch oom();
-                        return fromBool(false); // TODO void/null or similar
+                        return Value.emptyStruct();
                     }
                 },
                 .mut => |mut| {
                     // Should look like `@path = expr`
                     const value = try self.eval(let.value);
                     try self.pathSet(mut, value.copy(self.allocator));
-                    return fromBool(false); // TODO void/null or similar
+                    return Value.emptyStruct();
                 },
                 else => return self.fail("Illegal left-hand side of `=`: {}", .{path_expr}),
             }
@@ -742,7 +746,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
         .@"while" => |@"while"| {
             while (true) {
                 const cond = try self.toBool(try self.eval(@"while".cond));
-                if (!cond) return fromBool(false); // TODO void/null or similar
+                if (!cond) return Value.emptyStruct();
                 _ = try self.eval(@"while".body);
             }
         },
