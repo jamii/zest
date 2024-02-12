@@ -1,9 +1,11 @@
 TODO:
+* Standard library
 * Implicit throw function
 * Parameter/variable types
 * Type-checking / specialization
 * Comptime
 * Pattern matching
+* Custom reprs?
 
 ## notation
 
