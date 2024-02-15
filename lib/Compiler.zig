@@ -32,26 +32,26 @@ pub fn compile(self: *Self) error{CompileError}!void {
 
 pub fn generate(self: *Self) []u8 {
     // Magic
-    self.emit(&.{ 0x00, 0x61, 0x73, 0x6D });
+    self.bytes(&.{ 0x00, 0x61, 0x73, 0x6D });
 
     // Version
-    self.emit(&.{ 0x01, 0x00, 0x00, 0x00 });
+    self.bytes(&.{ 0x01, 0x00, 0x00, 0x00 });
 
     // Function types
-    self.emit(&.{1});
+    self.byte(1);
     // Bytes in section
     self.leb_u32(4);
     // Number of fn types.
     self.leb_u32(1);
     // Fn type.
-    self.emit(&.{0x60});
+    self.byte(0x60);
     // Number of param types.
     self.leb_u32(0);
     // Number of result types.
     self.leb_u32(0);
 
     // Functions
-    self.emit(&.{3});
+    self.byte(3);
     // Bytes in section
     self.leb_u32(2);
     // Number of fns.
@@ -60,7 +60,7 @@ pub fn generate(self: *Self) []u8 {
     self.leb_u32(0);
 
     // Exports
-    self.emit(&.{7});
+    self.byte(7);
     // Bytes in section
     self.leb_u32(8);
     // Number of exports.
@@ -68,12 +68,12 @@ pub fn generate(self: *Self) []u8 {
     // Name
     self.name("main");
     // Fn export.
-    self.emit(&.{0x00});
+    self.byte(0x00);
     // Fn 0.
     self.leb_u32(0);
 
     // Code
-    self.emit(&.{10});
+    self.byte(10);
     // Bytes in section
     self.leb_u32(4);
     // Number of fns.
@@ -83,13 +83,17 @@ pub fn generate(self: *Self) []u8 {
     // Number of locals.
     self.leb_u32(0);
     // Body = end.
-    self.emit(&.{0x0B});
+    self.byte(0x0B);
 
     return self.wasm.items;
 }
 
-fn emit(self: *Self, bytes: []const u8) void {
-    self.wasm.appendSlice(bytes) catch oom();
+fn byte(self: *Self, b: u8) void {
+    self.wasm.append(b) catch oom();
+}
+
+fn bytes(self: *Self, bs: []const u8) void {
+    self.wasm.appendSlice(bs) catch oom();
 }
 
 fn leb_u32(self: *Self, i: u32) void {
@@ -104,5 +108,5 @@ fn leb_u32(self: *Self, i: u32) void {
 
 fn name(self: *Self, string: []const u8) void {
     self.leb_u32(@intCast(string.len));
-    self.emit(string);
+    self.bytes(string);
 }
