@@ -570,6 +570,10 @@ pub const Repr = union(enum) {
             },
         }
     }
+
+    pub fn emptyStruct() Repr {
+        return .{ .@"struct" = .{ .keys = &.{}, .reprs = &.{} } };
+    }
 };
 
 pub const StructRepr = struct {
