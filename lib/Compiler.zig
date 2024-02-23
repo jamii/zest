@@ -58,14 +58,16 @@ pub fn emitAll(self: *Self) []u8 {
         const section = self.emitSectionStart(1);
         defer self.emitSectionEnd(section);
 
-        // Number of fn types.
-        self.emitLebU32(1);
-        // Fn type.
-        self.emitByte(0x60);
-        // Number of param types.
-        self.emitLebU32(0);
-        // Number of result types.
-        self.emitLebU32(0);
+        self.emitLenOf(self.functions.items);
+        for (self.functions.items) |function| {
+            _ = function;
+            // Fn type.
+            self.emitByte(0x60);
+            // Number of param types.
+            self.emitLebU32(0);
+            // Number of result types.
+            self.emitLebU32(0);
+        }
     }
 
     {
@@ -73,10 +75,12 @@ pub fn emitAll(self: *Self) []u8 {
         const section = self.emitSectionStart(3);
         defer self.emitSectionEnd(section);
 
-        // Number of fns.
-        self.emitLebU32(1);
-        // Type 0.
-        self.emitLebU32(0);
+        self.emitLenOf(self.functions.items);
+        for (self.functions.items) |function| {
+            _ = function;
+            // Type 0.
+            self.emitLebU32(0);
+        }
     }
 
     {
@@ -99,15 +103,14 @@ pub fn emitAll(self: *Self) []u8 {
         const section = self.emitSectionStart(10);
         defer self.emitSectionEnd(section);
 
-        // Number of fns.
-        self.emitLebU32(1);
-        {
-            const fun = self.emitByteCountLater();
-            defer self.emitByteCount(fun);
+        self.emitLenOf(self.functions.items);
+        for (self.functions.items) |function| {
+            const start = self.emitByteCountLater();
+            defer self.emitByteCount(start);
 
-            // Number of locals.
-            self.emitLebU32(0);
-            // Body = end.
+            self.emitLebU32(function.locals_count);
+
+            // Emit end.
             self.emitByte(0x0B);
         }
     }
@@ -175,4 +178,8 @@ fn emitSectionStart(self: *Self, section: u8) usize {
 
 fn emitSectionEnd(self: *Self, ix: usize) void {
     self.emitByteCount(ix);
+}
+
+fn emitLenOf(self: *Self, slice: anytype) void {
+    self.emitLebU32(@intCast(slice.len));
 }
