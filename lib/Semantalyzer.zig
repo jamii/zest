@@ -574,6 +574,13 @@ pub const Repr = union(enum) {
     pub fn emptyStruct() Repr {
         return .{ .@"struct" = .{ .keys = &.{}, .reprs = &.{} } };
     }
+
+    pub fn sizeOf(self: Repr) usize {
+        return switch (self) {
+            .i64 => 8,
+            else => panic("TODO: {}.sizeOf()", .{self}),
+        };
+    }
 };
 
 pub const StructRepr = struct {

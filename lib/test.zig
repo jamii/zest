@@ -56,8 +56,7 @@ fn eval(
     baton.analyzer = Analyzer.init(allocator, baton.parser.?);
     try baton.analyzer.?.analyze();
     baton.compiler = Compiler.init(allocator, baton.parser.?, baton.analyzer.?);
-    try baton.compiler.?.compile();
-    const wasm = baton.compiler.?.emitAll();
+    const wasm = try baton.compiler.?.compile();
     const value_compiled = eval_wasm(allocator, wasm);
     // TODO Assert same results
     //baton.semantalyzer = Semantalyzer.init(allocator, baton.parser.?);

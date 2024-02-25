@@ -15,31 +15,74 @@ const Self = @This();
 allocator: Allocator,
 parser: Parser,
 reprs: []?Repr,
+places: []?Place,
+functions: ArrayList(Function),
+frame: ArrayList(usize),
+frame_offset_max: usize,
+stack_offset_max: usize,
 error_message: ?[]const u8,
+
+pub const Place = union(enum) {
+    result,
+    shadow: u32,
+};
+
+pub const Function = struct {
+    name: []const u8,
+    params: []const Repr,
+    result: Repr,
+    locals_count: u32,
+    frame_size: usize,
+    body: ExprId,
+};
 
 pub fn init(allocator: Allocator, parser: Parser) Self {
     const reprs = allocator.alloc(?Repr, parser.exprs.items.len) catch oom();
     for (reprs) |*repr| repr.* = null;
+
+    const places = allocator.alloc(?Place, parser.exprs.items.len) catch oom();
+    for (places) |*place| place.* = null;
+
+    const functions = ArrayList(Function).init(allocator);
+
+    var frame = ArrayList(usize).init(allocator);
+    frame.append(0) catch oom();
+
     return .{
         .allocator = allocator,
         .parser = parser,
         .reprs = reprs,
+        .places = places,
+        .functions = functions,
+        .frame = frame,
+        .frame_offset_max = 0,
+        .stack_offset_max = 1 << 23, // 8mb stack
         .error_message = null,
     };
 }
 
 pub fn analyze(self: *Self) error{AnalyzeError}!void {
-    _ = try self.analyzeExpr(self.parser.exprs.items.len - 1, null);
+    const main_id = self.parser.exprs.items.len - 1;
+    _ = try self.reprOfExpr(main_id, null);
+    _ = try self.placeExpr(main_id, .result);
+    self.functions.append(.{
+        .name = "main",
+        .params = &.{},
+        .result = self.reprs[main_id].?,
+        .locals_count = 0,
+        .frame_size = self.frame_offset_max,
+        .body = main_id,
+    }) catch oom();
 }
 
-pub fn analyzeExpr(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {
-    const repr = try self.analyzeExprInner(expr_id, repr_in);
+fn reprOfExpr(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {
+    const repr = try self.reprOfExprInner(expr_id, repr_in);
     // TODO check repr is compatible with repr_in
     self.reprs[expr_id] = repr;
     return repr;
 }
 
-pub fn analyzeExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {
+fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64 => return .i64,
@@ -48,13 +91,46 @@ pub fn analyzeExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{Anal
                 return Repr.emptyStruct();
             } else {
                 for (statements[0 .. statements.len - 1]) |statement| {
-                    _ = try self.analyzeExpr(statement, null);
+                    _ = try self.reprOfExpr(statement, null);
                 }
-                return self.analyzeExpr(statements[statements.len - 1], repr_in);
+                return self.reprOfExpr(statements[statements.len - 1], repr_in);
             }
         },
         else => return self.fail("TODO Can't analyze {}", .{expr}),
     }
+}
+
+fn placeExpr(self: *Self, expr_id: ExprId, dest: Place) error{AnalyzeError}!void {
+    self.places[expr_id] = dest;
+    const expr = self.parser.exprs.items[expr_id];
+    switch (expr) {
+        .i64 => {},
+        .statements => |statements| {
+            for (statements, 0..) |statement, ix| {
+                if (ix == statements.len - 1) {
+                    try self.placeExpr(statement, dest);
+                } else {
+                    const statement_dest = self.framePush(self.reprs[expr_id].?);
+                    defer self.framePop();
+
+                    try self.placeExpr(statement, statement_dest);
+                }
+            }
+        },
+        else => return self.fail("TODO Can't analyze {}", .{expr}),
+    }
+}
+
+fn framePush(self: *Self, repr: Repr) Place {
+    const offset_prev = self.frame.items[self.frame.items.len - 1];
+    const offset = offset_prev + repr.sizeOf(); // TODO alignment
+    self.frame.append(offset) catch oom();
+    self.frame_offset_max = @max(self.frame_offset_max, offset);
+    return .{ .shadow = @intCast(offset) };
+}
+
+fn framePop(self: *Self) void {
+    _ = self.frame.pop();
 }
 
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{AnalyzeError} {

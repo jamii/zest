@@ -9,13 +9,13 @@ const oom = util.oom;
 const Parser = @import("./Parser.zig");
 const Analyzer = @import("./Analyzer.zig");
 const ExprId = Parser.ExprId;
+const Place = Analyzer.Place;
 
 const Self = @This();
 allocator: Allocator,
 parser: Parser,
 analyzer: Analyzer,
 scope: Scope,
-functions: ArrayList(Function),
 wasm: ArrayList(u8),
 error_message: ?[]const u8,
 
@@ -26,15 +26,12 @@ const Binding = struct {
     expr_id: ExprId,
 };
 
-const Function = struct {
-    name: []const u8,
-    locals_count: u32,
-    body: []const Instruction,
+const ValType = enum {
+    i32,
+    i64,
 };
 
-const Instruction = union(enum) {
-    i64: i64,
-};
+const wasm_page_size = 64 << 10;
 
 pub fn init(allocator: Allocator, parser: Parser, analyzer: Analyzer) Self {
     return .{
@@ -42,80 +39,79 @@ pub fn init(allocator: Allocator, parser: Parser, analyzer: Analyzer) Self {
         .parser = parser,
         .analyzer = analyzer,
         .scope = Scope.init(allocator),
-        .functions = ArrayList(Function).init(allocator),
         .wasm = ArrayList(u8).init(allocator),
         .error_message = null,
     };
 }
 
-pub fn compile(self: *Self) error{CompileError}!void {
-    self.functions.append(.{
-        .name = "main",
-        .locals_count = 0,
-        .body = try self.compileBody(self.parser.exprs.items.len - 1),
-    }) catch oom();
-}
-
-fn compileBody(self: *Self, expr_id: ExprId) error{CompileError}![]Instruction {
-    var instructions = ArrayList(Instruction).init(self.allocator);
-    try self.compileExpr(expr_id, &instructions);
-    return instructions.toOwnedSlice() catch oom();
-}
-
-fn compileExpr(self: *Self, expr_id: ExprId, instructions: *ArrayList(Instruction)) error{CompileError}!void {
-    const expr = self.parser.exprs.items[expr_id];
-    switch (expr) {
-        .i64 => |num| {
-            instructions.append(.{ .i64 = num }) catch oom();
-        },
-        .statements => |statements| {
-            for (statements) |statement| {
-                try self.compileExpr(statement, instructions);
-            }
-        },
-        else => return self.fail("TODO Can't compile {}", .{expr}),
-    }
-}
-
-pub fn emitAll(self: *Self) []u8 {
+pub fn compile(self: *Self) error{CompileError}![]u8 {
     // Magic
     self.emitBytes(&.{ 0x00, 0x61, 0x73, 0x6D });
 
     // Version
     self.emitBytes(&.{ 0x01, 0x00, 0x00, 0x00 });
 
+    // Function types
     {
-        // Function types
         const section = self.emitSectionStart(1);
         defer self.emitSectionEnd(section);
 
-        self.emitLenOf(self.functions.items);
-        for (self.functions.items) |function| {
-            _ = function;
+        self.emitLenOf(self.analyzer.functions.items);
+        for (self.analyzer.functions.items) |function| {
             // Fn type.
             self.emitByte(0x60);
-            // Number of param types.
-            self.emitLebU32(0);
-            // Number of result types.
+            // Param types.
+            self.emitLebU32(@intCast(1 + function.params.len));
+            self.emitValType(.i32);
+            for (function.params) |_|
+                self.emitValType(.i32);
+            // Result types.
             self.emitLebU32(0);
         }
     }
 
+    // Functions
     {
-        // Functions
         const section = self.emitSectionStart(3);
         defer self.emitSectionEnd(section);
 
-        self.emitLenOf(self.functions.items);
-        for (self.functions.items) |function| {
-            _ = function;
-            // Type 0.
-            self.emitLebU32(0);
+        self.emitLenOf(self.analyzer.functions.items);
+        for (0..self.analyzer.functions.items.len) |function_ix| {
+            // Function i has type i
+            self.emitLebU32(@intCast(function_ix));
         }
     }
 
+    // Memory
     {
-        // Exports
+        const section = self.emitSectionStart(5);
+        defer self.emitSectionEnd(section);
+
+        // Number of memories.
+        self.emitLebU32(1);
+        // No maximum.
+        self.emitByte(0x00);
+        // At minimum enough memory for the stack.
+        self.emitLebU32(@intCast(@divTrunc(self.analyzer.stack_offset_max, wasm_page_size)));
+    }
+
+    // Globals
+    {
+        const section = self.emitSectionStart(6);
+        defer self.emitSectionEnd(section);
+
+        // Number of globals
+        self.emitLebU32(1);
+
+        // stack_pointer: i32 mut = 0
+        self.emitValType(.i32);
+        self.emitByte(0x01);
+        self.emitI32Const(0);
+        self.emitEnd();
+    }
+
+    // Exports
+    {
         const section = self.emitSectionStart(7);
         defer self.emitSectionEnd(section);
 
@@ -129,28 +125,43 @@ pub fn emitAll(self: *Self) []u8 {
         self.emitLebU32(0);
     }
 
+    // Code
     {
-        // Code
         const section = self.emitSectionStart(10);
         defer self.emitSectionEnd(section);
 
-        self.emitLenOf(self.functions.items);
-        for (self.functions.items) |function| {
+        self.emitLenOf(self.analyzer.functions.items);
+        for (self.analyzer.functions.items) |function| {
             const start = self.emitByteCountLater();
             defer self.emitByteCount(start);
 
             self.emitLebU32(function.locals_count);
 
-            //for (function.body) |instruction| {
-            //    self.emitInstruction(instruction);
-            //}
-
-            // Emit end.
-            self.emitByte(0x0B);
+            try self.compileExpr(function.body);
+            self.emitEnd();
         }
     }
 
     return self.wasm.items;
+}
+
+fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
+    const expr = self.parser.exprs.items[expr_id];
+    //const repr = self.analyzer.reprs[expr_id].?;
+    const place = self.analyzer.places[expr_id].?;
+    switch (expr) {
+        .i64 => |num| {
+            self.emitStoreBase(place);
+            self.emitI64Const(num);
+            self.emitStore(.i64, place);
+        },
+        .statements => |statements| {
+            for (statements) |statement| {
+                try self.compileExpr(statement);
+            }
+        },
+        else => return self.fail("TODO Can't compile {}", .{expr}),
+    }
 }
 
 fn emitByte(self: *Self, b: u8) void {
@@ -237,13 +248,67 @@ fn emitLenOf(self: *Self, slice: anytype) void {
     self.emitLebU32(@intCast(slice.len));
 }
 
-fn emitInstruction(self: *Self, instruction: Instruction) void {
-    switch (instruction) {
-        .i64 => |num| {
-            self.emitByte(0x42);
-            self.emitLebI64(num);
-        },
+fn emitValType(self: *Self, val_type: ValType) void {
+    // https://webassembly.github.io/spec/core/binary/types.html#number-types
+    switch (val_type) {
+        .i32 => self.emitByte(0x7F),
+        .i64 => self.emitByte(0x7E),
     }
+}
+
+fn emitI32Const(self: *Self, num: i32) void {
+    self.emitByte(0x41);
+    self.emitLebI64(num);
+}
+
+fn emitU32Const(self: *Self, num: u32) void {
+    self.emitI32Const(@bitCast(num));
+}
+
+fn emitI64Const(self: *Self, num: i64) void {
+    self.emitByte(0x42);
+    self.emitLebI64(num);
+}
+
+fn emitGlobalGet(self: *Self, global: u32) void {
+    self.emitByte(0x24);
+    self.emitLebU32(global);
+}
+
+fn emitLocalGet(self: *Self, local: u32) void {
+    self.emitByte(0x20);
+    self.emitLebU32(local);
+}
+
+fn emitLocalSet(self: *Self, local: u32) void {
+    self.emitByte(0x21);
+    self.emitLebU32(local);
+}
+
+fn emitStoreBase(self: *Self, place: Place) void {
+    switch (place) {
+        .result => self.emitLocalGet(0),
+        .shadow => self.emitGlobalGet(0),
+    }
+}
+
+// Expects (base, value) on stack.
+fn emitStore(self: *Self, val_type: ValType, place: Place) void {
+    const offset = switch (place) {
+        .result => 0,
+        .shadow => |offset| offset,
+    };
+    const alignment = 0; // TODO aligment
+    switch (val_type) {
+        .i32 => self.emitByte(0x36),
+        .i64 => self.emitByte(0x37),
+    }
+    self.emitLebU32(alignment);
+    self.emitLebU32(offset);
+}
+
+fn emitEnd(self: *Self) void {
+    self.emitByte(0x0B);
 }
 
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{CompileError} {
