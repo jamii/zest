@@ -116,12 +116,16 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
         defer self.emitSectionEnd(section);
 
         // Number of exports.
-        self.emitLebU32(1);
-        // Name
+        self.emitLebU32(2);
+
+        // main = fn 0
         self.emitName("main");
-        // Fn export.
         self.emitByte(0x00);
-        // Fn 0.
+        self.emitLebU32(0);
+
+        // memory = mem 0
+        self.emitName("memory");
+        self.emitByte(0x02);
         self.emitLebU32(0);
     }
 

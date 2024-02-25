@@ -21,6 +21,8 @@ memory = wasmInstance.exports.memory;
 
 try {
   wasmInstance.exports.main();
+  // TODO print results
+  console.log((new Int32Array(memory.buffer))[0]);
 } catch (error) {
   console.error(error);
 }
