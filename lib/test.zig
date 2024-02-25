@@ -38,7 +38,7 @@ fn eval_wasm(
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
         //assert(std.meta.eql(result.term, .{ .Exited = 0 }));
-        return result.stdout;
+        return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
     } else |err| {
         panic("Error running test.js: {}", .{err});
     }
