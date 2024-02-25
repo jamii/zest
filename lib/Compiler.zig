@@ -92,7 +92,7 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
         // No maximum.
         self.emitByte(0x00);
         // At minimum enough memory for the stack.
-        self.emitLebU32(@intCast(@divTrunc(self.analyzer.stack_offset_max, wasm_page_size)));
+        self.emitLebU32(@intCast(@divExact(self.analyzer.stack_offset_max, wasm_page_size)));
     }
 
     // Globals
