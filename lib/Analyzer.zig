@@ -120,6 +120,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
     }
 }
 
+// TODO Think about whether we can reduce copying by passing null dest instead of framePush. Eg `name` shouldn't need a copy.
 fn placeExpr(self: *Self, expr_id: ExprId, dest: Place) error{AnalyzeError}!void {
     self.places[expr_id] = dest;
     const expr = self.parser.exprs.items[expr_id];
