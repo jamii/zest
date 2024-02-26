@@ -37,7 +37,6 @@ fn eval_wasm(
         .argv = &.{ "deno", "run", "--allow-read", "test.js" },
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
-        //assert(std.meta.eql(result.term, .{ .Exited = 0 }));
         return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
     } else |err| {
         panic("Error running test.js: {}", .{err});
