@@ -151,13 +151,37 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 
 fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
     const expr = self.parser.exprs.items[expr_id];
-    //const repr = self.analyzer.reprs[expr_id].?;
+    const repr = self.analyzer.reprs[expr_id].?;
     const place = self.analyzer.places[expr_id].?;
     switch (expr) {
         .i64 => |num| {
             self.emitStoreBase(place);
             self.emitI64Const(num);
             self.emitStore(.i64, place);
+        },
+        .call => |call| {
+            const head = self.parser.exprs.items[call.head];
+            if (head != .builtin) return self.fail("TODO Can't compile {}", .{expr});
+            switch (head.builtin) {
+                .add, .subtract => {
+                    const val_type: ValType = switch (repr) {
+                        .i64 => .i64,
+                        else => return self.fail("TODO Can't compile {}", .{head.builtin}),
+                    };
+                    try self.compileExpr(call.args.values[0]);
+                    try self.compileExpr(call.args.values[1]);
+                    self.emitStoreBase(place);
+                    self.emitLoad(val_type, self.analyzer.places[call.args.values[0]].?);
+                    self.emitLoad(val_type, self.analyzer.places[call.args.values[1]].?);
+                    switch (head.builtin) {
+                        .add => self.emitAdd(val_type),
+                        .subtract => self.emitSubtract(val_type),
+                        else => unreachable,
+                    }
+                    self.emitStore(val_type, place);
+                },
+                else => return self.fail("TODO Can't compile {}", .{head.builtin}),
+            }
         },
         .statements => |statements| {
             for (statements) |statement| {
@@ -275,7 +299,7 @@ fn emitI64Const(self: *Self, num: i64) void {
 }
 
 fn emitGlobalGet(self: *Self, global: u32) void {
-    self.emitByte(0x24);
+    self.emitByte(0x23);
     self.emitLebU32(global);
 }
 
@@ -287,6 +311,36 @@ fn emitLocalGet(self: *Self, local: u32) void {
 fn emitLocalSet(self: *Self, local: u32) void {
     self.emitByte(0x21);
     self.emitLebU32(local);
+}
+
+fn emitAdd(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x6A),
+        .i64 => self.emitByte(0x7C),
+    }
+}
+
+fn emitSubtract(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x6B),
+        .i64 => self.emitByte(0x7D),
+    }
+}
+
+// Expects (base) on stack.
+fn emitLoad(self: *Self, val_type: ValType, place: Place) void {
+    self.emitStoreBase(place);
+    const offset = switch (place) {
+        .result => 0,
+        .shadow => |offset| offset,
+    };
+    const alignment = 0; // TODO aligment
+    switch (val_type) {
+        .i32 => self.emitByte(0x28),
+        .i64 => self.emitByte(0x29),
+    }
+    self.emitLebU32(alignment);
+    self.emitLebU32(offset);
 }
 
 fn emitStoreBase(self: *Self, place: Place) void {

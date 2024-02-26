@@ -10,6 +10,7 @@ const Parser = @import("./Parser.zig");
 const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
 const Repr = @import("./Semantalyzer.zig").Repr;
+const Value = @import("./Semantalyzer.zig").Value;
 
 const Self = @This();
 allocator: Allocator,
@@ -56,7 +57,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .functions = functions,
         .frame = frame,
         .frame_offset_max = 0,
-        .stack_offset_max = 1 << 23, // 8mb stack
+        .stack_offset_max = 8 << 20, // 8mb
         .error_message = null,
     };
 }
@@ -86,6 +87,25 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64 => return .i64,
+        .call => |call| {
+            const head = self.parser.exprs.items[call.head];
+            if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
+            switch (head.builtin) {
+                .add, .subtract => {
+                    if (call.args.keys.len != 2) return self.fail("Wrong number of args to {}", .{expr});
+                    const key0 = try self.evalConstant(call.args.keys[0]);
+                    const key1 = try self.evalConstant(call.args.keys[1]);
+                    if (key0 != .i64 and key0.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
+                    if (key1 != .i64 and key1.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
+                    const repr0 = try self.reprOfExpr(call.args.values[0], null);
+                    const repr1 = try self.reprOfExpr(call.args.values[1], null);
+                    if (repr0 != .i64) return self.fail("Expected i64, found {}", .{repr0});
+                    if (repr1 != .i64) return self.fail("Expected i64, found {}", .{repr1});
+                    return .i64;
+                },
+                else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
+            }
+        },
         .statements => |statements| {
             if (statements.len == 0) {
                 return Repr.emptyStruct();
@@ -105,6 +125,17 @@ fn placeExpr(self: *Self, expr_id: ExprId, dest: Place) error{AnalyzeError}!void
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64 => {},
+        .call => |call| {
+            const head = self.parser.exprs.items[call.head];
+            if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
+            switch (head.builtin) {
+                .add, .subtract => {
+                    try self.placeExpr(call.args.values[0], self.framePush(self.reprs[call.args.values[0]].?));
+                    try self.placeExpr(call.args.values[1], self.framePush(self.reprs[call.args.values[1]].?));
+                },
+                else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
+            }
+        },
         .statements => |statements| {
             for (statements, 0..) |statement, ix| {
                 if (ix == statements.len - 1) {
@@ -131,6 +162,14 @@ fn framePush(self: *Self, repr: Repr) Place {
 
 fn framePop(self: *Self) void {
     _ = self.frame.pop();
+}
+
+fn evalConstant(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
+    const expr = self.parser.exprs.items[expr_id];
+    switch (expr) {
+        .i64 => |num| return .{ .i64 = num },
+        else => return self.fail("Cannot const eval {}", .{expr}),
+    }
 }
 
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{AnalyzeError} {
