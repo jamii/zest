@@ -18,7 +18,7 @@ parser: Parser,
 reprs: []?Repr,
 places: []?Place,
 functions: ArrayList(Function),
-frame: ArrayList(usize),
+frame_offset: usize,
 frame_offset_max: usize,
 stack_offset_max: usize,
 error_message: ?[]const u8,
@@ -55,7 +55,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .reprs = reprs,
         .places = places,
         .functions = functions,
-        .frame = frame,
+        .frame_offset = 0,
         .frame_offset_max = 0,
         .stack_offset_max = 8 << 20, // 8mb
         .error_message = null,
@@ -120,9 +120,16 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
     }
 }
 
-// TODO Think about whether we can reduce copying by passing null dest instead of framePush. Eg `name` shouldn't need a copy.
-fn placeExpr(self: *Self, expr_id: ExprId, dest: Place) error{AnalyzeError}!void {
+fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeError}!void {
+    // Allocate stack for result if needed.
+    const repr = self.reprs[expr_id].?;
+    const dest = maybe_dest orelse self.framePush(repr);
     self.places[expr_id] = dest;
+
+    // After subexprs, restore stack to current position.
+    const frame_offset_now = self.frame_offset;
+    defer self.frame_offset = frame_offset_now;
+
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64 => {},
@@ -131,22 +138,15 @@ fn placeExpr(self: *Self, expr_id: ExprId, dest: Place) error{AnalyzeError}!void
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
             switch (head.builtin) {
                 .add, .subtract => {
-                    try self.placeExpr(call.args.values[0], self.framePush(self.reprs[call.args.values[0]].?));
-                    try self.placeExpr(call.args.values[1], self.framePush(self.reprs[call.args.values[1]].?));
+                    try self.placeExpr(call.args.values[0], null);
+                    try self.placeExpr(call.args.values[1], null);
                 },
                 else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
             }
         },
         .statements => |statements| {
             for (statements, 0..) |statement, ix| {
-                if (ix == statements.len - 1) {
-                    try self.placeExpr(statement, dest);
-                } else {
-                    const statement_dest = self.framePush(self.reprs[expr_id].?);
-                    defer self.framePop();
-
-                    try self.placeExpr(statement, statement_dest);
-                }
+                try self.placeExpr(statement, if (ix == statements.len - 1) dest else null);
             }
         },
         else => return self.fail("TODO Can't analyze {}", .{expr}),
@@ -154,11 +154,9 @@ fn placeExpr(self: *Self, expr_id: ExprId, dest: Place) error{AnalyzeError}!void
 }
 
 fn framePush(self: *Self, repr: Repr) Place {
-    const offset_prev = self.frame.items[self.frame.items.len - 1];
-    const offset = offset_prev + repr.sizeOf(); // TODO alignment
-    self.frame.append(offset) catch oom();
-    self.frame_offset_max = @max(self.frame_offset_max, offset);
-    return .{ .shadow = @intCast(offset) };
+    self.frame_offset += repr.sizeOf();
+    self.frame_offset_max = @max(self.frame_offset_max, self.frame_offset);
+    return .{ .shadow = @intCast(self.frame_offset) };
 }
 
 fn framePop(self: *Self) void {
