@@ -175,7 +175,14 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't compile {}", .{expr});
             switch (head.builtin) {
-                .add, .subtract => {
+                .equal,
+                .less_than,
+                .less_than_or_equal,
+                .more_than,
+                .more_than_or_equal,
+                .add,
+                .subtract,
+                => {
                     const val_type: ValType = switch (repr) {
                         .i64 => .i64,
                         else => return self.fail("TODO Can't compile {}", .{head.builtin}),
@@ -186,8 +193,20 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
                     self.emitLoad(val_type, self.analyzer.places[call.args.values[0]].?);
                     self.emitLoad(val_type, self.analyzer.places[call.args.values[1]].?);
                     switch (head.builtin) {
+                        .equal => self.emitEqual(val_type),
+                        .less_than => self.emitLessThan(val_type),
+                        .less_than_or_equal => self.emitLessThanOrEqual(val_type),
+                        .more_than => self.emitMoreThan(val_type),
+                        .more_than_or_equal => self.emitMoreThanOrEqual(val_type),
                         .add => self.emitAdd(val_type),
                         .subtract => self.emitSubtract(val_type),
+                        else => unreachable,
+                    }
+                    switch (head.builtin) {
+                        .equal, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => {
+                            self.emitU32ToI64();
+                        },
+                        .add, .subtract => {},
                         else => unreachable,
                     }
                     self.emitStore(val_type, dest);
@@ -333,6 +352,41 @@ fn emitLocalSet(self: *Self, local: u32) void {
     self.emitLebU32(local);
 }
 
+fn emitEqual(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x46),
+        .i64 => self.emitByte(0x51),
+    }
+}
+
+fn emitLessThan(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x48),
+        .i64 => self.emitByte(0x53),
+    }
+}
+
+fn emitLessThanOrEqual(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x4C),
+        .i64 => self.emitByte(0x57),
+    }
+}
+
+fn emitMoreThan(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x4A),
+        .i64 => self.emitByte(0x55),
+    }
+}
+
+fn emitMoreThanOrEqual(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x4E),
+        .i64 => self.emitByte(0x59),
+    }
+}
+
 fn emitAdd(self: *Self, val_type: ValType) void {
     switch (val_type) {
         .i32 => self.emitByte(0x6A),
@@ -345,6 +399,10 @@ fn emitSubtract(self: *Self, val_type: ValType) void {
         .i32 => self.emitByte(0x6B),
         .i64 => self.emitByte(0x7D),
     }
+}
+
+fn emitU32ToI64(self: *Self) void {
+    self.emitByte(0xAD);
 }
 
 fn emitLoad(self: *Self, val_type: ValType, place: Place) void {

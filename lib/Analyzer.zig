@@ -150,7 +150,14 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
             switch (head.builtin) {
-                .add, .subtract => {
+                .equal,
+                .less_than,
+                .less_than_or_equal,
+                .more_than,
+                .more_than_or_equal,
+                .add,
+                .subtract,
+                => {
                     if (call.args.keys.len != 2) return self.fail("Wrong number of args to {}", .{expr});
                     const key0 = try self.evalConstantKey(call.args.keys[0]);
                     const key1 = try self.evalConstantKey(call.args.keys[1]);
@@ -218,7 +225,14 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
             switch (head.builtin) {
-                .add, .subtract => {
+                .equal,
+                .less_than,
+                .less_than_or_equal,
+                .more_than,
+                .more_than_or_equal,
+                .add,
+                .subtract,
+                => {
                     try self.placeExpr(call.args.values[0], null);
                     try self.placeExpr(call.args.values[1], null);
                 },
