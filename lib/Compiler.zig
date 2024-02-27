@@ -152,12 +152,12 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
     const expr = self.parser.exprs.items[expr_id];
     const repr = self.analyzer.reprs[expr_id].?;
-    const place = self.analyzer.places[expr_id].?;
+    const dest = self.analyzer.places[expr_id].?;
     switch (expr) {
         .i64 => |num| {
-            self.emitStoreBase(place);
+            self.emitPlaceBase(dest);
             self.emitI64Const(num);
-            self.emitStore(.i64, place);
+            self.emitStore(.i64, dest);
         },
         .object => |object| {
             if (repr != .@"struct") return self.fail("TODO Can't compile {}", .{expr});
@@ -174,7 +174,7 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
                     };
                     try self.compileExpr(call.args.values[0]);
                     try self.compileExpr(call.args.values[1]);
-                    self.emitStoreBase(place);
+                    self.emitPlaceBase(dest);
                     self.emitLoad(val_type, self.analyzer.places[call.args.values[0]].?);
                     self.emitLoad(val_type, self.analyzer.places[call.args.values[1]].?);
                     switch (head.builtin) {
@@ -182,10 +182,18 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
                         .subtract => self.emitSubtract(val_type),
                         else => unreachable,
                     }
-                    self.emitStore(val_type, place);
+                    self.emitStore(val_type, dest);
                 },
                 else => return self.fail("TODO Can't compile {}", .{head.builtin}),
             }
+        },
+        .get => |get| {
+            try self.compileExpr(get.object);
+            const object_repr = self.analyzer.reprs[get.object].?;
+            const key = self.analyzer.constants[get.key].?;
+            const offset = object_repr.@"struct".offsetOf(key).?;
+            const src = self.analyzer.places[get.object].?.offsetBy(@intCast(offset));
+            self.emitCopy(dest, src, @intCast(repr.sizeOf()));
         },
         .statements => |statements| {
             for (statements) |statement| {
@@ -332,7 +340,7 @@ fn emitSubtract(self: *Self, val_type: ValType) void {
 }
 
 fn emitLoad(self: *Self, val_type: ValType, place: Place) void {
-    self.emitStoreBase(place);
+    self.emitPlaceBase(place);
     const alignment = 0; // TODO aligment
     switch (val_type) {
         .i32 => self.emitByte(0x28),
@@ -342,11 +350,17 @@ fn emitLoad(self: *Self, val_type: ValType, place: Place) void {
     self.emitLebU32(place.offset);
 }
 
-fn emitStoreBase(self: *Self, place: Place) void {
+fn emitPlaceBase(self: *Self, place: Place) void {
     switch (place.base) {
         .result => self.emitLocalGet(0),
         .shadow => self.emitGlobalGet(0),
     }
+}
+
+fn emitPlace(self: *Self, place: Place) void {
+    self.emitPlaceBase(place);
+    self.emitU32Const(place.offset);
+    self.emitAdd(.i32);
 }
 
 // Expects (base, value) on stack.
@@ -358,6 +372,18 @@ fn emitStore(self: *Self, val_type: ValType, place: Place) void {
     }
     self.emitLebU32(alignment);
     self.emitLebU32(place.offset);
+}
+
+fn emitCopy(self: *Self, src: Place, dest: Place, byte_count: u32) void {
+    if (src.equal(dest)) return;
+    self.emitPlace(src);
+    self.emitPlace(dest);
+    self.emitU32Const(byte_count);
+    // memory.copy(mem 0 => mem 0)
+    self.emitByte(0xFC);
+    self.emitLebU32(10);
+    self.emitByte(0x00);
+    self.emitByte(0x00);
 }
 
 fn emitEnd(self: *Self) void {

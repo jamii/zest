@@ -18,6 +18,7 @@ allocator: Allocator,
 parser: Parser,
 reprs: []?Repr,
 places: []?Place,
+constants: []?Value,
 functions: ArrayList(Function),
 frame_offset: usize,
 frame_offset_max: usize,
@@ -28,7 +29,11 @@ pub const Place = struct {
     base: enum { result, shadow },
     offset: u32,
 
-    fn offsetBy(self: Place, offset: u32) Place {
+    pub fn equal(self: Place, other: Place) bool {
+        return self.base == other.base and self.offset == other.offset;
+    }
+
+    pub fn offsetBy(self: Place, offset: u32) Place {
         return .{ .base = self.base, .offset = self.offset + offset };
     }
 };
@@ -49,6 +54,9 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
     const places = allocator.alloc(?Place, parser.exprs.items.len) catch oom();
     for (places) |*place| place.* = null;
 
+    const constants = allocator.alloc(?Value, parser.exprs.items.len) catch oom();
+    for (constants) |*constant| constant.* = null;
+
     const functions = ArrayList(Function).init(allocator);
 
     var frame = ArrayList(usize).init(allocator);
@@ -59,6 +67,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .parser = parser,
         .reprs = reprs,
         .places = places,
+        .constants = constants,
         .functions = functions,
         .frame_offset = 0,
         .frame_offset_max = 0,
@@ -126,6 +135,14 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                 else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
             }
         },
+        .get => |get| {
+            const object_repr = try self.reprOfExpr(get.object, null);
+            const key = try self.evalConstantKey(get.key);
+            if (object_repr != .@"struct") return self.fail("Expected struct, found {}", .{object_repr});
+            const ix = object_repr.@"struct".ixOf(key) orelse
+                return self.fail("Key {} does not exist in {}", .{ key, object_repr });
+            return object_repr.@"struct".reprs[ix];
+        },
         .statements => |statements| {
             if (statements.len == 0) {
                 return Repr.emptyStruct();
@@ -155,8 +172,9 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
         .i64 => {},
         .object => |object| {
             if (repr != .@"struct") return self.fail("TODO Can't analyze {}", .{expr});
+            // objects.keys are constant
             for (repr.@"struct".keys, object.values) |key, value_expr| {
-                try self.placeExpr(value_expr, dest.offsetBy(@intCast(repr.@"struct".offsetOf(key))));
+                try self.placeExpr(value_expr, dest.offsetBy(@intCast(repr.@"struct".offsetOf(key).?)));
             }
         },
         .call => |call| {
@@ -169,6 +187,10 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
                 },
                 else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
             }
+        },
+        .get => |get| {
+            try self.placeExpr(get.object, null);
+            // get.key is constant
         },
         .statements => |statements| {
             for (statements, 0..) |statement, ix| {
@@ -191,18 +213,22 @@ fn framePop(self: *Self) void {
 
 fn evalConstantKey(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
     const expr = self.parser.exprs.items[expr_id];
-    switch (expr) {
-        .name => |name| return .{ .string = self.allocator.dupe(u8, name) catch oom() },
+    const value: Value = switch (expr) {
+        .name => |name| .{ .string = self.allocator.dupe(u8, name) catch oom() },
         else => return self.evalConstant(expr_id),
-    }
+    };
+    self.constants[expr_id] = value;
+    return value;
 }
 
 fn evalConstant(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
     const expr = self.parser.exprs.items[expr_id];
-    switch (expr) {
-        .i64 => |num| return .{ .i64 = num },
+    const value: Value = switch (expr) {
+        .i64 => |num| .{ .i64 = num },
         else => return self.fail("Cannot const eval {}", .{expr}),
-    }
+    };
+    self.constants[expr_id] = value;
+    return value;
 }
 
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{AnalyzeError} {

@@ -608,7 +608,15 @@ pub const StructRepr = struct {
 
     // TODO padding and alignment
 
-    pub fn offsetOf(self: StructRepr, target_key: Value) usize {
+    pub fn sizeOf(self: StructRepr) usize {
+        var size: usize = 0;
+        for (self.reprs) |repr| {
+            size += repr.sizeOf();
+        }
+        return size;
+    }
+
+    pub fn offsetOf(self: StructRepr, target_key: Value) ?usize {
         var offset: usize = 0;
         for (self.keys, self.reprs) |key, repr| {
             if (key.equal(target_key)) {
@@ -616,15 +624,16 @@ pub const StructRepr = struct {
             }
             offset += repr.sizeOf();
         }
-        panic("Can't find {} in {}", .{ target_key, Repr{ .@"struct" = self } });
+        return null;
     }
 
-    pub fn sizeOf(self: StructRepr) usize {
-        var size: usize = 0;
-        for (self.reprs) |repr| {
-            size += repr.sizeOf();
+    pub fn ixOf(self: StructRepr, target_key: Value) ?usize {
+        for (self.keys, 0..) |key, ix| {
+            if (key.equal(target_key)) {
+                return ix;
+            }
         }
-        return size;
+        return null;
     }
 };
 
