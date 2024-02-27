@@ -10,6 +10,7 @@ const Parser = @import("./Parser.zig");
 const Analyzer = @import("./Analyzer.zig");
 const ExprId = Parser.ExprId;
 const Place = Analyzer.Place;
+const Repr = @import("./Semantalyzer.zig").Repr;
 
 const Self = @This();
 allocator: Allocator,
@@ -163,6 +164,13 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             if (repr != .@"struct") return self.fail("TODO Can't compile {}", .{expr});
             for (object.values) |value| try self.compileExpr(value);
         },
+        .name => {
+            const src = self.analyzer.places[self.analyzer.name_lets[expr_id].?].?;
+            self.emitCopy(dest, src, repr);
+        },
+        .let => |let| {
+            try self.compileExpr(let.value);
+        },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't compile {}", .{expr});
@@ -193,7 +201,7 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             const key = self.analyzer.constants[get.key].?;
             const offset = object_repr.@"struct".offsetOf(key).?;
             const src = self.analyzer.places[get.object].?.offsetBy(@intCast(offset));
-            self.emitCopy(dest, src, @intCast(repr.sizeOf()));
+            self.emitCopy(dest, src, repr);
         },
         .statements => |statements| {
             for (statements) |statement| {
@@ -374,11 +382,11 @@ fn emitStore(self: *Self, val_type: ValType, place: Place) void {
     self.emitLebU32(place.offset);
 }
 
-fn emitCopy(self: *Self, src: Place, dest: Place, byte_count: u32) void {
+fn emitCopy(self: *Self, src: Place, dest: Place, repr: Repr) void {
     if (src.equal(dest)) return;
     self.emitPlace(src);
     self.emitPlace(dest);
-    self.emitU32Const(byte_count);
+    self.emitU32Const(@intCast(repr.sizeOf()));
     // memory.copy(mem 0 => mem 0)
     self.emitByte(0xFC);
     self.emitLebU32(10);

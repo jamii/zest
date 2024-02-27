@@ -19,10 +19,12 @@ parser: Parser,
 reprs: []?Repr,
 places: []?Place,
 constants: []?Value,
+name_lets: []?ExprId,
 functions: ArrayList(Function),
 frame_offset: usize,
 frame_offset_max: usize,
 stack_offset_max: usize,
+scope: ArrayList(Binding),
 error_message: ?[]const u8,
 
 pub const Place = struct {
@@ -47,6 +49,11 @@ pub const Function = struct {
     body: ExprId,
 };
 
+pub const Binding = struct {
+    name: []const u8,
+    value_id: ExprId,
+};
+
 pub fn init(allocator: Allocator, parser: Parser) Self {
     const reprs = allocator.alloc(?Repr, parser.exprs.items.len) catch oom();
     for (reprs) |*repr| repr.* = null;
@@ -56,6 +63,9 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
 
     const constants = allocator.alloc(?Value, parser.exprs.items.len) catch oom();
     for (constants) |*constant| constant.* = null;
+
+    const name_lets = allocator.alloc(?ExprId, parser.exprs.items.len) catch oom();
+    for (name_lets) |*name_let| name_let.* = null;
 
     const functions = ArrayList(Function).init(allocator);
 
@@ -68,10 +78,12 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .reprs = reprs,
         .places = places,
         .constants = constants,
+        .name_lets = name_lets,
         .functions = functions,
         .frame_offset = 0,
         .frame_offset_max = 0,
         .stack_offset_max = 8 << 20, // 8mb
+        .scope = ArrayList(Binding).init(allocator),
         .error_message = null,
     };
 }
@@ -116,6 +128,24 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             }
             return .{ .@"struct" = StructRepr.sorted(self.allocator, keys, reprs) };
         },
+        .name => |name| {
+            var i = self.scope.items.len;
+            while (i > 0) : (i -= 1) {
+                const binding = &self.scope.items[i - 1];
+                if (std.mem.eql(u8, binding.name, name)) {
+                    self.name_lets[expr_id] = binding.value_id;
+                    return self.reprs[binding.value_id].?;
+                }
+            }
+            return self.fail("Name {s} not in scope", .{name});
+        },
+        .let => |let| {
+            const path = self.parser.exprs.items[let.path];
+            if (path != .name) return self.fail("TODO Can't analyze {}", .{expr});
+            _ = try self.reprOfExpr(let.value, null);
+            self.scope.append(.{ .name = path.name, .value_id = let.value }) catch oom();
+            return Repr.emptyStruct();
+        },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
@@ -147,10 +177,13 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             if (statements.len == 0) {
                 return Repr.emptyStruct();
             } else {
+                const scope_len = self.scope.items.len;
                 for (statements[0 .. statements.len - 1]) |statement| {
                     _ = try self.reprOfExpr(statement, null);
                 }
-                return self.reprOfExpr(statements[statements.len - 1], repr_in);
+                const repr = self.reprOfExpr(statements[statements.len - 1], repr_in);
+                self.scope.shrinkRetainingCapacity(scope_len);
+                return repr;
             }
         },
         else => return self.fail("TODO Can't analyze {}", .{expr}),
@@ -163,9 +196,7 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
     const dest = maybe_dest orelse self.framePush(repr);
     self.places[expr_id] = dest;
 
-    // After subexprs, restore stack to current position.
     const frame_offset_now = self.frame_offset;
-    defer self.frame_offset = frame_offset_now;
 
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
@@ -176,6 +207,12 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
             for (repr.@"struct".keys, object.values) |key, value_expr| {
                 try self.placeExpr(value_expr, dest.offsetBy(@intCast(repr.@"struct".offsetOf(key).?)));
             }
+            self.frame_offset = frame_offset_now;
+        },
+        // TODO Feels like we could avoid the copy for name, but tricky with mutation.
+        .name => {},
+        .let => |let| {
+            try self.placeExpr(let.value, null);
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
@@ -187,15 +224,18 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
                 },
                 else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
             }
+            self.frame_offset = frame_offset_now;
         },
         .get => |get| {
             try self.placeExpr(get.object, null);
             // get.key is constant
+            self.frame_offset = frame_offset_now;
         },
         .statements => |statements| {
             for (statements, 0..) |statement, ix| {
                 try self.placeExpr(statement, if (ix == statements.len - 1) dest else null);
             }
+            self.frame_offset = frame_offset_now;
         },
         else => return self.fail("TODO Can't analyze {}", .{expr}),
     }
