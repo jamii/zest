@@ -159,6 +159,10 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             self.emitI64Const(num);
             self.emitStore(.i64, place);
         },
+        .object => |object| {
+            if (repr != .@"struct") return self.fail("TODO Can't compile {}", .{expr});
+            for (object.values) |value| try self.compileExpr(value);
+        },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't compile {}", .{expr});
@@ -327,24 +331,19 @@ fn emitSubtract(self: *Self, val_type: ValType) void {
     }
 }
 
-// Expects (base) on stack.
 fn emitLoad(self: *Self, val_type: ValType, place: Place) void {
     self.emitStoreBase(place);
-    const offset = switch (place) {
-        .result => 0,
-        .shadow => |offset| offset,
-    };
     const alignment = 0; // TODO aligment
     switch (val_type) {
         .i32 => self.emitByte(0x28),
         .i64 => self.emitByte(0x29),
     }
     self.emitLebU32(alignment);
-    self.emitLebU32(offset);
+    self.emitLebU32(place.offset);
 }
 
 fn emitStoreBase(self: *Self, place: Place) void {
-    switch (place) {
+    switch (place.base) {
         .result => self.emitLocalGet(0),
         .shadow => self.emitGlobalGet(0),
     }
@@ -352,17 +351,13 @@ fn emitStoreBase(self: *Self, place: Place) void {
 
 // Expects (base, value) on stack.
 fn emitStore(self: *Self, val_type: ValType, place: Place) void {
-    const offset = switch (place) {
-        .result => 0,
-        .shadow => |offset| offset,
-    };
     const alignment = 0; // TODO aligment
     switch (val_type) {
         .i32 => self.emitByte(0x36),
         .i64 => self.emitByte(0x37),
     }
     self.emitLebU32(alignment);
-    self.emitLebU32(offset);
+    self.emitLebU32(place.offset);
 }
 
 fn emitEnd(self: *Self) void {

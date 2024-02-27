@@ -10,6 +10,7 @@ const Parser = @import("./Parser.zig");
 const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
 const Repr = @import("./Semantalyzer.zig").Repr;
+const StructRepr = @import("./Semantalyzer.zig").StructRepr;
 const Value = @import("./Semantalyzer.zig").Value;
 
 const Self = @This();
@@ -23,9 +24,13 @@ frame_offset_max: usize,
 stack_offset_max: usize,
 error_message: ?[]const u8,
 
-pub const Place = union(enum) {
-    result,
-    shadow: u32,
+pub const Place = struct {
+    base: enum { result, shadow },
+    offset: u32,
+
+    fn offsetBy(self: Place, offset: u32) Place {
+        return .{ .base = self.base, .offset = self.offset + offset };
+    }
 };
 
 pub const Function = struct {
@@ -65,7 +70,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
 pub fn analyze(self: *Self) error{AnalyzeError}!void {
     const main_id = self.parser.exprs.items.len - 1;
     _ = try self.reprOfExpr(main_id, null);
-    _ = try self.placeExpr(main_id, .result);
+    _ = try self.placeExpr(main_id, .{ .base = .result, .offset = 0 });
     self.functions.append(.{
         .name = "main",
         .params = &.{},
@@ -87,14 +92,29 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64 => return .i64,
+        .object => |object| {
+            const keys = self.allocator.alloc(Value, object.keys.len) catch oom();
+            for (keys, object.keys) |*key, key_expr| key.* = try self.evalConstantKey(key_expr);
+            const reprs = self.allocator.alloc(Repr, object.values.len) catch oom();
+            for (reprs, object.values, 0..) |*repr, value_expr, ix| {
+                const value_repr_in = if (repr_in != null and
+                    repr_in.? == .@"struct" and
+                    repr_in.?.@"struct".reprs.len == reprs.len)
+                    repr_in.?.@"struct".reprs[ix]
+                else
+                    null;
+                repr.* = try self.reprOfExpr(value_expr, value_repr_in);
+            }
+            return .{ .@"struct" = StructRepr.sorted(self.allocator, keys, reprs) };
+        },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
             switch (head.builtin) {
                 .add, .subtract => {
                     if (call.args.keys.len != 2) return self.fail("Wrong number of args to {}", .{expr});
-                    const key0 = try self.evalConstant(call.args.keys[0]);
-                    const key1 = try self.evalConstant(call.args.keys[1]);
+                    const key0 = try self.evalConstantKey(call.args.keys[0]);
+                    const key1 = try self.evalConstantKey(call.args.keys[1]);
                     if (key0 != .i64 and key0.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
                     if (key1 != .i64 and key1.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
                     const repr0 = try self.reprOfExpr(call.args.values[0], null);
@@ -133,6 +153,12 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .i64 => {},
+        .object => |object| {
+            if (repr != .@"struct") return self.fail("TODO Can't analyze {}", .{expr});
+            for (repr.@"struct".keys, object.values) |key, value_expr| {
+                try self.placeExpr(value_expr, dest.offsetBy(@intCast(repr.@"struct".offsetOf(key))));
+            }
+        },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
@@ -156,11 +182,19 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
 fn framePush(self: *Self, repr: Repr) Place {
     self.frame_offset += repr.sizeOf();
     self.frame_offset_max = @max(self.frame_offset_max, self.frame_offset);
-    return .{ .shadow = @intCast(self.frame_offset) };
+    return .{ .base = .shadow, .offset = @intCast(self.frame_offset) };
 }
 
 fn framePop(self: *Self) void {
     _ = self.frame.pop();
+}
+
+fn evalConstantKey(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
+    const expr = self.parser.exprs.items[expr_id];
+    switch (expr) {
+        .name => |name| return .{ .string = self.allocator.dupe(u8, name) catch oom() },
+        else => return self.evalConstant(expr_id),
+    }
 }
 
 fn evalConstant(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {

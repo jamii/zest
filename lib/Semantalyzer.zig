@@ -578,6 +578,7 @@ pub const Repr = union(enum) {
     pub fn sizeOf(self: Repr) usize {
         return switch (self) {
             .i64 => 8,
+            .@"struct" => |@"struct"| @"struct".sizeOf(),
             else => panic("TODO: {}.sizeOf()", .{self}),
         };
     }
@@ -586,6 +587,45 @@ pub const Repr = union(enum) {
 pub const StructRepr = struct {
     keys: []Value,
     reprs: []Repr,
+
+    pub fn sorted(allocator: Allocator, keys: []Value, reprs: []Repr) StructRepr {
+        var ixes = allocator.alloc(usize, keys.len) catch oom();
+        for (ixes, 0..) |*ix, i| ix.* = i;
+        std.sort.heap(usize, ixes, keys, (struct {
+            fn lessThan(context: []Value, a: usize, b: usize) bool {
+                switch (context[a].order(context[b])) {
+                    .lt => return true,
+                    .gt, .eq => return false,
+                }
+            }
+        }).lessThan);
+
+        return .{
+            .keys = permute(allocator, ixes, Value, keys),
+            .reprs = permute(allocator, ixes, Repr, reprs),
+        };
+    }
+
+    // TODO padding and alignment
+
+    pub fn offsetOf(self: StructRepr, target_key: Value) usize {
+        var offset: usize = 0;
+        for (self.keys, self.reprs) |key, repr| {
+            if (key.equal(target_key)) {
+                return offset;
+            }
+            offset += repr.sizeOf();
+        }
+        panic("Can't find {} in {}", .{ target_key, Repr{ .@"struct" = self } });
+    }
+
+    pub fn sizeOf(self: StructRepr) usize {
+        var size: usize = 0;
+        for (self.reprs) |repr| {
+            size += repr.sizeOf();
+        }
+        return size;
+    }
 };
 
 pub const ListRepr = *Repr;
@@ -808,6 +848,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                                     return self.fail("Can't pass {} to {}", .{ value, head });
                                 repr.* = value.repr;
                             }
+                            // TODO sort keys
                             return .{ .repr = .{ .@"struct" = .{
                                 .keys = args.repr.keys,
                                 .reprs = reprs,
