@@ -316,7 +316,6 @@ fn emitLenOf(self: *Self, slice: anytype) void {
 }
 
 fn emitValType(self: *Self, val_type: ValType) void {
-    // https://webassembly.github.io/spec/core/binary/types.html#number-types
     switch (val_type) {
         .i32 => self.emitByte(0x7F),
         .i64 => self.emitByte(0x7E),
