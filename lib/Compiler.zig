@@ -104,10 +104,10 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
         // Number of globals
         self.emitLebU32(1);
 
-        // stack_pointer: i32 mut = 0
+        // stack_pointer: i32 mut = analyzer.stack_offset_max
         self.emitValType(.i32);
         self.emitByte(0x01);
-        self.emitI32Const(0);
+        self.emitI32Const(@intCast(self.analyzer.stack_offset_max));
         self.emitEnd();
     }
 
@@ -142,7 +142,25 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 
             self.emitLebU32(function.locals_count);
 
+            // Push frame
+            self.emitGlobalGet(0);
+            self.emitU32Const(@intCast(function.frame_size));
+            self.emitSub(.i32);
+            self.emitGlobalSet(0);
+
             try self.compileExpr(function.body);
+
+            // TODO temporary hack so we can read the result from test.js
+            const src = self.analyzer.places[function.body].?;
+            const dest = Place{ .base = .shadow, .offset = @as(u32, @intCast(function.frame_size)) - 8, .length = 8 };
+            self.emitCopy(dest, src);
+
+            // Pop frame
+            self.emitGlobalGet(0);
+            self.emitU32Const(@intCast(function.frame_size));
+            self.emitAdd(.i32);
+            self.emitGlobalSet(0);
+
             self.emitEnd();
         }
     }
@@ -166,7 +184,7 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
         },
         .name => {
             const src = self.analyzer.places[self.analyzer.name_lets[expr_id].?].?;
-            self.emitCopy(dest, src, repr);
+            self.emitCopy(dest, src);
         },
         .let => |let| {
             const value = self.parser.exprs.items[let.value];
@@ -221,9 +239,8 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             try self.compileExpr(get.object);
             const object_repr = self.analyzer.reprs[get.object].?;
             const key = self.analyzer.constants[get.key].?;
-            const offset = object_repr.@"struct".offsetOf(key).?;
-            const src = self.analyzer.places[get.object].?.offsetBy(@intCast(offset));
-            self.emitCopy(dest, src, repr);
+            const src = object_repr.@"struct".placeOf(self.analyzer.places[get.object].?, key).?;
+            self.emitCopy(dest, src);
         },
         .statements => |statements| {
             for (statements) |statement| {
@@ -344,6 +361,11 @@ fn emitGlobalGet(self: *Self, global: u32) void {
     self.emitLebU32(global);
 }
 
+fn emitGlobalSet(self: *Self, global: u32) void {
+    self.emitByte(0x24);
+    self.emitLebU32(global);
+}
+
 fn emitLocalGet(self: *Self, local: u32) void {
     self.emitByte(0x20);
     self.emitLebU32(local);
@@ -396,6 +418,13 @@ fn emitAdd(self: *Self, val_type: ValType) void {
     }
 }
 
+fn emitSub(self: *Self, val_type: ValType) void {
+    switch (val_type) {
+        .i32 => self.emitByte(0x6B),
+        .i64 => self.emitByte(0x7D),
+    }
+}
+
 fn emitSubtract(self: *Self, val_type: ValType) void {
     switch (val_type) {
         .i32 => self.emitByte(0x6B),
@@ -442,11 +471,12 @@ fn emitStore(self: *Self, val_type: ValType, place: Place) void {
     self.emitLebU32(place.offset);
 }
 
-fn emitCopy(self: *Self, src: Place, dest: Place, repr: Repr) void {
+fn emitCopy(self: *Self, src: Place, dest: Place) void {
+    assert(src.length == dest.length);
     if (src.equal(dest)) return;
     self.emitPlace(src);
     self.emitPlace(dest);
-    self.emitU32Const(@intCast(repr.sizeOf()));
+    self.emitU32Const(src.length);
     // memory.copy(mem 0 => mem 0)
     self.emitByte(0xFC);
     self.emitLebU32(10);

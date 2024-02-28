@@ -1,5 +1,6 @@
 const std = @import("std");
 const panic = std.debug.panic;
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
@@ -11,6 +12,7 @@ const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
 const ObjectExpr = Parser.ObjectExpr;
 const StaticKey = Parser.StaticKey;
+const Place = @import("./Analyzer.zig").Place;
 
 const Self = @This();
 allocator: Allocator,
@@ -621,6 +623,18 @@ pub const StructRepr = struct {
         for (self.keys, self.reprs) |key, repr| {
             if (key.equal(target_key)) {
                 return offset;
+            }
+            offset += repr.sizeOf();
+        }
+        return null;
+    }
+
+    pub fn placeOf(self: StructRepr, place: Place, target_key: Value) ?Place {
+        assert(place.length == self.sizeOf());
+        var offset: usize = 0;
+        for (self.keys, self.reprs) |key, repr| {
+            if (key.equal(target_key)) {
+                return .{ .base = place.base, .offset = place.offset + @as(u32, @intCast(offset)), .length = @intCast(repr.sizeOf()) };
             }
             offset += repr.sizeOf();
         }

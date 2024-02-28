@@ -30,13 +30,10 @@ error_message: ?[]const u8,
 pub const Place = struct {
     base: enum { result, shadow },
     offset: u32,
+    length: u32,
 
     pub fn equal(self: Place, other: Place) bool {
-        return self.base == other.base and self.offset == other.offset;
-    }
-
-    pub fn offsetBy(self: Place, offset: u32) Place {
-        return .{ .base = self.base, .offset = self.offset + offset };
+        return self.base == other.base and self.offset == other.offset and self.length == other.length;
     }
 };
 
@@ -92,7 +89,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
 pub fn analyze(self: *Self) error{AnalyzeError}!void {
     const main_id = self.parser.exprs.items.len - 1;
     _ = try self.reprOfExpr(main_id, null);
-    _ = try self.placeExpr(main_id, .{ .base = .result, .offset = 0 });
+    _ = try self.placeExpr(main_id, null);
     self.functions.append(.{
         .name = "main",
         .params = &.{},
@@ -240,7 +237,7 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
             if (repr != .@"struct") return self.fail("TODO Can't analyze {}", .{expr});
             // objects.keys are constant
             for (repr.@"struct".keys, object.values) |key, value_expr| {
-                try self.placeExpr(value_expr, dest.offsetBy(@intCast(repr.@"struct".offsetOf(key).?)));
+                try self.placeExpr(value_expr, repr.@"struct".placeOf(dest, key).?);
             }
             self.frame_offset = frame_offset_now;
         },
@@ -307,17 +304,21 @@ fn placeOfPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!Place {
             const object_repr = self.reprs[get.object].?;
             const object_place = try self.placeOfPath(get.object);
             const key = self.constants[get.key].?;
-            const offset = object_repr.@"struct".offsetOf(key).?;
-            return object_place.offsetBy(@intCast(offset));
+            return object_repr.@"struct".placeOf(object_place, key).?;
         },
         else => return self.fail("{} is not valid in a path expression", .{expr}),
     }
 }
 
 fn framePush(self: *Self, repr: Repr) Place {
+    const offset = self.frame_offset;
     self.frame_offset += repr.sizeOf();
     self.frame_offset_max = @max(self.frame_offset_max, self.frame_offset);
-    return .{ .base = .shadow, .offset = @intCast(self.frame_offset) };
+    return .{
+        .base = .shadow,
+        .offset = @intCast(offset),
+        .length = @intCast(repr.sizeOf()),
+    };
 }
 
 fn framePop(self: *Self) void {

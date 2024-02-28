@@ -22,7 +22,8 @@ memory = wasmInstance.exports.memory;
 try {
   wasmInstance.exports.main();
   // TODO print results
-  console.log((new Int32Array(memory.buffer))[0]);
+  let ints = new Int32Array(memory.buffer);
+  console.log(ints[ints.length - 2]);
 } catch (error) {
   console.error(error);
 }

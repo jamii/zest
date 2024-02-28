@@ -114,7 +114,7 @@ Expected struct[i64], found i64
 But be careful about aliasing:
 
 ```
-x = @[/a 1 /b 2]
+x = @[/a 1, /b 2]
 @x = [/a x/b, /b x/a]
 x/a + x/b
 
@@ -122,7 +122,7 @@ error
 ```
 
 ```
-x = @[/a 1 /b 2]
+x = @[/a 1, /b 2]
 y = [/a x/b, /b x/a]
 @x = y
 x/a + x/b
