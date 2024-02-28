@@ -169,7 +169,10 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             self.emitCopy(dest, src, repr);
         },
         .let => |let| {
-            try self.compileExpr(let.value);
+            const value = self.parser.exprs.items[let.value];
+            const mutable = value == .mut;
+            const value_id = if (mutable) value.mut else let.value;
+            try self.compileExpr(value_id);
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];

@@ -51,6 +51,7 @@ pub const Function = struct {
 
 pub const Binding = struct {
     name: []const u8,
+    mutable: bool,
     value_id: ExprId,
 };
 
@@ -129,21 +130,26 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             return .{ .@"struct" = StructRepr.sorted(self.allocator, keys, reprs) };
         },
         .name => |name| {
-            var i = self.scope.items.len;
-            while (i > 0) : (i -= 1) {
-                const binding = &self.scope.items[i - 1];
-                if (std.mem.eql(u8, binding.name, name)) {
-                    self.name_lets[expr_id] = binding.value_id;
-                    return self.reprs[binding.value_id].?;
-                }
-            }
-            return self.fail("Name {s} not in scope", .{name});
+            const binding = try self.lookup(name);
+            self.name_lets[expr_id] = binding.value_id;
+            return self.reprs[binding.value_id].?;
         },
         .let => |let| {
             const path = self.parser.exprs.items[let.path];
-            if (path != .name) return self.fail("TODO Can't analyze {}", .{expr});
-            _ = try self.reprOfExpr(let.value, null);
-            self.scope.append(.{ .name = path.name, .value_id = let.value }) catch oom();
+            switch (path) {
+                .name => {
+                    const value = self.parser.exprs.items[let.value];
+                    const mutable = value == .mut;
+                    const value_id = if (mutable) value.mut else let.value;
+                    _ = try self.reprOfExpr(value_id, null);
+                    self.scope.append(.{ .name = path.name, .mutable = mutable, .value_id = value_id }) catch oom();
+                },
+                .mut => |mut| {
+                    const path_repr = try self.reprOfPath(mut);
+                    _ = try self.reprOfExpr(let.value, path_repr);
+                },
+                else => return self.fail("{} cannot appear on the left-hand side of an assignment (=).", .{path}),
+            }
             return Repr.emptyStruct();
         },
         .call => |call| {
@@ -174,11 +180,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         },
         .get => |get| {
             const object_repr = try self.reprOfExpr(get.object, null);
-            const key = try self.evalConstantKey(get.key);
-            if (object_repr != .@"struct") return self.fail("Expected struct, found {}", .{object_repr});
-            const ix = object_repr.@"struct".ixOf(key) orelse
-                return self.fail("Key {} does not exist in {}", .{ key, object_repr });
-            return object_repr.@"struct".reprs[ix];
+            return self.reprOfGet(object_repr, get.key);
         },
         .statements => |statements| {
             if (statements.len == 0) {
@@ -195,6 +197,31 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         },
         else => return self.fail("TODO Can't analyze {}", .{expr}),
     }
+}
+
+fn reprOfPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!Repr {
+    const expr = self.parser.exprs.items[expr_id];
+    switch (expr) {
+        .name => |name| {
+            const binding = try self.lookup(name);
+            self.name_lets[expr_id] = binding.value_id;
+            if (!binding.mutable) return self.fail("{s} is not a mutable variable", .{name});
+            return self.reprs[binding.value_id].?;
+        },
+        .get => |get| {
+            const object_repr = try self.reprOfPath(get.object);
+            return self.reprOfGet(object_repr, get.key);
+        },
+        else => return self.fail("{} is not valid in a path expression", .{expr}),
+    }
+}
+
+fn reprOfGet(self: *Self, object_repr: Repr, key_id: ExprId) error{AnalyzeError}!Repr {
+    const key = try self.evalConstantKey(key_id);
+    if (object_repr != .@"struct") return self.fail("Expected struct, found {}", .{object_repr});
+    const ix = object_repr.@"struct".ixOf(key) orelse
+        return self.fail("Key {} does not exist in {}", .{ key, object_repr });
+    return object_repr.@"struct".reprs[ix];
 }
 
 fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeError}!void {
@@ -216,10 +243,23 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
             }
             self.frame_offset = frame_offset_now;
         },
-        // TODO Feels like we could avoid the copy for name, but tricky with mutation.
         .name => {},
         .let => |let| {
-            try self.placeExpr(let.value, null);
+            const path = self.parser.exprs.items[let.path];
+            switch (path) {
+                .name => {
+                    const value = self.parser.exprs.items[let.value];
+                    const mutable = value == .mut;
+                    const value_id = if (mutable) value.mut else let.value;
+                    try self.placeExpr(value_id, null);
+                    // Don't reset frame - we need to keep this variable!
+                },
+                .mut => |mut| {
+                    const path_dest = try self.placeOfPath(mut);
+                    try self.placeExpr(let.value, path_dest);
+                },
+                else => return self.fail("{} cannot appear on the left-hand side of an assignment (=).", .{path}),
+            }
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
@@ -255,6 +295,24 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
     }
 }
 
+fn placeOfPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!Place {
+    const expr = self.parser.exprs.items[expr_id];
+    switch (expr) {
+        .name => {
+            const value_id = self.name_lets[expr_id].?;
+            return self.places[value_id].?;
+        },
+        .get => |get| {
+            const object_repr = self.reprs[get.object].?;
+            const object_place = try self.placeOfPath(get.object);
+            const key = self.constants[get.key].?;
+            const offset = object_repr.@"struct".offsetOf(key).?;
+            return object_place.offsetBy(@intCast(offset));
+        },
+        else => return self.fail("{} is not valid in a path expression", .{expr}),
+    }
+}
+
 fn framePush(self: *Self, repr: Repr) Place {
     self.frame_offset += repr.sizeOf();
     self.frame_offset_max = @max(self.frame_offset_max, self.frame_offset);
@@ -283,6 +341,17 @@ fn evalConstant(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
     };
     self.constants[expr_id] = value;
     return value;
+}
+
+fn lookup(self: *Self, name: []const u8) error{AnalyzeError}!Binding {
+    var i = self.scope.items.len;
+    while (i > 0) : (i -= 1) {
+        const binding = self.scope.items[i - 1];
+        if (std.mem.eql(u8, binding.name, name)) {
+            return binding;
+        }
+    }
+    return self.fail("Name {s} not in scope", .{name});
 }
 
 fn fail(self: *Self, comptime message: []const u8, args: anytype) error{AnalyzeError} {
