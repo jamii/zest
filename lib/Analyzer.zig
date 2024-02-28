@@ -105,7 +105,8 @@ pub fn analyze(self: *Self) error{AnalyzeError}!void {
 
 fn reprOfExpr(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {
     const repr = try self.reprOfExprInner(expr_id, repr_in);
-    // TODO check repr is compatible with repr_in
+    if (repr_in != null and repr_in.?.order(repr) != .eq)
+        return self.fail("Expected {}, found {}", .{ repr_in.?, repr });
     self.reprs[expr_id] = repr;
     return repr;
 }

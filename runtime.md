@@ -108,7 +108,7 @@ a = @[42]
 @a = 43
 a
 
-error
+Expected struct[i64], found i64
 ```
 
 But be careful about aliasing:
