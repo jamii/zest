@@ -124,7 +124,7 @@ x = @[/a 1, /b 2]
 @x = [/a x/b, /b x/a]
 x/a + x/b
 
-error
+3
 ```
 
 ```
@@ -139,7 +139,7 @@ x/a + x/b
 Functions (but not higher-order):
 
 ```
-inc = (@a) @a = a + 1
+inc = (@a) { @a = a + 1 }
 x = @42
 inc(@x)
 x
