@@ -254,7 +254,10 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
                 },
                 .mut => |mut| {
                     const path_dest = try self.placeOfPath(mut);
-                    try self.placeExpr(let.value, path_dest);
+                    // TODO Can avoid this copy in most cases, but need to be careful about aliasing.
+                    //try self.placeExpr(let.value, path_dest);
+                    self.places[mut] = path_dest;
+                    try self.placeExpr(let.value, null);
                 },
                 else => return self.fail("{} cannot appear on the left-hand side of an assignment (=).", .{path}),
             }

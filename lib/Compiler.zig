@@ -191,6 +191,11 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             const mutable = value == .mut;
             const value_id = if (mutable) value.mut else let.value;
             try self.compileExpr(value_id);
+
+            const path = self.parser.exprs.items[let.path];
+            if (path == .mut) {
+                self.emitCopy(self.analyzer.places[path.mut].?, self.analyzer.places[let.value].?);
+            }
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
@@ -263,23 +268,29 @@ fn emitLebU32(self: *Self, i: u32) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
+        const is_last_chunk = n == 0;
         const chunk = @as(u8, @truncate(n & 0b0111_1111));
         n = n >> 7;
-        const encoded_chunk = if (n == 0) chunk else chunk | 0b1000_0000;
+        const encoded_chunk = if (is_last_chunk) chunk else chunk | 0b1000_0000;
         self.wasm.append(encoded_chunk) catch oom();
-        if (n == 0) break;
+        if (is_last_chunk) break;
     }
+}
+
+fn emitLebI32(self: *Self, i: i32) void {
+    self.emitLebU32(@bitCast(i));
 }
 
 fn emitLebU64(self: *Self, i: u64) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
+        const is_last_chunk = n == 0;
         const chunk = @as(u8, @truncate(n & 0b0111_1111));
         n = n >> 7;
-        const encoded_chunk = if (n == 0) chunk else chunk | 0b1000_0000;
+        const encoded_chunk = if (is_last_chunk) chunk else chunk | 0b1000_0000;
         self.wasm.append(encoded_chunk) catch oom();
-        if (n == 0) break;
+        if (is_last_chunk) break;
     }
 }
 
@@ -344,7 +355,7 @@ fn emitValType(self: *Self, val_type: ValType) void {
 
 fn emitI32Const(self: *Self, num: i32) void {
     self.emitByte(0x41);
-    self.emitLebI64(num);
+    self.emitLebI32(num);
 }
 
 fn emitU32Const(self: *Self, num: u32) void {
@@ -471,11 +482,11 @@ fn emitStore(self: *Self, val_type: ValType, place: Place) void {
     self.emitLebU32(place.offset);
 }
 
-fn emitCopy(self: *Self, src: Place, dest: Place) void {
+fn emitCopy(self: *Self, dest: Place, src: Place) void {
     assert(src.length == dest.length);
     if (src.equal(dest)) return;
-    self.emitPlace(src);
     self.emitPlace(dest);
+    self.emitPlace(src);
     self.emitU32Const(src.length);
     // memory.copy(mem 0 => mem 0)
     self.emitByte(0xFC);
