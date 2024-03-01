@@ -47,8 +47,8 @@ pub const Function = struct {
 };
 
 pub const Binding = struct {
+    mut: bool,
     name: []const u8,
-    mutable: bool,
     value_id: ExprId,
 };
 
@@ -133,21 +133,13 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             return self.reprs[binding.value_id].?;
         },
         .let => |let| {
-            const path = self.parser.exprs.items[let.path];
-            switch (path) {
-                .name => {
-                    const value = self.parser.exprs.items[let.value];
-                    const mutable = value == .mut;
-                    const value_id = if (mutable) value.mut else let.value;
-                    _ = try self.reprOfExpr(value_id, null);
-                    self.scope.append(.{ .name = path.name, .mutable = mutable, .value_id = value_id }) catch oom();
-                },
-                .mut => |mut| {
-                    const path_repr = try self.reprOfPath(mut);
-                    _ = try self.reprOfExpr(let.value, path_repr);
-                },
-                else => return self.fail("{} cannot appear on the left-hand side of an assignment (=).", .{path}),
-            }
+            _ = try self.reprOfExpr(let.value, null);
+            self.scope.append(.{ .mut = let.mut, .name = let.name, .value_id = let.value }) catch oom();
+            return Repr.emptyStruct();
+        },
+        .set => |set| {
+            const path_repr = try self.reprOfPath(set.path);
+            _ = try self.reprOfExpr(set.value, path_repr);
             return Repr.emptyStruct();
         },
         .call => |call| {
@@ -203,7 +195,7 @@ fn reprOfPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!Repr {
         .name => |name| {
             const binding = try self.lookup(name);
             self.name_lets[expr_id] = binding.value_id;
-            if (!binding.mutable) return self.fail("{s} is not a mutable variable", .{name});
+            if (!binding.mut) return self.fail("{s} is not a mutable variable", .{name});
             return self.reprs[binding.value_id].?;
         },
         .get => |get| {
@@ -243,24 +235,14 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
         },
         .name => {},
         .let => |let| {
-            const path = self.parser.exprs.items[let.path];
-            switch (path) {
-                .name => {
-                    const value = self.parser.exprs.items[let.value];
-                    const mutable = value == .mut;
-                    const value_id = if (mutable) value.mut else let.value;
-                    try self.placeExpr(value_id, null);
-                    // Don't reset frame - we need to keep this variable!
-                },
-                .mut => |mut| {
-                    const path_dest = try self.placeOfPath(mut);
-                    // TODO Can avoid this copy in most cases, but need to be careful about aliasing.
-                    //try self.placeExpr(let.value, path_dest);
-                    self.places[mut] = path_dest;
-                    try self.placeExpr(let.value, null);
-                },
-                else => return self.fail("{} cannot appear on the left-hand side of an assignment (=).", .{path}),
-            }
+            try self.placeExpr(let.value, null);
+        },
+        .set => |set| {
+            const path_dest = try self.placeOfPath(set.path);
+            self.places[set.path] = path_dest;
+            // TODO Can avoid this copy in most cases, but need to be careful about aliasing.
+            //try self.placeExpr(let.value, path_dest);
+            try self.placeExpr(set.value, null);
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];

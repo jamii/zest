@@ -785,33 +785,23 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
             return self.fail("Mut not allowed here", .{});
         },
         .let => |let| {
-            const path_expr = self.parser.exprs.items[let.path];
-            const value_expr = self.parser.exprs.items[let.value];
-            switch (path_expr) {
-                .name => |name| {
-                    // Looks like `name = expr`
-                    const mut = value_expr == .mut;
-                    const value = try self.eval(if (mut) value_expr.mut else let.value);
-                    if (self.lookupBinding(name)) |_| {
-                        return self.fail("Name {s} shadows earlier definition", .{name});
-                    } else |_| {
-                        self.scope.append(.{
-                            .mut = mut,
-                            .call_id = null,
-                            .name = name,
-                            .value = value.copy(self.allocator),
-                        }) catch oom();
-                        return Value.emptyStruct();
-                    }
-                },
-                .mut => |mut| {
-                    // Should look like `@path = expr`
-                    const value = try self.eval(let.value);
-                    try self.pathSet(mut, value.copy(self.allocator));
-                    return Value.emptyStruct();
-                },
-                else => return self.fail("Illegal left-hand side of `=`: {}", .{path_expr}),
+            const value = try self.eval(let.value);
+            if (self.lookupBinding(let.name)) |_| {
+                return self.fail("Name {s} shadows earlier definition", .{let.name});
+            } else |_| {
+                self.scope.append(.{
+                    .mut = let.mut,
+                    .call_id = null,
+                    .name = let.name,
+                    .value = value.copy(self.allocator),
+                }) catch oom();
+                return Value.emptyStruct();
             }
+        },
+        .set => |set| {
+            const value = try self.eval(set.value);
+            try self.pathSet(set.path, value.copy(self.allocator));
+            return Value.emptyStruct();
         },
         .@"if" => |@"if"| {
             const cond = try self.toBool(try self.eval(@"if".cond));
@@ -830,10 +820,7 @@ fn eval(self: *Self, expr_id: ExprId) error{ ReturnTo, SemantalyzeError }!Value 
                 return self.fail("Functions may only be defined at the top of definitions or call arguments", .{});
             const parent = self.parser.exprs.items[parent_id.?];
             const name = switch (parent) {
-                .let => |let| switch (self.parser.exprs.items[let.path]) {
-                    .name => |name| name,
-                    else => return self.fail("Functions may only be defined at the top of definitions or call arguments", .{}),
-                },
+                .let => |let| let.name,
                 .call => null,
                 else => return self.fail("Functions may only be defined at the top of definitions or call arguments", .{}),
             };

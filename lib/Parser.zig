@@ -29,6 +29,11 @@ pub const Expr = union(enum) {
     name: []const u8,
     mut: ExprId,
     let: struct {
+        mut: bool,
+        name: []const u8,
+        value: ExprId,
+    },
+    set: struct {
         path: ExprId,
         value: ExprId,
     },
@@ -116,6 +121,9 @@ pub fn parse(self: *Self) !void {
             .let => |let| {
                 self.parents[let.value] = expr_id;
             },
+            .set => |set| {
+                self.parents[set.value] = expr_id;
+            },
             .@"if" => |@"if"| {
                 self.parents[@"if".cond] = expr_id;
                 self.parents[@"if".then] = expr_id;
@@ -159,8 +167,26 @@ fn parseStatements(self: *Self, end: Token) error{ParseError}!ExprId {
             try self.expect(.@"=");
             try self.expectSpace();
             const value = try self.parseExpr();
-            const let = self.expr(.{ .let = .{ .path = statement, .value = value } });
-            statements.append(let) catch oom();
+
+            // Validation.
+            const path_expr = self.exprs.items[statement];
+            const value_expr = self.exprs.items[value];
+            switch (path_expr) {
+                .mut => |mut| {
+                    const set = self.expr(.{ .set = .{ .path = mut, .value = value } });
+                    statements.append(set) catch oom();
+                },
+                .name => |name| {
+                    const mut = value_expr == .mut;
+                    const let = self.expr(.{ .let = .{
+                        .mut = mut,
+                        .name = name,
+                        .value = if (mut) value_expr.mut else value,
+                    } });
+                    statements.append(let) catch oom();
+                },
+                else => return self.fail("Invalid LHS of assignment: {}", .{path_expr}),
+            }
         } else {
             statements.append(statement) catch oom();
         }

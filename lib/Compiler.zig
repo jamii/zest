@@ -187,15 +187,11 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             self.emitCopy(dest, src);
         },
         .let => |let| {
-            const value = self.parser.exprs.items[let.value];
-            const mutable = value == .mut;
-            const value_id = if (mutable) value.mut else let.value;
-            try self.compileExpr(value_id);
-
-            const path = self.parser.exprs.items[let.path];
-            if (path == .mut) {
-                self.emitCopy(self.analyzer.places[path.mut].?, self.analyzer.places[let.value].?);
-            }
+            try self.compileExpr(let.value);
+        },
+        .set => |set| {
+            try self.compileExpr(set.value);
+            self.emitCopy(self.analyzer.places[set.path].?, self.analyzer.places[set.value].?);
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
