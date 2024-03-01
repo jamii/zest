@@ -150,13 +150,13 @@ x
 Control flow:
 
 ```
-if {1} 3 5
+if {1} 3 else 5
 
 3
 ```
 
 ```
-if {0} 3 5
+if {0} 3 else 5
 
 5
 ```
