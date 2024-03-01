@@ -182,10 +182,6 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             if (repr != .@"struct") return self.fail("TODO Can't compile {}", .{expr});
             for (object.values) |value| try self.compileExpr(value);
         },
-        .name => {
-            const src = self.analyzer.places[self.analyzer.name_lets[expr_id].?].?;
-            self.emitCopy(dest, src);
-        },
         .let => |let| {
             try self.compileExpr(let.value);
         },
@@ -236,11 +232,8 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
                 else => return self.fail("TODO Can't compile {}", .{head.builtin}),
             }
         },
-        .get => |get| {
-            try self.compileExpr(get.object);
-            const object_repr = self.analyzer.reprs[get.object].?;
-            const key = self.analyzer.constants[get.key].?;
-            const src = object_repr.@"struct".placeOf(self.analyzer.places[get.object].?, key).?;
+        .name, .get => {
+            const src = try self.compilePath(expr_id);
             self.emitCopy(dest, src);
         },
         .statements => |statements| {
@@ -249,6 +242,25 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             }
         },
         else => return self.fail("TODO Can't compile {}", .{expr}),
+    }
+}
+
+fn compilePath(self: *Self, expr_id: ExprId) error{CompileError}!Place {
+    const expr = self.parser.exprs.items[expr_id];
+    switch (expr) {
+        .name => {
+            return self.analyzer.places[self.analyzer.name_lets[expr_id].?].?;
+        },
+        .get => |get| {
+            const key = self.analyzer.constants[get.key].?;
+            const object_repr = self.analyzer.reprs[get.object].?;
+            const object_src = try self.compilePath(get.object);
+            return object_repr.@"struct".placeOf(object_src, key).?;
+        },
+        else => {
+            _ = try self.compileExpr(expr_id);
+            return self.analyzer.places[expr_id].?;
+        },
     }
 }
 

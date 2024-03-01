@@ -236,6 +236,7 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
         .name => {},
         .let => |let| {
             try self.placeExpr(let.value, null);
+            // Don't reset frame - we need let.value left on the stack.
         },
         .set => |set| {
             const path_dest = try self.placeOfPath(set.path);
@@ -243,6 +244,7 @@ fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeErro
             // TODO Can avoid this copy in most cases, but need to be careful about aliasing.
             //try self.placeExpr(let.value, path_dest);
             try self.placeExpr(set.value, null);
+            self.frame_offset = frame_offset_now;
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
