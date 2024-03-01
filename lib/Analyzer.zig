@@ -17,6 +17,7 @@ const Self = @This();
 allocator: Allocator,
 parser: Parser,
 reprs: []?Repr,
+place_hints: []?Place,
 places: []?Place,
 constants: []?Value,
 name_lets: []?ExprId,
@@ -31,6 +32,14 @@ pub const Place = struct {
     base: enum { result, shadow },
     offset: u32,
     length: u32,
+
+    pub fn empty() Place {
+        return .{
+            .base = .shadow,
+            .offset = 0,
+            .length = 0,
+        };
+    }
 
     pub fn equal(self: Place, other: Place) bool {
         return self.base == other.base and self.offset == other.offset and self.length == other.length;
@@ -56,6 +65,9 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
     const reprs = allocator.alloc(?Repr, parser.exprs.items.len) catch oom();
     for (reprs) |*repr| repr.* = null;
 
+    const place_hints = allocator.alloc(?Place, parser.exprs.items.len) catch oom();
+    for (place_hints) |*place_hint| place_hint.* = null;
+
     const places = allocator.alloc(?Place, parser.exprs.items.len) catch oom();
     for (places) |*place| place.* = null;
 
@@ -74,6 +86,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .allocator = allocator,
         .parser = parser,
         .reprs = reprs,
+        .place_hints = place_hints,
         .places = places,
         .constants = constants,
         .name_lets = name_lets,
@@ -89,7 +102,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
 pub fn analyze(self: *Self) error{AnalyzeError}!void {
     const main_id = self.parser.exprs.items.len - 1;
     _ = try self.reprOfExpr(main_id, null);
-    _ = try self.placeExpr(main_id, null);
+    _ = try self.placeOfExpr(main_id, null);
     self.functions.append(.{
         .name = "main",
         .params = &.{},
@@ -138,7 +151,8 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             return Repr.emptyStruct();
         },
         .set => |set| {
-            const path_repr = try self.reprOfPath(set.path);
+            try self.assertIsPath(set.path);
+            const path_repr = try self.reprOfExpr(set.path, null);
             _ = try self.reprOfExpr(set.value, path_repr);
             return Repr.emptyStruct();
         },
@@ -170,7 +184,12 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         },
         .get => |get| {
             const object_repr = try self.reprOfExpr(get.object, null);
-            return self.reprOfGet(object_repr, get.key);
+            const key = try self.evalConstantKey(get.key);
+            if (object_repr != .@"struct")
+                return self.fail("Expected struct, found {}", .{object_repr});
+            const ix = object_repr.@"struct".ixOf(key) orelse
+                return self.fail("Key {} does not exist in {}", .{ key, object_repr });
+            return object_repr.@"struct".reprs[ix];
         },
         .statements => |statements| {
             if (statements.len == 0) {
@@ -189,111 +208,89 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
     }
 }
 
-fn reprOfPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!Repr {
+fn assertIsPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!void {
     const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
         .name => |name| {
             const binding = try self.lookup(name);
-            self.name_lets[expr_id] = binding.value_id;
             if (!binding.mut) return self.fail("{s} is not a mutable variable", .{name});
-            return self.reprs[binding.value_id].?;
         },
         .get => |get| {
-            const object_repr = try self.reprOfPath(get.object);
-            return self.reprOfGet(object_repr, get.key);
+            try self.assertIsPath(get.object);
         },
         else => return self.fail("{} is not valid in a path expression", .{expr}),
     }
 }
 
-fn reprOfGet(self: *Self, object_repr: Repr, key_id: ExprId) error{AnalyzeError}!Repr {
-    const key = try self.evalConstantKey(key_id);
-    if (object_repr != .@"struct") return self.fail("Expected struct, found {}", .{object_repr});
-    const ix = object_repr.@"struct".ixOf(key) orelse
-        return self.fail("Key {} does not exist in {}", .{ key, object_repr });
-    return object_repr.@"struct".reprs[ix];
+fn placeOfExpr(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeError}!Place {
+    const place = try self.placeOfExprInner(expr_id, hint);
+    self.place_hints[expr_id] = hint;
+    self.places[expr_id] = place;
+    return place;
 }
 
-fn placeExpr(self: *Self, expr_id: ExprId, maybe_dest: ?Place) error{AnalyzeError}!void {
-    // Allocate stack for result if needed.
+fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeError}!Place {
+    const expr = self.parser.exprs.items[expr_id];
     const repr = self.reprs[expr_id].?;
-    const dest = maybe_dest orelse self.framePush(repr);
-    self.places[expr_id] = dest;
-
-    const frame_offset_now = self.frame_offset;
-
-    const expr = self.parser.exprs.items[expr_id];
     switch (expr) {
-        .i64 => {},
+        .i64 => {
+            return hint orelse self.framePush(repr);
+        },
         .object => |object| {
-            if (repr != .@"struct") return self.fail("TODO Can't analyze {}", .{expr});
-            // objects.keys are constant
-            for (repr.@"struct".keys, object.values) |key, value_expr| {
-                try self.placeExpr(value_expr, repr.@"struct".placeOf(dest, key).?);
-            }
-            self.frame_offset = frame_offset_now;
-        },
-        .name => {},
-        .let => |let| {
-            try self.placeExpr(let.value, null);
-            // Don't reset frame - we need let.value left on the stack.
-        },
-        .set => |set| {
-            const path_dest = try self.placeOfPath(set.path);
-            self.places[set.path] = path_dest;
-            // TODO Can avoid this copy in most cases, but need to be careful about aliasing.
-            //try self.placeExpr(let.value, path_dest);
-            try self.placeExpr(set.value, null);
-            self.frame_offset = frame_offset_now;
-        },
-        .call => |call| {
-            const head = self.parser.exprs.items[call.head];
-            if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
-            switch (head.builtin) {
-                .equal,
-                .less_than,
-                .less_than_or_equal,
-                .more_than,
-                .more_than_or_equal,
-                .add,
-                .subtract,
-                => {
-                    try self.placeExpr(call.args.values[0], null);
-                    try self.placeExpr(call.args.values[1], null);
-                },
-                else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
-            }
-            self.frame_offset = frame_offset_now;
-        },
-        .get => |get| {
-            try self.placeExpr(get.object, null);
-            // get.key is constant
-            self.frame_offset = frame_offset_now;
-        },
-        .statements => |statements| {
-            for (statements, 0..) |statement, ix| {
-                try self.placeExpr(statement, if (ix == statements.len - 1) dest else null);
-            }
-            self.frame_offset = frame_offset_now;
-        },
-        else => return self.fail("TODO Can't analyze {}", .{expr}),
-    }
-}
+            const place = hint orelse self.framePush(repr);
+            const frame_offset_now = self.frame_offset;
+            defer self.frame_offset = frame_offset_now;
 
-fn placeOfPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!Place {
-    const expr = self.parser.exprs.items[expr_id];
-    switch (expr) {
+            if (repr != .@"struct") return self.fail("TODO Can't analyze {}", .{expr});
+            for (repr.@"struct".keys, object.values) |key, value_expr| {
+                _ = try self.placeOfExpr(value_expr, repr.@"struct".placeOf(place, key).?);
+            }
+
+            return place;
+        },
         .name => {
             const value_id = self.name_lets[expr_id].?;
             return self.places[value_id].?;
         },
+        .let => |let| {
+            _ = try self.placeOfExpr(let.value, null);
+            return Place.empty();
+        },
+        .set => |set| {
+            _ = try self.placeOfExpr(set.path, null);
+            // TODO Would be nice to use path as hint here, but need to check for aliasing eg `x = [/a x/b, /b x/a]`
+            _ = try self.placeOfExpr(set.value, null);
+            return Place.empty();
+        },
+        .call => |call| {
+            const place = hint orelse self.framePush(repr);
+            const frame_offset_now = self.frame_offset;
+            defer self.frame_offset = frame_offset_now;
+
+            for (call.args.values) |value| {
+                _ = try self.placeOfExpr(value, null);
+            }
+
+            return place;
+        },
         .get => |get| {
+            const object_place = try self.placeOfExpr(get.object, null);
             const object_repr = self.reprs[get.object].?;
-            const object_place = try self.placeOfPath(get.object);
             const key = self.constants[get.key].?;
             return object_repr.@"struct".placeOf(object_place, key).?;
         },
-        else => return self.fail("{} is not valid in a path expression", .{expr}),
+        .statements => |statements| {
+            const place = hint orelse self.framePush(repr);
+            const frame_offset_now = self.frame_offset;
+            defer self.frame_offset = frame_offset_now;
+
+            for (statements, 0..) |statement, ix| {
+                _ = try self.placeOfExpr(statement, if (ix == statements.len - 1) place else null);
+            }
+
+            return place;
+        },
+        else => return self.fail("TODO Can't analyze {}", .{expr}),
     }
 }
 

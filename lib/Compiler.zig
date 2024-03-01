@@ -169,24 +169,33 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 }
 
 fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
+    try self.compileExprInner(expr_id);
+    if (self.analyzer.place_hints[expr_id]) |place_hint| {
+        self.emitCopy(place_hint, self.analyzer.places[expr_id].?);
+    }
+}
+
+fn compileExprInner(self: *Self, expr_id: ExprId) error{CompileError}!void {
     const expr = self.parser.exprs.items[expr_id];
     const repr = self.analyzer.reprs[expr_id].?;
-    const dest = self.analyzer.places[expr_id].?;
+    const place = self.analyzer.places[expr_id].?;
     switch (expr) {
         .i64 => |num| {
-            self.emitPlaceBase(dest);
+            self.emitPlaceBase(place);
             self.emitI64Const(num);
-            self.emitStore(.i64, dest);
+            self.emitStore(.i64, place);
         },
         .object => |object| {
             if (repr != .@"struct") return self.fail("TODO Can't compile {}", .{expr});
             for (object.values) |value| try self.compileExpr(value);
         },
+        .name => {},
         .let => |let| {
             try self.compileExpr(let.value);
         },
         .set => |set| {
             try self.compileExpr(set.value);
+            // This is needed because we can't pass path as place_hint for value without alias analysis.
             self.emitCopy(self.analyzer.places[set.path].?, self.analyzer.places[set.value].?);
         },
         .call => |call| {
@@ -207,7 +216,7 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
                     };
                     try self.compileExpr(call.args.values[0]);
                     try self.compileExpr(call.args.values[1]);
-                    self.emitPlaceBase(dest);
+                    self.emitPlaceBase(place);
                     self.emitLoad(val_type, self.analyzer.places[call.args.values[0]].?);
                     self.emitLoad(val_type, self.analyzer.places[call.args.values[1]].?);
                     switch (head.builtin) {
@@ -227,14 +236,13 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
                         .add, .subtract => {},
                         else => unreachable,
                     }
-                    self.emitStore(val_type, dest);
+                    self.emitStore(val_type, place);
                 },
                 else => return self.fail("TODO Can't compile {}", .{head.builtin}),
             }
         },
-        .name, .get => {
-            const src = try self.compilePath(expr_id);
-            self.emitCopy(dest, src);
+        .get => |get| {
+            _ = try self.compileExpr(get.object);
         },
         .statements => |statements| {
             for (statements) |statement| {
@@ -242,25 +250,6 @@ fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
             }
         },
         else => return self.fail("TODO Can't compile {}", .{expr}),
-    }
-}
-
-fn compilePath(self: *Self, expr_id: ExprId) error{CompileError}!Place {
-    const expr = self.parser.exprs.items[expr_id];
-    switch (expr) {
-        .name => {
-            return self.analyzer.places[self.analyzer.name_lets[expr_id].?].?;
-        },
-        .get => |get| {
-            const key = self.analyzer.constants[get.key].?;
-            const object_repr = self.analyzer.reprs[get.object].?;
-            const object_src = try self.compilePath(get.object);
-            return object_repr.@"struct".placeOf(object_src, key).?;
-        },
-        else => {
-            _ = try self.compileExpr(expr_id);
-            return self.analyzer.places[expr_id].?;
-        },
     }
 }
 
