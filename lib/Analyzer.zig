@@ -3,10 +3,10 @@ const panic = std.debug.panic;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const HashMap = std.HashMap;
 
 const util = @import("./util.zig");
 const oom = util.oom;
+const HashMap = util.HashMap;
 const Parser = @import("./Parser.zig");
 const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
@@ -25,13 +25,29 @@ places: []?Place,
 constants: []?Value,
 name_lets: []?ExprId,
 functions: ArrayList(Function),
-specializations: Specializations,
+specializations: HashMap(Specialization, FunctionId),
 stack_offset_max: usize,
 error_message: ?[]const u8,
 
 // Temporary state
 function: Function,
 scope: ArrayList(Binding),
+
+pub const FunctionId = usize;
+
+pub const FunctionExprId = struct {
+    function: FunctionId,
+    expr: ExprId,
+
+    pub fn update(self: Specialization, hasher: anytype) void {
+        hasher.update(std.mem.asBytes(&self.function));
+        hasher.update(std.mem.asBytes(&self.expr));
+    }
+
+    pub fn equal(self: Specialization, other: Specialization) bool {
+        return self.function == other.function and self.expr == other.expr;
+    }
+};
 
 pub const Place = struct {
     base: enum { result, shadow },
@@ -75,23 +91,6 @@ pub const Function = struct {
     body: ExprId,
 };
 
-pub const Specializations = HashMap(
-    Specialization,
-    usize,
-    struct {
-        pub fn hash(_: anytype, key: Specialization) u64 {
-            var hasher = std.hash.Wyhash.init(42);
-            key.update(&hasher);
-            return hasher.final();
-        }
-
-        pub fn eql(_: anytype, a: Specialization, b: Specialization) bool {
-            return a.equal(b);
-        }
-    },
-    std.hash_map.default_max_load_percentage,
-);
-
 pub const Binding = struct {
     mut: bool,
     name: []const u8,
@@ -126,7 +125,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .constants = constants,
         .name_lets = name_lets,
         .functions = ArrayList(Function).init(allocator),
-        .specializations = Specializations.init(allocator),
+        .specializations = HashMap(Specialization, FunctionId).init(allocator),
         .stack_offset_max = 8 << 20, // 8mb
         .error_message = null,
         .function = .{
