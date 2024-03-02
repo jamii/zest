@@ -3,6 +3,7 @@ const panic = std.debug.panic;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const HashMap = std.HashMap;
 
 const util = @import("./util.zig");
 const oom = util.oom;
@@ -24,6 +25,7 @@ places: []?Place,
 constants: []?Value,
 name_lets: []?ExprId,
 functions: ArrayList(Function),
+specializations: Specializations,
 stack_offset_max: usize,
 error_message: ?[]const u8,
 
@@ -49,6 +51,20 @@ pub const Place = struct {
     }
 };
 
+pub const Specialization = struct {
+    params: StructRepr,
+    body: ExprId,
+
+    pub fn update(self: Specialization, hasher: anytype) void {
+        self.params.update(hasher);
+        hasher.update(std.mem.asBytes(&self.body));
+    }
+
+    pub fn equal(self: Specialization, other: Specialization) bool {
+        return self.body == other.body and self.params.order(other.params) == .eq;
+    }
+};
+
 pub const Function = struct {
     name: []const u8,
     params: StructRepr,
@@ -58,6 +74,23 @@ pub const Function = struct {
     frame_offset_max: usize,
     body: ExprId,
 };
+
+pub const Specializations = HashMap(
+    Specialization,
+    usize,
+    struct {
+        pub fn hash(_: anytype, key: Specialization) u64 {
+            var hasher = std.hash.Wyhash.init(42);
+            key.update(&hasher);
+            return hasher.final();
+        }
+
+        pub fn eql(_: anytype, a: Specialization, b: Specialization) bool {
+            return a.equal(b);
+        }
+    },
+    std.hash_map.default_max_load_percentage,
+);
 
 pub const Binding = struct {
     mut: bool,
@@ -81,8 +114,6 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
     const name_lets = allocator.alloc(?ExprId, parser.exprs.items.len) catch oom();
     for (name_lets) |*name_let| name_let.* = null;
 
-    const functions = ArrayList(Function).init(allocator);
-
     var frame = ArrayList(usize).init(allocator);
     frame.append(0) catch oom();
 
@@ -94,7 +125,8 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .places = places,
         .constants = constants,
         .name_lets = name_lets,
-        .functions = functions,
+        .functions = ArrayList(Function).init(allocator),
+        .specializations = Specializations.init(allocator),
         .stack_offset_max = 8 << 20, // 8mb
         .error_message = null,
         .function = .{
@@ -115,7 +147,15 @@ pub fn analyze(self: *Self) error{AnalyzeError}!void {
     assert(self.function.body == main_id);
     self.function.result = try self.reprOfExpr(main_id, null);
     _ = try self.placeOfExpr(main_id, null);
-    self.functions.append(self.function) catch oom();
+    self.appendFunction(self.function);
+}
+
+fn appendFunction(self: *Self, function: Function) void {
+    self.specializations.put(
+        .{ .params = function.params, .body = function.body },
+        self.functions.items.len,
+    ) catch oom();
+    self.functions.append(function) catch oom();
 }
 
 fn reprOfExpr(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {

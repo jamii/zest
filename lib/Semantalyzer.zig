@@ -453,10 +453,7 @@ pub const Repr = union(enum) {
         switch (self) {
             .i64, .f64, .string, .repr => {},
             .@"struct" => |@"struct"| {
-                for (@"struct".keys, @"struct".reprs) |key, repr| {
-                    key.update(hasher);
-                    repr.update(hasher);
-                }
+                @"struct".update(hasher);
             },
             .list => |elem| {
                 elem.update(hasher);
@@ -484,23 +481,7 @@ pub const Repr = union(enum) {
         }
         switch (self) {
             .i64, .f64, .string, .repr => return .eq,
-            .@"struct" => {
-                const self_struct = self.@"struct";
-                const other_struct = other.@"struct";
-                for (0..@min(self_struct.keys.len, other_struct.keys.len)) |i| {
-                    switch (self_struct.keys[i].order(other_struct.keys[i])) {
-                        .lt => return .lt,
-                        .gt => return .gt,
-                        .eq => {},
-                    }
-                    switch (self_struct.reprs[i].order(other_struct.reprs[i])) {
-                        .lt => return .lt,
-                        .gt => return .gt,
-                        .eq => {},
-                    }
-                }
-                return std.math.order(self_struct.keys.len, other_struct.keys.len);
-            },
+            .@"struct" => return self.@"struct".order(other.@"struct"),
             .list => return self.list.order(other.list.*),
             .map => {
                 switch (self.map[0].order(other.map[0].*)) {
@@ -589,6 +570,29 @@ pub const Repr = union(enum) {
 pub const StructRepr = struct {
     keys: []Value,
     reprs: []Repr,
+
+    pub fn update(self: StructRepr, hasher: anytype) void {
+        for (self.keys, self.reprs) |key, repr| {
+            key.update(hasher);
+            repr.update(hasher);
+        }
+    }
+
+    pub fn order(self: StructRepr, other: StructRepr) std.math.Order {
+        for (0..@min(self.keys.len, other.keys.len)) |i| {
+            switch (self.keys[i].order(other.keys[i])) {
+                .lt => return .lt,
+                .gt => return .gt,
+                .eq => {},
+            }
+            switch (self.reprs[i].order(other.reprs[i])) {
+                .lt => return .lt,
+                .gt => return .gt,
+                .eq => {},
+            }
+        }
+        return std.math.order(self.keys.len, other.keys.len);
+    }
 
     pub fn sorted(allocator: Allocator, keys: []Value, reprs: []Repr) StructRepr {
         var ixes = allocator.alloc(usize, keys.len) catch oom();
