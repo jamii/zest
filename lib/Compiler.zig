@@ -62,9 +62,9 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
             // Fn type.
             self.emitByte(0x60);
             // Param types.
-            self.emitLebU32(@intCast(1 + function.params.len));
+            self.emitLebU32(@intCast(1 + function.params.keys.len));
             self.emitValType(.i32);
-            for (function.params) |_|
+            for (function.params.keys) |_|
                 self.emitValType(.i32);
             // Result types.
             self.emitLebU32(0);
@@ -144,7 +144,7 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 
             // Push frame
             self.emitGlobalGet(0);
-            self.emitU32Const(@intCast(function.frame_size));
+            self.emitU32Const(@intCast(function.frame_offset_max));
             self.emitSub(.i32);
             self.emitGlobalSet(0);
 
@@ -152,12 +152,16 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 
             // TODO temporary hack so we can read the result from test.js
             const src = self.analyzer.places[function.body].?;
-            const dest = Place{ .base = .shadow, .offset = @as(u32, @intCast(function.frame_size)) - 8, .length = 8 };
+            const dest = Place{
+                .base = .shadow,
+                .offset = @as(u32, @intCast(function.frame_offset_max)) - 8,
+                .length = 8,
+            };
             self.emitCopy(dest, src);
 
             // Pop frame
             self.emitGlobalGet(0);
-            self.emitU32Const(@intCast(function.frame_size));
+            self.emitU32Const(@intCast(function.frame_offset_max));
             self.emitAdd(.i32);
             self.emitGlobalSet(0);
 

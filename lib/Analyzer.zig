@@ -16,17 +16,20 @@ const Value = @import("./Semantalyzer.zig").Value;
 const Self = @This();
 allocator: Allocator,
 parser: Parser,
+
+// Results
 reprs: []?Repr,
 place_hints: []?Place,
 places: []?Place,
 constants: []?Value,
 name_lets: []?ExprId,
 functions: ArrayList(Function),
-frame_offset: usize,
-frame_offset_max: usize,
 stack_offset_max: usize,
-scope: ArrayList(Binding),
 error_message: ?[]const u8,
+
+// Temporary state
+function: Function,
+scope: ArrayList(Binding),
 
 pub const Place = struct {
     base: enum { result, shadow },
@@ -48,10 +51,11 @@ pub const Place = struct {
 
 pub const Function = struct {
     name: []const u8,
-    params: []const Repr,
-    result: Repr,
+    params: StructRepr,
+    result: ?Repr,
     locals_count: u32,
-    frame_size: usize,
+    frame_offset: usize, // Temporary
+    frame_offset_max: usize,
     body: ExprId,
 };
 
@@ -91,26 +95,27 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .constants = constants,
         .name_lets = name_lets,
         .functions = functions,
-        .frame_offset = 0,
-        .frame_offset_max = 0,
         .stack_offset_max = 8 << 20, // 8mb
-        .scope = ArrayList(Binding).init(allocator),
         .error_message = null,
+        .function = .{
+            .name = "main",
+            .params = Repr.emptyStruct().@"struct",
+            .result = null,
+            .locals_count = 0,
+            .frame_offset = 0,
+            .frame_offset_max = 0,
+            .body = parser.exprs.items.len - 1,
+        },
+        .scope = ArrayList(Binding).init(allocator),
     };
 }
 
 pub fn analyze(self: *Self) error{AnalyzeError}!void {
     const main_id = self.parser.exprs.items.len - 1;
-    _ = try self.reprOfExpr(main_id, null);
+    assert(self.function.body == main_id);
+    self.function.result = try self.reprOfExpr(main_id, null);
     _ = try self.placeOfExpr(main_id, null);
-    self.functions.append(.{
-        .name = "main",
-        .params = &.{},
-        .result = self.reprs[main_id].?,
-        .locals_count = 0,
-        .frame_size = self.frame_offset_max,
-        .body = main_id,
-    }) catch oom();
+    self.functions.append(self.function) catch oom();
 }
 
 fn reprOfExpr(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!Repr {
@@ -238,8 +243,8 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
         },
         .object => |object| {
             const place = hint orelse self.framePush(repr);
-            const frame_offset_now = self.frame_offset;
-            defer self.frame_offset = frame_offset_now;
+            const frame_offset_now = self.function.frame_offset;
+            defer self.function.frame_offset = frame_offset_now;
 
             if (repr != .@"struct") return self.fail("TODO Can't analyze {}", .{expr});
             for (repr.@"struct".keys, object.values) |key, value_expr| {
@@ -264,8 +269,8 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
         },
         .call => |call| {
             const place = hint orelse self.framePush(repr);
-            const frame_offset_now = self.frame_offset;
-            defer self.frame_offset = frame_offset_now;
+            const frame_offset_now = self.function.frame_offset;
+            defer self.function.frame_offset = frame_offset_now;
 
             for (call.args.values) |value| {
                 _ = try self.placeOfExpr(value, null);
@@ -281,8 +286,8 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
         },
         .statements => |statements| {
             const place = hint orelse self.framePush(repr);
-            const frame_offset_now = self.frame_offset;
-            defer self.frame_offset = frame_offset_now;
+            const frame_offset_now = self.function.frame_offset;
+            defer self.function.frame_offset = frame_offset_now;
 
             for (statements, 0..) |statement, ix| {
                 _ = try self.placeOfExpr(statement, if (ix == statements.len - 1) place else null);
@@ -295,9 +300,9 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
 }
 
 fn framePush(self: *Self, repr: Repr) Place {
-    const offset = self.frame_offset;
-    self.frame_offset += repr.sizeOf();
-    self.frame_offset_max = @max(self.frame_offset_max, self.frame_offset);
+    const offset = self.function.frame_offset;
+    self.function.frame_offset += repr.sizeOf();
+    self.function.frame_offset_max = @max(self.function.frame_offset_max, self.function.frame_offset);
     return .{
         .base = .shadow,
         .offset = @intCast(offset),
