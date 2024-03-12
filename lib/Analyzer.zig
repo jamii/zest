@@ -185,6 +185,9 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             _ = try self.reprOfExpr(set.value, path_repr);
             return Repr.emptyStruct();
         },
+        .@"fn" => {
+            return .{ .@"fn" = .{ .expr_id = expr_id } };
+        },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
             if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
@@ -289,6 +292,9 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
             _ = try self.placeOfExpr(set.path, null);
             // TODO Would be nice to use path as hint here, but need to check for aliasing eg `x = [/a x/b, /b x/a]`
             _ = try self.placeOfExpr(set.value, null);
+            return Place.empty();
+        },
+        .@"fn" => {
             return Place.empty();
         },
         .call => |call| {

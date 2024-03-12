@@ -472,7 +472,7 @@ pub const Repr = union(enum) {
                 }
             },
             .@"fn" => |@"fn"| {
-                hasher.update(std.mem.asBytes(&@"fn".body));
+                hasher.update(std.mem.asBytes(&@"fn".expr_id));
             },
         }
     }
@@ -670,8 +670,7 @@ pub const UnionRepr = struct {
 };
 
 pub const FnRepr = struct {
-    body: ExprId,
-    // TODO do we need reprs for captures?
+    expr_id: ExprId,
 };
 
 pub const ReprKind = enum {
