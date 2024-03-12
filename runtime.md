@@ -139,8 +139,16 @@ x/a + x/b
 Functions (but not higher-order):
 
 ```
-plus = (a) a + 1
-plus(42)
+inc = (a) a + 1
+inc(42)
+
+43
+```
+
+```
+one = 1
+inc = (a) a + one
+inc(42)
 
 43
 ```
