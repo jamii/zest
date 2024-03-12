@@ -446,6 +446,7 @@ pub const Repr = union(enum) {
     list: ListRepr,
     map: MapRepr,
     @"union": UnionRepr,
+    @"fn": FnRepr,
     repr,
 
     pub fn update(self: Repr, hasher: anytype) void {
@@ -469,6 +470,9 @@ pub const Repr = union(enum) {
                 for (@"union".reprs) |repr| {
                     repr.update(hasher);
                 }
+            },
+            .@"fn" => |@"fn"| {
+                hasher.update(std.mem.asBytes(&@"fn".body));
             },
         }
     }
@@ -513,6 +517,7 @@ pub const Repr = union(enum) {
                 }
                 return std.math.order(self_union.keys.len, other_union.keys.len);
             },
+            .@"fn" => panic("TODO", .{}),
         }
     }
 
@@ -551,6 +556,7 @@ pub const Repr = union(enum) {
                 }
                 try writer.writeAll("]");
             },
+            .@"fn" => panic("TODO", .{}),
         }
     }
 
@@ -661,6 +667,11 @@ pub const MapRepr = [2]*Repr;
 pub const UnionRepr = struct {
     keys: []Value,
     reprs: []Repr,
+};
+
+pub const FnRepr = struct {
+    body: ExprId,
+    // TODO do we need reprs for captures?
 };
 
 pub const ReprKind = enum {
