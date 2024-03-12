@@ -19,11 +19,6 @@ allocator: Allocator,
 parser: Parser,
 
 // Results
-reprs: HashMap(ExprId, Repr),
-place_hints: HashMap(ExprId, Place),
-places: HashMap(ExprId, Place),
-constants: HashMap(ExprId, Value),
-name_lets: HashMap(ExprId, ExprId),
 functions: ArrayList(Function),
 specializations: HashMap(Specialization, FunctionId),
 stack_offset_max: usize,
@@ -34,20 +29,6 @@ function_id: FunctionId,
 scope: ArrayList(Binding),
 
 pub const FunctionId = usize;
-
-pub const FunctionExprId = struct {
-    function: FunctionId,
-    expr: ExprId,
-
-    pub fn update(self: Specialization, hasher: anytype) void {
-        hasher.update(std.mem.asBytes(&self.function));
-        hasher.update(std.mem.asBytes(&self.expr));
-    }
-
-    pub fn equal(self: Specialization, other: Specialization) bool {
-        return self.function == other.function and self.expr == other.expr;
-    }
-};
 
 pub const Place = struct {
     base: enum { result, shadow },
@@ -82,13 +63,42 @@ pub const Specialization = struct {
 };
 
 pub const Function = struct {
+    // Meta
     name: []const u8,
     params: StructRepr,
     result: ?Repr,
     locals_count: u32,
-    frame_offset: usize, // Temporary
     frame_offset_max: usize,
     body: ExprId,
+
+    // Body
+    reprs: HashMap(ExprId, Repr),
+    place_hints: HashMap(ExprId, Place),
+    places: HashMap(ExprId, Place),
+    constants: HashMap(ExprId, Value),
+    name_lets: HashMap(ExprId, ExprId),
+
+    // Temporary state
+    frame_offset: usize,
+
+    fn init(allocator: Allocator, name: []const u8, params: StructRepr, body: ExprId) Function {
+        return .{
+            .name = name,
+            .params = params,
+            .result = null,
+            .locals_count = 0,
+            .frame_offset_max = 0,
+            .body = body,
+
+            .reprs = HashMap(ExprId, Repr).init(allocator),
+            .place_hints = HashMap(ExprId, Place).init(allocator),
+            .places = HashMap(ExprId, Place).init(allocator),
+            .constants = HashMap(ExprId, Value).init(allocator),
+            .name_lets = HashMap(ExprId, ExprId).init(allocator),
+
+            .frame_offset = 0,
+        };
+    }
 };
 
 pub const Binding = struct {
@@ -101,11 +111,6 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
     return .{
         .allocator = allocator,
         .parser = parser,
-        .reprs = HashMap(ExprId, Repr).init(allocator),
-        .place_hints = HashMap(ExprId, Place).init(allocator),
-        .places = HashMap(ExprId, Place).init(allocator),
-        .constants = HashMap(ExprId, Value).init(allocator),
-        .name_lets = HashMap(ExprId, ExprId).init(allocator),
         .functions = ArrayList(Function).init(allocator),
         .specializations = HashMap(Specialization, FunctionId).init(allocator),
         .stack_offset_max = 8 << 20, // 8mb
@@ -117,15 +122,12 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
 
 pub fn analyze(self: *Self) error{AnalyzeError}!void {
     const main_id = self.parser.exprs.items.len - 1;
-    self.function_id = self.appendFunction(.{
-        .name = "main",
-        .params = Repr.emptyStruct().@"struct",
-        .result = null,
-        .locals_count = 0,
-        .frame_offset = 0,
-        .frame_offset_max = 0,
-        .body = main_id,
-    });
+    self.function_id = self.appendFunction(Function.init(
+        self.allocator,
+        "main",
+        Repr.emptyStruct().@"struct",
+        main_id,
+    ));
     self.getFunction().result = try self.reprOfExpr(main_id, null);
     _ = try self.placeOfExpr(main_id, null);
 }
@@ -144,7 +146,7 @@ fn reprOfExpr(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeError}!
     const repr = try self.reprOfExprInner(expr_id, repr_in);
     if (repr_in != null and repr_in.?.order(repr) != .eq)
         return self.fail("Expected {}, found {}", .{ repr_in.?, repr });
-    self.reprs.put(expr_id, repr) catch oom();
+    self.getFunction().reprs.put(expr_id, repr) catch oom();
     return repr;
 }
 
@@ -169,8 +171,8 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         },
         .name => |name| {
             const binding = try self.lookup(name);
-            self.name_lets.put(expr_id, binding.value_id) catch oom();
-            return self.reprs.get(binding.value_id).?;
+            self.getFunction().name_lets.put(expr_id, binding.value_id) catch oom();
+            return self.getFunction().reprs.get(binding.value_id).?;
         },
         .let => |let| {
             _ = try self.reprOfExpr(let.value, null);
@@ -251,14 +253,14 @@ fn assertIsPath(self: *Self, expr_id: ExprId) error{AnalyzeError}!void {
 
 fn placeOfExpr(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeError}!Place {
     const place = try self.placeOfExprInner(expr_id, hint);
-    if (hint) |place_hint| self.place_hints.put(expr_id, place_hint) catch oom();
-    self.places.put(expr_id, place) catch oom();
+    if (hint) |place_hint| self.getFunction().place_hints.put(expr_id, place_hint) catch oom();
+    self.getFunction().places.put(expr_id, place) catch oom();
     return place;
 }
 
 fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeError}!Place {
     const expr = self.parser.exprs.items[expr_id];
-    const repr = self.reprs.get(expr_id).?;
+    const repr = self.getFunction().reprs.get(expr_id).?;
     switch (expr) {
         .i64 => {
             return hint orelse self.framePush(repr);
@@ -276,8 +278,8 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
             return place;
         },
         .name => {
-            const value_id = self.name_lets.get(expr_id).?;
-            return self.places.get(value_id).?;
+            const value_id = self.getFunction().name_lets.get(expr_id).?;
+            return self.getFunction().places.get(value_id).?;
         },
         .let => |let| {
             _ = try self.placeOfExpr(let.value, null);
@@ -302,8 +304,8 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
         },
         .get => |get| {
             const object_place = try self.placeOfExpr(get.object, null);
-            const object_repr = self.reprs.get(get.object).?;
-            const key = self.constants.get(get.key).?;
+            const object_repr = self.getFunction().reprs.get(get.object).?;
+            const key = self.getFunction().constants.get(get.key).?;
             return object_repr.@"struct".placeOf(object_place, key).?;
         },
         .statements => |statements| {
@@ -342,7 +344,7 @@ fn evalConstantKey(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
         .name => |name| .{ .string = self.allocator.dupe(u8, name) catch oom() },
         else => return self.evalConstant(expr_id),
     };
-    self.constants.put(expr_id, value) catch oom();
+    self.getFunction().constants.put(expr_id, value) catch oom();
     return value;
 }
 
@@ -352,7 +354,7 @@ fn evalConstant(self: *Self, expr_id: ExprId) error{AnalyzeError}!Value {
         .i64 => |num| .{ .i64 = num },
         else => return self.fail("Cannot const eval {}", .{expr}),
     };
-    self.constants.put(expr_id, value) catch oom();
+    self.getFunction().constants.put(expr_id, value) catch oom();
     return value;
 }
 
