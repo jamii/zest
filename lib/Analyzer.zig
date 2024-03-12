@@ -20,7 +20,7 @@ parser: Parser,
 
 // Results
 functions: ArrayList(Function),
-specializations: HashMap(Specialization, FunctionId),
+functions_by_key: HashMap(FunctionKey, FunctionId),
 stack_offset_max: usize,
 error_message: ?[]const u8,
 
@@ -48,16 +48,16 @@ pub const Place = struct {
     }
 };
 
-pub const Specialization = struct {
+pub const FunctionKey = struct {
     params: StructRepr,
     body: ExprId,
 
-    pub fn update(self: Specialization, hasher: anytype) void {
+    pub fn update(self: FunctionKey, hasher: anytype) void {
         self.params.update(hasher);
         hasher.update(std.mem.asBytes(&self.body));
     }
 
-    pub fn equal(self: Specialization, other: Specialization) bool {
+    pub fn equal(self: FunctionKey, other: FunctionKey) bool {
         return self.body == other.body and self.params.order(other.params) == .eq;
     }
 };
@@ -112,7 +112,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .allocator = allocator,
         .parser = parser,
         .functions = ArrayList(Function).init(allocator),
-        .specializations = HashMap(Specialization, FunctionId).init(allocator),
+        .functions_by_key = HashMap(FunctionKey, FunctionId).init(allocator),
         .stack_offset_max = 8 << 20, // 8mb
         .error_message = null,
         .function_id = 0,
@@ -134,7 +134,7 @@ pub fn analyze(self: *Self) error{AnalyzeError}!void {
 
 fn appendFunction(self: *Self, function: Function) FunctionId {
     const id = self.functions.items.len;
-    self.specializations.put(
+    self.functions_by_key.put(
         .{ .params = function.params, .body = function.body },
         id,
     ) catch oom();
