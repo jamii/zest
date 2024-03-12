@@ -66,7 +66,7 @@ pub const Function = struct {
     // Meta
     name: []const u8,
     params: StructRepr,
-    result: ?Repr,
+    result: ?Repr, // =null when we haven't finished inference yet.
     locals_count: u32,
     frame_offset_max: usize,
     body: ExprId,
