@@ -670,6 +670,7 @@ pub const UnionRepr = struct {
 };
 
 pub const FnRepr = struct {
+    name: []const u8,
     expr_id: ExprId,
 };
 

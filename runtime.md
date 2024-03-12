@@ -139,6 +139,13 @@ x/a + x/b
 Functions (but not higher-order):
 
 ```
+plus = (a) a + 1
+plus(42)
+
+43
+```
+
+```
 inc = (@a) { @a = a + 1 }
 x = @42
 inc(@x)

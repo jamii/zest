@@ -104,6 +104,7 @@ pub const Function = struct {
 pub const Binding = struct {
     mut: bool,
     name: []const u8,
+    fn_id: FunctionId,
     value_id: ExprId,
 };
 
@@ -172,11 +173,11 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         .name => |name| {
             const binding = try self.lookup(name);
             self.getFunction().name_lets.put(expr_id, binding.value_id) catch oom();
-            return self.getFunction().reprs.get(binding.value_id).?;
+            return self.functions.items[binding.fn_id].reprs.get(binding.value_id).?;
         },
         .let => |let| {
             _ = try self.reprOfExpr(let.value, null);
-            self.scope.append(.{ .mut = let.mut, .name = let.name, .value_id = let.value }) catch oom();
+            self.scope.append(.{ .mut = let.mut, .name = let.name, .fn_id = self.function_id, .value_id = let.value }) catch oom();
             return Repr.emptyStruct();
         },
         .set => |set| {
@@ -186,32 +187,97 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
             return Repr.emptyStruct();
         },
         .@"fn" => {
-            return .{ .@"fn" = .{ .expr_id = expr_id } };
+            const name = switch (self.parser.exprs.items[self.parser.parents[expr_id].?]) {
+                .let => |let| let.name,
+                else => std.fmt.allocPrint(self.allocator, "anon#{}", .{self.functions.items.len}) catch oom(),
+            };
+            return .{ .@"fn" = .{ .name = name, .expr_id = expr_id } };
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
-            if (head != .builtin) return self.fail("TODO Can't analyze {}", .{expr});
-            switch (head.builtin) {
-                .equal,
-                .less_than,
-                .less_than_or_equal,
-                .more_than,
-                .more_than_or_equal,
-                .add,
-                .subtract,
-                => {
-                    if (call.args.keys.len != 2) return self.fail("Wrong number of args to {}", .{expr});
-                    const key0 = try self.evalConstantKey(call.args.keys[0]);
-                    const key1 = try self.evalConstantKey(call.args.keys[1]);
-                    if (key0 != .i64 and key0.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
-                    if (key1 != .i64 and key1.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
-                    const repr0 = try self.reprOfExpr(call.args.values[0], null);
-                    const repr1 = try self.reprOfExpr(call.args.values[1], null);
-                    if (repr0 != .i64) return self.fail("Expected i64, found {}", .{repr0});
-                    if (repr1 != .i64) return self.fail("Expected i64, found {}", .{repr1});
-                    return .i64;
+            switch (head) {
+                .builtin => |builtin| {
+                    switch (builtin) {
+                        .equal,
+                        .less_than,
+                        .less_than_or_equal,
+                        .more_than,
+                        .more_than_or_equal,
+                        .add,
+                        .subtract,
+                        => {
+                            if (call.args.keys.len != 2) return self.fail("Wrong number of args to {}", .{expr});
+                            const key0 = try self.evalConstantKey(call.args.keys[0]);
+                            const key1 = try self.evalConstantKey(call.args.keys[1]);
+                            if (key0 != .i64 and key0.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
+                            if (key1 != .i64 and key1.i64 != 0) return self.fail("Wrong arg names to {}", .{expr});
+                            const repr0 = try self.reprOfExpr(call.args.values[0], null);
+                            const repr1 = try self.reprOfExpr(call.args.values[1], null);
+                            if (repr0 != .i64) return self.fail("Expected i64, found {}", .{repr0});
+                            if (repr1 != .i64) return self.fail("Expected i64, found {}", .{repr1});
+                            return .i64;
+                        },
+                        else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
+                    }
                 },
-                else => return self.fail("TODO Can't analyze {}", .{head.builtin}),
+                .name => |name| {
+                    const binding = try self.lookup(name);
+                    const binding_repr = self.getFunction().reprs.get(binding.value_id).?;
+                    if (binding_repr != .@"fn") return self.fail("Can't call {}", .{binding_repr});
+
+                    const params = StructRepr{
+                        .keys = self.allocator.alloc(Value, call.args.keys.len) catch oom(),
+                        .reprs = self.allocator.alloc(Repr, call.args.values.len) catch oom(),
+                    };
+                    for (call.args.keys, params.keys) |key_id, *key|
+                        key.* = try self.evalConstantKey(key_id);
+                    for (call.args.values, params.reprs) |value_id, *repr|
+                        repr.* = try self.reprOfExpr(value_id, null);
+
+                    const fn_expr = self.parser.exprs.items[binding_repr.@"fn".expr_id].@"fn";
+                    if (fn_expr.params.keys.len != params.keys.len)
+                        return self.fail("Expected {} args, found {}", .{ fn_expr.params.keys.len, params.keys.len });
+                    for (fn_expr.params.keys, params.keys) |fn_param_id, call_param| {
+                        const fn_param = try self.evalConstantKey(fn_param_id); // TODO redundant evaluation - store in FnRepr instead?
+                        if (!fn_param.equal(call_param))
+                            return self.fail("Expected key {}, found key {}", .{ fn_param, call_param });
+                    }
+
+                    if (self.functions_by_key.get(.{ .params = params, .body = fn_expr.body })) |function_id| {
+                        return self.functions.items[function_id].result.?;
+                    }
+
+                    const old_function_id = self.function_id;
+                    self.function_id = self.appendFunction(Function.init(
+                        self.allocator,
+                        binding_repr.@"fn".name,
+                        params,
+                        fn_expr.body,
+                    ));
+                    defer self.function_id = old_function_id;
+
+                    const old_scope = self.scope;
+                    self.scope = ArrayList(Binding).init(self.allocator);
+                    defer self.scope = old_scope;
+
+                    for (fn_expr.params.values, call.args.values) |param_id, value_id| {
+                        // TODO lift mut handling into parser?
+                        const param_expr = self.parser.exprs.items[param_id];
+                        const mut = param_expr == .mut;
+                        const name_expr = if (mut) self.parser.exprs.items[param_expr.mut] else param_expr;
+                        if (name_expr != .name) return self.fail("Can't use {} as pattern", .{name_expr});
+                        self.scope.append(.{
+                            .name = name_expr.name,
+                            .mut = mut,
+                            .fn_id = old_function_id,
+                            .value_id = value_id,
+                        }) catch oom();
+                    }
+                    const result = try self.reprOfExpr(fn_expr.body, null);
+                    self.getFunction().result = result;
+                    return result;
+                },
+                else => return self.fail("TODO Can't analyze {}", .{expr}),
             }
         },
         .get => |get| {
