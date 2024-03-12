@@ -464,6 +464,7 @@ fn emitLoad(self: *Self, val_type: ValType, place: Place) void {
 fn emitPlaceBase(self: *Self, place: Place) void {
     switch (place.base) {
         .result => self.emitLocalGet(0),
+        .param => |param| self.emitLocalGet(1 + param),
         .shadow => self.emitGlobalGet(0),
     }
 }

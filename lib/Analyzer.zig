@@ -31,7 +31,11 @@ scope: ArrayList(Binding),
 pub const FunctionId = usize;
 
 pub const Place = struct {
-    base: enum { result, shadow },
+    base: union(enum) {
+        result,
+        param: u32,
+        shadow,
+    },
     offset: u32,
     length: u32,
 
@@ -44,7 +48,12 @@ pub const Place = struct {
     }
 
     pub fn equal(self: Place, other: Place) bool {
-        return self.base == other.base and self.offset == other.offset and self.length == other.length;
+        return switch (self.base) {
+            .result => other.base == .result,
+            .param => other.base == .param and self.base.param == other.base.param,
+            .shadow => other.base == .shadow,
+        } and
+            self.offset == other.offset and self.length == other.length;
     }
 };
 
@@ -76,7 +85,7 @@ pub const Function = struct {
     place_hints: HashMap(ExprId, Place),
     places: HashMap(ExprId, Place),
     constants: HashMap(ExprId, Value),
-    name_lets: HashMap(ExprId, ExprId),
+    bindings: HashMap(ExprId, Binding),
 
     // Temporary state
     frame_offset: usize,
@@ -94,7 +103,7 @@ pub const Function = struct {
             .place_hints = HashMap(ExprId, Place).init(allocator),
             .places = HashMap(ExprId, Place).init(allocator),
             .constants = HashMap(ExprId, Value).init(allocator),
-            .name_lets = HashMap(ExprId, ExprId).init(allocator),
+            .bindings = HashMap(ExprId, Binding).init(allocator),
 
             .frame_offset = 0,
         };
@@ -104,8 +113,13 @@ pub const Function = struct {
 pub const Binding = struct {
     mut: bool,
     name: []const u8,
-    fn_id: FunctionId,
-    value_id: ExprId,
+    source: union(enum) {
+        let: struct {
+            fn_id: FunctionId,
+            value_id: ExprId,
+        },
+        param: usize,
+    },
 };
 
 pub fn init(allocator: Allocator, parser: Parser) Self {
@@ -130,7 +144,10 @@ pub fn analyze(self: *Self) error{AnalyzeError}!void {
         main_id,
     ));
     self.getFunction().result = try self.reprOfExpr(main_id, null);
-    _ = try self.placeOfExpr(main_id, null);
+    for (self.functions.items, 0..) |function, function_id| {
+        self.function_id = function_id;
+        _ = try self.placeOfExpr(function.body, null);
+    }
 }
 
 fn appendFunction(self: *Self, function: Function) FunctionId {
@@ -172,12 +189,19 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         },
         .name => |name| {
             const binding = try self.lookup(name);
-            self.getFunction().name_lets.put(expr_id, binding.value_id) catch oom();
-            return self.functions.items[binding.fn_id].reprs.get(binding.value_id).?;
+            self.getFunction().bindings.put(expr_id, binding) catch oom();
+            return switch (binding.source) {
+                .let => |let| self.functions.items[let.fn_id].reprs.get(let.value_id).?,
+                .param => |param| self.getFunction().params.reprs[param],
+            };
         },
         .let => |let| {
             _ = try self.reprOfExpr(let.value, null);
-            self.scope.append(.{ .mut = let.mut, .name = let.name, .fn_id = self.function_id, .value_id = let.value }) catch oom();
+            self.scope.append(.{
+                .mut = let.mut,
+                .name = let.name,
+                .source = .{ .let = .{ .fn_id = self.function_id, .value_id = let.value } },
+            }) catch oom();
             return Repr.emptyStruct();
         },
         .set => |set| {
@@ -222,7 +246,10 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                 },
                 .name => |name| {
                     const binding = try self.lookup(name);
-                    const binding_repr = self.getFunction().reprs.get(binding.value_id).?;
+                    const binding_repr = switch (binding.source) {
+                        .let => |let| self.functions.items[let.fn_id].reprs.get(let.value_id).?,
+                        .param => |param| self.getFunction().params.reprs[param],
+                    };
                     if (binding_repr != .@"fn") return self.fail("Can't call {}", .{binding_repr});
 
                     const params = StructRepr{
@@ -260,7 +287,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                     self.scope = ArrayList(Binding).init(self.allocator);
                     defer self.scope = old_scope;
 
-                    for (fn_expr.params.values, call.args.values) |param_id, value_id| {
+                    for (0.., fn_expr.params.values) |param_ix, param_id| {
                         // TODO lift mut handling into parser?
                         const param_expr = self.parser.exprs.items[param_id];
                         const mut = param_expr == .mut;
@@ -269,8 +296,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                         self.scope.append(.{
                             .name = name_expr.name,
                             .mut = mut,
-                            .fn_id = old_function_id,
-                            .value_id = value_id,
+                            .source = .{ .param = param_ix },
                         }) catch oom();
                     }
                     const result = try self.reprOfExpr(fn_expr.body, null);
@@ -347,8 +373,16 @@ fn placeOfExprInner(self: *Self, expr_id: ExprId, hint: ?Place) error{AnalyzeErr
             return place;
         },
         .name => {
-            const value_id = self.getFunction().name_lets.get(expr_id).?;
-            return self.getFunction().places.get(value_id).?;
+            const binding = self.getFunction().bindings.get(expr_id).?;
+            return switch (binding.source) {
+                // TODO for closed-over variables it matters which frame we're looking at!
+                .let => |let| self.functions.items[let.fn_id].places.get(let.value_id).?,
+                .param => |param| Place{
+                    .base = .{ .param = @intCast(param) },
+                    .offset = 0,
+                    .length = @intCast(repr.sizeOf()),
+                },
+            };
         },
         .let => |let| {
             _ = try self.placeOfExpr(let.value, null);
