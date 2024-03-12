@@ -151,7 +151,7 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
             try self.compileExpr(function.body);
 
             // TODO temporary hack so we can read the result from test.js
-            const src = self.analyzer.places[function.body].?;
+            const src = self.analyzer.places.get(function.body).?;
             const dest = Place{
                 .base = .shadow,
                 .offset = @as(u32, @intCast(function.frame_offset_max)) - 8,
@@ -174,15 +174,15 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
 
 fn compileExpr(self: *Self, expr_id: ExprId) error{CompileError}!void {
     try self.compileExprInner(expr_id);
-    if (self.analyzer.place_hints[expr_id]) |place_hint| {
-        self.emitCopy(place_hint, self.analyzer.places[expr_id].?);
+    if (self.analyzer.place_hints.get(expr_id)) |place_hint| {
+        self.emitCopy(place_hint, self.analyzer.places.get(expr_id).?);
     }
 }
 
 fn compileExprInner(self: *Self, expr_id: ExprId) error{CompileError}!void {
     const expr = self.parser.exprs.items[expr_id];
-    const repr = self.analyzer.reprs[expr_id].?;
-    const place = self.analyzer.places[expr_id].?;
+    const repr = self.analyzer.reprs.get(expr_id).?;
+    const place = self.analyzer.places.get(expr_id).?;
     switch (expr) {
         .i64 => |num| {
             self.emitPlaceBase(place);
@@ -200,7 +200,7 @@ fn compileExprInner(self: *Self, expr_id: ExprId) error{CompileError}!void {
         .set => |set| {
             try self.compileExpr(set.value);
             // This is needed because we can't pass path as place_hint for value without alias analysis.
-            self.emitCopy(self.analyzer.places[set.path].?, self.analyzer.places[set.value].?);
+            self.emitCopy(self.analyzer.places.get(set.path).?, self.analyzer.places.get(set.value).?);
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
@@ -221,8 +221,8 @@ fn compileExprInner(self: *Self, expr_id: ExprId) error{CompileError}!void {
                     try self.compileExpr(call.args.values[0]);
                     try self.compileExpr(call.args.values[1]);
                     self.emitPlaceBase(place);
-                    self.emitLoad(val_type, self.analyzer.places[call.args.values[0]].?);
-                    self.emitLoad(val_type, self.analyzer.places[call.args.values[1]].?);
+                    self.emitLoad(val_type, self.analyzer.places.get(call.args.values[0]).?);
+                    self.emitLoad(val_type, self.analyzer.places.get(call.args.values[1]).?);
                     switch (head.builtin) {
                         .equal => self.emitEqual(val_type),
                         .less_than => self.emitLessThan(val_type),

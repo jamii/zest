@@ -9,12 +9,18 @@ pub fn Context(comptime T: type) type {
     return struct {
         pub fn hash(_: anytype, key: T) u64 {
             var hasher = std.hash.Wyhash.init(42);
-            key.update(&hasher);
+            switch (@typeInfo(T)) {
+                .Int => hasher.update(std.mem.asBytes(&key)),
+                else => key.update(&hasher),
+            }
             return hasher.final();
         }
 
         pub fn eql(_: anytype, a: T, b: T) bool {
-            return a.equal(b);
+            return switch (@typeInfo(T)) {
+                .Int => a == b,
+                else => a.equal(b),
+            };
         }
     };
 }
