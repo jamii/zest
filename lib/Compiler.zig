@@ -10,6 +10,7 @@ const Parser = @import("./Parser.zig");
 const Analyzer = @import("./Analyzer.zig");
 const ExprId = Parser.ExprId;
 const Place = Analyzer.Place;
+const FunctionId = Analyzer.FunctionId;
 const Repr = @import("./Semantalyzer.zig").Repr;
 
 const Self = @This();
@@ -150,16 +151,17 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
             self.emitSub(.i32);
             self.emitGlobalSet(0);
 
+            self.function = function;
             try self.compileExpr(function.body);
 
-            // TODO temporary hack so we can read the result from test.js
-            const src = self.function.places.get(function.body).?;
-            const dest = Place{
-                .base = .shadow,
-                .offset = @as(u32, @intCast(function.frame_offset_max)) - 8,
-                .length = 8,
-            };
-            self.emitCopy(dest, src);
+            self.emitCopy(
+                .{
+                    .base = .result,
+                    .offset = 0,
+                    .length = @intCast(function.result.?.sizeOf()),
+                },
+                self.function.places.get(function.body).?,
+            );
 
             // Pop frame
             self.emitGlobalGet(0);
@@ -204,47 +206,65 @@ fn compileExprInner(self: *Self, expr_id: ExprId) error{CompileError}!void {
             // This is needed because we can't pass path as place_hint for value without alias analysis.
             self.emitCopy(self.function.places.get(set.path).?, self.function.places.get(set.value).?);
         },
+        .@"fn" => {},
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
-            if (head != .builtin) return self.fail("TODO Can't compile {}", .{expr});
-            switch (head.builtin) {
-                .equal,
-                .less_than,
-                .less_than_or_equal,
-                .more_than,
-                .more_than_or_equal,
-                .add,
-                .subtract,
-                => {
-                    const val_type: ValType = switch (repr) {
-                        .i64 => .i64,
-                        else => return self.fail("TODO Can't compile {}", .{head.builtin}),
-                    };
-                    try self.compileExpr(call.args.values[0]);
-                    try self.compileExpr(call.args.values[1]);
-                    self.emitPlaceBase(place);
-                    self.emitLoad(val_type, self.function.places.get(call.args.values[0]).?);
-                    self.emitLoad(val_type, self.function.places.get(call.args.values[1]).?);
+            switch (head) {
+                .builtin => {
                     switch (head.builtin) {
-                        .equal => self.emitEqual(val_type),
-                        .less_than => self.emitLessThan(val_type),
-                        .less_than_or_equal => self.emitLessThanOrEqual(val_type),
-                        .more_than => self.emitMoreThan(val_type),
-                        .more_than_or_equal => self.emitMoreThanOrEqual(val_type),
-                        .add => self.emitAdd(val_type),
-                        .subtract => self.emitSubtract(val_type),
-                        else => unreachable,
-                    }
-                    switch (head.builtin) {
-                        .equal, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => {
-                            self.emitU32ToI64();
+                        .equal,
+                        .less_than,
+                        .less_than_or_equal,
+                        .more_than,
+                        .more_than_or_equal,
+                        .add,
+                        .subtract,
+                        => {
+                            const val_type: ValType = switch (repr) {
+                                .i64 => .i64,
+                                else => return self.fail("TODO Can't compile {}", .{head.builtin}),
+                            };
+                            try self.compileExpr(call.args.values[0]);
+                            try self.compileExpr(call.args.values[1]);
+                            self.emitPlaceBase(place);
+                            self.emitLoad(val_type, self.function.places.get(call.args.values[0]).?);
+                            self.emitLoad(val_type, self.function.places.get(call.args.values[1]).?);
+                            switch (head.builtin) {
+                                .equal => self.emitEqual(val_type),
+                                .less_than => self.emitLessThan(val_type),
+                                .less_than_or_equal => self.emitLessThanOrEqual(val_type),
+                                .more_than => self.emitMoreThan(val_type),
+                                .more_than_or_equal => self.emitMoreThanOrEqual(val_type),
+                                .add => self.emitAdd(val_type),
+                                .subtract => self.emitSubtract(val_type),
+                                else => unreachable,
+                            }
+                            switch (head.builtin) {
+                                .equal, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal => {
+                                    self.emitU32ToI64();
+                                },
+                                .add, .subtract => {},
+                                else => unreachable,
+                            }
+                            self.emitStore(val_type, place);
                         },
-                        .add, .subtract => {},
-                        else => unreachable,
+                        else => return self.fail("TODO Can't compile {}", .{head.builtin}),
                     }
-                    self.emitStore(val_type, place);
                 },
-                else => return self.fail("TODO Can't compile {}", .{head.builtin}),
+                .name => {
+                    for (call.args.values) |value_id| {
+                        try self.compileExpr(value_id);
+                    }
+                    const result_place = self.function.places.get(expr_id).?;
+                    self.emitPlace(result_place);
+                    for (call.args.values) |arg_id| {
+                        const arg_place = self.function.places.get(arg_id).?;
+                        self.emitPlace(arg_place);
+                    }
+                    const fn_id = self.function.calls.get(expr_id).?;
+                    self.emitCall(fn_id);
+                },
+                else => return self.fail("TODO Can't compile {}", .{expr}),
             }
         },
         .get => |get| {
@@ -497,6 +517,12 @@ fn emitCopy(self: *Self, dest: Place, src: Place) void {
     self.emitLebU32(10);
     self.emitByte(0x00);
     self.emitByte(0x00);
+}
+
+// Expects args on the stack.
+fn emitCall(self: *Self, fn_id: FunctionId) void {
+    self.emitByte(0x10);
+    self.emitLebU32(@intCast(fn_id));
 }
 
 fn emitEnd(self: *Self) void {

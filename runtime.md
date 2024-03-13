@@ -154,10 +154,38 @@ inc(42)
 ```
 
 ```
+one = 1
+inc-a = (a) {
+    two = 2
+    inc-b = (b) {
+        three = 3
+        inc-c = (c) {
+            c + one
+        }
+        inc-c(b)
+    }
+    inc-b(a)
+}
+inc-a(42)
+
+43
+```
+
+```
 inc = (@a) { @a = a + 1 }
 x = @42
 inc(@x)
 x
+
+43
+```
+
+
+```
+a = @42
+inc = () { @a = a + 1 }
+inc()
+a
 
 43
 ```

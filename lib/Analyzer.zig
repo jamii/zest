@@ -86,6 +86,7 @@ pub const Function = struct {
     places: HashMap(ExprId, Place),
     constants: HashMap(ExprId, Value),
     bindings: HashMap(ExprId, Binding),
+    calls: HashMap(ExprId, FunctionId),
 
     // Temporary state
     frame_offset: usize,
@@ -104,6 +105,7 @@ pub const Function = struct {
             .places = HashMap(ExprId, Place).init(allocator),
             .constants = HashMap(ExprId, Value).init(allocator),
             .bindings = HashMap(ExprId, Binding).init(allocator),
+            .calls = HashMap(ExprId, FunctionId).init(allocator),
 
             .frame_offset = 0,
         };
@@ -120,6 +122,7 @@ pub const Binding = struct {
         },
         param: usize,
     },
+    repr: Repr,
 };
 
 pub fn init(allocator: Allocator, parser: Parser) Self {
@@ -190,17 +193,15 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
         .name => |name| {
             const binding = try self.lookup(name);
             self.getFunction().bindings.put(expr_id, binding) catch oom();
-            return switch (binding.source) {
-                .let => |let| self.functions.items[let.fn_id].reprs.get(let.value_id).?,
-                .param => |param| self.getFunction().params.reprs[param],
-            };
+            return binding.repr;
         },
         .let => |let| {
-            _ = try self.reprOfExpr(let.value, null);
+            const value_repr = try self.reprOfExpr(let.value, null);
             self.scope.append(.{
                 .mut = let.mut,
                 .name = let.name,
                 .source = .{ .let = .{ .fn_id = self.function_id, .value_id = let.value } },
+                .repr = value_repr,
             }) catch oom();
             return Repr.emptyStruct();
         },
@@ -246,11 +247,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                 },
                 .name => |name| {
                     const binding = try self.lookup(name);
-                    const binding_repr = switch (binding.source) {
-                        .let => |let| self.functions.items[let.fn_id].reprs.get(let.value_id).?,
-                        .param => |param| self.getFunction().params.reprs[param],
-                    };
-                    if (binding_repr != .@"fn") return self.fail("Can't call {}", .{binding_repr});
+                    if (binding.repr != .@"fn") return self.fail("Can't call {}", .{binding.repr});
 
                     const params = StructRepr{
                         .keys = self.allocator.alloc(Value, call.args.keys.len) catch oom(),
@@ -261,7 +258,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                     for (call.args.values, params.reprs) |value_id, *repr|
                         repr.* = try self.reprOfExpr(value_id, null);
 
-                    const fn_expr = self.parser.exprs.items[binding_repr.@"fn".expr_id].@"fn";
+                    const fn_expr = self.parser.exprs.items[binding.repr.@"fn".expr_id].@"fn";
                     if (fn_expr.params.keys.len != params.keys.len)
                         return self.fail("Expected {} args, found {}", .{ fn_expr.params.keys.len, params.keys.len });
                     for (fn_expr.params.keys, params.keys) |fn_param_id, call_param| {
@@ -271,23 +268,27 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                     }
 
                     if (self.functions_by_key.get(.{ .params = params, .body = fn_expr.body })) |function_id| {
+                        self.getFunction().calls.put(expr_id, function_id) catch oom();
                         return self.functions.items[function_id].result.?;
                     }
 
-                    const old_function_id = self.function_id;
-                    self.function_id = self.appendFunction(Function.init(
+                    const new_function_id = self.appendFunction(Function.init(
                         self.allocator,
-                        binding_repr.@"fn".name,
+                        binding.repr.@"fn".name,
                         params,
                         fn_expr.body,
                     ));
+                    self.getFunction().calls.put(expr_id, new_function_id) catch oom();
+
+                    const old_function_id = self.function_id;
+                    self.function_id = new_function_id;
                     defer self.function_id = old_function_id;
 
                     const old_scope = self.scope;
                     self.scope = ArrayList(Binding).init(self.allocator);
                     defer self.scope = old_scope;
 
-                    for (0.., fn_expr.params.values) |param_ix, param_id| {
+                    for (0.., fn_expr.params.values, params.reprs) |param_ix, param_id, param_repr| {
                         // TODO lift mut handling into parser?
                         const param_expr = self.parser.exprs.items[param_id];
                         const mut = param_expr == .mut;
@@ -297,6 +298,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                             .name = name_expr.name,
                             .mut = mut,
                             .source = .{ .param = param_ix },
+                            .repr = param_repr,
                         }) catch oom();
                     }
                     const result = try self.reprOfExpr(fn_expr.body, null);

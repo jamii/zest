@@ -20,10 +20,11 @@ try {
 memory = wasmInstance.exports.memory;
 
 try {
-  wasmInstance.exports.main();
+  const ptr = 0;
+  wasmInstance.exports.main(ptr);
   // TODO print results
   let ints = new Int32Array(memory.buffer);
-  console.log(ints[ints.length - 2]);
+  console.log(ints[ptr]);
 } catch (error) {
   console.error(error);
 }
