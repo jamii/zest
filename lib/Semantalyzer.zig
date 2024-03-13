@@ -12,7 +12,8 @@ const ExprId = Parser.ExprId;
 const Expr = Parser.Expr;
 const ObjectExpr = Parser.ObjectExpr;
 const StaticKey = Parser.StaticKey;
-const Place = @import("./Analyzer.zig").Place;
+const Analyzer = @import("./Analyzer.zig");
+const Place = Analyzer.Place;
 
 const Self = @This();
 allocator: Allocator,
@@ -672,6 +673,7 @@ pub const UnionRepr = struct {
 pub const FnRepr = struct {
     name: []const u8,
     expr_id: ExprId,
+    scope: []Analyzer.Binding,
 };
 
 pub const ReprKind = enum {

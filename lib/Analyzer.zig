@@ -216,7 +216,11 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                 .let => |let| let.name,
                 else => std.fmt.allocPrint(self.allocator, "anon#{}", .{self.functions.items.len}) catch oom(),
             };
-            return .{ .@"fn" = .{ .name = name, .expr_id = expr_id } };
+            return .{ .@"fn" = .{
+                .name = name,
+                .expr_id = expr_id,
+                .scope = self.allocator.dupe(Binding, self.scope.items) catch oom(),
+            } };
         },
         .call => |call| {
             const head = self.parser.exprs.items[call.head];
@@ -286,6 +290,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
 
                     const old_scope = self.scope;
                     self.scope = ArrayList(Binding).init(self.allocator);
+                    self.scope.appendSlice(binding.repr.@"fn".scope) catch oom();
                     defer self.scope = old_scope;
 
                     for (0.., fn_expr.params.values, params.reprs) |param_ix, param_id, param_repr| {
