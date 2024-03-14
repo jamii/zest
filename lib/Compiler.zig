@@ -65,7 +65,9 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
             // Fn type.
             self.emitByte(0x60);
             // Param types.
-            self.emitLebU32(@intCast(1 + function.params.keys.len));
+            // (parent_frame_ptr, result_ptr, ..param_ptrs)
+            self.emitLebU32(@intCast(2 + function.params.keys.len));
+            self.emitValType(.i32);
             self.emitValType(.i32);
             for (function.params.keys) |_|
                 self.emitValType(.i32);
@@ -150,6 +152,12 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
             self.emitU32Const(@intCast(function.frame_offset_max));
             self.emitSub(.i32);
             self.emitGlobalSet(0);
+
+            // Store parent_frame_ptr
+            const place = Place{ .base = .shadow, .offset = 0, .length = @sizeOf(u32) };
+            self.emitPlaceBase(place);
+            self.emitLocalGet(0);
+            self.emitStore(.i32, place);
 
             self.function = function;
             try self.compileExpr(function.body);
@@ -254,6 +262,11 @@ fn compileExprInner(self: *Self, expr_id: ExprId) error{CompileError}!void {
                 .name => {
                     for (call.args.values) |value_id| {
                         try self.compileExpr(value_id);
+                    }
+                    const fn_binding = self.function.bindings.get(expr_id).?;
+                    switch (fn_binding.source) {
+                        .let => self.emitGlobalGet(0), // TODO might be parent frame
+                        .param => |param| self.emitLocalGet(@intCast(2 + param)),
                     }
                     const result_place = self.function.places.get(expr_id).?;
                     self.emitPlace(result_place);
@@ -483,8 +496,8 @@ fn emitLoad(self: *Self, val_type: ValType, place: Place) void {
 
 fn emitPlaceBase(self: *Self, place: Place) void {
     switch (place.base) {
-        .result => self.emitLocalGet(0),
-        .param => |param| self.emitLocalGet(1 + param),
+        .result => self.emitLocalGet(1),
+        .param => |param| self.emitLocalGet(2 + param),
         .shadow => self.emitGlobalGet(0),
     }
 }

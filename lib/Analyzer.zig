@@ -107,7 +107,7 @@ pub const Function = struct {
             .bindings = HashMap(ExprId, Binding).init(allocator),
             .calls = HashMap(ExprId, FunctionId).init(allocator),
 
-            .frame_offset = 0,
+            .frame_offset = @sizeOf(u32), // Enough room for static link.
         };
     }
 };
@@ -252,6 +252,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                 .name => |name| {
                     const binding = try self.lookup(name);
                     if (binding.repr != .@"fn") return self.fail("Can't call {}", .{binding.repr});
+                    self.getFunction().bindings.put(expr_id, binding) catch oom();
 
                     const params = StructRepr{
                         .keys = self.allocator.alloc(Value, call.args.keys.len) catch oom(),
