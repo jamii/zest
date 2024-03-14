@@ -25,6 +25,7 @@ stack_offset_max: usize,
 error_message: ?[]const u8,
 
 // Temporary state
+function_depth: usize,
 function_id: FunctionId,
 scope: ArrayList(Binding),
 
@@ -34,14 +35,14 @@ pub const Place = struct {
     base: union(enum) {
         result,
         param: u32,
-        shadow,
+        shadow: u32, // Relative nesting depth
     },
     offset: u32,
     length: u32,
 
     pub fn empty() Place {
         return .{
-            .base = .shadow,
+            .base = .{ .shadow = 0 },
             .offset = 0,
             .length = 0,
         };
@@ -51,7 +52,7 @@ pub const Place = struct {
         return switch (self.base) {
             .result => other.base == .result,
             .param => other.base == .param and self.base.param == other.base.param,
-            .shadow => other.base == .shadow,
+            .shadow => other.base == .shadow and self.base.shadow == other.base.shadow,
         } and
             self.offset == other.offset and self.length == other.length;
     }
@@ -123,6 +124,7 @@ pub const Binding = struct {
         param: usize,
     },
     repr: Repr,
+    function_depth: usize,
 };
 
 pub fn init(allocator: Allocator, parser: Parser) Self {
@@ -133,6 +135,7 @@ pub fn init(allocator: Allocator, parser: Parser) Self {
         .functions_by_key = HashMap(FunctionKey, FunctionId).init(allocator),
         .stack_offset_max = 8 << 20, // 8mb
         .error_message = null,
+        .function_depth = 0,
         .function_id = 0,
         .scope = ArrayList(Binding).init(allocator),
     };
@@ -202,6 +205,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                 .name = let.name,
                 .source = .{ .let = .{ .fn_id = self.function_id, .value_id = let.value } },
                 .repr = value_repr,
+                .function_depth = self.function_depth,
             }) catch oom();
             return Repr.emptyStruct();
         },
@@ -294,6 +298,9 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                     self.scope.appendSlice(binding.repr.@"fn".scope) catch oom();
                     defer self.scope = old_scope;
 
+                    self.function_depth += 1;
+                    defer self.function_depth -= 1;
+
                     for (0.., fn_expr.params.values, params.reprs) |param_ix, param_id, param_repr| {
                         // TODO lift mut handling into parser?
                         const param_expr = self.parser.exprs.items[param_id];
@@ -305,6 +312,7 @@ fn reprOfExprInner(self: *Self, expr_id: ExprId, repr_in: ?Repr) error{AnalyzeEr
                             .mut = mut,
                             .source = .{ .param = param_ix },
                             .repr = param_repr,
+                            .function_depth = self.function_depth,
                         }) catch oom();
                     }
                     const result = try self.reprOfExpr(fn_expr.body, null);
@@ -442,7 +450,7 @@ fn framePush(self: *Self, repr: Repr) Place {
     self.getFunction().frame_offset += repr.sizeOf();
     self.getFunction().frame_offset_max = @max(self.getFunction().frame_offset_max, self.getFunction().frame_offset);
     return .{
-        .base = .shadow,
+        .base = .{ .shadow = 0 },
         .offset = @intCast(offset),
         .length = @intCast(repr.sizeOf()),
     };

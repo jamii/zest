@@ -154,7 +154,7 @@ pub fn compile(self: *Self) error{CompileError}![]u8 {
             self.emitGlobalSet(0);
 
             // Store parent_frame_ptr
-            const place = Place{ .base = .shadow, .offset = 0, .length = @sizeOf(u32) };
+            const place = Place{ .base = .{ .shadow = 0 }, .offset = 0, .length = @sizeOf(u32) };
             self.emitPlaceBase(place);
             self.emitLocalGet(0);
             self.emitStore(.i32, place);
