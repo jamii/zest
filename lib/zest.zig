@@ -36,8 +36,24 @@ pub fn List(comptime K: type, comptime V: type) type {
             return self.data.items[key.id];
         }
 
+        pub fn getPtr(self: Self, key: K) *V {
+            return &self.data.items[key.id];
+        }
+
+        pub fn items(self: Self) []const V {
+            return self.data.items;
+        }
+
         pub fn count(self: Self) usize {
             return self.data.items.len;
+        }
+
+        pub fn lastKey(self: Self) K {
+            return .{ .id = self.data.items.len - 1 };
+        }
+
+        pub fn lastValue(self: Self) V {
+            return self.get(self.lastKey());
         }
     };
 }
@@ -81,9 +97,9 @@ pub const TokenData = enum {
 pub const Expr = struct { id: usize };
 
 pub const ExprData = union(enum) {
-    // TODO Replace i64/f64 with bigInt/bigDec
-    i64: i64,
-    f64: f64,
+    // TODO Replace i32/f32 with bigInt/bigDec
+    i32: i32,
+    f32: f32,
     string: []const u8,
     object: ObjectExprData,
     builtin: Builtin,
@@ -151,6 +167,25 @@ pub const Builtin = enum {
     @"return-to",
 };
 
+pub const Node = struct { id: usize };
+
+pub const NodeData = union(enum) {
+    i32: i32,
+    @"return": Node,
+};
+
+pub const Function = struct { id: usize };
+
+pub const FunctionData = struct {
+    node_data: List(Node, NodeData),
+
+    pub fn init(allocator: Allocator) FunctionData {
+        return .{
+            .node_data = fieldType(FunctionData, .node_data).init(allocator),
+        };
+    }
+};
+
 pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
@@ -160,6 +195,10 @@ pub const Compiler = struct {
 
     token_next: Token,
     expr_data: List(Expr, ExprData),
+
+    function_data: List(Function, FunctionData),
+
+    wasm: ArrayList(u8),
 
     error_message: []const u8,
 
@@ -174,17 +213,28 @@ pub const Compiler = struct {
             .token_next = .{ .id = 0 },
             .expr_data = fieldType(Compiler, .expr_data).init(allocator),
 
+            .function_data = fieldType(Compiler, .function_data).init(allocator),
+
+            .wasm = fieldType(Compiler, .wasm).init(allocator),
+
             .error_message = "",
         };
     }
 };
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
-
 pub const parse = @import("./parse.zig").parse;
+pub const lower = @import("./lower.zig").lower;
+pub const generate = @import("./generate.zig").generate;
 
-pub fn compile(c: *Compiler) error{ TokenizeError, ParseError }!void {
+pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, GenerateError }!void {
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
+
     try parse(c);
+    assert(c.token_next.id == c.token_data.count());
+
+    try lower(c);
+
+    try generate(c);
 }

@@ -4,7 +4,7 @@ const ArrayList = std.ArrayList;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
-const zest = @import("./zest.zig");
+const zest = @import("../lib/zest.zig");
 const Compiler = zest.Compiler;
 const oom = zest.oom;
 
@@ -35,8 +35,7 @@ fn eval(
     compiler: *Compiler,
 ) ![]const u8 {
     try zest.compile(compiler);
-    const wasm = &[_]u8{};
-    return eval_wasm(allocator, wasm);
+    return eval_wasm(allocator, compiler.wasm.items);
 }
 
 fn run(

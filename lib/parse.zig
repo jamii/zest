@@ -33,23 +33,23 @@ fn parseStatements(c: *Compiler, end: TokenData) error{ParseError}!Expr {
             const value = try parseExpr(c);
 
             // Validation.
-            const path_expr = c.expr_data.get(statement);
-            const value_expr = c.expr_data.get(value);
-            switch (path_expr) {
+            const path_data = c.expr_data.get(statement);
+            const value_data = c.expr_data.get(value);
+            switch (path_data) {
                 .mut => |mut| {
                     const set = c.expr_data.append(.{ .set = .{ .path = mut, .value = value } });
                     statements.append(set) catch oom();
                 },
                 .name => |name| {
-                    const mut = value_expr == .mut;
+                    const mut = value_data == .mut;
                     const let = c.expr_data.append(.{ .let = .{
                         .mut = mut,
                         .name = name,
-                        .value = if (mut) value_expr.mut else value,
+                        .value = if (mut) value_data.mut else value,
                     } });
                     statements.append(let) catch oom();
                 },
-                else => return fail(c, "Invalid LHS of assignment: {}", .{path_expr}),
+                else => return fail(c, "Invalid LHS of assignment: {}", .{path_data}),
             }
         } else {
             statements.append(statement) catch oom();
@@ -122,8 +122,8 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
                 try expectSpaceOrNewline(c);
                 allowNewline(c);
                 const right = try parseExprTight(c);
-                const zero = c.expr_data.append(.{ .i64 = 0 });
-                const one = c.expr_data.append(.{ .i64 = 1 });
+                const zero = c.expr_data.append(.{ .i32 = 0 });
+                const one = c.expr_data.append(.{ .i32 = 1 });
                 head = c.expr_data.append(.{ .call = .{
                     .head = c.expr_data.append(.{ .builtin = builtin }),
                     .args = .{
@@ -184,7 +184,7 @@ fn parseCallDot(c: *Compiler, arg: Expr) error{ParseError}!Expr {
     try expect(c, .@")");
 
     var keys = ArrayList(Expr).init(c.allocator);
-    keys.append(c.expr_data.append(.{ .i64 = 0 })) catch oom();
+    keys.append(c.expr_data.append(.{ .i32 = 0 })) catch oom();
     keys.appendSlice(args.keys) catch oom();
 
     var values = ArrayList(Expr).init(c.allocator);
@@ -252,13 +252,13 @@ fn parseNumber(c: *Compiler) error{ParseError}!Expr {
     try expect(c, .number);
     const text = lastTokenText(c);
     if (std.mem.indexOfScalar(u8, text, '.') == null) {
-        const num = std.fmt.parseInt(i64, text, 10) catch |err|
-            return fail(c, "Can't parse i64 because {}: {s}", .{ err, text });
-        return c.expr_data.append(.{ .i64 = num });
+        const num = std.fmt.parseInt(i32, text, 10) catch |err|
+            return fail(c, "Can't parse i32 because {}: {s}", .{ err, text });
+        return c.expr_data.append(.{ .i32 = num });
     } else {
-        const num = std.fmt.parseFloat(f64, text) catch |err|
-            return fail(c, "Can't parse f64 because {}: {s}", .{ err, text });
-        return c.expr_data.append(.{ .f64 = num });
+        const num = std.fmt.parseFloat(f32, text) catch |err|
+            return fail(c, "Can't parse f32 because {}: {s}", .{ err, text });
+        return c.expr_data.append(.{ .f32 = num });
     }
 }
 
@@ -301,16 +301,16 @@ fn parseGroup(c: *Compiler) error{ParseError}!Expr {
     return statements;
 }
 
-fn parseArgs(c: *Compiler, end: TokenData, start_ix: i64) error{ParseError}!ObjectExprData {
+fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!ObjectExprData {
     var keys = ArrayList(Expr).init(c.allocator);
     var values = ArrayList(Expr).init(c.allocator);
 
     allowNewline(c);
 
     // positional args
-    var ix: i64 = start_ix;
+    var ix: i32 = start_ix;
     while (peek(c) != end and peek(c) != .@"/") {
-        const key = c.expr_data.append(.{ .i64 = ix });
+        const key = c.expr_data.append(.{ .i32 = ix });
         ix += 1;
         const value = try parseExpr(c);
         keys.append(key) catch oom();
