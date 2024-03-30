@@ -1,124 +1,74 @@
 const std = @import("std");
 const panic = std.debug.panic;
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
-const startsWith = std.mem.startsWith;
 
-const util = @import("./util.zig");
-const oom = util.oom;
+const zest = @import("./zest.zig");
+const oom = zest.oom;
+const Compiler = zest.Compiler;
+const TokenData = zest.TokenData;
 
-const Self = @This();
-allocator: Allocator,
-source: []const u8,
-tokens: ArrayList(Token),
-ranges: ArrayList([2]usize),
-error_message: ?[]const u8,
-
-pub const Token = enum {
-    number,
-    string,
-    name,
-    @"if",
-    @"else",
-    @"while",
-    @"@",
-    @"(",
-    @")",
-    @"[",
-    @"]",
-    @"{",
-    @"}",
-    @",",
-    @".",
-    @";",
-    @"=",
-    @"==",
-    @"~=",
-    @"<",
-    @"<=",
-    @">",
-    @">=",
-    @"+",
-    @"-",
-    @"/",
-    @"*",
-    comment,
-    space,
-    newline,
-    eof,
-};
-
-pub fn init(allocator: Allocator, source: []const u8) Self {
-    return Self{
-        .allocator = allocator,
-        .source = source,
-        .tokens = ArrayList(Token).init(allocator),
-        .ranges = ArrayList([2]usize).init(allocator),
-        .error_message = null,
-    };
-}
-
-pub fn tokenize(self: *Self) !void {
-    const source = self.source;
+pub fn tokenize(c: *Compiler) !void {
+    const source = c.source;
     var i: usize = 0;
     while (i < source.len) {
         const start = i;
         const char = source[i];
         i += 1;
-        const token: Token = switch (char) {
-            '@' => Token.@"@",
-            '(' => Token.@"(",
-            ')' => Token.@")",
-            '[' => Token.@"[",
-            ']' => Token.@"]",
-            '}' => Token.@"}",
-            '{' => Token.@"{",
-            ',' => Token.@",",
-            '.' => Token.@".",
-            ';' => Token.@";",
+        const token: TokenData = switch (char) {
+            '@' => TokenData.@"@",
+            '(' => TokenData.@"(",
+            ')' => TokenData.@")",
+            '[' => TokenData.@"[",
+            ']' => TokenData.@"]",
+            '}' => TokenData.@"}",
+            '{' => TokenData.@"{",
+            ',' => TokenData.@",",
+            '.' => TokenData.@".",
+            ';' => TokenData.@";",
             '=' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;
-                    break :token Token.@"==";
+                    break :token TokenData.@"==";
                 } else {
-                    break :token Token.@"=";
+                    break :token TokenData.@"=";
                 }
             },
             '~' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;
-                    break :token Token.@"~=";
+                    break :token TokenData.@"~=";
                 } else {
-                    return self.fail(start);
+                    return fail(c, start);
                 }
             },
             '<' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;
-                    break :token Token.@"<=";
+                    break :token TokenData.@"<=";
                 } else {
-                    break :token Token.@"<";
+                    break :token TokenData.@"<";
                 }
             },
             '>' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;
-                    break :token Token.@">=";
+                    break :token TokenData.@">=";
                 } else {
-                    break :token Token.@">";
+                    break :token TokenData.@">";
                 }
             },
-            '+' => Token.@"+",
-            '-' => Token.@"-",
+            '+' => TokenData.@"+",
+            '-' => TokenData.@"-",
             '/' => token: {
                 if (i < source.len and source[i] == '/') {
                     while (i < source.len and source[i] != '\n') : (i += 1) {}
-                    break :token Token.comment;
+                    break :token TokenData.comment;
                 } else {
-                    break :token Token.@"/";
+                    break :token TokenData.@"/";
                 }
             },
-            '*' => Token.@"*",
+            '*' => TokenData.@"*",
             'a'...'z' => token: {
                 i -= 1;
                 while (i < source.len) {
@@ -128,22 +78,22 @@ pub fn tokenize(self: *Self) !void {
                     }
                 }
                 const name = source[start..i];
-                const keywords = [_]Token{
+                const keywords = [_]TokenData{
                     .@"if",
                     .@"else",
                     .@"while",
                 };
-                break :token match(name, &keywords) orelse Token.name;
+                break :token match(name, &keywords) orelse TokenData.name;
             },
             '\'' => token: {
                 var escaped = false;
                 while (i < source.len) : (i += 1) {
                     switch (source[i]) {
-                        '\n' => return self.fail(start),
+                        '\n' => return fail(c, start),
                         '\'' => {
                             if (!escaped) {
                                 i += 1;
-                                break :token Token.string;
+                                break :token TokenData.string;
                             } else {
                                 escaped = false;
                             }
@@ -152,7 +102,7 @@ pub fn tokenize(self: *Self) !void {
                         else => escaped = false,
                     }
                 }
-                return self.fail(start);
+                return fail(c, start);
             },
             '0'...'9' => token: {
                 while (i < source.len) {
@@ -173,37 +123,37 @@ pub fn tokenize(self: *Self) !void {
                     // Tokenize `42. ` as an `number . space` rather than `number space`
                     if (i - before_decimal == 1) i = before_decimal;
                 }
-                break :token Token.number;
+                break :token TokenData.number;
             },
             ' ' => token: {
                 while (i < source.len and source[i] == ' ') {
                     i += 1;
                 }
-                break :token Token.space;
+                break :token TokenData.space;
             },
-            '\n' => Token.newline,
-            else => return self.fail(start),
+            '\n' => TokenData.newline,
+            else => return fail(c, start),
         };
-        self.tokens.append(token) catch oom();
-        self.ranges.append(.{ start, i }) catch oom();
+        _ = c.token_data.append(token);
+        _ = c.token_to_source.append(.{ start, i });
     }
 
-    self.tokens.append(.eof) catch oom();
-    self.ranges.append(.{ i, i }) catch oom();
+    _ = c.token_data.append(.eof);
+    _ = c.token_to_source.append(.{ i, i });
 }
 
-fn match(name: []const u8, comptime tokens: []const Token) ?Token {
-    inline for (tokens) |token| {
+fn match(name: []const u8, comptime token_data: []const TokenData) ?TokenData {
+    inline for (token_data) |token| {
         if (std.mem.eql(u8, name, @tagName(token)))
             return token;
     }
     return null;
 }
 
-fn fail(self: *Self, pos: usize) error{TokenizeError} {
-    self.error_message = std.fmt.allocPrint(self.allocator, "Tokenizer error at {}: {s}", .{
+fn fail(c: *Compiler, pos: usize) error{TokenizeError} {
+    c.error_message = std.fmt.allocPrint(c.allocator, "Tokenizer error at {}: {s}", .{
         pos,
-        self.source[pos..@min(pos + 100, self.source.len)],
+        c.source[pos..@min(pos + 100, c.source.len)],
     }) catch oom();
     return error.TokenizeError;
 }

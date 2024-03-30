@@ -4,22 +4,9 @@ const ArrayList = std.ArrayList;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
-const util = @import("./util.zig");
-const oom = util.oom;
-
-const Tokenizer = @import("./Tokenizer.zig");
-const Parser = @import("./Parser.zig");
-const Semantalyzer = @import("./Semantalyzer.zig");
-const Analyzer = @import("./Analyzer.zig");
-const Compiler = @import("./Compiler.zig");
-
-const Baton = struct {
-    tokenizer: ?Tokenizer = null,
-    parser: ?Parser = null,
-    semantalyzer: ?Semantalyzer = null,
-    analyzer: ?Analyzer = null,
-    compiler: ?Compiler = null,
-};
+const zest = @import("./zest.zig");
+const Compiler = zest.Compiler;
+const oom = zest.oom;
 
 fn eval_wasm(
     allocator: Allocator,
@@ -45,47 +32,22 @@ fn eval_wasm(
 
 fn eval(
     allocator: Allocator,
-    source: []const u8,
-    baton: *Baton,
+    compiler: *Compiler,
 ) ![]const u8 {
-    baton.tokenizer = Tokenizer.init(allocator, source);
-    try baton.tokenizer.?.tokenize();
-    baton.parser = Parser.init(allocator, baton.tokenizer.?);
-    try baton.parser.?.parse();
-    baton.analyzer = Analyzer.init(allocator, baton.parser.?);
-    try baton.analyzer.?.analyze();
-    baton.compiler = Compiler.init(allocator, baton.parser.?, baton.analyzer.?);
-    const wasm = try baton.compiler.?.compile();
-    const value_compiled = eval_wasm(allocator, wasm);
-    // TODO Assert same results
-    //baton.semantalyzer = Semantalyzer.init(allocator, baton.parser.?);
-    //const value_interpreted = try baton.semantalyzer.?.semantalyze();
-    //return std.fmt.allocPrint(allocator, "{}", .{value});
-    return value_compiled;
+    try zest.compile(compiler);
+    const wasm = &[_]u8{};
+    return eval_wasm(allocator, wasm);
 }
 
 fn run(
     allocator: Allocator,
     source: []const u8,
 ) []const u8 {
-    var baton = Baton{};
-    if (eval(allocator, source, &baton)) |result| {
+    var compiler = Compiler.init(allocator, source);
+    if (eval(allocator, &compiler)) |result| {
         return result;
-    } else |err| {
-        //if (baton.tokenizer) |tokenizer|
-        //    std.debug.print("{any}\n\n", .{tokenizer.tokens.items});
-        //if (baton.parser) |parser|
-        //    std.debug.print("{any}\n\n", .{parser.exprs.items});
-        //if (@errorReturnTrace()) |trace|
-        //    std.debug.dumpStackTrace(trace.*);
-        return switch (err) {
-            error.TokenizeError => baton.tokenizer.?.error_message.?,
-            error.ParseError => baton.parser.?.error_message.?,
-            error.AnalyzeError => baton.analyzer.?.error_message.?,
-            error.CompileError => baton.compiler.?.error_message.?,
-            //error.SemantalyzeError => baton.semantalyzer.?.error_message.?,
-            //error.OutOfMemory => oom(),
-        };
+    } else |_| {
+        return compiler.error_message;
     }
 }
 
