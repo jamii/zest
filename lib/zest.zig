@@ -28,6 +28,10 @@ pub fn List(comptime K: type, comptime V: type) type {
             return .{ .id = id };
         }
 
+        pub fn appendSlice(self: *Self, value: []const V) void {
+            self.data.appendSlice(value) catch oom();
+        }
+
         pub fn appendNTimes(self: *Self, value: V, n: usize) void {
             self.data.appendNTimes(value, n) catch oom();
         }
@@ -170,7 +174,7 @@ pub const Builtin = enum {
 pub const Node = struct { id: usize };
 
 pub const NodeData = union(enum) {
-    i32: i32,
+    value: Value,
     @"return": Node,
 };
 
@@ -186,6 +190,31 @@ pub const FunctionData = struct {
     }
 };
 
+pub const Specialization = struct { id: usize };
+pub const Arg = struct { id: usize };
+
+pub const SpecializationData = struct {
+    function: Function,
+
+    node_data: List(Node, NodeData),
+
+    in_reprs: List(Arg, Repr),
+    out_reprs: List(Arg, Repr),
+    node_reprs: List(Node, Repr),
+
+    pub fn init(allocator: Allocator, function: Function) SpecializationData {
+        return .{
+            .function = function,
+
+            .node_data = fieldType(SpecializationData, .node_data).init(allocator),
+
+            .in_reprs = fieldType(SpecializationData, .in_reprs).init(allocator),
+            .out_reprs = fieldType(SpecializationData, .out_reprs).init(allocator),
+            .node_reprs = fieldType(SpecializationData, .node_reprs).init(allocator),
+        };
+    }
+};
+
 pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
@@ -197,6 +226,10 @@ pub const Compiler = struct {
     expr_data: List(Expr, ExprData),
 
     function_data: List(Function, FunctionData),
+    function_main: ?Function,
+
+    specialization_data: List(Specialization, SpecializationData),
+    specialization_main: ?Specialization,
 
     wasm: ArrayList(u8),
 
@@ -213,21 +246,33 @@ pub const Compiler = struct {
             .token_next = .{ .id = 0 },
             .expr_data = fieldType(Compiler, .expr_data).init(allocator),
 
+            .function_main = null,
             .function_data = fieldType(Compiler, .function_data).init(allocator),
+
+            .specialization_main = null,
+            .specialization_data = fieldType(Compiler, .specialization_data).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_message = "",
         };
     }
+
+    pub fn dupeOne(c: *Compiler, value: anytype) []@TypeOf(value) {
+        return c.allocator.dupe(@TypeOf(value), &[1]@TypeOf(value){value}) catch oom();
+    }
 };
+
+pub const Value = @import("./value.zig").Value;
+pub const Repr = @import("./repr.zig").Repr;
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
+pub const infer = @import("./infer.zig").infer;
 pub const generate = @import("./generate.zig").generate;
 
-pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, GenerateError }!void {
+pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
 
@@ -235,6 +280,10 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Gener
     assert(c.token_next.id == c.token_data.count());
 
     try lower(c);
+    assert(c.function_main != null);
+
+    try infer(c);
+    assert(c.specialization_main != null);
 
     try generate(c);
 }

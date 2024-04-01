@@ -13,24 +13,30 @@ const Function = zest.Function;
 const FunctionData = zest.FunctionData;
 const Node = zest.Node;
 const NodeData = zest.NodeData;
+const Value = zest.Value;
 
 pub fn lower(c: *Compiler) error{LowerError}!void {
-    const main = c.function_data.append(FunctionData.init(c.allocator));
-    const result = try lowerExpr(c, main, c.expr_data.lastKey());
-    _ = c.function_data.getPtr(main).node_data.append(.{ .@"return" = result });
+    c.function_main = try lowerFunction(c, &.{}, c.expr_data.lastKey());
 }
 
-pub fn lowerExpr(c: *Compiler, f: Function, expr: Expr) error{LowerError}!Node {
-    const nodes = &c.function_data.getPtr(f).node_data;
+fn lowerFunction(c: *Compiler, args: []const []const u8, body: Expr) error{LowerError}!Function {
+    _ = args;
+
+    var function_data = FunctionData.init(c.allocator);
+    const result_node = try lowerExpr(c, &function_data, body);
+    _ = function_data.node_data.append(.{ .@"return" = result_node });
+    return c.function_data.append(function_data);
+}
+
+fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node {
     const expr_data = c.expr_data.get(expr);
     switch (expr_data) {
         .i32 => |i| {
-            return nodes.append(.{ .i32 = i });
+            return f.node_data.append(.{ .value = .{ .i32 = i } });
         },
         .statements => |statements| {
             if (statements.len == 0) {
-                // TODO empty struct
-                return nodes.append(.{ .i32 = 0 });
+                return f.node_data.append(.{ .value = Value.emptyStruct() });
             } else {
                 var node: ?Node = null;
                 for (statements) |statement| {

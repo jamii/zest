@@ -96,9 +96,13 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
 fn emitNodeData(c: *Compiler, node_data: NodeData) void {
     switch (node_data) {
-        .i32 => |i| {
-            emitEnum(c, wasm.Opcode.i32_const);
-            emitLebI32(c, i);
+        .value => |value| {
+            switch (value) {
+                .i32 => |i| {
+                    emitEnum(c, wasm.Opcode.i32_const);
+                    emitLebI32(c, i);
+                },
+            }
         },
         .@"return" => {
             emitEnum(c, wasm.Opcode.@"return");
@@ -221,17 +225,4 @@ fn emitCall(c: *Compiler, function: Function) void {
 
 fn emitEnd(c: *Compiler) void {
     emitByte(c, 0x0B);
-}
-
-fn fail(c: *Compiler, function: Function, node: Node, comptime message: []const u8, args: anytype) error{GenerateError} {
-    const function_data = c.function_data.getPtr(function);
-    const node_data = function_data.node_data.get(function);
-    c.error_message = std.fmt.allocPrint(
-        c.allocator,
-        "At {}={}, {}={}. " ++
-            message,
-        .{ function, *function_data, node, node_data } ++
-            args,
-    ) catch oom();
-    return error.ParseError;
 }
