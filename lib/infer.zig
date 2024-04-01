@@ -27,19 +27,27 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
     specialization_data.in_reprs.appendSlice(in_reprs);
     specialization_data.node_data.appendSlice(function_data.node_data.items());
     for (0..specialization_data.node_data.count()) |node_id| {
-        const repr = try inferExpr(c, specialization_data, .{ .id = node_id });
+        const repr = try inferExpr(c, &specialization_data, .{ .id = node_id });
         _ = specialization_data.node_reprs.append(repr);
     }
     return c.specialization_data.append(specialization_data);
 }
 
-fn inferExpr(c: *Compiler, s: SpecializationData, node: Node) !Repr {
+fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
     const node_data = s.node_data.get(node);
     switch (node_data) {
         .value => |value| {
             return value.reprOf(c.allocator);
         },
-        .@"return" => {
+        .@"return" => |returned_node| {
+            const returned_repr = s.node_reprs.get(returned_node);
+            if (s.out_repr) |out_repr| {
+                if (!out_repr.equal(returned_repr)) {
+                    return fail(c, s.function, node, "Expected {}, found {}", .{ out_repr, returned_repr });
+                }
+            } else {
+                s.out_repr = returned_repr;
+            }
             return Repr.emptyStruct();
         },
     }

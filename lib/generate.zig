@@ -8,10 +8,11 @@ const wasm = std.wasm;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const Compiler = zest.Compiler;
-const Function = zest.Function;
-const FunctionData = zest.FunctionData;
+const Specialization = zest.Specialization;
+const SpecializationData = zest.SpecializationData;
 const Node = zest.Node;
 const NodeData = zest.NodeData;
+const Repr = zest.Repr;
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
     emitBytes(c, &wasm.magic);
@@ -21,16 +22,23 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         const section = emitSectionStart(c, wasm.Section.type);
         defer emitSectionEnd(c, section);
 
-        emitLebU32(c, @intCast(c.function_data.count()));
-        for (c.function_data.items()) |_| {
+        emitLebU32(c, @intCast(c.specialization_data.count()));
+        for (c.specialization_data.items()) |specialization_data| {
             emitByte(c, wasm.function_type);
 
             // Param types
-            emitLebU32(c, 0);
+            emitLebU32(c, @intCast(specialization_data.in_reprs.count()));
+            for (specialization_data.in_reprs.items()) |in_repr| {
+                emitEnum(c, try valtypeFromRepr(c, in_repr));
+            }
 
             // Result types
-            emitLebU32(c, 1);
-            emitEnum(c, wasm.Valtype.i32);
+            if (specialization_data.out_repr) |out_repr| {
+                emitLebU32(c, 1);
+                emitEnum(c, try valtypeFromRepr(c, out_repr));
+            } else {
+                emitLebU32(c, 0);
+            }
         }
     }
 
@@ -38,10 +46,10 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         const section = emitSectionStart(c, wasm.Section.function);
         defer emitSectionEnd(c, section);
 
-        emitLebU32(c, @intCast(c.function_data.count()));
-        for (0..c.function_data.count()) |function_id| {
-            // Function i has type i
-            emitLebU32(c, @intCast(function_id));
+        emitLebU32(c, @intCast(c.specialization_data.count()));
+        for (0..c.specialization_data.count()) |specialization_id| {
+            // Specialization i has type i
+            emitLebU32(c, @intCast(specialization_id));
         }
     }
 
@@ -77,21 +85,28 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         const section = emitSectionStart(c, wasm.Section.code);
         defer emitSectionEnd(c, section);
 
-        emitLebU32(c, @intCast(c.function_data.count()));
-        for (c.function_data.items()) |function_data| {
+        emitLebU32(c, @intCast(c.specialization_data.count()));
+        for (c.specialization_data.items()) |specialization_data| {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
             // Locals
             emitLebU32(c, 0);
 
-            for (function_data.node_data.items()) |node_data| {
+            for (specialization_data.node_data.items()) |node_data| {
                 emitNodeData(c, node_data);
             }
 
             emitEnd(c);
         }
     }
+}
+
+fn valtypeFromRepr(c: *Compiler, repr: Repr) !wasm.Valtype {
+    _ = c;
+    return switch (repr) {
+        .i32 => .i32,
+    };
 }
 
 fn emitNodeData(c: *Compiler, node_data: NodeData) void {
@@ -218,9 +233,9 @@ fn emitI64Const(c: *Compiler, num: i64) void {
 }
 
 // Expects args on the stack.
-fn emitCall(c: *Compiler, function: Function) void {
+fn emitCall(c: *Compiler, specialization: Specialization) void {
     emitByte(c, 0x10);
-    emitLebU32(c, @intCast(function.id));
+    emitLebU32(c, @intCast(specialization.id));
 }
 
 fn emitEnd(c: *Compiler) void {
