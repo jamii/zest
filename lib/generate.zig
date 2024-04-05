@@ -229,26 +229,6 @@ fn emitSectionEnd(c: *Compiler, byte_count_later: ByteCountLater) void {
     emitByteCount(c, byte_count_later);
 }
 
-fn emitI32Const(c: *Compiler, num: i32) void {
-    emitByte(c, 0x41);
-    emitLebI32(c, num);
-}
-
-fn emitU32Const(c: *Compiler, num: u32) void {
-    emitI32Const(c, @bitCast(num));
-}
-
-fn emitI64Const(c: *Compiler, num: i64) void {
-    emitByte(c, 0x42);
-    emitLebI64(c, num);
-}
-
-// Expects args on the stack.
-fn emitCall(c: *Compiler, specialization: Specialization) void {
-    emitByte(c, 0x10);
-    emitLebU32(c, @intCast(specialization.id));
-}
-
 fn emitEnd(c: *Compiler) void {
     emitByte(c, 0x0B);
 }
