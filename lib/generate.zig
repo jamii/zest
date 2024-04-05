@@ -91,7 +91,10 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             defer emitByteCount(c, start);
 
             // Locals
-            emitLebU32(c, 0);
+            emitLebU32(c, @intCast(specialization_data.local_repr.count()));
+            for (specialization_data.local_repr.items()) |repr| {
+                emitEnum(c, try valtypeFromRepr(c, repr));
+            }
 
             for (specialization_data.node_data.items()) |node_data| {
                 emitNodeData(c, node_data);
@@ -118,6 +121,14 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
                     emitLebI32(c, i);
                 },
             }
+        },
+        .local_get => |local| {
+            emitEnum(c, wasm.Opcode.local_get);
+            emitLebU32(c, @intCast(local.id));
+        },
+        .local_set => |local_set| {
+            emitEnum(c, wasm.Opcode.local_set);
+            emitLebU32(c, @intCast(local_set.local.id));
         },
         .@"return" => {
             emitEnum(c, wasm.Opcode.@"return");

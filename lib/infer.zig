@@ -25,6 +25,7 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
 
     var specialization_data = SpecializationData.init(c.allocator, function);
     specialization_data.in_reprs.appendSlice(in_reprs);
+    specialization_data.local_repr.appendSlice(function_data.local_repr.items());
     specialization_data.node_data.appendSlice(function_data.node_data.items());
     for (0..specialization_data.node_data.count()) |node_id| {
         const repr = try inferExpr(c, &specialization_data, .{ .id = node_id });
@@ -38,6 +39,12 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
     switch (node_data) {
         .value => |value| {
             return value.reprOf(c.allocator);
+        },
+        .local_get => |local| {
+            return s.local_repr.get(local);
+        },
+        .local_set => {
+            return Repr.emptyStruct();
         },
         .@"return" => |returned_node| {
             const returned_repr = s.node_reprs.get(returned_node);

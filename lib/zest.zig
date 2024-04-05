@@ -171,20 +171,29 @@ pub const Builtin = enum {
     @"return-to",
 };
 
+pub const Local = struct { id: usize };
+
 pub const Node = struct { id: usize };
 
 pub const NodeData = union(enum) {
     value: Value,
+    local_get: Local,
+    local_set: struct {
+        local: Local,
+        node: Node,
+    },
     @"return": Node,
 };
 
 pub const Function = struct { id: usize };
 
 pub const FunctionData = struct {
+    local_repr: List(Local, Repr),
     node_data: List(Node, NodeData),
 
     pub fn init(allocator: Allocator) FunctionData {
         return .{
+            .local_repr = fieldType(FunctionData, .local_repr).init(allocator),
             .node_data = fieldType(FunctionData, .node_data).init(allocator),
         };
     }
@@ -239,6 +248,7 @@ pub const Arg = struct { id: usize };
 pub const SpecializationData = struct {
     function: Function,
 
+    local_repr: List(Local, Repr),
     node_data: List(Node, NodeData),
 
     in_reprs: List(Arg, Repr),
@@ -249,6 +259,7 @@ pub const SpecializationData = struct {
         return .{
             .function = function,
 
+            .local_repr = fieldType(SpecializationData, .local_repr).init(allocator),
             .node_data = fieldType(SpecializationData, .node_data).init(allocator),
 
             .in_reprs = fieldType(SpecializationData, .in_reprs).init(allocator),
