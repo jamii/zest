@@ -86,18 +86,20 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         defer emitSectionEnd(c, section);
 
         emitLebU32(c, @intCast(c.specialization_data.count()));
-        for (c.specialization_data.items()) |specialization_data| {
+        for (c.specialization_data.items()) |s| {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
             // Locals
-            emitLebU32(c, @intCast(specialization_data.local_repr.count()));
-            for (specialization_data.local_repr.items()) |repr| {
+            emitLebU32(c, @intCast(s.local_repr.count()));
+            for (s.local_repr.items()) |repr| {
                 emitEnum(c, try valtypeFromRepr(c, repr));
             }
 
-            for (specialization_data.node_data.items()) |node_data| {
-                emitNodeData(c, node_data);
+            var node_next = s.node_first;
+            while (node_next) |node| {
+                emitNodeData(c, s.node_data.get(node));
+                node_next = s.node_next.get(node);
             }
 
             emitEnd(c);

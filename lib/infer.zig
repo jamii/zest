@@ -23,15 +23,26 @@ pub fn infer(c: *Compiler) error{InferError}!void {
 fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{InferError}!Specialization {
     const function_data = c.function_data.get(function);
 
-    var specialization_data = SpecializationData.init(c.allocator, function);
-    specialization_data.in_reprs.appendSlice(in_reprs);
-    specialization_data.local_repr.appendSlice(function_data.local_repr.items());
-    specialization_data.node_data.appendSlice(function_data.node_data.items());
-    for (0..specialization_data.node_data.count()) |node_id| {
-        const repr = try inferExpr(c, &specialization_data, .{ .id = node_id });
-        _ = specialization_data.node_reprs.append(repr);
+    var s = SpecializationData.init(c.allocator, function);
+
+    s.local_repr.appendSlice(function_data.local_repr.items());
+
+    s.node_data.appendSlice(function_data.node_data.items());
+    s.node_first = s.node_data.firstKey();
+    s.node_last = s.node_data.lastKey();
+    for (0..s.node_data.count()) |node_id| {
+        _ = s.node_next.append(if (node_id + 1 == s.node_data.count()) null else .{ .id = node_id + 1 });
+        _ = s.node_prev.append(if (node_id == 0) null else .{ .id = node_id - 1 });
     }
-    return c.specialization_data.append(specialization_data);
+
+    s.in_reprs.appendSlice(in_reprs);
+    // s.out_repr may be set by inferExpr below
+    for (0..s.node_data.count()) |node_id| {
+        const repr = try inferExpr(c, &s, .{ .id = node_id });
+        _ = s.node_reprs.append(repr);
+    }
+
+    return c.specialization_data.append(s);
 }
 
 fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {

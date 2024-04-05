@@ -52,12 +52,16 @@ pub fn List(comptime K: type, comptime V: type) type {
             return self.data.items.len;
         }
 
-        pub fn lastKey(self: Self) K {
-            return .{ .id = self.data.items.len - 1 };
+        pub fn firstKey(self: Self) ?K {
+            return if (self.data.items.len == 0) null else .{ .id = 0 };
         }
 
-        pub fn lastValue(self: Self) V {
-            return self.get(self.lastKey());
+        pub fn lastKey(self: Self) ?K {
+            return if (self.data.items.len == 0) null else .{ .id = self.data.items.len - 1 };
+        }
+
+        pub fn lastValue(self: Self) ?V {
+            return if (self.lastKey()) |key| self.get(key) else null;
         }
     };
 }
@@ -189,11 +193,13 @@ pub const Function = struct { id: usize };
 
 pub const FunctionData = struct {
     local_repr: List(Local, Repr),
+
     node_data: List(Node, NodeData),
 
     pub fn init(allocator: Allocator) FunctionData {
         return .{
             .local_repr = fieldType(FunctionData, .local_repr).init(allocator),
+
             .node_data = fieldType(FunctionData, .node_data).init(allocator),
         };
     }
@@ -249,7 +255,12 @@ pub const SpecializationData = struct {
     function: Function,
 
     local_repr: List(Local, Repr),
+
     node_data: List(Node, NodeData),
+    node_first: ?Node,
+    node_last: ?Node,
+    node_next: List(Node, ?Node),
+    node_prev: List(Node, ?Node),
 
     in_reprs: List(Arg, Repr),
     out_repr: ?Repr,
@@ -260,7 +271,12 @@ pub const SpecializationData = struct {
             .function = function,
 
             .local_repr = fieldType(SpecializationData, .local_repr).init(allocator),
+
             .node_data = fieldType(SpecializationData, .node_data).init(allocator),
+            .node_first = null,
+            .node_last = null,
+            .node_next = fieldType(SpecializationData, .node_next).init(allocator),
+            .node_prev = fieldType(SpecializationData, .node_prev).init(allocator),
 
             .in_reprs = fieldType(SpecializationData, .in_reprs).init(allocator),
             .out_repr = null,
@@ -327,6 +343,7 @@ pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
 pub const infer = @import("./infer.zig").infer;
 pub const generate = @import("./generate.zig").generate;
+//pub const stackify = @import("./stackify.zig").stackify;
 
 pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
     try tokenize(c);

@@ -16,7 +16,7 @@ const NodeData = zest.NodeData;
 const Value = zest.Value;
 
 pub fn lower(c: *Compiler) error{LowerError}!void {
-    c.function_main = try lowerFunction(c, &.{}, c.expr_data.lastKey());
+    c.function_main = try lowerFunction(c, &.{}, c.expr_data.lastKey().?);
 }
 
 fn lowerFunction(c: *Compiler, args: []const []const u8, body: Expr) error{LowerError}!Function {
