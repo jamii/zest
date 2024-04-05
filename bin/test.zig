@@ -38,18 +38,6 @@ fn eval(
     return eval_wasm(allocator, compiler.wasm.items);
 }
 
-fn run(
-    allocator: Allocator,
-    source: []const u8,
-) []const u8 {
-    var compiler = Compiler.init(allocator, source);
-    if (eval(allocator, &compiler)) |result| {
-        return result;
-    } else |_| {
-        return compiler.error_message;
-    }
-}
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -88,11 +76,19 @@ pub fn main() !void {
             const source = std.mem.trim(u8, source_untrimmed, "\n");
             const expected = std.mem.trim(u8, case[source_untrimmed.len..], "\n");
             //assert(parts.next() == null);
-            const actual = run(allocator, source);
+
+            var compiler = Compiler.init(allocator, source);
+            var actual: ?[]const u8 = null;
+            if (eval(allocator, &compiler)) |result| {
+                actual = result;
+            } else |_| {
+                actual = compiler.error_message;
+            }
+
             if (!std.mem.eql(
                 u8,
                 expected,
-                std.mem.trim(u8, actual, "\n"),
+                std.mem.trim(u8, actual.?, "\n"),
             )) {
                 std.debug.print(
                     \\{s}
@@ -102,15 +98,17 @@ pub fn main() !void {
                     \\{s}
                     \\
                     \\
-                , .{ source, expected, actual });
+                , .{ source, expected, actual.? });
                 failures += 1;
+
+                std.debug.print("{any}\n\n", .{compiler.specialization_data.get(.{ .id = 0 }).node_data.data.items});
             }
             try writer.print(
                 \\{s}
                 \\
                 \\{s}
                 \\```
-            , .{ source, actual });
+            , .{ source, actual.? });
         }
 
         if (rewrite) {

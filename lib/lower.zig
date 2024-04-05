@@ -34,7 +34,25 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         .i32 => |i| {
             return f.node_data.append(.{ .value = .{ .i32 = i } });
         },
+        .name => |name| {
+            const binding = c.scope.lookup(name) orelse
+                return fail(c, expr, "Not defined: {s}", .{name});
+            return binding.node;
+        },
+        .let => |let| {
+            const value = try lowerExpr(c, f, let.value);
+            if (let.mut) return fail(c, expr, "TODO", .{});
+            c.scope.push(.{
+                .name = let.name,
+                .node = value,
+                .value = .unknown,
+            });
+            return f.node_data.append(.{ .value = Value.emptyStruct() });
+        },
         .statements => |statements| {
+            const scope_saved = c.scope.save();
+            defer c.scope.restore(scope_saved);
+
             if (statements.len == 0) {
                 return f.node_data.append(.{ .value = Value.emptyStruct() });
             } else {

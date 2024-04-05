@@ -190,6 +190,49 @@ pub const FunctionData = struct {
     }
 };
 
+const Scope = struct {
+    bindings: ArrayList(Binding),
+
+    pub fn init(allocator: Allocator) Scope {
+        return .{
+            .bindings = fieldType(Scope, .bindings).init(allocator),
+        };
+    }
+
+    pub fn push(self: *Scope, binding: Binding) void {
+        self.bindings.append(binding) catch oom();
+    }
+
+    pub fn save(self: *Scope) usize {
+        return self.bindings.items.len;
+    }
+
+    pub fn restore(self: *Scope, saved: usize) void {
+        self.bindings.shrinkRetainingCapacity(saved);
+    }
+
+    pub fn lookup(self: *Scope, name: []const u8) ?Binding {
+        var i: usize = self.bindings.items.len;
+        while (i > 0) : (i -= 1) {
+            const binding = self.bindings.items[i - 1];
+            if (std.mem.eql(u8, binding.name, name)) {
+                return binding;
+            }
+        }
+        return null;
+    }
+};
+
+const Binding = struct {
+    name: []const u8,
+    node: Node,
+    value: AbstractValue,
+};
+
+const AbstractValue = union(enum) {
+    unknown,
+};
+
 pub const Specialization = struct { id: usize };
 pub const Arg = struct { id: usize };
 
@@ -225,6 +268,7 @@ pub const Compiler = struct {
     token_next: Token,
     expr_data: List(Expr, ExprData),
 
+    scope: Scope,
     function_data: List(Function, FunctionData),
     function_main: ?Function,
 
@@ -246,6 +290,7 @@ pub const Compiler = struct {
             .token_next = .{ .id = 0 },
             .expr_data = fieldType(Compiler, .expr_data).init(allocator),
 
+            .scope = fieldType(Compiler, .scope).init(allocator),
             .function_main = null,
             .function_data = fieldType(Compiler, .function_data).init(allocator),
 
