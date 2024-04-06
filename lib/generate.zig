@@ -14,6 +14,9 @@ const Node = zest.Node;
 const NodeData = zest.NodeData;
 const Repr = zest.Repr;
 
+const stack_global = 0;
+const stack_top = 1 * wasm.page_size;
+
 pub fn generate(c: *Compiler) error{GenerateError}!void {
     emitBytes(c, &wasm.magic);
     emitBytes(c, &wasm.version);
@@ -57,8 +60,22 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         emitLebU32(c, 1);
         // No maximum.
         emitByte(c, 0x00);
-        // No minimum.
-        emitLebU32(c, 0);
+        // At minimum enough space for stack.
+        emitLebU32(c, @divExact(stack_top, wasm.page_size));
+    }
+
+    {
+        const section = emitSectionStart(c, wasm.Section.global);
+        defer emitSectionEnd(c, section);
+
+        // Number of globals.
+        emitLebU32(c, 1);
+
+        emitEnum(c, wasm.Valtype.i32);
+        emitByte(c, 0x01); // mutable
+        emitEnum(c, wasm.Opcode.i32_const);
+        emitLebU32(c, stack_top);
+        emitEnum(c, wasm.Opcode.end);
     }
 
     {
@@ -93,13 +110,37 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitEnum(c, try valtypeFromRepr(c, repr));
             }
 
+            var shadow_size: usize = 0;
+            for (s.shadow_repr.items()) |repr| {
+                shadow_size += repr.sizeOf();
+            }
+
+            // Frame push
+            emitEnum(c, wasm.Opcode.global_get);
+            emitLebU32(c, stack_global);
+            emitEnum(c, wasm.Opcode.i32_const);
+            emitLebU32(c, @intCast(shadow_size));
+            emitEnum(c, wasm.Opcode.i32_sub);
+            emitEnum(c, wasm.Opcode.global_set);
+            emitLebU32(c, stack_global);
+
+            // Body
             var node_next = s.node_first;
             while (node_next) |node| {
                 emitNodeData(c, s.node_data.get(node));
                 node_next = s.node_next.get(node);
             }
 
-            emitEnd(c);
+            // Frame pop
+            emitEnum(c, wasm.Opcode.global_get);
+            emitLebU32(c, stack_global);
+            emitEnum(c, wasm.Opcode.i32_const);
+            emitLebU32(c, @intCast(shadow_size));
+            emitEnum(c, wasm.Opcode.i32_add);
+            emitEnum(c, wasm.Opcode.global_set);
+            emitLebU32(c, stack_global);
+
+            emitEnum(c, wasm.Opcode.end);
         }
     }
 }
@@ -257,8 +298,4 @@ fn emitSectionStart(c: *Compiler, section: wasm.Section) ByteCountLater {
 
 fn emitSectionEnd(c: *Compiler, byte_count_later: ByteCountLater) void {
     emitByteCount(c, byte_count_later);
-}
-
-fn emitEnd(c: *Compiler) void {
-    emitByte(c, 0x0B);
 }

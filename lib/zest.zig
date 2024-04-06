@@ -192,6 +192,8 @@ pub const Builtin = enum {
 
 pub const Local = struct { id: usize };
 
+pub const Shadow = struct { id: usize };
+
 pub const Node = struct { id: usize };
 
 pub const NodeData = union(enum) {
@@ -281,6 +283,8 @@ pub const SpecializationData = struct {
 
     local_repr: List(Local, Repr),
 
+    shadow_repr: List(Shadow, Repr),
+
     node_data: List(Node, NodeData),
     node_first: ?Node,
     node_last: ?Node,
@@ -296,6 +300,8 @@ pub const SpecializationData = struct {
             .function = function,
 
             .local_repr = fieldType(SpecializationData, .local_repr).init(allocator),
+
+            .shadow_repr = fieldType(SpecializationData, .shadow_repr).init(allocator),
 
             .node_data = fieldType(SpecializationData, .node_data).init(allocator),
             .node_first = null,

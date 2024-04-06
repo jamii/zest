@@ -23,6 +23,14 @@ pub const Repr = union(enum) {
     pub fn isEmptyUnion(self: Repr) bool {
         return (self == .@"union" and self.@"union".keys.len == 0);
     }
+
+    pub fn sizeOf(self: Repr) usize {
+        return switch (self) {
+            .i32 => 4,
+            .@"struct" => |@"struct"| @"struct".sizeOf(),
+            .@"union" => |@"union"| @"union".sizeOf(),
+        };
+    }
 };
 
 pub const ReprStruct = struct {
@@ -33,6 +41,12 @@ pub const ReprStruct = struct {
         // TODO sort
         return .{ .keys = keys, .reprs = reprs };
     }
+
+    pub fn sizeOf(self: ReprStruct) usize {
+        var size: usize = 0;
+        for (self.reprs) |repr| size += repr.sizeOf();
+        return size;
+    }
 };
 
 pub const ReprUnion = struct {
@@ -42,5 +56,12 @@ pub const ReprUnion = struct {
     pub fn init(keys: []Value, reprs: []Repr) ReprUnion {
         // TODO sort
         return .{ .keys = keys, .reprs = reprs };
+    }
+
+    pub fn sizeOf(self: ReprUnion) usize {
+        var size: usize = 0;
+        for (self.reprs) |repr| size = @max(size, repr.sizeOf());
+        size += 4; // An i32 tag.
+        return size;
     }
 };
