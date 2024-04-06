@@ -202,6 +202,11 @@ pub const NodeData = union(enum) {
         node: Node,
     },
     @"return": Node,
+    call: struct {
+        function: Function,
+        specialization: ?Specialization,
+        args: []Node,
+    },
 };
 
 pub const Function = struct { id: usize };
@@ -220,7 +225,7 @@ pub const FunctionData = struct {
     }
 };
 
-const Scope = struct {
+pub const Scope = struct {
     bindings: ArrayList(Binding),
 
     pub fn init(allocator: Allocator) Scope {
@@ -253,14 +258,14 @@ const Scope = struct {
     }
 };
 
-const Binding = struct {
+pub const Binding = struct {
     name: []const u8,
-    node: Node,
     value: AbstractValue,
 };
 
-const AbstractValue = union(enum) {
-    unknown,
+pub const AbstractValue = union(enum) {
+    node: Node,
+    function: Function,
 };
 
 pub const Specialization = struct { id: usize };

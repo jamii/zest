@@ -49,11 +49,18 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
                 .local_get = node_to_local.get(returned_node).?,
             });
         },
+        .call => |call| {
+            for (call.args) |arg_node| {
+                _ = s.insertBefore(node, .{
+                    .local_get = node_to_local.get(arg_node).?,
+                });
+            }
+        },
     }
 
     // Store ouputs
     switch (node_data) {
-        .value, .local_get => {
+        .value, .local_get, .call => {
             const local = s.local_repr.append(s.node_repr.get(node));
             _ = node_to_local.append(local);
             _ = s.insertAfter(node, .{

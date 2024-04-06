@@ -136,6 +136,10 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
         .@"return" => {
             emitEnum(c, wasm.Opcode.@"return");
         },
+        .call => |call| {
+            emitEnum(c, wasm.Opcode.call);
+            emitLebU32(c, @intCast(call.specialization.?.id));
+        },
     }
 }
 

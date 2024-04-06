@@ -14,6 +14,7 @@ const FunctionData = zest.FunctionData;
 const Node = zest.Node;
 const NodeData = zest.NodeData;
 const Value = zest.Value;
+const AbstractValue = zest.AbstractValue;
 
 pub fn lower(c: *Compiler) error{LowerError}!void {
     c.function_main = try lowerFunction(c, &.{}, c.expr_data.lastKey().?);
@@ -37,17 +38,30 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
                 return fail(c, expr, "Not defined: {s}", .{name});
-            return binding.node;
+            switch (binding.value) {
+                .node => |node| return node,
+                .function => return fail(c, expr, "You may not use a function here", .{}),
+            }
         },
         .let => |let| {
-            const value = try lowerExpr(c, f, let.value);
+            const value = try lowerExprOrFn(c, f, let.value);
             if (let.mut) return fail(c, expr, "TODO", .{});
             c.scope.push(.{
                 .name = let.name,
-                .node = value,
-                .value = .unknown,
+                .value = value,
             });
             return f.node_data.append(.{ .value = Value.emptyStruct() });
+        },
+        .@"fn" => return fail(c, expr, "You may not create a function here", .{}),
+        .call => |call| {
+            if (call.args.keys.len > 0) return fail(c, expr, "TODO params", .{});
+            const head = try lowerExprOrFn(c, f, call.head);
+            if (head != .function) return fail(c, expr, "Cannot call {}", .{head});
+            return f.node_data.append(.{ .call = .{
+                .function = head.function,
+                .specialization = null,
+                .args = &.{},
+            } });
         },
         .statements => |statements| {
             const scope_saved = c.scope.save();
@@ -64,6 +78,24 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
             }
         },
         else => return fail(c, expr, "TODO", .{}),
+    }
+}
+
+fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!AbstractValue {
+    const expr_data = c.expr_data.get(expr);
+    switch (expr_data) {
+        .name => |name| {
+            const binding = c.scope.lookup(name) orelse
+                return fail(c, expr, "Not defined: {s}", .{name});
+            return binding.value;
+        },
+        .@"fn" => |@"fn"| {
+            if (@"fn".params.keys.len > 0) return fail(c, expr, "TODO params", .{});
+            return .{ .function = try lowerFunction(c, &.{}, @"fn".body) };
+        },
+        else => {
+            return .{ .node = try lowerExpr(c, f, expr) };
+        },
     }
 }
 

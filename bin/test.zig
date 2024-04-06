@@ -100,8 +100,6 @@ pub fn main() !void {
                     \\
                 , .{ source, expected, actual.? });
                 failures += 1;
-
-                std.debug.print("{any}\n\n", .{compiler.specialization_data.get(.{ .id = 0 }).node_data.data.items});
             }
             try writer.print(
                 \\{s}

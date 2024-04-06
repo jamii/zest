@@ -82,6 +82,18 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             }
             return Repr.emptyStruct();
         },
+        .call => |call| {
+            assert(call.specialization == null);
+            // TODO Once Repr has align > 0 this can be a slice alloc.
+            var in_reprs = ArrayList(Repr).init(c.allocator);
+            for (call.args) |arg_node| {
+                in_reprs.append(s.node_repr.get(arg_node)) catch oom();
+            }
+            const specialization = try inferFunction(c, call.function, in_reprs.items);
+            s.node_data.getPtr(node).call.specialization = specialization;
+            // TODO Make out_repr default to never instead of null.
+            return c.specialization_data.get(specialization).out_repr.?;
+        },
     }
 }
 
