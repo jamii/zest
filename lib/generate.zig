@@ -108,12 +108,12 @@ fn valtypeFromRepr(c: *Compiler, repr: Repr) !wasm.Valtype {
     _ = c;
     return switch (repr) {
         .i32 => .i32,
-        .allOf => |allOf| if (allOf.keys.len == 0)
+        .@"struct" => |@"struct"| if (@"struct".keys.len == 0)
             // TODO This should eventually be eliminated by SRA
             .i32
         else
             panic("Unexpected {}", .{repr}),
-        .oneOf => panic("Unexpected {}", .{repr}),
+        .@"union" => panic("Unexpected {}", .{repr}),
     };
 }
 
@@ -125,8 +125,8 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
                     emitEnum(c, wasm.Opcode.i32_const);
                     emitLebI32(c, i);
                 },
-                .allOf => |allOf| {
-                    if (allOf.values.len == 0) {
+                .@"struct" => |@"struct"| {
+                    if (@"struct".values.len == 0) {
                         // TODO This should eventually be eliminated by SRA
                         emitEnum(c, wasm.Opcode.i32_const);
                         emitLebI32(c, 0);
@@ -134,7 +134,7 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
                         panic("Unexpected {}", .{value});
                     }
                 },
-                .oneOf => panic("Unexpected {}", .{value}),
+                .@"union" => panic("Unexpected {}", .{value}),
             }
         },
         .local_get => |local| {

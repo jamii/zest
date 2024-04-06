@@ -299,7 +299,7 @@ pub const SpecializationData = struct {
             .node_prev = fieldType(SpecializationData, .node_prev).init(allocator),
 
             .in_repr = fieldType(SpecializationData, .in_repr).init(allocator),
-            .out_repr = Repr.never(),
+            .out_repr = Repr.emptyUnion(),
             .node_repr = fieldType(SpecializationData, .node_repr).init(allocator),
         };
     }
@@ -397,12 +397,12 @@ pub const Compiler = struct {
 };
 
 pub const Repr = @import("./repr.zig").Repr;
-pub const ReprAllOf = @import("./repr.zig").ReprAllOf;
-pub const ReprOneOf = @import("./repr.zig").ReprOneOf;
+pub const ReprStruct = @import("./repr.zig").ReprStruct;
+pub const ReprUnion = @import("./repr.zig").ReprUnion;
 
 pub const Value = @import("./value.zig").Value;
-pub const ValueAllOf = @import("./value.zig").ValueAllOf;
-pub const ValueOneOf = @import("./value.zig").ValueOneOf;
+pub const ValueStruct = @import("./value.zig").ValueStruct;
+pub const ValueUnion = @import("./value.zig").ValueUnion;
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;

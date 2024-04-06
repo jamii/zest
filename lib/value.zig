@@ -8,37 +8,37 @@ const wasm = std.wasm;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const Repr = zest.Repr;
-const ReprAllOf = zest.ReprAllOf;
-const ReprOneOf = zest.ReprOneOf;
+const ReprStruct = zest.ReprStruct;
+const ReprUnion = zest.ReprUnion;
 
 pub const Value = union(enum) {
     i32: i32,
-    allOf: ValueAllOf,
-    oneOf: ValueOneOf,
+    @"struct": ValueStruct,
+    @"union": ValueUnion,
 
     pub fn reprOf(value: Value) Repr {
         switch (value) {
             .i32 => return .i32,
-            .allOf => |allOf| return .{ .allOf = allOf.repr },
-            .oneOf => |oneOf| return .{ .oneOf = oneOf.repr },
+            .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
+            .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
         }
     }
 
-    pub fn always() Value {
-        return .{ .allOf = .{
-            .repr = Repr.always().allOf,
+    pub fn emptyStruct() Value {
+        return .{ .@"struct" = .{
+            .repr = Repr.emptyStruct().@"struct",
             .values = &.{},
         } };
     }
 };
 
-pub const ValueAllOf = struct {
-    repr: ReprAllOf,
+pub const ValueStruct = struct {
+    repr: ReprStruct,
     values: []Value,
 };
 
-pub const ValueOneOf = struct {
-    repr: ReprOneOf,
+pub const ValueUnion = struct {
+    repr: ReprUnion,
     tag: usize,
     value: *Value,
 };

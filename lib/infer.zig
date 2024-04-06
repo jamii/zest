@@ -70,13 +70,13 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             return s.local_repr.get(local);
         },
         .local_set => {
-            return Repr.always();
+            return Repr.emptyStruct();
         },
         .@"return" => |returned_node| {
             const returned_repr = s.node_repr.get(returned_node);
             s.out_repr = reprUnion(s.out_repr, returned_repr) orelse
                 return fail(c, s.function, node, "Expected {}, found {}", .{ s.out_repr, returned_repr });
-            return Repr.always();
+            return Repr.emptyStruct();
         },
         .call => |call| {
             assert(call.specialization == null);
@@ -94,8 +94,8 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
 
 fn reprUnion(a: Repr, b: Repr) ?Repr {
     if (deepEqual(a, b)) return a;
-    if (a.isNever()) return b;
-    if (b.isNever()) return a;
+    if (a.isEmptyUnion()) return b;
+    if (b.isEmptyUnion()) return a;
     return null;
 }
 

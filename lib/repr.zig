@@ -3,43 +3,43 @@ const Value = zest.Value;
 
 pub const Repr = union(enum) {
     i32,
-    allOf: ReprAllOf,
-    oneOf: ReprOneOf,
+    @"struct": ReprStruct,
+    @"union": ReprUnion,
 
-    pub fn always() Repr {
-        return .{ .allOf = .{
+    pub fn emptyStruct() Repr {
+        return .{ .@"struct" = .{
             .keys = &.{},
             .reprs = &.{},
         } };
     }
 
-    pub fn never() Repr {
-        return .{ .oneOf = .{
+    pub fn emptyUnion() Repr {
+        return .{ .@"union" = .{
             .keys = &.{},
             .reprs = &.{},
         } };
     }
 
-    pub fn isNever(self: Repr) bool {
-        return (self == .oneOf and self.oneOf.keys.len == 0);
+    pub fn isEmptyUnion(self: Repr) bool {
+        return (self == .@"union" and self.@"union".keys.len == 0);
     }
 };
 
-pub const ReprAllOf = struct {
+pub const ReprStruct = struct {
     keys: []Value,
     reprs: []Repr,
 
-    pub fn init(keys: []Value, reprs: []Repr) ReprAllOf {
+    pub fn init(keys: []Value, reprs: []Repr) ReprStruct {
         // TODO sort
         return .{ .keys = keys, .reprs = reprs };
     }
 };
 
-pub const ReprOneOf = struct {
+pub const ReprUnion = struct {
     keys: []Value,
     reprs: []Repr,
 
-    pub fn init(keys: []Value, reprs: []Repr) ReprOneOf {
+    pub fn init(keys: []Value, reprs: []Repr) ReprUnion {
         // TODO sort
         return .{ .keys = keys, .reprs = reprs };
     }

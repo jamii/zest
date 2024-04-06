@@ -50,7 +50,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                 .name = let.name,
                 .value = value,
             });
-            return f.node_data.append(.{ .value = Value.always() });
+            return f.node_data.append(.{ .value = Value.emptyStruct() });
         },
         .@"fn" => return fail(c, expr, "You may not create a function here", .{}),
         .call => |call| {
@@ -68,7 +68,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
             defer c.scope.restore(scope_saved);
 
             if (statements.len == 0) {
-                return f.node_data.append(.{ .value = Value.always() });
+                return f.node_data.append(.{ .value = Value.emptyStruct() });
             } else {
                 var node: ?Node = null;
                 for (statements) |statement| {
