@@ -35,11 +35,11 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
         _ = s.node_prev.append(if (node_id == 0) null else .{ .id = node_id - 1 });
     }
 
-    s.in_reprs.appendSlice(in_reprs);
+    s.in_repr.appendSlice(in_reprs);
     // s.out_repr may be set by inferExpr below
     for (0..s.node_data.count()) |node_id| {
         const repr = try inferExpr(c, &s, .{ .id = node_id });
-        _ = s.node_reprs.append(repr);
+        _ = s.node_repr.append(repr);
     }
 
     return c.specialization_data.append(s);
@@ -58,7 +58,7 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             return Repr.emptyStruct();
         },
         .@"return" => |returned_node| {
-            const returned_repr = s.node_reprs.get(returned_node);
+            const returned_repr = s.node_repr.get(returned_node);
             if (s.out_repr) |out_repr| {
                 if (!out_repr.equal(returned_repr)) {
                     return fail(c, s.function, node, "Expected {}, found {}", .{ out_repr, returned_repr });

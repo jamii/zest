@@ -27,8 +27,8 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             emitByte(c, wasm.function_type);
 
             // Param types
-            emitLebU32(c, @intCast(specialization_data.in_reprs.count()));
-            for (specialization_data.in_reprs.items()) |in_repr| {
+            emitLebU32(c, @intCast(specialization_data.in_repr.count()));
+            for (specialization_data.in_repr.items()) |in_repr| {
                 emitEnum(c, try valtypeFromRepr(c, in_repr));
             }
 

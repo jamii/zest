@@ -54,7 +54,7 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
     // Store ouputs
     switch (node_data) {
         .value, .local_get => {
-            const local = s.local_repr.append(s.node_reprs.get(node));
+            const local = s.local_repr.append(s.node_repr.get(node));
             _ = node_to_local.append(local);
             _ = s.insertAfter(node, .{
                 .local_set = .{
