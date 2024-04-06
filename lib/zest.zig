@@ -66,6 +66,21 @@ pub fn List(comptime K: type, comptime V: type) type {
     };
 }
 
+pub const deepEqual = @import("deep.zig").deepEqual;
+pub const deepHash = @import("deep.zig").deepHash;
+
+pub fn Map(comptime K: type, comptime V: type) type {
+    return std.HashMap(K, V, struct {
+        const Self = @This();
+        pub fn hash(_: Self, pseudo_key: K) u64 {
+            return deepHash(pseudo_key);
+        }
+        pub fn eql(_: Self, pseudo_key: K, key: K) bool {
+            return deepEqual(pseudo_key, key);
+        }
+    }, std.hash_map.default_max_load_percentage);
+}
+
 pub const Token = struct { id: usize };
 
 pub const TokenData = enum {
@@ -319,6 +334,11 @@ pub const SpecializationData = struct {
     }
 };
 
+pub const SpecializationArgs = struct {
+    function: Function,
+    in_reprs: []Repr,
+};
+
 pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
@@ -333,6 +353,7 @@ pub const Compiler = struct {
     function_data: List(Function, FunctionData),
     function_main: ?Function,
 
+    args_to_specialization: Map(SpecializationArgs, ?Specialization),
     specialization_data: List(Specialization, SpecializationData),
     specialization_main: ?Specialization,
 
@@ -355,6 +376,7 @@ pub const Compiler = struct {
             .function_main = null,
             .function_data = fieldType(Compiler, .function_data).init(allocator),
 
+            .args_to_specialization = fieldType(Compiler, .args_to_specialization).init(allocator),
             .specialization_main = null,
             .specialization_data = fieldType(Compiler, .specialization_data).init(allocator),
 

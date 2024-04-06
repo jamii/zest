@@ -3,7 +3,6 @@ const panic = std.debug.panic;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const wasm = std.wasm;
 
 const zest = @import("./zest.zig");
 const oom = zest.oom;
@@ -11,6 +10,7 @@ const Compiler = zest.Compiler;
 const Function = zest.Function;
 const FunctionData = zest.FunctionData;
 const Specialization = zest.Specialization;
+const SpecializationArgs = zest.SpecializationArgs;
 const SpecializationData = zest.SpecializationData;
 const Node = zest.Node;
 const NodeData = zest.NodeData;
@@ -21,6 +21,18 @@ pub fn infer(c: *Compiler) error{InferError}!void {
 }
 
 fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{InferError}!Specialization {
+    const args = SpecializationArgs{ .function = function, .in_reprs = in_reprs };
+    if (c.args_to_specialization.get(args)) |specialization_or_pending| {
+        if (specialization_or_pending) |specialization| {
+            return specialization;
+        } else {
+            // TODO arbitrary choice of node - fix `fail` to not require this.
+            return fail(c, function, .{ .id = 0 }, "Cyclic dependency during type inference", .{});
+        }
+    }
+    // Mark args as pending.
+    c.args_to_specialization.put(args, null) catch oom();
+
     const function_data = c.function_data.get(function);
 
     var s = SpecializationData.init(c.allocator, function);
@@ -36,13 +48,15 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
     }
 
     s.in_repr.appendSlice(in_reprs);
-    // s.out_repr may be set by inferExpr below
     for (0..s.node_data.count()) |node_id| {
         const repr = try inferExpr(c, &s, .{ .id = node_id });
         _ = s.node_repr.append(repr);
     }
+    // s.out_repr may be set by inferExpr above
 
-    return c.specialization_data.append(s);
+    const specialization = c.specialization_data.append(s);
+    c.args_to_specialization.put(args, specialization) catch oom();
+    return specialization;
 }
 
 fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
