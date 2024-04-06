@@ -6,6 +6,7 @@ const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
 const oom = zest.oom;
+const deepEqual = zest.deepEqual;
 const Compiler = zest.Compiler;
 const Function = zest.Function;
 const FunctionData = zest.FunctionData;
@@ -69,18 +70,18 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             return s.local_repr.get(local);
         },
         .local_set => {
-            return Repr.emptyStruct();
+            return Repr.always();
         },
         .@"return" => |returned_node| {
             const returned_repr = s.node_repr.get(returned_node);
             if (s.out_repr) |out_repr| {
-                if (!out_repr.equal(returned_repr)) {
+                if (!deepEqual(out_repr, returned_repr)) {
                     return fail(c, s.function, node, "Expected {}, found {}", .{ out_repr, returned_repr });
                 }
             } else {
                 s.out_repr = returned_repr;
             }
-            return Repr.emptyStruct();
+            return Repr.always();
         },
         .call => |call| {
             assert(call.specialization == null);
