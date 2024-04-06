@@ -89,6 +89,18 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             s.node_data.getPtr(node).call.specialization = specialization;
             return c.specialization_data.get(specialization).out_repr;
         },
+        .intrinsic => |intrinsic| {
+            switch (intrinsic) {
+                .i32_add => |args| {
+                    for (args) |arg| {
+                        const arg_repr = s.node_repr.get(arg);
+                        if (arg_repr != .i32)
+                            return fail(c, s.function, node, "Expected {}, found {}", .{ Repr.i32, arg_repr });
+                    }
+                    return .i32;
+                },
+            }
+        },
     }
 }
 

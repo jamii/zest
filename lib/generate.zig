@@ -152,6 +152,13 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
             emitEnum(c, wasm.Opcode.call);
             emitLebU32(c, @intCast(call.specialization.?.id));
         },
+        .intrinsic => |intrinsic| {
+            switch (intrinsic) {
+                .i32_add => {
+                    emitEnum(c, wasm.Opcode.i32_add);
+                },
+            }
+        },
     }
 }
 

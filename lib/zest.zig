@@ -207,6 +207,11 @@ pub const NodeData = union(enum) {
         specialization: ?Specialization,
         args: []Node,
     },
+    intrinsic: Intrinsic,
+};
+
+pub const Intrinsic = union(enum) {
+    i32_add: [2]Node,
 };
 
 pub const Function = struct { id: usize };

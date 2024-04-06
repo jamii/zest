@@ -50,26 +50,41 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
             });
         },
         .call => |call| {
-            for (call.args) |arg_node| {
+            for (call.args) |arg| {
                 _ = s.insertBefore(node, .{
-                    .local_get = node_to_local.get(arg_node).?,
+                    .local_get = node_to_local.get(arg).?,
                 });
+            }
+        },
+        .intrinsic => |intrinsic| {
+            switch (intrinsic) {
+                .i32_add => |args| {
+                    for (args) |arg| {
+                        _ = s.insertBefore(node, .{
+                            .local_get = node_to_local.get(arg).?,
+                        });
+                    }
+                },
             }
         },
     }
 
     // Store ouputs
-    switch (node_data) {
-        .value, .local_get, .call => {
-            const local = s.local_repr.append(s.node_repr.get(node));
-            _ = node_to_local.append(local);
-            _ = s.insertAfter(node, .{
-                .local_set = .{
-                    .local = local,
-                    .node = node,
-                },
-            });
+    const has_output = switch (node_data) {
+        .value, .local_get, .call => true,
+        .local_set, .@"return" => false,
+        .intrinsic => |intrinsic| switch (intrinsic) {
+            .i32_add => true,
         },
-        .local_set, .@"return" => {},
+    };
+    if (has_output) {
+        const local = s.local_repr.append(s.node_repr.get(node));
+        _ = node_to_local.append(local);
+        _ = s.insertAfter(node, .{
+            .local_set = .{
+                .local = local,
+                .node = node,
+            },
+        });
     }
 }
