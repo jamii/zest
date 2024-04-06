@@ -117,6 +117,7 @@ fn valtypeFromRepr(c: *Compiler, repr: Repr) !wasm.Valtype {
             .i32
         else
             panic("Unexpected {}", .{repr}),
+        .oneOf => panic("Unexpected {}", .{repr}),
     };
 }
 
@@ -137,6 +138,7 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
                         panic("Unexpected {}", .{value});
                     }
                 },
+                .oneOf => panic("Unexpected {}", .{value}),
             }
         },
         .local_get => |local| {

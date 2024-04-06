@@ -396,10 +396,13 @@ pub const Compiler = struct {
     }
 };
 
-pub const Value = @import("./value.zig").Value;
-pub const ValueAllOf = @import("./value.zig").ValueAllOf;
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprAllOf = @import("./repr.zig").ReprAllOf;
+pub const ReprOneOf = @import("./repr.zig").ReprOneOf;
+
+pub const Value = @import("./value.zig").Value;
+pub const ValueAllOf = @import("./value.zig").ValueAllOf;
+pub const ValueOneOf = @import("./value.zig").ValueOneOf;
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;

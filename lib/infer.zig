@@ -64,7 +64,7 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
     const node_data = s.node_data.get(node);
     switch (node_data) {
         .value => |value| {
-            return value.reprOf(c.allocator);
+            return value.reprOf();
         },
         .local_get => |local| {
             return s.local_repr.get(local);
