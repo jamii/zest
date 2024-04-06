@@ -93,6 +93,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             // Locals
             emitLebU32(c, @intCast(s.local_repr.count()));
             for (s.local_repr.items()) |repr| {
+                emitLebU32(c, 1);
                 emitEnum(c, try valtypeFromRepr(c, repr));
             }
 
@@ -143,6 +144,10 @@ fn emitByte(c: *Compiler, byte: u8) void {
 }
 
 fn emitEnum(c: *Compiler, e: anytype) void {
+    switch (@TypeOf(e)) {
+        wasm.Valtype, wasm.ExternalKind, wasm.Section, wasm.Opcode => {},
+        else => @compileError(@typeName(@TypeOf(e))),
+    }
     c.wasm.append(@intFromEnum(e)) catch oom();
 }
 

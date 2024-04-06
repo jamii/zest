@@ -44,7 +44,7 @@ pub fn List(comptime K: type, comptime V: type) type {
             return &self.data.items[key.id];
         }
 
-        pub fn items(self: Self) []const V {
+        pub fn items(self: Self) []V {
             return self.data.items;
         }
 
@@ -283,6 +283,40 @@ pub const SpecializationData = struct {
             .node_reprs = fieldType(SpecializationData, .node_reprs).init(allocator),
         };
     }
+
+    pub fn insertBefore(s: *SpecializationData, node_next: Node, node_data: NodeData) Node {
+        const node = s.node_data.append(node_data);
+        if (s.node_prev.get(node_next)) |node_prev| {
+            assert(s.node_next.get(node_prev).?.id == node_next.id);
+            s.node_next.getPtr(node_prev).* = node;
+            _ = s.node_next.append(node_next);
+            s.node_prev.getPtr(node_next).* = node;
+            _ = s.node_prev.append(node_prev);
+        } else {
+            assert(node_next.id == s.node_first.?.id);
+            s.node_first = node;
+            _ = s.node_next.append(node_next);
+            _ = s.node_prev.append(null);
+        }
+        return node;
+    }
+
+    pub fn insertAfter(s: *SpecializationData, node_prev: Node, node_data: NodeData) Node {
+        const node = s.node_data.append(node_data);
+        if (s.node_next.get(node_prev)) |node_next| {
+            assert(s.node_next.get(node_prev).?.id == node_next.id);
+            s.node_next.getPtr(node_prev).* = node;
+            _ = s.node_next.append(node_next);
+            s.node_prev.getPtr(node_next).* = node;
+            _ = s.node_prev.append(node_prev);
+        } else {
+            assert(node_prev.id == s.node_last.?.id);
+            s.node_last = node;
+            _ = s.node_next.append(null);
+            _ = s.node_prev.append(node_prev);
+        }
+        return node;
+    }
 };
 
 pub const Compiler = struct {
@@ -343,7 +377,7 @@ pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
 pub const infer = @import("./infer.zig").infer;
 pub const generate = @import("./generate.zig").generate;
-//pub const stackify = @import("./stackify.zig").stackify;
+pub const stackify = @import("./stackify.zig").stackify;
 
 pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
     try tokenize(c);
@@ -357,6 +391,8 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
 
     try infer(c);
     assert(c.specialization_main != null);
+
+    stackify(c);
 
     try generate(c);
 }
