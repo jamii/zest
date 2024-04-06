@@ -67,6 +67,7 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
                 },
             }
         },
+        .struct_init => panic("Unexpected {}", .{node_data}),
     }
 
     // Store ouputs
@@ -76,6 +77,7 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
         .intrinsic => |intrinsic| switch (intrinsic) {
             .i32_add => true,
         },
+        .struct_init => panic("Unexpected {}", .{node_data}),
     };
     if (has_output) {
         const local = s.local_repr.append(s.node_repr.get(node));

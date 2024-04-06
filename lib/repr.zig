@@ -1,8 +1,12 @@
+const std = @import("std");
+const panic = std.debug.panic;
+
 const zest = @import("./zest.zig");
 const Value = zest.Value;
 
 pub const Repr = union(enum) {
     i32,
+    string,
     @"struct": ReprStruct,
     @"union": ReprUnion,
 
@@ -27,6 +31,7 @@ pub const Repr = union(enum) {
     pub fn sizeOf(self: Repr) usize {
         return switch (self) {
             .i32 => 4,
+            .string => panic("Unexpected {}", .{self}),
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
         };

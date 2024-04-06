@@ -35,6 +35,15 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         .i32 => |i| {
             return f.node_data.append(.{ .value = .{ .i32 = i } });
         },
+        .object => |object| {
+            const keys = c.allocator.alloc(Value, object.keys.len) catch oom();
+            for (keys, object.keys) |*key_node, key| key_node.* = try evalKey(c, f, key);
+
+            const values = c.allocator.alloc(Node, object.values.len) catch oom();
+            for (values, object.values) |*value_node, value| value_node.* = try lowerExpr(c, f, value);
+
+            return f.node_data.append(.{ .struct_init = .{ .keys = keys, .values = values } });
+        },
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
                 return fail(c, expr, "Not defined: {s}", .{name});
@@ -96,6 +105,24 @@ fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!A
         else => {
             return .{ .node = try lowerExpr(c, f, expr) };
         },
+    }
+}
+
+fn evalKey(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Value {
+    const expr_data = c.expr_data.get(expr);
+    switch (expr_data) {
+        .name => |name| return .{ .string = name },
+        else => return evalExpr(c, f, expr),
+    }
+}
+
+fn evalExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Value {
+    _ = f;
+    const expr_data = c.expr_data.get(expr);
+    switch (expr_data) {
+        .i32 => |i| return .{ .i32 = i },
+        .string => |string| return .{ .string = string },
+        else => return fail(c, expr, "Can't const-eval", .{}),
     }
 }
 

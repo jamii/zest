@@ -198,6 +198,10 @@ pub const Node = struct { id: usize };
 
 pub const NodeData = union(enum) {
     value: Value,
+    struct_init: struct {
+        keys: []Value,
+        values: []Node,
+    },
     local_get: Local,
     local_set: struct {
         local: Local,

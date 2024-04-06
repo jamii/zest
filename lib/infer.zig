@@ -66,6 +66,11 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
         .value => |value| {
             return value.reprOf();
         },
+        .struct_init => |struct_init| {
+            const reprs = c.allocator.alloc(Repr, struct_init.values.len) catch oom();
+            for (reprs, struct_init.values) |*repr, value| repr.* = try inferExpr(c, s, value);
+            return .{ .@"struct" = .{ .keys = struct_init.keys, .reprs = reprs } };
+        },
         .local_get => |local| {
             return s.local_repr.get(local);
         },

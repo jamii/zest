@@ -13,12 +13,14 @@ const ReprUnion = zest.ReprUnion;
 
 pub const Value = union(enum) {
     i32: i32,
+    string: []const u8,
     @"struct": ValueStruct,
     @"union": ValueUnion,
 
     pub fn reprOf(value: Value) Repr {
         switch (value) {
             .i32 => return .i32,
+            .string => return .string,
             .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
         }
