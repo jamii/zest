@@ -352,6 +352,23 @@ pub const SpecializationData = struct {
         }
         return node;
     }
+
+    pub fn remove(s: *SpecializationData, node: Node) void {
+        const node_next = s.node_next.get(node);
+        const node_prev = s.node_prev.get(node);
+        if (node_next == null) {
+            assert(s.node_last.?.id == node.id);
+            s.node_last = node_prev;
+        } else {
+            s.node_next.set(node_prev, node_next);
+        }
+        if (node_prev == null) {
+            assert(s.node_last.?.id == node.id);
+            s.node_first = node_next;
+        } else {
+            s.node_prev.set(node_next, node_prev);
+        }
+    }
 };
 
 pub const SpecializationArgs = struct {
