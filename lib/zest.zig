@@ -283,7 +283,7 @@ pub const SpecializationData = struct {
     node_prev: List(Node, ?Node),
 
     in_repr: List(Arg, Repr),
-    out_repr: ?Repr,
+    out_repr: Repr,
     node_repr: List(Node, Repr),
 
     pub fn init(allocator: Allocator, function: Function) SpecializationData {
@@ -299,7 +299,7 @@ pub const SpecializationData = struct {
             .node_prev = fieldType(SpecializationData, .node_prev).init(allocator),
 
             .in_repr = fieldType(SpecializationData, .in_repr).init(allocator),
-            .out_repr = null,
+            .out_repr = Repr.never(),
             .node_repr = fieldType(SpecializationData, .node_repr).init(allocator),
         };
     }

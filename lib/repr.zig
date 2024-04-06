@@ -12,6 +12,17 @@ pub const Repr = union(enum) {
             .reprs = &.{},
         } };
     }
+
+    pub fn never() Repr {
+        return .{ .oneOf = .{
+            .keys = &.{},
+            .reprs = &.{},
+        } };
+    }
+
+    pub fn isNever(self: Repr) bool {
+        return (self == .oneOf and self.oneOf.keys.len == 0);
+    }
 };
 
 pub const ReprAllOf = struct {

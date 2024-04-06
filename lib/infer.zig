@@ -53,7 +53,7 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
         const repr = try inferExpr(c, &s, .{ .id = node_id });
         _ = s.node_repr.append(repr);
     }
-    // s.out_repr may be set by inferExpr above
+    // s.out_repr may be updated by inferExpr
 
     const specialization = c.specialization_data.append(s);
     c.args_to_specialization.put(args, specialization) catch oom();
@@ -74,13 +74,8 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
         },
         .@"return" => |returned_node| {
             const returned_repr = s.node_repr.get(returned_node);
-            if (s.out_repr) |out_repr| {
-                if (!deepEqual(out_repr, returned_repr)) {
-                    return fail(c, s.function, node, "Expected {}, found {}", .{ out_repr, returned_repr });
-                }
-            } else {
-                s.out_repr = returned_repr;
-            }
+            s.out_repr = reprUnion(s.out_repr, returned_repr) orelse
+                return fail(c, s.function, node, "Expected {}, found {}", .{ s.out_repr, returned_repr });
             return Repr.always();
         },
         .call => |call| {
@@ -92,10 +87,16 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             }
             const specialization = try inferFunction(c, call.function, in_reprs.items);
             s.node_data.getPtr(node).call.specialization = specialization;
-            // TODO Make out_repr default to never instead of null.
-            return c.specialization_data.get(specialization).out_repr.?;
+            return c.specialization_data.get(specialization).out_repr;
         },
     }
+}
+
+fn reprUnion(a: Repr, b: Repr) ?Repr {
+    if (deepEqual(a, b)) return a;
+    if (a.isNever()) return b;
+    if (b.isNever()) return a;
+    return null;
 }
 
 fn fail(c: *Compiler, function: Function, node: Node, comptime message: []const u8, args: anytype) error{InferError} {

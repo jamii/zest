@@ -33,12 +33,8 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             }
 
             // Result types
-            if (specialization_data.out_repr) |out_repr| {
-                emitLebU32(c, 1);
-                emitEnum(c, try valtypeFromRepr(c, out_repr));
-            } else {
-                emitLebU32(c, 0);
-            }
+            emitLebU32(c, 1);
+            emitEnum(c, try valtypeFromRepr(c, specialization_data.out_repr));
         }
     }
 
