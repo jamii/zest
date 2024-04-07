@@ -38,42 +38,41 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
 
     // Load inputs
     switch (node_data) {
-        .value, .local_get => {},
+        .value, .local_get, .shadow_ptr => {},
         .local_set => |local_set| {
-            _ = s.insertBefore(node, .{
-                .local_get = node_to_local.get(local_set.node).?,
-            });
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(local_set.node).? });
         },
         .@"return" => |returned_node| {
-            _ = s.insertBefore(node, .{
-                .local_get = node_to_local.get(returned_node).?,
-            });
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(returned_node).? });
         },
         .call => |call| {
             for (call.args) |arg| {
-                _ = s.insertBefore(node, .{
-                    .local_get = node_to_local.get(arg).?,
-                });
+                _ = s.insertBefore(node, .{ .local_get = node_to_local.get(arg).? });
             }
         },
         .intrinsic => |intrinsic| {
             switch (intrinsic) {
                 .i32_add => |args| {
                     for (args) |arg| {
-                        _ = s.insertBefore(node, .{
-                            .local_get = node_to_local.get(arg).?,
-                        });
+                        _ = s.insertBefore(node, .{ .local_get = node_to_local.get(arg).? });
                     }
                 },
             }
+        },
+        .load => |load| {
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(load.address).? });
+        },
+        .store => |store| {
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(store.address).? });
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(store.value).? });
         },
         .struct_init => panic("Unexpected {}", .{node_data}),
     }
 
     // Store ouputs
     const has_output = switch (node_data) {
-        .value, .local_get, .call => true,
-        .local_set, .@"return" => false,
+        .value, .local_get, .call, .shadow_ptr, .load => true,
+        .local_set, .@"return", .store => false,
         .intrinsic => |intrinsic| switch (intrinsic) {
             .i32_add => true,
         },

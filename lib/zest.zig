@@ -202,11 +202,6 @@ pub const NodeData = union(enum) {
         keys: []Value,
         values: []Node,
     },
-    local_get: Local,
-    local_set: struct {
-        local: Local,
-        node: Node,
-    },
     @"return": Node,
     call: struct {
         function: Function,
@@ -214,6 +209,20 @@ pub const NodeData = union(enum) {
         args: []Node,
     },
     intrinsic: Intrinsic,
+
+    local_get: Local,
+    local_set: struct {
+        local: Local,
+        node: Node,
+    },
+    shadow_ptr: Shadow,
+    load: struct {
+        address: Node,
+    },
+    store: struct {
+        address: Node,
+        value: Node,
+    },
 };
 
 pub const Intrinsic = union(enum) {
@@ -440,8 +449,9 @@ pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
 pub const infer = @import("./infer.zig").infer;
-pub const generate = @import("./generate.zig").generate;
+pub const shadowify = @import("./shadowify.zig").shadowify;
 pub const stackify = @import("./stackify.zig").stackify;
+pub const generate = @import("./generate.zig").generate;
 
 pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
     try tokenize(c);

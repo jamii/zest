@@ -127,7 +127,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             // Body
             var node_next = s.node_first;
             while (node_next) |node| {
-                emitNodeData(c, s.node_data.get(node));
+                emitNode(c, s, node);
                 node_next = s.node_next.get(node);
             }
 
@@ -159,7 +159,8 @@ fn valtypeFromRepr(c: *Compiler, repr: Repr) !wasm.Valtype {
     };
 }
 
-fn emitNodeData(c: *Compiler, node_data: NodeData) void {
+fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
+    const node_data = s.node_data.get(node);
     switch (node_data) {
         .value => |value| {
             switch (value) {
@@ -181,14 +182,6 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
             }
         },
         .struct_init => panic("Unexpected {}", .{node_data}),
-        .local_get => |local| {
-            emitEnum(c, wasm.Opcode.local_get);
-            emitLebU32(c, @intCast(local.id));
-        },
-        .local_set => |local_set| {
-            emitEnum(c, wasm.Opcode.local_set);
-            emitLebU32(c, @intCast(local_set.local.id));
-        },
         .@"return" => {
             emitEnum(c, wasm.Opcode.@"return");
         },
@@ -202,6 +195,45 @@ fn emitNodeData(c: *Compiler, node_data: NodeData) void {
                     emitEnum(c, wasm.Opcode.i32_add);
                 },
             }
+        },
+        .local_get => |local| {
+            emitEnum(c, wasm.Opcode.local_get);
+            emitLebU32(c, @intCast(local.id));
+        },
+        .local_set => |local_set| {
+            emitEnum(c, wasm.Opcode.local_set);
+            emitLebU32(c, @intCast(local_set.local.id));
+        },
+        .shadow_ptr => |shadow| {
+            var offset: usize = 0;
+            for (s.shadow_repr.items()[0..shadow.id]) |repr_before| {
+                offset += repr_before.sizeOf();
+            }
+            emitEnum(c, wasm.Opcode.global_get);
+            emitLebU32(c, stack_global);
+            emitEnum(c, wasm.Opcode.i32_const);
+            emitLebU32(c, @intCast(offset));
+            emitEnum(c, wasm.Opcode.i32_add);
+        },
+        .load => {
+            const repr = s.node_repr.get(node);
+            const valtype = try valtypeFromRepr(c, repr);
+            emitEnum(c, switch (valtype) {
+                .i32 => wasm.Opcode.i32_load,
+                else => panic("TODO {}", .{valtype}),
+            });
+            emitLebU32(c, 0); // alignment
+            emitLebU32(c, 0); // offset
+        },
+        .store => {
+            const repr = s.node_repr.get(node);
+            const valtype = try valtypeFromRepr(c, repr);
+            emitEnum(c, switch (valtype) {
+                .i32 => wasm.Opcode.i32_store,
+                else => panic("TODO {}", .{valtype}),
+            });
+            emitLebU32(c, 0); // alignment
+            emitLebU32(c, 0); // offset
         },
     }
 }

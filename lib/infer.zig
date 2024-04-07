@@ -106,6 +106,7 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
                 },
             }
         },
+        .shadow_ptr, .load, .store => panic("Unexpected {}", .{node_data}),
     }
 }
 
