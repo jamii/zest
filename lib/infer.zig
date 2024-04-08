@@ -106,12 +106,11 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             if (call.specialization) |specialization| {
                 return c.specialization_data.get(specialization).out_repr;
             } else {
-                // TODO Once Repr has align > 0 this can be a slice alloc.
-                var in_reprs = ArrayList(Repr).init(c.allocator);
-                for (call.args) |arg_node| {
-                    in_reprs.append(s.node_repr.get(arg_node)) catch oom();
+                const in_reprs = c.allocator.alloc(Repr, call.args.len) catch oom();
+                for (in_reprs, call.args) |*in_repr, arg_node| {
+                    in_repr.* = s.node_repr.get(arg_node);
                 }
-                const specialization = try inferFunction(c, call.function, in_reprs.items);
+                const specialization = try inferFunction(c, call.function, in_reprs);
                 s.node_data.getPtr(node).call.specialization = specialization;
                 return c.specialization_data.get(specialization).out_repr;
             }
