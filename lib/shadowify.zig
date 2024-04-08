@@ -17,7 +17,7 @@ const Node = zest.Node;
 const NodeData = zest.NodeData;
 const Repr = zest.Repr;
 
-/// NOTE s.node_repr is invalid after this pass
+/// NOTE node_repr is invalid after this pass
 pub fn shadowify(c: *Compiler) void {
     for (c.specialization_data.items()) |*s| {
         shadowifySpecialization(c, s);
