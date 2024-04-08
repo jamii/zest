@@ -116,31 +116,36 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             }
 
             // Frame push
-            emitEnum(c, wasm.Opcode.global_get);
-            emitLebU32(c, stack_global);
-            emitEnum(c, wasm.Opcode.i32_const);
-            emitLebU32(c, @intCast(shadow_size));
-            emitEnum(c, wasm.Opcode.i32_sub);
-            emitEnum(c, wasm.Opcode.global_set);
-            emitLebU32(c, stack_global);
+            if (shadow_size != 0) {
+                emitEnum(c, wasm.Opcode.global_get);
+                emitLebU32(c, stack_global);
+                emitEnum(c, wasm.Opcode.i32_const);
+                emitLebU32(c, @intCast(shadow_size));
+                emitEnum(c, wasm.Opcode.i32_sub);
+                emitEnum(c, wasm.Opcode.global_set);
+                emitLebU32(c, stack_global);
+            }
 
             // Body
             var node_next = s.node_first;
             while (node_next) |node| {
-                emitNode(c, s, node);
                 node_next = s.node_next.get(node);
+                emitNode(c, s, node);
+                if (s.node_data.get(node) == .@"return") break;
             }
 
-            // TODO this needs to happen before return!
             // Frame pop
-            emitEnum(c, wasm.Opcode.global_get);
-            emitLebU32(c, stack_global);
-            emitEnum(c, wasm.Opcode.i32_const);
-            emitLebU32(c, @intCast(shadow_size));
-            emitEnum(c, wasm.Opcode.i32_add);
-            emitEnum(c, wasm.Opcode.global_set);
-            emitLebU32(c, stack_global);
+            if (shadow_size != 0) {
+                emitEnum(c, wasm.Opcode.global_get);
+                emitLebU32(c, stack_global);
+                emitEnum(c, wasm.Opcode.i32_const);
+                emitLebU32(c, @intCast(shadow_size));
+                emitEnum(c, wasm.Opcode.i32_add);
+                emitEnum(c, wasm.Opcode.global_set);
+                emitLebU32(c, stack_global);
+            }
 
+            emitEnum(c, wasm.Opcode.@"return");
             emitEnum(c, wasm.Opcode.end);
         }
     }
@@ -168,7 +173,7 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
         },
         .struct_init => panic("Unexpected {}", .{node_data}),
         .@"return" => {
-            emitEnum(c, wasm.Opcode.@"return");
+            // Do nothing here - leave the value on the stack and it will be returned after frame pop.
         },
         .call => |call| {
             emitEnum(c, wasm.Opcode.call);
