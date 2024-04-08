@@ -18,7 +18,7 @@ const NodeData = zest.NodeData;
 const Repr = zest.Repr;
 
 pub fn infer(c: *Compiler) error{InferError}!void {
-    c.specialization_main = try inferFunction(c, c.function_main.?, &.{});
+    c.specialization_main = try inferFunction(c, c.function_main.?, Repr.emptyStruct());
 }
 
 pub fn reinfer(c: *Compiler) error{InferError}!void {
@@ -27,8 +27,8 @@ pub fn reinfer(c: *Compiler) error{InferError}!void {
     }
 }
 
-fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{InferError}!Specialization {
-    const args = SpecializationArgs{ .function = function, .in_reprs = in_reprs };
+fn inferFunction(c: *Compiler, function: Function, in_repr: Repr) error{InferError}!Specialization {
+    const args = SpecializationArgs{ .function = function, .in_repr = in_repr };
     if (c.args_to_specialization.get(args)) |specialization_or_pending| {
         if (specialization_or_pending) |specialization| {
             return specialization;
@@ -54,7 +54,7 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
         _ = s.node_prev.append(if (node_id == 0) null else .{ .id = node_id - 1 });
     }
 
-    s.in_repr.appendSlice(in_reprs);
+    _ = s.in_repr.append(in_repr);
     for (0..s.node_data.count()) |node_id| {
         const repr = try inferNode(c, &s, .{ .id = node_id });
         _ = s.node_repr.append(repr);
@@ -90,6 +90,9 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             for (reprs, struct_init.values) |*repr, value| repr.* = try inferNode(c, s, value);
             return .{ .@"struct" = .{ .keys = struct_init.keys, .reprs = reprs } };
         },
+        .arg_get => |arg_get| {
+            return s.in_repr.get(arg_get.arg);
+        },
         .local_get => |local_get| {
             return s.local_repr.get(local_get.local);
         },
@@ -106,11 +109,10 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             if (call.specialization) |specialization| {
                 return c.specialization_data.get(specialization).out_repr;
             } else {
-                const in_reprs = c.allocator.alloc(Repr, call.args.len) catch oom();
-                for (in_reprs, call.args) |*in_repr, arg_node| {
-                    in_repr.* = s.node_repr.get(arg_node);
-                }
-                const specialization = try inferFunction(c, call.function, in_reprs);
+                // Multiple args are for SRA, after specialization.
+                assert(call.args.len == 1);
+                const in_repr = s.node_repr.get(call.args[0]);
+                const specialization = try inferFunction(c, call.function, in_repr);
                 s.node_data.getPtr(node).call.specialization = specialization;
                 return c.specialization_data.get(specialization).out_repr;
             }

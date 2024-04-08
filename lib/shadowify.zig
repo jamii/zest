@@ -33,6 +33,15 @@ fn shadowifySpecialization(c: *Compiler, s: *SpecializationData) void {
         node_next = s.node_next.get(node);
         shadowifyNode(c, s, &local_to_shadow, node);
     }
+
+    for (s.in_repr.items()) |*in_repr| {
+        switch (in_repr.*) {
+            .i32 => {},
+            .@"struct" => in_repr.* = .i32,
+            .string, .@"union" => panic("TODO {}", .{in_repr}),
+        }
+    }
+    // TODO out_repr
 }
 
 fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Local, Shadow), node: Node) void {
@@ -79,21 +88,17 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             }
         },
         .@"return" => |value| {
+            // TODO we'll have to be careful to copy structs on return, in case we return past the pointer's scope
             switch (s.node_repr.get(value)) {
                 .i32 => {},
                 .string, .@"struct", .@"union" => panic("TODO {} {}", .{ node_data, repr }),
             }
         },
-        .call => |call| {
-            for (call.args) |arg| {
-                switch (s.node_repr.get(arg)) {
-                    .i32 => {},
-                    .string, .@"struct", .@"union" => panic("TODO {}", .{node_data}),
-                }
-            }
+        .call => {
+            // call just passes struct pointers.
         },
         .intrinsic => {
-            // Intrinsics only operate on primitive types
+            // intrinsics only operate on primitive types
         },
         .get => |get| {
             const object_repr = s.node_repr.get(get.object).@"struct";
@@ -113,6 +118,9 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                 },
                 .string, .@"union" => panic("TODO {}", .{node_data}),
             }
+        },
+        .arg_get => {
+            // arg_get just retrieves struct pointers
         },
         .local_get => |local_get| {
             switch (repr) {

@@ -191,6 +191,8 @@ pub const Builtin = enum {
     @"return-to",
 };
 
+pub const Arg = struct { id: usize };
+
 pub const Local = struct { id: usize };
 
 pub const Shadow = struct { id: usize };
@@ -215,6 +217,9 @@ pub const NodeData = union(enum) {
         key: Value,
     },
 
+    arg_get: struct {
+        arg: Arg,
+    },
     local_get: struct {
         local: Local,
     },
@@ -303,7 +308,6 @@ pub const AbstractValue = union(enum) {
 };
 
 pub const Specialization = struct { id: usize };
-pub const Arg = struct { id: usize };
 
 pub const SpecializationData = struct {
     function: Function,
@@ -396,7 +400,7 @@ pub const SpecializationData = struct {
 
 pub const SpecializationArgs = struct {
     function: Function,
-    in_reprs: []Repr,
+    in_repr: Repr,
 };
 
 pub const Compiler = struct {

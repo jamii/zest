@@ -39,7 +39,7 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
 
     // Load inputs
     switch (node_data) {
-        .value, .local_get, .shadow_ptr => {},
+        .value, .arg_get, .local_get, .shadow_ptr => {},
         .local_set => |local_set| {
             _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(local_set.value).? } });
         },
@@ -76,7 +76,7 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
 
     // Store outputs
     const has_output = switch (node_data) {
-        .value, .local_get, .call, .shadow_ptr, .load => true,
+        .value, .arg_get, .local_get, .call, .shadow_ptr, .load => true,
         .local_set, .@"return", .store, .copy => false,
         .intrinsic => |intrinsic| switch (intrinsic) {
             .i32_add => true,

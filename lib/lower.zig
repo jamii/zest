@@ -9,6 +9,7 @@ const oom = zest.oom;
 const Compiler = zest.Compiler;
 const Expr = zest.Expr;
 const ExprData = zest.ExprData;
+const ObjectExprData = zest.ObjectExprData;
 const Function = zest.Function;
 const FunctionData = zest.FunctionData;
 const Node = zest.Node;
@@ -17,16 +18,42 @@ const Value = zest.Value;
 const AbstractValue = zest.AbstractValue;
 
 pub fn lower(c: *Compiler) error{LowerError}!void {
-    c.function_main = try lowerFunction(c, &.{}, c.expr_data.lastKey().?);
+    c.function_main = try lowerFunction(c, .{ .keys = &.{}, .values = &.{} }, c.expr_data.lastKey().?);
 }
 
-fn lowerFunction(c: *Compiler, args: []const []const u8, body: Expr) error{LowerError}!Function {
-    _ = args;
+fn lowerFunction(c: *Compiler, args: ObjectExprData, body: Expr) error{LowerError}!Function {
+    var f = FunctionData.init(c.allocator);
+    const arg = f.node_data.append(.{ .arg_get = .{ .arg = .{ .id = 0 } } });
+    try lowerObjectPattern(c, &f, arg, args);
+    const result_node = try lowerExpr(c, &f, body);
+    _ = f.node_data.append(.{ .@"return" = result_node });
+    return c.function_data.append(f);
+}
 
-    var function_data = FunctionData.init(c.allocator);
-    const result_node = try lowerExpr(c, &function_data, body);
-    _ = function_data.node_data.append(.{ .@"return" = result_node });
-    return c.function_data.append(function_data);
+fn lowerObjectPattern(c: *Compiler, f: *FunctionData, object: Node, pattern: ObjectExprData) error{LowerError}!void {
+    for (pattern.keys, pattern.values) |key_expr, value_expr| {
+        const key = try evalKey(c, f, key_expr);
+        const value_node = f.node_data.append(.{ .get = .{ .object = object, .key = key } });
+        try lowerPattern(c, f, value_node, value_expr);
+    }
+}
+
+fn lowerPattern(c: *Compiler, f: *FunctionData, input: Node, pattern: Expr) error{LowerError}!void {
+    _ = f;
+    const expr_data = c.expr_data.get(pattern);
+    switch (expr_data) {
+        .name => |name| {
+            c.scope.push(.{
+                .name = name,
+                .value = .{ .node = input },
+            });
+        },
+        //.object => |object| {
+        //    TODO assert input is a struct?
+        //    try lowerObjectPattern(c, f, input, object);
+        //}
+        else => return fail(c, pattern, "Invalid pattern", .{}),
+    }
 }
 
 fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node {
@@ -36,14 +63,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
             return f.node_data.append(.{ .value = .{ .i32 = i } });
         },
         .object => |object| {
-            const keys = c.allocator.alloc(Value, object.keys.len) catch oom();
-            for (keys, object.keys) |*key_node, key| key_node.* = try evalKey(c, f, key);
-
-            const values = c.allocator.alloc(Node, object.values.len) catch oom();
-            for (values, object.values) |*value_node, value| value_node.* = try lowerExpr(c, f, value);
-
-            // TODO sort keys and values
-            return f.node_data.append(.{ .struct_init = .{ .keys = keys, .values = values } });
+            return lowerObject(c, f, object);
         },
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
@@ -64,13 +84,13 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         },
         .@"fn" => return fail(c, expr, "You may not create a function here", .{}),
         .call => |call| {
-            if (call.args.keys.len > 0) return fail(c, expr, "TODO params", .{});
             const head = try lowerExprOrFn(c, f, call.head);
             if (head != .function) return fail(c, expr, "Cannot call {}", .{head});
+            const arg = try lowerObject(c, f, call.args);
             return f.node_data.append(.{ .call = .{
                 .function = head.function,
                 .specialization = null,
-                .args = &.{},
+                .args = c.dupeOne(arg),
             } });
         },
         .get => |get| {
@@ -96,6 +116,17 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
     }
 }
 
+fn lowerObject(c: *Compiler, f: *FunctionData, object: ObjectExprData) error{LowerError}!Node {
+    const keys = c.allocator.alloc(Value, object.keys.len) catch oom();
+    for (keys, object.keys) |*key_node, key| key_node.* = try evalKey(c, f, key);
+
+    const values = c.allocator.alloc(Node, object.values.len) catch oom();
+    for (values, object.values) |*value_node, value| value_node.* = try lowerExpr(c, f, value);
+
+    // TODO sort keys and values
+    return f.node_data.append(.{ .struct_init = .{ .keys = keys, .values = values } });
+}
+
 fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!AbstractValue {
     const expr_data = c.expr_data.get(expr);
     switch (expr_data) {
@@ -105,8 +136,7 @@ fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!A
             return binding.value;
         },
         .@"fn" => |@"fn"| {
-            if (@"fn".params.keys.len > 0) return fail(c, expr, "TODO params", .{});
-            return .{ .function = try lowerFunction(c, &.{}, @"fn".body) };
+            return .{ .function = try lowerFunction(c, @"fn".params, @"fn".body) };
         },
         else => {
             return .{ .node = try lowerExpr(c, f, expr) };

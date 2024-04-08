@@ -87,7 +87,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
         emitName(c, "main");
         emitEnum(c, wasm.ExternalKind.function);
-        emitLebU32(c, 0);
+        emitLebU32(c, @intCast(c.specialization_main.?.id));
 
         emitName(c, "memory");
         emitEnum(c, wasm.ExternalKind.memory);
@@ -131,6 +131,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 node_next = s.node_next.get(node);
             }
 
+            // TODO this needs to happen before return!
             // Frame pop
             emitEnum(c, wasm.Opcode.global_get);
             emitLebU32(c, stack_global);
@@ -181,13 +182,17 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             }
         },
         .get => panic("Unexpected {}", .{node_data}),
+        .arg_get => |arg_get| {
+            emitEnum(c, wasm.Opcode.local_get);
+            emitLebU32(c, @intCast(arg_get.arg.id));
+        },
         .local_get => |local_get| {
             emitEnum(c, wasm.Opcode.local_get);
-            emitLebU32(c, @intCast(local_get.local.id));
+            emitLebU32(c, @intCast(s.in_repr.count() + local_get.local.id));
         },
         .local_set => |local_set| {
             emitEnum(c, wasm.Opcode.local_set);
-            emitLebU32(c, @intCast(local_set.local.id));
+            emitLebU32(c, @intCast(s.in_repr.count() + local_set.local.id));
         },
         .shadow_ptr => |shadow| {
             var offset: usize = 0;
