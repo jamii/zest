@@ -127,6 +127,18 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
                 },
             }
         },
+        .get => |get| {
+            const object_repr = s.node_repr.get(get.object);
+            switch (object_repr) {
+                .i32, .string => return fail(c, s.function, node, "Expected object, found {}", .{object_repr}),
+                .@"struct" => |@"struct"| {
+                    const index = @"struct".get(get.key) orelse
+                        return fail(c, s.function, node, "Key {} not found in struct {}", .{ get.key, object_repr });
+                    return @"struct".reprs[index];
+                },
+                .@"union" => panic("TODO {}", .{node_data}),
+            }
+        },
         .shadow_ptr => return .i32,
         .load => |load| return load.repr,
         .store => |store| return store.repr,

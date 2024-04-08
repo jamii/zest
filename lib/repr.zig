@@ -52,6 +52,13 @@ pub const ReprStruct = struct {
         for (self.reprs) |repr| size += repr.sizeOf();
         return size;
     }
+
+    pub fn get(self: ReprStruct, key: Value) ?usize {
+        for (0.., self.keys) |i, self_key| {
+            if (key.equal(self_key)) return i;
+        }
+        return null;
+    }
 };
 
 pub const ReprUnion = struct {

@@ -71,7 +71,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                     .@"struct" => _ = s.insertAfter(address_node, .{ .copy = .{
                         .to = address_node,
                         .from = value,
-                        .byte_count = repr.sizeOf(),
+                        .byte_count = value_repr.sizeOf(),
                     } }),
                     .string, .@"union" => panic("TODO {}", .{node_data}),
                 }
@@ -94,6 +94,25 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
         },
         .intrinsic => {
             // Intrinsics only operate on primitive types
+        },
+        .get => |get| {
+            const object_repr = s.node_repr.get(get.object).@"struct";
+            const index = object_repr.get(get.key).?;
+            var offset: usize = 0;
+            for (object_repr.reprs[0..index]) |repr_before| {
+                offset += repr_before.sizeOf();
+            }
+            const offset_node = s.insertBefore(node, .{ .value = .{ .i32 = @intCast(offset) } });
+            switch (repr) {
+                .i32 => {
+                    const address_node = s.insertBefore(node, .{ .intrinsic = .{ .i32_add = .{ get.object, offset_node } } });
+                    s.node_data.getPtr(node).* = .{ .load = .{ .address = address_node, .repr = repr } };
+                },
+                .@"struct" => {
+                    s.node_data.getPtr(node).* = .{ .intrinsic = .{ .i32_add = .{ get.object, offset_node } } };
+                },
+                .string, .@"union" => panic("TODO {}", .{node_data}),
+            }
         },
         .local_get => |local_get| {
             switch (repr) {

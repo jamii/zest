@@ -10,6 +10,7 @@ const oom = zest.oom;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
+const deepEqual = zest.deepEqual;
 
 pub const Value = union(enum) {
     i32: i32,
@@ -31,6 +32,11 @@ pub const Value = union(enum) {
             .repr = Repr.emptyStruct().@"struct",
             .values = &.{},
         } };
+    }
+
+    pub fn equal(self: Value, other: Value) bool {
+        // TODO May need to think about this.
+        return deepEqual(self, other);
     }
 };
 

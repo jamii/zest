@@ -42,6 +42,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
             const values = c.allocator.alloc(Node, object.values.len) catch oom();
             for (values, object.values) |*value_node, value| value_node.* = try lowerExpr(c, f, value);
 
+            // TODO sort keys and values
             return f.node_data.append(.{ .struct_init = .{ .keys = keys, .values = values } });
         },
         .name => |name| {
@@ -71,6 +72,11 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                 .specialization = null,
                 .args = &.{},
             } });
+        },
+        .get => |get| {
+            const object = try lowerExpr(c, f, get.object);
+            const key = try evalKey(c, f, get.key);
+            return f.node_data.append(.{ .get = .{ .object = object, .key = key } });
         },
         .statements => |statements| {
             const scope_saved = c.scope.save();

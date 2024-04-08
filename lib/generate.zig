@@ -196,6 +196,7 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
                 },
             }
         },
+        .get => panic("Unexpected {}", .{node_data}),
         .local_get => |local_get| {
             emitEnum(c, wasm.Opcode.local_get);
             emitLebU32(c, @intCast(local_get.local.id));

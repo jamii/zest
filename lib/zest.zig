@@ -210,6 +210,10 @@ pub const NodeData = union(enum) {
         args: []Node,
     },
     intrinsic: Intrinsic,
+    get: struct {
+        object: Node,
+        key: Value,
+    },
 
     local_get: struct {
         local: Local,
