@@ -95,11 +95,11 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
         .intrinsic => {
             // Intrinsics only operate on primitive types
         },
-        .local_get => |local| {
+        .local_get => |local_get| {
             switch (repr) {
                 .i32 => {},
                 .@"struct" => {
-                    const shadow = local_to_shadow.get(local).?;
+                    const shadow = local_to_shadow.get(local_get.local).?;
                     s.node_data.getPtr(node).* = .{ .shadow_ptr = shadow };
                 },
                 .string, .@"union" => panic("TODO {}", .{node_data}),

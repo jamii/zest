@@ -196,9 +196,9 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
                 },
             }
         },
-        .local_get => |local| {
+        .local_get => |local_get| {
             emitEnum(c, wasm.Opcode.local_get);
-            emitLebU32(c, @intCast(local.id));
+            emitLebU32(c, @intCast(local_get.local.id));
         },
         .local_set => |local_set| {
             emitEnum(c, wasm.Opcode.local_set);

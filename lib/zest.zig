@@ -211,7 +211,9 @@ pub const NodeData = union(enum) {
     },
     intrinsic: Intrinsic,
 
-    local_get: Local,
+    local_get: struct {
+        local: Local,
+    },
     local_set: struct {
         local: Local,
         value: Node,

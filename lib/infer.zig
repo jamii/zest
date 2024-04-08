@@ -71,8 +71,8 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             for (reprs, struct_init.values) |*repr, value| repr.* = try inferNode(c, s, value);
             return .{ .@"struct" = .{ .keys = struct_init.keys, .reprs = reprs } };
         },
-        .local_get => |local| {
-            return s.local_repr.get(local);
+        .local_get => |local_get| {
+            return s.local_repr.get(local_get.local);
         },
         .local_set => {
             return Repr.emptyStruct();
