@@ -21,6 +21,12 @@ pub fn infer(c: *Compiler) error{InferError}!void {
     c.specialization_main = try inferFunction(c, c.function_main.?, &.{});
 }
 
+pub fn reinfer(c: *Compiler) error{InferError}!void {
+    for (c.specialization_data.items()) |*s| {
+        try reinferSpecialization(c, s);
+    }
+}
+
 fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{InferError}!Specialization {
     const args = SpecializationArgs{ .function = function, .in_reprs = in_reprs };
     if (c.args_to_specialization.get(args)) |specialization_or_pending| {
@@ -60,6 +66,19 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
     return specialization;
 }
 
+pub fn reinferSpecialization(c: *Compiler, s: *SpecializationData) error{InferError}!void {
+    s.node_repr.data.shrinkRetainingCapacity(0);
+    // TODO I would prefer to mark repr as unknown in case there is some out of order dependency.
+    s.node_repr.appendNTimes(Repr.emptyUnion(), s.node_data.count());
+
+    var node_next = s.node_first;
+    while (node_next) |node| {
+        // Get next node before inserting anything after this node.
+        node_next = s.node_next.get(node);
+        s.node_repr.getPtr(node).* = try inferNode(c, s, node);
+    }
+}
+
 fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
     const node_data = s.node_data.get(node);
     switch (node_data) {
@@ -84,15 +103,18 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             return Repr.emptyStruct();
         },
         .call => |call| {
-            assert(call.specialization == null);
-            // TODO Once Repr has align > 0 this can be a slice alloc.
-            var in_reprs = ArrayList(Repr).init(c.allocator);
-            for (call.args) |arg_node| {
-                in_reprs.append(s.node_repr.get(arg_node)) catch oom();
+            if (call.specialization) |specialization| {
+                return c.specialization_data.get(specialization).out_repr;
+            } else {
+                // TODO Once Repr has align > 0 this can be a slice alloc.
+                var in_reprs = ArrayList(Repr).init(c.allocator);
+                for (call.args) |arg_node| {
+                    in_reprs.append(s.node_repr.get(arg_node)) catch oom();
+                }
+                const specialization = try inferFunction(c, call.function, in_reprs.items);
+                s.node_data.getPtr(node).call.specialization = specialization;
+                return c.specialization_data.get(specialization).out_repr;
             }
-            const specialization = try inferFunction(c, call.function, in_reprs.items);
-            s.node_data.getPtr(node).call.specialization = specialization;
-            return c.specialization_data.get(specialization).out_repr;
         },
         .intrinsic => |intrinsic| {
             switch (intrinsic) {
@@ -106,7 +128,10 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
                 },
             }
         },
-        .shadow_ptr, .load, .store, .copy => panic("Unexpected {}", .{node_data}),
+        .shadow_ptr => return .i32,
+        .load => |load| return load.repr,
+        .store => |store| return store.repr,
+        .copy => return Repr.emptyStruct(),
     }
 }
 

@@ -460,6 +460,7 @@ pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
 pub const infer = @import("./infer.zig").infer;
 pub const shadowify = @import("./shadowify.zig").shadowify;
+pub const reinfer = @import("./infer.zig").reinfer;
 pub const stackify = @import("./stackify.zig").stackify;
 pub const generate = @import("./generate.zig").generate;
 
@@ -477,6 +478,8 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
     assert(c.specialization_main != null);
 
     shadowify(c);
+
+    try reinfer(c);
 
     stackify(c);
 

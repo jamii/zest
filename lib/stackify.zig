@@ -23,6 +23,7 @@ pub fn stackify(c: *Compiler) void {
 
 fn stackifySpecialization(c: *Compiler, s: *SpecializationData) void {
     var node_to_local = List(Node, ?Local).init(c.allocator);
+    node_to_local.appendNTimes(null, s.node_data.count());
     var node_next = s.node_first;
     while (node_next) |node| {
         // Get next node before inserting anything after this node.
@@ -84,7 +85,7 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
     };
     if (has_output) {
         const local = s.local_repr.append(s.node_repr.get(node));
-        _ = node_to_local.append(local);
+        node_to_local.getPtr(node).* = local;
         _ = s.insertAfter(node, .{
             .local_set = .{
                 .local = local,
