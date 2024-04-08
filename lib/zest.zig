@@ -3,6 +3,7 @@ const panic = std.debug.panic;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const wasm = std.wasm;
 
 pub fn oom() noreturn {
     panic("OOM", .{});
@@ -213,15 +214,22 @@ pub const NodeData = union(enum) {
     local_get: Local,
     local_set: struct {
         local: Local,
-        node: Node,
+        value: Node,
     },
     shadow_ptr: Shadow,
     load: struct {
         address: Node,
+        repr: Repr,
     },
     store: struct {
         address: Node,
         value: Node,
+        repr: Repr,
+    },
+    copy: struct {
+        to: Node,
+        from: Node,
+        byte_count: usize,
     },
 };
 
@@ -465,6 +473,8 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
 
     try infer(c);
     assert(c.specialization_main != null);
+
+    shadowify(c);
 
     stackify(c);
 

@@ -215,9 +215,8 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, @intCast(offset));
             emitEnum(c, wasm.Opcode.i32_add);
         },
-        .load => {
-            const repr = s.node_repr.get(node);
-            const valtype = try valtypeFromRepr(c, repr);
+        .load => |load| {
+            const valtype = try valtypeFromRepr(c, load.repr);
             emitEnum(c, switch (valtype) {
                 .i32 => wasm.Opcode.i32_load,
                 else => panic("TODO {}", .{valtype}),
@@ -225,15 +224,23 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, 0); // alignment
             emitLebU32(c, 0); // offset
         },
-        .store => {
-            const repr = s.node_repr.get(node);
-            const valtype = try valtypeFromRepr(c, repr);
+        .store => |store| {
+            const valtype = try valtypeFromRepr(c, store.repr);
             emitEnum(c, switch (valtype) {
                 .i32 => wasm.Opcode.i32_store,
                 else => panic("TODO {}", .{valtype}),
             });
             emitLebU32(c, 0); // alignment
             emitLebU32(c, 0); // offset
+        },
+        .copy => |copy| {
+            emitEnum(c, wasm.Opcode.i32_const);
+            emitLebU32(c, @intCast(copy.byte_count));
+
+            emitEnum(c, wasm.Opcode.misc_prefix);
+            emitLebU32(c, @intFromEnum(wasm.MiscOpcode.memory_copy));
+            emitLebU32(c, 0); // from memory
+            emitLebU32(c, 0); // to memory
         },
     }
 }

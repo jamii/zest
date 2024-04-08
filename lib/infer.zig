@@ -50,17 +50,17 @@ fn inferFunction(c: *Compiler, function: Function, in_reprs: []Repr) error{Infer
 
     s.in_repr.appendSlice(in_reprs);
     for (0..s.node_data.count()) |node_id| {
-        const repr = try inferExpr(c, &s, .{ .id = node_id });
+        const repr = try inferNode(c, &s, .{ .id = node_id });
         _ = s.node_repr.append(repr);
     }
-    // s.out_repr may be updated by inferExpr
+    // s.out_repr may be updated by inferNode
 
     const specialization = c.specialization_data.append(s);
     c.args_to_specialization.put(args, specialization) catch oom();
     return specialization;
 }
 
-fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
+fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
     const node_data = s.node_data.get(node);
     switch (node_data) {
         .value => |value| {
@@ -68,7 +68,7 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
         },
         .struct_init => |struct_init| {
             const reprs = c.allocator.alloc(Repr, struct_init.values.len) catch oom();
-            for (reprs, struct_init.values) |*repr, value| repr.* = try inferExpr(c, s, value);
+            for (reprs, struct_init.values) |*repr, value| repr.* = try inferNode(c, s, value);
             return .{ .@"struct" = .{ .keys = struct_init.keys, .reprs = reprs } };
         },
         .local_get => |local| {
@@ -106,7 +106,7 @@ fn inferExpr(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
                 },
             }
         },
-        .shadow_ptr, .load, .store => panic("Unexpected {}", .{node_data}),
+        .shadow_ptr, .load, .store, .copy => panic("Unexpected {}", .{node_data}),
     }
 }
 

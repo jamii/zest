@@ -21,7 +21,7 @@ pub fn stackify(c: *Compiler) void {
     }
 }
 
-pub fn stackifySpecialization(c: *Compiler, s: *SpecializationData) void {
+fn stackifySpecialization(c: *Compiler, s: *SpecializationData) void {
     var node_to_local = List(Node, ?Local).init(c.allocator);
     var node_next = s.node_first;
     while (node_next) |node| {
@@ -31,7 +31,7 @@ pub fn stackifySpecialization(c: *Compiler, s: *SpecializationData) void {
     }
 }
 
-pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node, ?Local), node: Node) void {
+fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node, ?Local), node: Node) void {
     _ = c;
 
     const node_data = s.node_data.get(node);
@@ -40,7 +40,7 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
     switch (node_data) {
         .value, .local_get, .shadow_ptr => {},
         .local_set => |local_set| {
-            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(local_set.node).? });
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(local_set.value).? });
         },
         .@"return" => |returned_node| {
             _ = s.insertBefore(node, .{ .local_get = node_to_local.get(returned_node).? });
@@ -66,13 +66,17 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
             _ = s.insertBefore(node, .{ .local_get = node_to_local.get(store.address).? });
             _ = s.insertBefore(node, .{ .local_get = node_to_local.get(store.value).? });
         },
+        .copy => |copy| {
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(copy.to).? });
+            _ = s.insertBefore(node, .{ .local_get = node_to_local.get(copy.from).? });
+        },
         .struct_init => panic("Unexpected {}", .{node_data}),
     }
 
     // Store ouputs
     const has_output = switch (node_data) {
         .value, .local_get, .call, .shadow_ptr, .load => true,
-        .local_set, .@"return", .store => false,
+        .local_set, .@"return", .store, .copy => false,
         .intrinsic => |intrinsic| switch (intrinsic) {
             .i32_add => true,
         },
@@ -84,7 +88,7 @@ pub fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(N
         _ = s.insertAfter(node, .{
             .local_set = .{
                 .local = local,
-                .node = node,
+                .value = node,
             },
         });
     }
