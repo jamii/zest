@@ -116,34 +116,21 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                             } });
                         },
                         .@"i32-store" => {
-                            if (!deepEqual(@as([]const Value, &.{
-                                .{ .i32 = 0 },
-                                .{ .i32 = 1 },
-                            }), args.struct_init.keys))
-                                return fail(c, expr, "Invalid call to intrinsic", .{});
+                            try matchKeys(c, expr, args.struct_init.keys, .{ 0, 1 });
                             return f.node_data.append(.{ .store = .{
                                 .to = args.struct_init.values[0],
                                 .value = args.struct_init.values[1],
                             } });
                         },
                         .@"i32-load" => {
-                            if (!deepEqual(@as([]const Value, &.{
-                                .{ .i32 = 0 },
-                            }), args.struct_init.keys))
-                                return fail(c, expr, "Invalid call to intrinsic", .{});
+                            try matchKeys(c, expr, args.struct_init.keys, .{0});
                             return f.node_data.append(.{ .load = .{
                                 .from = args.struct_init.values[0],
                                 .repr = .i32,
                             } });
                         },
                         .@"memory-copy" => {
-                            if (!deepEqual(@as([]const Value, &.{
-                                .{ .i32 = 0 },
-                                .{ .i32 = 1 },
-                                .{ .i32 = 2 },
-                            }), args.struct_init.keys))
-                                return fail(c, expr, "Invalid call to intrinsic", .{});
-
+                            try matchKeys(c, expr, args.struct_init.keys, .{ 0, 1, 2 });
                             const byte_count = try evalExpr(c, f, call.args.values[2]);
                             if (byte_count != .i32)
                                 return fail(c, expr, "Invalid call to intrinsic", .{});
@@ -178,6 +165,27 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
             }
         },
         else => return fail(c, expr, "TODO", .{}),
+    }
+}
+
+fn matchKeys(c: *Compiler, expr: Expr, actual_keys: []const Value, expected_keys: anytype) error{LowerError}!void {
+    if (actual_keys.len != expected_keys.len)
+        return fail(c, expr, "Expected {} args, found {} args", .{ expected_keys.len, actual_keys.len });
+    inline for (expected_keys, 0..) |expected_key, i| {
+        const actual_key = actual_keys[i];
+        switch (@TypeOf(expected_key)) {
+            comptime_int => {
+                if (actual_key != .i32 or
+                    actual_key.i32 != @as(i32, expected_key))
+                    return fail(c, expr, "Expected key {}, found key {}", .{ expected_key, actual_key });
+            },
+            [:0]const u8 => {
+                if (actual_key != .string or
+                    !std.mem.eql(u8, actual_key.string, expected_key))
+                    return fail(c, expr, "Expected key '{s}', found key {}", .{ expected_key, actual_key });
+            },
+            else => @compileError(@typeName(@TypeOf(expected_key))),
+        }
     }
 }
 
