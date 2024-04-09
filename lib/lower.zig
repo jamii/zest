@@ -6,6 +6,7 @@ const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
 const oom = zest.oom;
+const deepEqual = zest.deepEqual;
 const Compiler = zest.Compiler;
 const Expr = zest.Expr;
 const ExprData = zest.ExprData;
@@ -63,15 +64,18 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
             return f.node_data.append(.{ .value = .{ .i32 = i } });
         },
         .object => |object| {
-            return lowerObject(c, f, object);
+            return f.node_data.append(try lowerObject(c, f, object));
         },
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
                 return fail(c, expr, "Not defined: {s}", .{name});
             switch (binding.value) {
                 .node => |node| return node,
-                .function => return fail(c, expr, "You may not use a function here", .{}),
+                .function, .intrinsic => return fail(c, expr, "You may not use a function here", .{}),
             }
+        },
+        .intrinsic => {
+            return fail(c, expr, "Intrinsics may only be called", .{});
         },
         .let => |let| {
             const value = try lowerExprOrFn(c, f, let.value);
@@ -85,13 +89,30 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         .@"fn" => return fail(c, expr, "You may not create a function here", .{}),
         .call => |call| {
             const head = try lowerExprOrFn(c, f, call.head);
-            if (head != .function) return fail(c, expr, "Cannot call {}", .{head});
-            const arg = try lowerObject(c, f, call.args);
-            return f.node_data.append(.{ .call = .{
-                .function = head.function,
-                .specialization = null,
-                .args = c.dupeOne(arg),
-            } });
+            const args = try lowerObject(c, f, call.args);
+            switch (head) {
+                .node => return fail(c, expr, "Cannot call {}", .{head}),
+                .function => |function| {
+                    const arg = f.node_data.append(args);
+                    return f.node_data.append(.{ .call = .{
+                        .function = function,
+                        .specialization = null,
+                        .args = c.dupeOne(arg),
+                    } });
+                },
+                .intrinsic => |intrinsic| {
+                    switch (intrinsic) {
+                        .@"i32-add" => {
+                            if (!deepEqual(@as([]const Value, &.{ .{ .i32 = 0 }, .{ .i32 = 1 } }), args.struct_init.keys))
+                                return fail(c, expr, "Invalid call to intrinsic", .{});
+                            return f.node_data.append(.{ .add = .{
+                                args.struct_init.values[0],
+                                args.struct_init.values[1],
+                            } });
+                        },
+                    }
+                },
+            }
         },
         .get => |get| {
             const object = try lowerExpr(c, f, get.object);
@@ -116,7 +137,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
     }
 }
 
-fn lowerObject(c: *Compiler, f: *FunctionData, object: ObjectExprData) error{LowerError}!Node {
+fn lowerObject(c: *Compiler, f: *FunctionData, object: ObjectExprData) error{LowerError}!NodeData {
     const keys = c.allocator.alloc(Value, object.keys.len) catch oom();
     for (keys, object.keys) |*key_node, key| key_node.* = try evalKey(c, f, key);
 
@@ -124,7 +145,7 @@ fn lowerObject(c: *Compiler, f: *FunctionData, object: ObjectExprData) error{Low
     for (values, object.values) |*value_node, value| value_node.* = try lowerExpr(c, f, value);
 
     // TODO sort keys and values
-    return f.node_data.append(.{ .struct_init = .{ .keys = keys, .values = values } });
+    return NodeData{ .struct_init = .{ .keys = keys, .values = values } };
 }
 
 fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!AbstractValue {
@@ -134,6 +155,9 @@ fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!A
             const binding = c.scope.lookup(name) orelse
                 return fail(c, expr, "Not defined: {s}", .{name});
             return binding.value;
+        },
+        .intrinsic => |intrinsic| {
+            return .{ .intrinsic = intrinsic };
         },
         .@"fn" => |@"fn"| {
             return .{ .function = try lowerFunction(c, @"fn".params, @"fn".body) };

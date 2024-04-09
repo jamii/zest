@@ -69,6 +69,7 @@ pub fn tokenize(c: *Compiler) !void {
                 }
             },
             '*' => TokenData.@"*",
+            '%' => TokenData.@"%",
             'a'...'z' => token: {
                 i -= 1;
                 while (i < source.len) {

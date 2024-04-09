@@ -12,6 +12,7 @@ const Expr = zest.Expr;
 const ExprData = zest.ExprData;
 const ObjectExprData = zest.ObjectExprData;
 const Builtin = zest.Builtin;
+const Intrinsic = zest.Intrinsic;
 
 pub fn parse(c: *Compiler) !void {
     _ = try parseStatements(c, .eof);
@@ -219,6 +220,7 @@ fn parseExprPath(c: *Compiler) error{ParseError}!Expr {
 fn parseExprAtom(c: *Compiler) error{ParseError}!Expr {
     switch (peek(c)) {
         .name => return parseName(c),
+        .@"%" => return parseIntrinsic(c),
         .number => return parseNumber(c),
         .string => return parseString(c),
         .@"[" => return parseObject(c),
@@ -246,6 +248,19 @@ fn parseName(c: *Compiler) error{ParseError}!Expr {
         return c.expr_data.append(.{ .builtin = .@"return-to" });
     }
     return c.expr_data.append(.{ .name = name });
+}
+
+fn parseIntrinsic(c: *Compiler) error{ParseError}!Expr {
+    try expect(c, .@"%");
+    try expectNoSpace(c);
+    try expect(c, .name);
+    const name = lastTokenText(c);
+    inline for (@typeInfo(Intrinsic).Enum.fields) |field| {
+        if (std.mem.eql(u8, name, field.name)) {
+            return c.expr_data.append(.{ .intrinsic = @as(Intrinsic, @enumFromInt(field.value)) });
+        }
+    }
+    return fail(c, "Invalid intrinsic: {s}", .{name});
 }
 
 fn parseNumber(c: *Compiler) error{ParseError}!Expr {

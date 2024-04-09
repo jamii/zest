@@ -112,6 +112,7 @@ pub const TokenData = enum {
     @"-",
     @"/",
     @"*",
+    @"%",
     comment,
     space,
     newline,
@@ -127,6 +128,7 @@ pub const ExprData = union(enum) {
     string: []const u8,
     object: ObjectExprData,
     builtin: Builtin,
+    intrinsic: Intrinsic,
     name: []const u8,
     mut: Expr,
     let: struct {
@@ -189,6 +191,10 @@ pub const Builtin = enum {
     get,
     @"get-repr",
     @"return-to",
+};
+
+pub const Intrinsic = enum {
+    @"i32-add",
 };
 
 pub const Arg = struct { id: usize };
@@ -302,6 +308,7 @@ pub const Binding = struct {
 pub const AbstractValue = union(enum) {
     node: Node,
     function: Function,
+    intrinsic: Intrinsic,
 };
 
 pub const Specialization = struct { id: usize };
