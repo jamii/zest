@@ -179,13 +179,6 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitEnum(c, wasm.Opcode.call);
             emitLebU32(c, @intCast(call.specialization.?.id));
         },
-        .intrinsic => |intrinsic| {
-            switch (intrinsic) {
-                .i32_add => {
-                    emitEnum(c, wasm.Opcode.i32_add);
-                },
-            }
-        },
         .get => panic("Unexpected {}", .{node_data}),
         .arg_get => |arg_get| {
             emitEnum(c, wasm.Opcode.local_get);
@@ -208,6 +201,9 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, stack_global);
             emitEnum(c, wasm.Opcode.i32_const);
             emitLebU32(c, @intCast(offset));
+            emitEnum(c, wasm.Opcode.i32_add);
+        },
+        .add => {
             emitEnum(c, wasm.Opcode.i32_add);
         },
         .load => |load| {

@@ -211,7 +211,6 @@ pub const NodeData = union(enum) {
         specialization: ?Specialization,
         args: []Node,
     },
-    intrinsic: Intrinsic,
     get: struct {
         object: Node,
         key: Value,
@@ -228,6 +227,9 @@ pub const NodeData = union(enum) {
         value: Node,
     },
     shadow_ptr: Shadow,
+
+    // wasm intrinsics
+    add: [2]Node,
     load: struct {
         address: Node,
         repr: Repr,
@@ -242,10 +244,6 @@ pub const NodeData = union(enum) {
         from: Node,
         byte_count: usize,
     },
-};
-
-pub const Intrinsic = union(enum) {
-    i32_add: [2]Node,
 };
 
 pub const Function = struct { id: usize };

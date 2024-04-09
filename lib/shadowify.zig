@@ -73,7 +73,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             var offset: usize = 0;
             for (struct_init.values, repr.@"struct".reprs) |value, value_repr| {
                 const offset_node = s.insertAfter(node, .{ .value = .{ .i32 = @intCast(offset) } });
-                const address_node = s.insertAfter(offset_node, .{ .intrinsic = .{ .i32_add = .{ node, offset_node } } });
+                const address_node = s.insertAfter(offset_node, .{ .add = .{ node, offset_node } });
                 switch (value_repr) {
                     .i32 => _ = s.insertAfter(address_node, .{ .store = .{
                         .address = address_node,
@@ -121,9 +121,6 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                 .string, .@"union" => panic("TODO {}", .{node_data}),
             }
         },
-        .intrinsic => {
-            // intrinsics only operate on primitive types
-        },
         .get => |get| {
             const object_repr = s.node_repr.get(get.object).@"struct";
             const index = object_repr.get(get.key).?;
@@ -134,11 +131,11 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             const offset_node = s.insertBefore(node, .{ .value = .{ .i32 = @intCast(offset) } });
             switch (repr) {
                 .i32 => {
-                    const address_node = s.insertBefore(node, .{ .intrinsic = .{ .i32_add = .{ get.object, offset_node } } });
+                    const address_node = s.insertBefore(node, .{ .add = .{ get.object, offset_node } });
                     s.node_data.getPtr(node).* = .{ .load = .{ .address = address_node, .repr = repr } };
                 },
                 .@"struct" => {
-                    s.node_data.getPtr(node).* = .{ .intrinsic = .{ .i32_add = .{ get.object, offset_node } } };
+                    s.node_data.getPtr(node).* = .{ .add = .{ get.object, offset_node } };
                 },
                 .string, .@"union" => panic("TODO {}", .{node_data}),
             }
@@ -174,6 +171,9 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                 },
                 .string, .@"union" => panic("TODO {}", .{node_data}),
             }
+        },
+        .add => {
+            // No structs here.
         },
         .shadow_ptr, .load, .store, .copy => panic("Unexpected {}", .{node_data}),
     }
