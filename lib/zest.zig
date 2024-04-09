@@ -248,7 +248,7 @@ pub const NodeData = union(enum) {
     copy: struct {
         to: Node,
         from: Node,
-        byte_count: usize,
+        byte_count: Node,
     },
 };
 

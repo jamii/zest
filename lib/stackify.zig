@@ -66,6 +66,7 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
         .copy => |copy| {
             _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(copy.to).? } });
             _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(copy.from).? } });
+            _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(copy.byte_count).? } });
         },
         .struct_init, .get => panic("Unexpected {}", .{node_data}),
     }

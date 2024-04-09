@@ -224,10 +224,7 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, 0); // alignment
             emitLebU32(c, 0); // offset
         },
-        .copy => |copy| {
-            emitEnum(c, wasm.Opcode.i32_const);
-            emitLebU32(c, @intCast(copy.byte_count));
-
+        .copy => {
             emitEnum(c, wasm.Opcode.misc_prefix);
             emitLebU32(c, @intFromEnum(wasm.MiscOpcode.memory_copy));
             emitLebU32(c, 0); // from memory

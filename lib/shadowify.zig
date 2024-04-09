@@ -77,10 +77,13 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                         .value = value,
                     } });
                 } else {
-                    _ = s.insertAfter(address_node, .{ .copy = .{
+                    const byte_count_node = s.insertAfter(address_node, .{ .value = .{
+                        .i32 = @intCast(value_repr.sizeOf()),
+                    } });
+                    _ = s.insertAfter(byte_count_node, .{ .copy = .{
                         .to = address_node,
                         .from = value,
-                        .byte_count = value_repr.sizeOf(),
+                        .byte_count = byte_count_node,
                     } });
                 }
                 offset += value_repr.sizeOf();
@@ -90,10 +93,13 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             if (isPrimitive(s.node_repr.get(value))) return;
 
             const arg_node = s.insertBefore(node, .{ .arg_get = .{ .arg = return_arg.? } });
+            const byte_count_node = s.insertBefore(node, .{ .value = .{
+                .i32 = @intCast(repr.sizeOf()),
+            } });
             _ = s.insertBefore(node, .{ .copy = .{
                 .to = arg_node,
                 .from = value,
-                .byte_count = repr.sizeOf(),
+                .byte_count = byte_count_node,
             } });
         },
         .call => |call| {
@@ -143,10 +149,13 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             const shadow = s.shadow_repr.append(local_repr);
             local_to_shadow.put(local_set.local, shadow) catch oom();
             const address_node = s.insertBefore(node, .{ .shadow_ptr = shadow });
+            const byte_count_node = s.insertBefore(node, .{ .value = .{
+                .i32 = @intCast(local_repr.sizeOf()),
+            } });
             s.node_data.getPtr(node).* = .{ .copy = .{
                 .to = address_node,
                 .from = local_set.value,
-                .byte_count = local_repr.sizeOf(),
+                .byte_count = byte_count_node,
             } };
             s.node_repr.getPtr(node).* = .i32;
         },

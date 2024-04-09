@@ -131,14 +131,10 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                         },
                         .@"memory-copy" => {
                             try matchKeys(c, expr, args.struct_init.keys, .{ "from", "to", "byte-count" });
-                            const byte_count = try evalExpr(c, f, call.args.values[2]);
-                            if (byte_count != .i32)
-                                return fail(c, expr, "Invalid call to intrinsic", .{});
-
                             return f.node_data.append(.{ .copy = .{
                                 .from = args.struct_init.values[0],
                                 .to = args.struct_init.values[1],
-                                .byte_count = @intCast(byte_count.i32),
+                                .byte_count = args.struct_init.values[2],
                             } });
                         },
                     }
