@@ -116,10 +116,10 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                             } });
                         },
                         .@"i32-store" => {
-                            try matchKeys(c, expr, args.struct_init.keys, .{ 0, 1 });
+                            try matchKeys(c, expr, args.struct_init.keys, .{ 0, "to" });
                             return f.node_data.append(.{ .store = .{
-                                .to = args.struct_init.values[0],
-                                .value = args.struct_init.values[1],
+                                .value = args.struct_init.values[0],
+                                .to = args.struct_init.values[1],
                             } });
                         },
                         .@"i32-load" => {
@@ -130,14 +130,14 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                             } });
                         },
                         .@"memory-copy" => {
-                            try matchKeys(c, expr, args.struct_init.keys, .{ 0, 1, 2 });
+                            try matchKeys(c, expr, args.struct_init.keys, .{ "from", "to", "byte-count" });
                             const byte_count = try evalExpr(c, f, call.args.values[2]);
                             if (byte_count != .i32)
                                 return fail(c, expr, "Invalid call to intrinsic", .{});
 
                             return f.node_data.append(.{ .copy = .{
-                                .to = args.struct_init.values[0],
-                                .from = args.struct_init.values[1],
+                                .from = args.struct_init.values[0],
+                                .to = args.struct_init.values[1],
                                 .byte_count = @intCast(byte_count.i32),
                             } });
                         },
@@ -179,12 +179,11 @@ fn matchKeys(c: *Compiler, expr: Expr, actual_keys: []const Value, expected_keys
                     actual_key.i32 != @as(i32, expected_key))
                     return fail(c, expr, "Expected key {}, found key {}", .{ expected_key, actual_key });
             },
-            [:0]const u8 => {
+            else => {
                 if (actual_key != .string or
                     !std.mem.eql(u8, actual_key.string, expected_key))
                     return fail(c, expr, "Expected key '{s}', found key {}", .{ expected_key, actual_key });
             },
-            else => @compileError(@typeName(@TypeOf(expected_key))),
         }
     }
 }

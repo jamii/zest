@@ -125,16 +125,16 @@ a(7, 11)/y
 ```
 
 ```
-%i32-store(0, 42)
+%i32-store(42, /to 0)
 %i32-load(0)
 
 42
 ```
 
 ```
-%i32-store(0, 42)
-%i32-store(4, 13)
-%memory-copy(8, 0, 8)
+%i32-store(42, /to 0)
+%i32-store(13, /to 4)
+%memory-copy(/from 0, /to 8, /byte-count 8)
 %i32-add(%i32-load(8), %i32-load(12))
 
 55
