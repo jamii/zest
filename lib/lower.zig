@@ -115,6 +115,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                                 args.struct_init.values[1],
                             } });
                         },
+                        // TODO for store/load/copy, might be worth adding an assert that the address is >stack-top
                         .@"i32-store" => {
                             try matchKeys(c, expr, args.struct_init.keys, .{ 0, "to" });
                             return f.node_data.append(.{ .store = .{
@@ -136,6 +137,10 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                                 .to = args.struct_init.values[1],
                                 .byte_count = args.struct_init.values[2],
                             } });
+                        },
+                        .@"stack-top" => {
+                            try matchKeys(c, expr, args.struct_init.keys, .{});
+                            return f.node_data.append(.stack_top);
                         },
                     }
                 },

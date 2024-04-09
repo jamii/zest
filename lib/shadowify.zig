@@ -159,7 +159,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             } };
             s.node_repr.getPtr(node).* = .i32;
         },
-        .add, .load, .store, .copy => {
+        .add, .load, .store, .copy, .stack_top => {
             // No structs here.
         },
         .shadow_ptr => panic("Unexpected {}", .{node_data}),

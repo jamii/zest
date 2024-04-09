@@ -230,6 +230,10 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, 0); // from memory
             emitLebU32(c, 0); // to memory
         },
+        .stack_top => {
+            emitEnum(c, wasm.Opcode.i32_const);
+            emitLebU32(c, stack_top);
+        },
     }
 }
 

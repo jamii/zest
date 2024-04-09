@@ -196,6 +196,7 @@ pub const Intrinsic = enum {
     @"i32-store",
     @"i32-load",
     @"memory-copy",
+    @"stack-top",
 };
 
 pub const Arg = struct { id: usize };
@@ -250,6 +251,7 @@ pub const NodeData = union(enum) {
         from: Node,
         byte_count: Node,
     },
+    stack_top,
 };
 
 pub const Function = struct { id: usize };

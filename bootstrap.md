@@ -132,6 +132,12 @@ a(7, 11)/y
 ```
 
 ```
+%stack-top()
+
+65536
+```
+
+```
 %i32-store(42, /to 0)
 %i32-store(13, /to 4)
 %memory-copy(/from 0, /to 8, /byte-count 8)
