@@ -216,7 +216,7 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, 0); // offset
         },
         .store => |store| {
-            const valtype = try valtypeFromRepr(c, store.repr);
+            const valtype = try valtypeFromRepr(c, s.node_repr.get(store.value));
             emitEnum(c, switch (valtype) {
                 .i32 => wasm.Opcode.i32_store,
                 else => panic("TODO {}", .{valtype}),

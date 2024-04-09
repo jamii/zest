@@ -78,7 +78,6 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                     .i32 => _ = s.insertAfter(address_node, .{ .store = .{
                         .address = address_node,
                         .value = value,
-                        .repr = .i32,
                     } }),
                     .@"struct" => _ = s.insertAfter(address_node, .{ .copy = .{
                         .to = address_node,

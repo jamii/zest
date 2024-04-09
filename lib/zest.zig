@@ -237,7 +237,6 @@ pub const NodeData = union(enum) {
     store: struct {
         address: Node,
         value: Node,
-        repr: Repr,
     },
     copy: struct {
         to: Node,

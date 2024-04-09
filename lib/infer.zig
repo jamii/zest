@@ -141,7 +141,7 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             return .i32;
         },
         .load => |load| return load.repr,
-        .store => |store| return store.repr,
+        .store => return Repr.emptyStruct(),
         .copy => return Repr.emptyStruct(),
     }
 }
