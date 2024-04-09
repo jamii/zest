@@ -11,13 +11,14 @@ const Map = zest.Map;
 const Compiler = zest.Compiler;
 const Specialization = zest.Specialization;
 const SpecializationData = zest.SpecializationData;
+const Arg = zest.Arg;
 const Local = zest.Local;
 const Shadow = zest.Shadow;
 const Node = zest.Node;
 const NodeData = zest.NodeData;
 const Repr = zest.Repr;
 
-/// NOTE node_repr is invalid after this pass
+/// NOTE node_repr and out_repr is invalid after this pass
 pub fn shadowify(c: *Compiler) void {
     for (c.specialization_data.items()) |*s| {
         shadowifySpecialization(c, s);
@@ -27,11 +28,16 @@ pub fn shadowify(c: *Compiler) void {
 fn shadowifySpecialization(c: *Compiler, s: *SpecializationData) void {
     var local_to_shadow = Map(Local, Shadow).init(c.allocator);
 
+    const return_arg = switch (s.out_repr) {
+        .i32 => null,
+        .@"struct" => s.in_repr.append(.i32),
+        .string, .@"union" => panic("TODO {}", .{s.out_repr}),
+    };
     var node_next = s.node_first;
     while (node_next) |node| {
         // Get next node before inserting anything around this node.
         node_next = s.node_next.get(node);
-        shadowifyNode(c, s, &local_to_shadow, node);
+        shadowifyNode(c, s, &local_to_shadow, return_arg, node);
     }
 
     for (s.in_repr.items()) |*in_repr| {
@@ -41,12 +47,9 @@ fn shadowifySpecialization(c: *Compiler, s: *SpecializationData) void {
             .string, .@"union" => panic("TODO {}", .{in_repr}),
         }
     }
-    // TODO out_repr
 }
 
-fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Local, Shadow), node: Node) void {
-    _ = c;
-
+fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Local, Shadow), return_arg: ?Arg, node: Node) void {
     const node_data = s.node_data.get(node);
     const repr = s.node_repr.get(node);
     switch (node_data) {
@@ -88,14 +91,35 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             }
         },
         .@"return" => |value| {
-            // TODO we'll have to be careful to copy structs on return, in case we return past the pointer's scope
-            switch (s.node_repr.get(value)) {
-                .i32 => {},
-                .string, .@"struct", .@"union" => panic("TODO {} {}", .{ node_data, repr }),
+            if (return_arg) |arg| {
+                const arg_node = s.insertBefore(node, .{ .arg_get = .{ .arg = arg } });
+                _ = s.insertBefore(node, .{ .copy = .{
+                    .to = arg_node,
+                    .from = value,
+                    .byte_count = repr.sizeOf(),
+                } });
+            } else {
+                // Otherwise can just return
             }
         },
-        .call => {
-            // call just passes struct pointers.
+        .call => |call| {
+            const return_repr = c.specialization_data.get(call.specialization.?).out_repr;
+            switch (return_repr) {
+                .i32 => {},
+                .@"struct" => {
+                    const shadow = s.shadow_repr.append(return_repr);
+                    const return_node = s.insertBefore(node, .{ .shadow_ptr = shadow });
+                    s.node_data.getPtr(node).call.args = std.mem.concat(
+                        c.allocator,
+                        Node,
+                        &.{
+                            call.args,
+                            &.{return_node},
+                        },
+                    ) catch oom();
+                },
+                .string, .@"union" => panic("TODO {}", .{node_data}),
+            }
         },
         .intrinsic => {
             // intrinsics only operate on primitive types

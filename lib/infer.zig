@@ -67,6 +67,8 @@ fn inferFunction(c: *Compiler, function: Function, in_repr: Repr) error{InferErr
 }
 
 pub fn reinferSpecialization(c: *Compiler, s: *SpecializationData) error{InferError}!void {
+    s.out_repr = Repr.emptyUnion();
+
     s.node_repr.data.shrinkRetainingCapacity(0);
     // TODO I would prefer to mark repr as unknown in case there is some out of order dependency.
     s.node_repr.appendNTimes(Repr.emptyUnion(), s.node_data.count());
