@@ -28,11 +28,11 @@ pub fn shadowify(c: *Compiler) void {
 fn shadowifySpecialization(c: *Compiler, s: *SpecializationData) void {
     var local_to_shadow = Map(Local, Shadow).init(c.allocator);
 
-    const return_arg = switch (s.out_repr) {
-        .i32 => null,
-        .@"struct" => s.in_repr.append(.i32),
-        .string, .@"union" => panic("TODO {}", .{s.out_repr}),
-    };
+    const return_arg = if (isPrimitive(s.out_repr))
+        null
+    else
+        s.in_repr.append(.i32);
+
     var node_next = s.node_first;
     while (node_next) |node| {
         // Get next node before inserting anything around this node.
@@ -41,11 +41,7 @@ fn shadowifySpecialization(c: *Compiler, s: *SpecializationData) void {
     }
 
     for (s.in_repr.items()) |*in_repr| {
-        switch (in_repr.*) {
-            .i32 => {},
-            .@"struct" => in_repr.* = .i32,
-            .string, .@"union" => panic("TODO {}", .{in_repr}),
-        }
+        if (!isPrimitive(in_repr.*)) in_repr.* = .i32;
     }
 }
 
@@ -54,8 +50,9 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
     const repr = s.node_repr.get(node);
     switch (node_data) {
         .value => |value| {
+            if (isPrimitive(repr)) return;
+
             switch (value) {
-                .i32 => {},
                 .@"struct" => |@"struct"| {
                     if (@"struct".values.len == 0) {
                         // Replace with null ptr
@@ -64,7 +61,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                         panic("TODO {}", .{value});
                     }
                 },
-                .string, .@"union" => panic("TODO {}", .{value}),
+                .i32, .string, .@"union" => unreachable,
             }
         },
         .struct_init => |struct_init| {
@@ -74,51 +71,45 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             for (struct_init.values, repr.@"struct".reprs) |value, value_repr| {
                 const offset_node = s.insertAfter(node, .{ .value = .{ .i32 = @intCast(offset) } });
                 const address_node = s.insertAfter(offset_node, .{ .add = .{ node, offset_node } });
-                switch (value_repr) {
-                    .i32 => _ = s.insertAfter(address_node, .{ .store = .{
+                if (isPrimitive(value_repr)) {
+                    _ = s.insertAfter(address_node, .{ .store = .{
                         .address = address_node,
                         .value = value,
-                    } }),
-                    .@"struct" => _ = s.insertAfter(address_node, .{ .copy = .{
+                    } });
+                } else {
+                    _ = s.insertAfter(address_node, .{ .copy = .{
                         .to = address_node,
                         .from = value,
                         .byte_count = value_repr.sizeOf(),
-                    } }),
-                    .string, .@"union" => panic("TODO {}", .{node_data}),
+                    } });
                 }
                 offset += value_repr.sizeOf();
             }
         },
         .@"return" => |value| {
-            if (return_arg) |arg| {
-                const arg_node = s.insertBefore(node, .{ .arg_get = .{ .arg = arg } });
-                _ = s.insertBefore(node, .{ .copy = .{
-                    .to = arg_node,
-                    .from = value,
-                    .byte_count = repr.sizeOf(),
-                } });
-            } else {
-                // Otherwise can just return
-            }
+            if (isPrimitive(s.node_repr.get(value))) return;
+
+            const arg_node = s.insertBefore(node, .{ .arg_get = .{ .arg = return_arg.? } });
+            _ = s.insertBefore(node, .{ .copy = .{
+                .to = arg_node,
+                .from = value,
+                .byte_count = repr.sizeOf(),
+            } });
         },
         .call => |call| {
             const return_repr = c.specialization_data.get(call.specialization.?).out_repr;
-            switch (return_repr) {
-                .i32 => {},
-                .@"struct" => {
-                    const shadow = s.shadow_repr.append(return_repr);
-                    const return_node = s.insertBefore(node, .{ .shadow_ptr = shadow });
-                    s.node_data.getPtr(node).call.args = std.mem.concat(
-                        c.allocator,
-                        Node,
-                        &.{
-                            call.args,
-                            &.{return_node},
-                        },
-                    ) catch oom();
+            if (isPrimitive(return_repr)) return;
+
+            const shadow = s.shadow_repr.append(return_repr);
+            const return_node = s.insertBefore(node, .{ .shadow_ptr = shadow });
+            s.node_data.getPtr(node).call.args = std.mem.concat(
+                c.allocator,
+                Node,
+                &.{
+                    call.args,
+                    &.{return_node},
                 },
-                .string, .@"union" => panic("TODO {}", .{node_data}),
-            }
+            ) catch oom();
         },
         .get => |get| {
             const object_repr = s.node_repr.get(get.object).@"struct";
@@ -128,52 +119,48 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                 offset += repr_before.sizeOf();
             }
             const offset_node = s.insertBefore(node, .{ .value = .{ .i32 = @intCast(offset) } });
-            switch (repr) {
-                .i32 => {
-                    const address_node = s.insertBefore(node, .{ .add = .{ get.object, offset_node } });
-                    s.node_data.getPtr(node).* = .{ .load = .{ .address = address_node, .repr = repr } };
-                },
-                .@"struct" => {
-                    s.node_data.getPtr(node).* = .{ .add = .{ get.object, offset_node } };
-                },
-                .string, .@"union" => panic("TODO {}", .{node_data}),
+            if (isPrimitive(repr)) {
+                const address_node = s.insertBefore(node, .{ .add = .{ get.object, offset_node } });
+                s.node_data.getPtr(node).* = .{ .load = .{ .address = address_node, .repr = repr } };
+            } else {
+                s.node_data.getPtr(node).* = .{ .add = .{ get.object, offset_node } };
             }
         },
         .arg_get => {
             // arg_get just retrieves struct pointers
         },
         .local_get => |local_get| {
-            switch (repr) {
-                .i32 => {},
-                .@"struct" => {
-                    const shadow = local_to_shadow.get(local_get.local).?;
-                    s.node_data.getPtr(node).* = .{ .shadow_ptr = shadow };
-                },
-                .string, .@"union" => panic("TODO {}", .{node_data}),
-            }
+            if (isPrimitive(repr)) return;
+
+            const shadow = local_to_shadow.get(local_get.local).?;
+            s.node_data.getPtr(node).* = .{ .shadow_ptr = shadow };
         },
         .local_set => |local_set| {
             const local_repr = s.local_repr.get(local_set.local);
-            switch (local_repr) {
-                .i32 => {},
-                .@"struct" => {
-                    s.local_repr.getPtr(local_set.local).* = .i32; // TODO delete local
-                    const shadow = s.shadow_repr.append(local_repr);
-                    local_to_shadow.put(local_set.local, shadow) catch oom();
-                    const address_node = s.insertBefore(node, .{ .shadow_ptr = shadow });
-                    s.node_data.getPtr(node).* = .{ .copy = .{
-                        .to = address_node,
-                        .from = local_set.value,
-                        .byte_count = local_repr.sizeOf(),
-                    } };
-                    s.node_repr.getPtr(node).* = .i32;
-                },
-                .string, .@"union" => panic("TODO {}", .{node_data}),
-            }
+            if (isPrimitive(local_repr)) return;
+
+            s.local_repr.getPtr(local_set.local).* = .i32; // TODO delete local
+            const shadow = s.shadow_repr.append(local_repr);
+            local_to_shadow.put(local_set.local, shadow) catch oom();
+            const address_node = s.insertBefore(node, .{ .shadow_ptr = shadow });
+            s.node_data.getPtr(node).* = .{ .copy = .{
+                .to = address_node,
+                .from = local_set.value,
+                .byte_count = local_repr.sizeOf(),
+            } };
+            s.node_repr.getPtr(node).* = .i32;
         },
         .add => {
             // No structs here.
         },
         .shadow_ptr, .load, .store, .copy => panic("Unexpected {}", .{node_data}),
     }
+}
+
+fn isPrimitive(repr: Repr) bool {
+    return switch (repr) {
+        .i32 => true,
+        .@"struct" => false,
+        .string, .@"union" => panic("TODO {}", .{repr}),
+    };
 }
