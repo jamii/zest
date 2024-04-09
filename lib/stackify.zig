@@ -57,10 +57,10 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
             }
         },
         .load => |load| {
-            _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(load.address).? } });
+            _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(load.from).? } });
         },
         .store => |store| {
-            _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(store.address).? } });
+            _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(store.to).? } });
             _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(store.value).? } });
         },
         .copy => |copy| {

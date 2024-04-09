@@ -77,6 +77,11 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         .intrinsic => {
             return fail(c, expr, "Intrinsics may only be called", .{});
         },
+        .builtin => |builtin| {
+            switch (builtin) {
+                .i32 => return f.node_data.append(.{ .value = .{ .repr = .i32 } }),
+            }
+        },
         .let => |let| {
             const value = try lowerExprOrFn(c, f, let.value);
             if (let.mut) return fail(c, expr, "TODO", .{});
@@ -108,6 +113,45 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                             return f.node_data.append(.{ .add = .{
                                 args.struct_init.values[0],
                                 args.struct_init.values[1],
+                            } });
+                        },
+                        .@"i32-store" => {
+                            if (!deepEqual(@as([]const Value, &.{
+                                .{ .i32 = 0 },
+                                .{ .i32 = 1 },
+                            }), args.struct_init.keys))
+                                return fail(c, expr, "Invalid call to intrinsic", .{});
+                            return f.node_data.append(.{ .store = .{
+                                .to = args.struct_init.values[0],
+                                .value = args.struct_init.values[1],
+                            } });
+                        },
+                        .@"i32-load" => {
+                            if (!deepEqual(@as([]const Value, &.{
+                                .{ .i32 = 0 },
+                            }), args.struct_init.keys))
+                                return fail(c, expr, "Invalid call to intrinsic", .{});
+                            return f.node_data.append(.{ .load = .{
+                                .from = args.struct_init.values[0],
+                                .repr = .i32,
+                            } });
+                        },
+                        .@"memory-copy" => {
+                            if (!deepEqual(@as([]const Value, &.{
+                                .{ .i32 = 0 },
+                                .{ .i32 = 1 },
+                                .{ .i32 = 2 },
+                            }), args.struct_init.keys))
+                                return fail(c, expr, "Invalid call to intrinsic", .{});
+
+                            const byte_count = try evalExpr(c, f, call.args.values[2]);
+                            if (byte_count != .i32)
+                                return fail(c, expr, "Invalid call to intrinsic", .{});
+
+                            return f.node_data.append(.{ .copy = .{
+                                .to = args.struct_init.values[0],
+                                .from = args.struct_init.values[1],
+                                .byte_count = @intCast(byte_count.i32),
                             } });
                         },
                     }

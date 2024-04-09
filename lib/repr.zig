@@ -9,6 +9,7 @@ pub const Repr = union(enum) {
     string,
     @"struct": ReprStruct,
     @"union": ReprUnion,
+    repr,
 
     pub fn emptyStruct() Repr {
         return .{ .@"struct" = .{
@@ -31,9 +32,10 @@ pub const Repr = union(enum) {
     pub fn sizeOf(self: Repr) usize {
         return switch (self) {
             .i32 => 4,
-            .string => panic("Unexpected {}", .{self}),
+            .string => panic("TODO {}", .{self}),
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
+            .repr => panic("TODO {}", .{self}),
         };
     }
 };

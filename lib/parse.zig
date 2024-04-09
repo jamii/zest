@@ -11,8 +11,9 @@ const TokenData = zest.TokenData;
 const Expr = zest.Expr;
 const ExprData = zest.ExprData;
 const ObjectExprData = zest.ObjectExprData;
-const Builtin = zest.Builtin;
 const Intrinsic = zest.Intrinsic;
+const BinaryOp = zest.BinaryOp;
+const Builtin = zest.Builtin;
 
 pub fn parse(c: *Compiler) !void {
     _ = try parseStatements(c, .eof);
@@ -96,29 +97,29 @@ fn parseWhile(c: *Compiler) error{ParseError}!Expr {
 
 fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
     var head = try parseExprTight(c);
-    var prev_builtin: ?Builtin = null;
+    var prev_op: ?BinaryOp = null;
     while (true) {
         if (!peekSpace(c)) break;
         switch (peek(c)) {
             .@"==", .@"~=", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
                 const token = take(c);
-                const builtin = switch (token) {
-                    .@"==" => Builtin.equal,
-                    .@"~=" => Builtin.equivalent,
-                    .@"<" => Builtin.less_than,
-                    .@"<=" => Builtin.less_than_or_equal,
-                    .@">" => Builtin.more_than,
-                    .@">=" => Builtin.more_than_or_equal,
-                    .@"+" => Builtin.add,
-                    .@"-" => Builtin.subtract,
-                    .@"*" => Builtin.multiply,
-                    .@"/" => Builtin.divide,
+                const op = switch (token) {
+                    .@"==" => BinaryOp.equal,
+                    .@"~=" => BinaryOp.equivalent,
+                    .@"<" => BinaryOp.less_than,
+                    .@"<=" => BinaryOp.less_than_or_equal,
+                    .@">" => BinaryOp.more_than,
+                    .@">=" => BinaryOp.more_than_or_equal,
+                    .@"+" => BinaryOp.add,
+                    .@"-" => BinaryOp.subtract,
+                    .@"*" => BinaryOp.multiply,
+                    .@"/" => BinaryOp.divide,
                     else => unreachable,
                 };
-                if (prev_builtin != null and prev_builtin != builtin) {
-                    return fail(c, "Ambiguous precedence: {} vs {}", .{ prev_builtin.?, builtin });
+                if (prev_op != null and prev_op != op) {
+                    return fail(c, "Ambiguous precedence: {} vs {}", .{ prev_op.?, op });
                 }
-                prev_builtin = builtin;
+                prev_op = op;
 
                 try expectSpaceOrNewline(c);
                 allowNewline(c);
@@ -126,7 +127,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
                 const zero = c.expr_data.append(.{ .i32 = 0 });
                 const one = c.expr_data.append(.{ .i32 = 1 });
                 head = c.expr_data.append(.{ .call = .{
-                    .head = c.expr_data.append(.{ .builtin = builtin }),
+                    .head = c.expr_data.append(.{ .binary_op = op }),
                     .args = .{
                         .keys = c.allocator.dupe(Expr, &.{ zero, one }) catch oom(),
                         .values = c.allocator.dupe(Expr, &.{ head, right }) catch oom(),
@@ -235,17 +236,10 @@ fn parseExprAtom(c: *Compiler) error{ParseError}!Expr {
 fn parseName(c: *Compiler) error{ParseError}!Expr {
     try expect(c, .name);
     const name = lastTokenText(c);
-    if (std.mem.eql(u8, name, "as")) {
-        return c.expr_data.append(.{ .builtin = .as });
-    }
-    if (std.mem.eql(u8, name, "get")) {
-        return c.expr_data.append(.{ .builtin = .get });
-    }
-    if (std.mem.eql(u8, name, "get-repr")) {
-        return c.expr_data.append(.{ .builtin = .@"get-repr" });
-    }
-    if (std.mem.eql(u8, name, "return-to")) {
-        return c.expr_data.append(.{ .builtin = .@"return-to" });
+    inline for (@typeInfo(Builtin).Enum.fields) |field| {
+        if (std.mem.eql(u8, name, field.name)) {
+            return c.expr_data.append(.{ .builtin = @as(Builtin, @enumFromInt(field.value)) });
+        }
     }
     return c.expr_data.append(.{ .name = name });
 }

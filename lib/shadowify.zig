@@ -61,7 +61,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                         panic("TODO {}", .{value});
                     }
                 },
-                .i32, .string, .@"union" => unreachable,
+                .i32, .string, .@"union", .repr => unreachable,
             }
         },
         .struct_init => |struct_init| {
@@ -73,7 +73,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
                 const address_node = s.insertAfter(offset_node, .{ .add = .{ node, offset_node } });
                 if (isPrimitive(value_repr)) {
                     _ = s.insertAfter(address_node, .{ .store = .{
-                        .address = address_node,
+                        .to = address_node,
                         .value = value,
                     } });
                 } else {
@@ -121,7 +121,7 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             const offset_node = s.insertBefore(node, .{ .value = .{ .i32 = @intCast(offset) } });
             if (isPrimitive(repr)) {
                 const address_node = s.insertBefore(node, .{ .add = .{ get.object, offset_node } });
-                s.node_data.getPtr(node).* = .{ .load = .{ .address = address_node, .repr = repr } };
+                s.node_data.getPtr(node).* = .{ .load = .{ .from = address_node, .repr = repr } };
             } else {
                 s.node_data.getPtr(node).* = .{ .add = .{ get.object, offset_node } };
             }
@@ -150,10 +150,10 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             } };
             s.node_repr.getPtr(node).* = .i32;
         },
-        .add => {
+        .add, .load, .store, .copy => {
             // No structs here.
         },
-        .shadow_ptr, .load, .store, .copy => panic("Unexpected {}", .{node_data}),
+        .shadow_ptr => panic("Unexpected {}", .{node_data}),
     }
 }
 
@@ -161,6 +161,6 @@ fn isPrimitive(repr: Repr) bool {
     return switch (repr) {
         .i32 => true,
         .@"struct" => false,
-        .string, .@"union" => panic("TODO {}", .{repr}),
+        .string, .@"union", .repr => panic("TODO {}", .{repr}),
     };
 }

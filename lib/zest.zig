@@ -127,9 +127,10 @@ pub const ExprData = union(enum) {
     f32: f32,
     string: []const u8,
     object: ObjectExprData,
-    builtin: Builtin,
-    intrinsic: Intrinsic,
     name: []const u8,
+    intrinsic: Intrinsic,
+    binary_op: BinaryOp,
+    builtin: Builtin,
     mut: Expr,
     let: struct {
         mut: bool,
@@ -173,8 +174,7 @@ pub const ObjectExprData = struct {
     values: []Expr,
 };
 
-pub const Builtin = enum {
-    // operators
+pub const BinaryOp = enum {
     equal,
     equivalent,
     less_than,
@@ -185,16 +185,17 @@ pub const Builtin = enum {
     subtract,
     multiply,
     divide,
+};
 
-    // named functions
-    as,
-    get,
-    @"get-repr",
-    @"return-to",
+pub const Builtin = enum {
+    i32,
 };
 
 pub const Intrinsic = enum {
     @"i32-add",
+    @"i32-store",
+    @"i32-load",
+    @"memory-copy",
 };
 
 pub const Arg = struct { id: usize };
@@ -237,11 +238,11 @@ pub const NodeData = union(enum) {
     // wasm intrinsics
     add: [2]Node,
     load: struct {
-        address: Node,
+        from: Node,
         repr: Repr,
     },
     store: struct {
-        address: Node,
+        to: Node,
         value: Node,
     },
     copy: struct {

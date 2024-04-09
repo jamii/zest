@@ -17,6 +17,7 @@ pub const Value = union(enum) {
     string: []const u8,
     @"struct": ValueStruct,
     @"union": ValueUnion,
+    repr: Repr,
 
     pub fn reprOf(value: Value) Repr {
         switch (value) {
@@ -24,6 +25,7 @@ pub const Value = union(enum) {
             .string => return .string,
             .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
+            .repr => return .repr,
         }
     }
 

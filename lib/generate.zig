@@ -155,7 +155,7 @@ fn valtypeFromRepr(c: *Compiler, repr: Repr) !wasm.Valtype {
     _ = c;
     return switch (repr) {
         .i32 => .i32,
-        .string, .@"struct", .@"union" => panic("Unexpected {}", .{repr}),
+        .string, .@"struct", .@"union", .repr => panic("Unexpected {}", .{repr}),
     };
 }
 
@@ -168,7 +168,7 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
                     emitEnum(c, wasm.Opcode.i32_const);
                     emitLebI32(c, i);
                 },
-                .string, .@"struct", .@"union" => panic("Unexpected {}", .{node_data}),
+                .string, .@"struct", .@"union", .repr => panic("Unexpected {}", .{node_data}),
             }
         },
         .struct_init => panic("Unexpected {}", .{node_data}),
