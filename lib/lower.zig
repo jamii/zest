@@ -71,7 +71,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                 return fail(c, expr, "Not defined: {s}", .{name});
             switch (binding.value) {
                 .node => |node| return node,
-                .function, .intrinsic => return fail(c, expr, "You may not use a function here", .{}),
+                .function, .intrinsic, .builtin => return fail(c, expr, "You may not use a function here", .{}),
             }
         },
         .intrinsic => {
@@ -80,6 +80,7 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
         .builtin => |builtin| {
             switch (builtin) {
                 .i32 => return f.node_data.append(.{ .value = .{ .repr = .i32 } }),
+                .@"get-repr-data" => return fail(c, expr, "Builtins may only be called", .{}),
             }
         },
         .let => |let| {
@@ -141,6 +142,15 @@ fn lowerExpr(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!Node 
                         .@"stack-top" => {
                             try matchKeys(c, expr, args.struct_init.keys, .{});
                             return f.node_data.append(.stack_top);
+                        },
+                    }
+                },
+                .builtin => |builtin| {
+                    switch (builtin) {
+                        .i32 => return fail(c, expr, "Cannot call {}", .{head}),
+                        .@"get-repr-data" => {
+                            try matchKeys(c, expr, args.struct_init.keys, .{0});
+                            return f.node_data.append(.{ .get_repr_data = args.struct_init.values[0] });
                         },
                     }
                 },
@@ -210,6 +220,9 @@ fn lowerExprOrFn(c: *Compiler, f: *FunctionData, expr: Expr) error{LowerError}!A
         },
         .intrinsic => |intrinsic| {
             return .{ .intrinsic = intrinsic };
+        },
+        .builtin => |builtin| {
+            return .{ .builtin = builtin };
         },
         .@"fn" => |@"fn"| {
             return .{ .function = try lowerFunction(c, @"fn".params, @"fn".body) };

@@ -59,6 +59,7 @@ fn inferFunction(c: *Compiler, function: Function, in_repr: Repr) error{InferErr
         const repr = try inferNode(c, &s, .{ .id = node_id });
         _ = s.node_repr.append(repr);
     }
+    // TODO need to ensure that every branch returns the same type - currently we allow some to return union[][] so long as the last branch returns a value
     // s.out_repr may be updated by inferNode
 
     const specialization = c.specialization_data.append(s);
@@ -132,6 +133,10 @@ fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
             }
         },
         .shadow_ptr => return .i32,
+        .get_repr_data => {
+            panic("TODO unions {}", .{node_data});
+            //return Repr.reprData();
+        },
         .add => |args| {
             for (args) |arg| {
                 const arg_repr = s.node_repr.get(arg);

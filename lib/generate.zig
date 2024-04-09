@@ -203,6 +203,10 @@ fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
             emitLebU32(c, @intCast(offset));
             emitEnum(c, wasm.Opcode.i32_add);
         },
+        .get_repr_data => {
+            panic("TODO unions {}", .{node_data});
+            //return Repr.reprData();
+        },
         .add => {
             emitEnum(c, wasm.Opcode.i32_add);
         },

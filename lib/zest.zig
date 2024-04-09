@@ -189,6 +189,7 @@ pub const BinaryOp = enum {
 
 pub const Builtin = enum {
     i32,
+    @"get-repr-data",
 };
 
 pub const Intrinsic = enum {
@@ -235,6 +236,9 @@ pub const NodeData = union(enum) {
         value: Node,
     },
     shadow_ptr: Shadow,
+
+    // zest builtins
+    get_repr_data: Node,
 
     // wasm intrinsics
     add: [2]Node,
@@ -312,6 +316,7 @@ pub const AbstractValue = union(enum) {
     node: Node,
     function: Function,
     intrinsic: Intrinsic,
+    builtin: Builtin,
 };
 
 pub const Specialization = struct { id: usize };

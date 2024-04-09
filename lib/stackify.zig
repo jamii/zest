@@ -51,6 +51,9 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
                 _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(arg).? } });
             }
         },
+        .get_repr_data => |value| {
+            _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(value).? } });
+        },
         .add => |args| {
             for (args) |arg| {
                 _ = s.insertBefore(node, .{ .local_get = .{ .local = node_to_local.get(arg).? } });
@@ -73,7 +76,7 @@ fn stackifyNode(c: *Compiler, s: *SpecializationData, node_to_local: *List(Node,
 
     // Store outputs
     const has_output = switch (node_data) {
-        .value, .arg_get, .local_get, .call, .shadow_ptr, .add, .load, .stack_top => true,
+        .value, .arg_get, .local_get, .call, .shadow_ptr, .get_repr_data, .add, .load, .stack_top => true,
         .local_set, .@"return", .store, .copy => false,
         .struct_init, .get => panic("Unexpected {}", .{node_data}),
     };

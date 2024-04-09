@@ -159,6 +159,10 @@ fn shadowifyNode(c: *Compiler, s: *SpecializationData, local_to_shadow: *Map(Loc
             } };
             s.node_repr.getPtr(node).* = .i32;
         },
+        .get_repr_data => {
+            panic("TODO unions {}", .{node_data});
+            //return Repr.reprData();
+        },
         .add, .load, .store, .copy, .stack_top => {
             // No structs here.
         },
