@@ -230,12 +230,17 @@ fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!Expr {
         const range1 = c.token_to_source.get(.{ .id = c.token_next.id - 1 });
         const text = c.source[range0[0]..range1[1]];
         const num = std.fmt.parseFloat(f32, text) catch |err|
-            return fail(c, .{ .parse_f32 = err });
+            return fail(c, .{ .parse_f32 = switch (err) {
+            error.InvalidCharacter => .invalid_character,
+        } });
         return c.expr_syntax.append(.{ .f32 = num });
     } else {
         const text = lastTokenText(c);
         const num = std.fmt.parseInt(i32, text, 10) catch |err|
-            return fail(c, .{ .parse_i32 = err });
+            return fail(c, .{ .parse_i32 = switch (err) {
+            error.Overflow => .overflow,
+            error.InvalidCharacter => .invalid_character,
+        } });
         return c.expr_syntax.append(.{ .i32 = num });
     }
 }
@@ -412,6 +417,6 @@ pub const ParseErrorData = union(enum) {
     ambiguous_precedence: [2]Builtin,
     invalid_string_escape: u8,
     positional_args_after_keyed_args,
-    parse_i32: error{ Overflow, InvalidCharacter },
-    parse_f32: error{InvalidCharacter},
+    parse_i32: enum { overflow, invalid_character },
+    parse_f32: enum { invalid_character },
 };
