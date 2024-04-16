@@ -121,7 +121,7 @@ pub const TokenData = enum {
 
 pub const Expr = struct { id: usize };
 
-pub const ExprData = union(enum) {
+pub const ExprSyntax = union(enum) {
     // TODO Replace i32/f32 with bigInt/bigDec
     i32: i32,
     f32: f32,
@@ -300,7 +300,7 @@ pub const Compiler = struct {
     token_to_source: List(Token, [2]usize),
 
     token_next: Token,
-    expr_data: List(Expr, ExprData),
+    expr_syntax: List(Expr, ExprSyntax),
 
     scope: Scope,
     function_data: List(Function, FunctionData),
@@ -323,7 +323,7 @@ pub const Compiler = struct {
             .token_to_source = fieldType(Compiler, .token_to_source).init(allocator),
 
             .token_next = .{ .id = 0 },
-            .expr_data = fieldType(Compiler, .expr_data).init(allocator),
+            .expr_syntax = fieldType(Compiler, .expr_syntax).init(allocator),
 
             .scope = fieldType(Compiler, .scope).init(allocator),
             .function_main = null,
