@@ -82,7 +82,7 @@ pub fn main() !void {
             if (eval(allocator, &compiler)) |result| {
                 actual = result;
             } else |_| {
-                actual = compiler.error_message;
+                actual = std.fmt.allocPrint(allocator, "{}", .{compiler.error_data.?}) catch oom();
             }
 
             if (!std.mem.eql(

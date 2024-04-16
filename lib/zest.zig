@@ -312,7 +312,7 @@ pub const Compiler = struct {
 
     wasm: ArrayList(u8),
 
-    error_message: []const u8,
+    error_data: ?ErrorData,
 
     pub fn init(allocator: Allocator, source: []const u8) Compiler {
         return .{
@@ -335,7 +335,7 @@ pub const Compiler = struct {
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
-            .error_message = "",
+            .error_data = null,
         };
     }
 
@@ -343,6 +343,13 @@ pub const Compiler = struct {
         return c.allocator.dupe(@TypeOf(value), &[1]@TypeOf(value){value}) catch oom();
     }
 };
+
+pub const ErrorData = union(enum) {
+    tokenize: TokenizeErrorData,
+    parse: ParseErrorData,
+};
+pub const TokenizeErrorData = @import("./tokenize.zig").TokenizeErrorData;
+pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
 
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;

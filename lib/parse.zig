@@ -96,7 +96,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
                     else => unreachable,
                 };
                 if (prev_op != null and prev_op != op) {
-                    return fail(c, "Ambiguous precedence: {} vs {}", .{ prev_op.?, op });
+                    return fail(c, .{ .ambiguous_precedence = .{ prev_op.?, op } });
                 }
                 prev_op = op;
 
@@ -214,7 +214,7 @@ fn parseExprAtom(c: *Compiler) error{ParseError}!Expr {
         .@"{" => return parseGroup(c),
         else => {
             const token = take(c);
-            return fail(c, "Expected expr-atom, found {}", .{token});
+            return fail(c, .{ .unexpected = .{ .expected = "expr-atom", .found = token } });
         },
     }
 }
@@ -235,11 +235,11 @@ fn parseNumber(c: *Compiler) error{ParseError}!Expr {
     const text = lastTokenText(c);
     if (std.mem.indexOfScalar(u8, text, '.') == null) {
         const num = std.fmt.parseInt(i32, text, 10) catch |err|
-            return fail(c, "Can't parse i32 because {}: {s}", .{ err, text });
+            return fail(c, .{ .parse_i32 = err });
         return c.expr_data.append(.{ .i32 = num });
     } else {
         const num = std.fmt.parseFloat(f32, text) catch |err|
-            return fail(c, "Can't parse f32 because {}: {s}", .{ err, text });
+            return fail(c, .{ .parse_f32 = err });
         return c.expr_data.append(.{ .f32 = num });
     }
 }
@@ -255,7 +255,7 @@ fn parseString(c: *Compiler) error{ParseError}!Expr {
                 'n' => chars.appendAssumeCapacity('\n'),
                 '\'' => chars.appendAssumeCapacity('\''),
                 '\\' => chars.appendAssumeCapacity('\\'),
-                else => return fail(c, "Invalid string escape: {}", .{char}),
+                else => return fail(c, .{ .invalid_string_escape = char }),
             }
             escaped = false;
         } else {
@@ -312,7 +312,7 @@ fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!Obje
                     keys.append(c.expr_data.append(.{ .i32 = key })) catch oom();
                     values.append(expr) catch oom();
                 } else {
-                    return fail(c, "Positional args are not allowed after keyed args", .{});
+                    return fail(c, .positional_args_after_keyed_args);
                 }
             }
         }
@@ -367,7 +367,7 @@ fn takeIf(c: *Compiler, wanted: TokenData) bool {
 fn expect(c: *Compiler, expected: TokenData) !void {
     const found = take(c);
     if (found != expected) {
-        return fail(c, "Expected {}, found {}", .{ expected, found });
+        return fail(c, .{ .unexpected = .{ .expected = @tagName(expected), .found = found } });
     }
 }
 
@@ -383,34 +383,38 @@ fn allowNewline(c: *Compiler) void {
 fn expectSpace(c: *Compiler) !void {
     if (!peekSpace(c)) {
         const token = take(c);
-        return fail(c, "Expected space, found {}", .{token});
+        return fail(c, .{ .unexpected = .{ .expected = "space", .found = token } });
     }
 }
 
 fn expectSpaceOrNewline(c: *Compiler) !void {
     if (!peekSpace(c) and !peekNewline(c)) {
         const token = take(c);
-        return fail(c, "Expected space or newline, found {}", .{token});
+        return fail(c, .{ .unexpected = .{ .expected = "space or newline", .found = token } });
     }
 }
 
 fn expectNoSpace(c: *Compiler) !void {
     if (peekSpace(c)) {
         _ = take(c);
-        return fail(c, "Unexpected space", .{});
+        return fail(c, .unexpected_space);
     }
 }
 
-fn fail(c: *Compiler, comptime message: []const u8, args: anytype) error{ParseError} {
-    const source_ix = c.token_to_source.get(.{ .id = c.token_next.id - 1 })[0];
-    c.error_message = std.fmt.allocPrint(
-        c.allocator,
-        "At {}. " ++
-            message ++
-            "\n{s}",
-        .{source_ix} ++
-            args ++
-            .{c.source[source_ix..@min(source_ix + 100, c.source.len)]},
-    ) catch oom();
+fn fail(c: *Compiler, data: ParseErrorData) error{ParseError} {
+    c.error_data = .{ .parse = data };
     return error.ParseError;
 }
+
+pub const ParseErrorData = union(enum) {
+    unexpected: struct {
+        expected: []const u8,
+        found: TokenData,
+    },
+    unexpected_space,
+    ambiguous_precedence: [2]Builtin,
+    invalid_string_escape: u8,
+    positional_args_after_keyed_args,
+    parse_i32: error{ Overflow, InvalidCharacter },
+    parse_f32: error{InvalidCharacter},
+};

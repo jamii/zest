@@ -152,9 +152,10 @@ fn match(name: []const u8, comptime token_data: []const TokenData) ?TokenData {
 }
 
 fn fail(c: *Compiler, pos: usize) error{TokenizeError} {
-    c.error_message = std.fmt.allocPrint(c.allocator, "Tokenizer error at {}: {s}", .{
-        pos,
-        c.source[pos..@min(pos + 100, c.source.len)],
-    }) catch oom();
+    c.error_data = .{ .tokenize = .{ .pos = pos } };
     return error.TokenizeError;
 }
+
+pub const TokenizeErrorData = struct {
+    pos: usize,
+};
