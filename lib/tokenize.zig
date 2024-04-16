@@ -112,18 +112,6 @@ pub fn tokenize(c: *Compiler) !void {
                         else => break,
                     }
                 }
-                const before_decimal = i;
-                if (i < source.len and source[i] == '.') {
-                    i += 1;
-                    while (i < source.len) {
-                        switch (source[i]) {
-                            '0'...'9' => i += 1,
-                            else => break,
-                        }
-                    }
-                    // Tokenize `42. ` as an `number . space` rather than `number space`
-                    if (i - before_decimal == 1) i = before_decimal;
-                }
                 break :token TokenData.number;
             },
             ' ' => token: {

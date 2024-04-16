@@ -60,7 +60,7 @@ fn parseFn(c: *Compiler) error{ParseError}!Expr {
 
 fn parseIf(c: *Compiler) error{ParseError}!Expr {
     try expect(c, .@"if");
-    const cond = try parseExprAtom(c);
+    const cond = try parseExprAtom(c, .{});
     const then = try parseExpr(c);
     try expect(c, .@"else");
     const @"else" = try parseExpr(c);
@@ -69,7 +69,7 @@ fn parseIf(c: *Compiler) error{ParseError}!Expr {
 
 fn parseWhile(c: *Compiler) error{ParseError}!Expr {
     try expect(c, .@"while");
-    const cond = try parseExprAtom(c);
+    const cond = try parseExprAtom(c, .{});
     const body = try parseExpr(c);
     return c.expr_syntax.append(.{ .@"while" = .{ .cond = cond, .body = body } });
 }
@@ -120,7 +120,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
 }
 
 fn parseExprTight(c: *Compiler) error{ParseError}!Expr {
-    var head = try parseExprPath(c);
+    var head = try parseExprAtom(c, .{});
     while (true) {
         if (peekSpace(c)) break;
         switch (peek(c)) {
@@ -137,7 +137,10 @@ fn parseExprTight(c: *Compiler) error{ParseError}!Expr {
 fn parseGet(c: *Compiler, object: Expr) error{ParseError}!Expr {
     try expect(c, .@".");
     try expectNoSpace(c);
-    const key = try parseExprAtom(c);
+    const key = try parseExprAtom(c, .{
+        // We want to parse `x.4.2` as `{x.4}.2`, not `x.{4.2}`.
+        .allow_floats = false,
+    });
     const zero = c.expr_syntax.append(.{ .i32 = 0 });
     const one = c.expr_syntax.append(.{ .i32 = 1 });
     return c.expr_syntax.append(.{ .call = .{
@@ -189,26 +192,14 @@ fn parseCallSlash(c: *Compiler, arg: Expr) error{ParseError}!Expr {
     } });
 }
 
-fn parseExprPath(c: *Compiler) error{ParseError}!Expr {
-    if (takeIf(c, .@"@")) {
-        var head = try parseExprAtom(c);
-        while (true) {
-            if (peekSpace(c)) break;
-            switch (peek(c)) {
-                .@"." => head = try parseGet(c, head),
-                else => break,
-            }
-        }
-        return c.expr_syntax.append(.{ .mut = head });
-    } else {
-        return parseExprAtom(c);
-    }
-}
+const ExprAtomOptions = struct {
+    allow_floats: bool = true,
+};
 
-fn parseExprAtom(c: *Compiler) error{ParseError}!Expr {
+fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!Expr {
     switch (peek(c)) {
         .name => return parseName(c),
-        .number => return parseNumber(c),
+        .number => return parseNumber(c, options),
         .string => return parseString(c),
         .@"[" => return parseObject(c),
         .@"{" => return parseGroup(c),
@@ -230,17 +221,22 @@ fn parseName(c: *Compiler) error{ParseError}!Expr {
     return c.expr_syntax.append(.{ .name = name });
 }
 
-fn parseNumber(c: *Compiler) error{ParseError}!Expr {
+fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!Expr {
     try expect(c, .number);
-    const text = lastTokenText(c);
-    if (std.mem.indexOfScalar(u8, text, '.') == null) {
-        const num = std.fmt.parseInt(i32, text, 10) catch |err|
-            return fail(c, .{ .parse_i32 = err });
-        return c.expr_syntax.append(.{ .i32 = num });
-    } else {
+    if (options.allow_floats and !peekSpace(c) and takeIf(c, .@".")) {
+        try expectNoSpace(c);
+        try expect(c, .number);
+        const range0 = c.token_to_source.get(.{ .id = c.token_next.id - 3 });
+        const range1 = c.token_to_source.get(.{ .id = c.token_next.id - 1 });
+        const text = c.source[range0[0]..range1[1]];
         const num = std.fmt.parseFloat(f32, text) catch |err|
             return fail(c, .{ .parse_f32 = err });
         return c.expr_syntax.append(.{ .f32 = num });
+    } else {
+        const text = lastTokenText(c);
+        const num = std.fmt.parseInt(i32, text, 10) catch |err|
+            return fail(c, .{ .parse_i32 = err });
+        return c.expr_syntax.append(.{ .i32 = num });
     }
 }
 
@@ -303,6 +299,7 @@ fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!Obje
             const expr = try parseExpr(c);
             if (takeIf(c, .@":")) {
                 // Looks like `key: value`
+                ix = null;
                 const value = try parseExpr(c);
                 keys.append(expr) catch oom();
                 values.append(value) catch oom();
