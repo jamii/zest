@@ -100,6 +100,7 @@ pub const TokenData = enum {
     @"}",
     @",",
     @".",
+    @":",
     @";",
     @"=",
     @"==",
@@ -112,7 +113,6 @@ pub const TokenData = enum {
     @"-",
     @"/",
     @"*",
-    @"%",
     comment,
     space,
     newline,
@@ -128,16 +128,9 @@ pub const ExprData = union(enum) {
     string: []const u8,
     object: ObjectExprData,
     name: []const u8,
-    intrinsic: Intrinsic,
-    binary_op: BinaryOp,
     builtin: Builtin,
     mut: Expr,
-    let: struct {
-        mut: bool,
-        name: []const u8,
-        value: Expr,
-    },
-    set: struct {
+    let_or_set: struct {
         path: Expr,
         value: Expr,
     },
@@ -162,11 +155,7 @@ pub const ExprData = union(enum) {
         head: Expr,
         args: ObjectExprData,
     },
-    get: struct {
-        object: Expr,
-        key: Expr,
-    },
-    statements: []Expr,
+    block: []Expr,
 };
 
 pub const ObjectExprData = struct {
@@ -174,7 +163,8 @@ pub const ObjectExprData = struct {
     values: []Expr,
 };
 
-pub const BinaryOp = enum {
+pub const Builtin = enum {
+    // binary ops
     equal,
     equivalent,
     less_than,
@@ -185,19 +175,9 @@ pub const BinaryOp = enum {
     subtract,
     multiply,
     divide,
-};
 
-pub const Builtin = enum {
-    i32,
-    @"get-repr-data",
-};
-
-pub const Intrinsic = enum {
-    @"i32-add",
-    @"i32-store",
-    @"i32-load",
-    @"memory-copy",
-    @"stack-top",
+    // syntax
+    get,
 };
 
 pub const Arg = struct { id: usize };
@@ -206,64 +186,12 @@ pub const Local = struct { id: usize };
 
 pub const Shadow = struct { id: usize };
 
-pub const Node = struct { id: usize };
-
-pub const NodeData = union(enum) {
-    value: Value,
-    struct_init: struct {
-        keys: []Value,
-        values: []Node,
-    },
-    @"return": Node,
-    call: struct {
-        function: Function,
-        specialization: ?Specialization,
-        args: []Node,
-    },
-    get: struct {
-        object: Node,
-        key: Value,
-    },
-
-    arg_get: struct {
-        arg: Arg,
-    },
-    local_get: struct {
-        local: Local,
-    },
-    local_set: struct {
-        local: Local,
-        value: Node,
-    },
-    shadow_ptr: Shadow,
-
-    // zest builtins
-    get_repr_data: Node,
-
-    // wasm intrinsics
-    add: [2]Node,
-    load: struct {
-        from: Node,
-        repr: Repr,
-    },
-    store: struct {
-        to: Node,
-        value: Node,
-    },
-    copy: struct {
-        to: Node,
-        from: Node,
-        byte_count: Node,
-    },
-    stack_top,
-};
-
 pub const Function = struct { id: usize };
 
 pub const FunctionData = struct {
     local_repr: List(Local, Repr),
 
-    node_data: List(Node, NodeData),
+    //node_data: List(Node, NodeData),
 
     pub fn init(allocator: Allocator) FunctionData {
         return .{
@@ -313,10 +241,15 @@ pub const Binding = struct {
 };
 
 pub const AbstractValue = union(enum) {
-    node: Node,
+    //node: Node,
     function: Function,
-    intrinsic: Intrinsic,
     builtin: Builtin,
+};
+
+pub const SpecializationArgs = struct {
+    function: Function,
+    mode: enum { lax, strict },
+    in_repr: Repr,
 };
 
 pub const Specialization = struct { id: usize };
@@ -328,15 +261,15 @@ pub const SpecializationData = struct {
 
     shadow_repr: List(Shadow, Repr),
 
-    node_data: List(Node, NodeData),
-    node_first: ?Node,
-    node_last: ?Node,
-    node_next: List(Node, ?Node),
-    node_prev: List(Node, ?Node),
+    //node_data: List(Node, NodeData),
+    //node_first: ?Node,
+    //node_last: ?Node,
+    //node_next: List(Node, ?Node),
+    //node_prev: List(Node, ?Node),
 
-    in_repr: List(Arg, Repr),
-    out_repr: Repr,
-    node_repr: List(Node, Repr),
+    //in_repr: List(Arg, Repr),
+    //out_repr: Repr,
+    //node_repr: List(Node, Repr),
 
     pub fn init(allocator: Allocator, function: Function) SpecializationData {
         return .{
@@ -346,73 +279,17 @@ pub const SpecializationData = struct {
 
             .shadow_repr = fieldType(SpecializationData, .shadow_repr).init(allocator),
 
-            .node_data = fieldType(SpecializationData, .node_data).init(allocator),
-            .node_first = null,
-            .node_last = null,
-            .node_next = fieldType(SpecializationData, .node_next).init(allocator),
-            .node_prev = fieldType(SpecializationData, .node_prev).init(allocator),
+            //.node_data = fieldType(SpecializationData, .node_data).init(allocator),
+            //.node_first = null,
+            //.node_last = null,
+            //.node_next = fieldType(SpecializationData, .node_next).init(allocator),
+            //.node_prev = fieldType(SpecializationData, .node_prev).init(allocator),
 
-            .in_repr = fieldType(SpecializationData, .in_repr).init(allocator),
-            .out_repr = Repr.emptyUnion(),
-            .node_repr = fieldType(SpecializationData, .node_repr).init(allocator),
+            //.in_repr = fieldType(SpecializationData, .in_repr).init(allocator),
+            //.out_repr = Repr.emptyUnion(),
+            //.node_repr = fieldType(SpecializationData, .node_repr).init(allocator),
         };
     }
-
-    pub fn insertBefore(s: *SpecializationData, node_next: Node, node_data: NodeData) Node {
-        const node = s.node_data.append(node_data);
-        if (s.node_prev.get(node_next)) |node_prev| {
-            assert(s.node_next.get(node_prev).?.id == node_next.id);
-            s.node_next.getPtr(node_prev).* = node;
-            _ = s.node_next.append(node_next);
-            s.node_prev.getPtr(node_next).* = node;
-            _ = s.node_prev.append(node_prev);
-        } else {
-            assert(node_next.id == s.node_first.?.id);
-            s.node_first = node;
-            _ = s.node_next.append(node_next);
-            _ = s.node_prev.append(null);
-        }
-        return node;
-    }
-
-    pub fn insertAfter(s: *SpecializationData, node_prev: Node, node_data: NodeData) Node {
-        const node = s.node_data.append(node_data);
-        if (s.node_next.get(node_prev)) |node_next| {
-            assert(s.node_next.get(node_prev).?.id == node_next.id);
-            s.node_next.getPtr(node_prev).* = node;
-            _ = s.node_next.append(node_next);
-            s.node_prev.getPtr(node_next).* = node;
-            _ = s.node_prev.append(node_prev);
-        } else {
-            assert(node_prev.id == s.node_last.?.id);
-            s.node_last = node;
-            _ = s.node_next.append(null);
-            _ = s.node_prev.append(node_prev);
-        }
-        return node;
-    }
-
-    pub fn remove(s: *SpecializationData, node: Node) void {
-        const node_next = s.node_next.get(node);
-        const node_prev = s.node_prev.get(node);
-        if (node_next == null) {
-            assert(s.node_last.?.id == node.id);
-            s.node_last = node_prev;
-        } else {
-            s.node_next.set(node_prev, node_next);
-        }
-        if (node_prev == null) {
-            assert(s.node_last.?.id == node.id);
-            s.node_first = node_next;
-        } else {
-            s.node_prev.set(node_next, node_prev);
-        }
-    }
-};
-
-pub const SpecializationArgs = struct {
-    function: Function,
-    in_repr: Repr,
 };
 
 pub const Compiler = struct {
@@ -477,12 +354,12 @@ pub const ValueUnion = @import("./value.zig").ValueUnion;
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
-pub const lower = @import("./lower.zig").lower;
-pub const infer = @import("./infer.zig").infer;
-pub const shadowify = @import("./shadowify.zig").shadowify;
-pub const reinfer = @import("./infer.zig").reinfer;
-pub const stackify = @import("./stackify.zig").stackify;
-pub const generate = @import("./generate.zig").generate;
+//pub const lower = @import("./lower.zig").lower;
+//pub const infer = @import("./infer.zig").infer;
+//pub const shadowify = @import("./shadowify.zig").shadowify;
+//pub const reinfer = @import("./infer.zig").reinfer;
+//pub const stackify = @import("./stackify.zig").stackify;
+//pub const generate = @import("./generate.zig").generate;
 
 pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
     try tokenize(c);
@@ -491,17 +368,17 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
     try parse(c);
     assert(c.token_next.id == c.token_data.count());
 
-    try lower(c);
-    assert(c.function_main != null);
+    //try lower(c);
+    //assert(c.function_main != null);
 
-    try infer(c);
-    assert(c.specialization_main != null);
+    //try infer(c);
+    //assert(c.specialization_main != null);
 
-    shadowify(c);
+    //shadowify(c);
 
-    try reinfer(c);
+    //try reinfer(c);
 
-    stackify(c);
+    //stackify(c);
 
-    try generate(c);
+    //try generate(c);
 }

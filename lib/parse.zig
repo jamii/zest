@@ -11,55 +11,34 @@ const TokenData = zest.TokenData;
 const Expr = zest.Expr;
 const ExprData = zest.ExprData;
 const ObjectExprData = zest.ObjectExprData;
-const Intrinsic = zest.Intrinsic;
-const BinaryOp = zest.BinaryOp;
 const Builtin = zest.Builtin;
 
 pub fn parse(c: *Compiler) !void {
-    _ = try parseStatements(c, .eof);
+    _ = try parseBlock(c, .eof);
     try expect(c, .eof);
 }
 
-fn parseStatements(c: *Compiler, end: TokenData) error{ParseError}!Expr {
-    var statements = ArrayList(Expr).init(c.allocator);
+fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!Expr {
+    var exprs = ArrayList(Expr).init(c.allocator);
 
     allowNewline(c);
 
     while (true) {
         if (peek(c) == end) break;
-        const statement = try parseExpr(c);
+        const expr = try parseExpr(c);
         if (peek(c) == .@"=") {
             try expectSpace(c);
             try expect(c, .@"=");
             try expectSpace(c);
             const value = try parseExpr(c);
-
-            // Validation.
-            const path_data = c.expr_data.get(statement);
-            const value_data = c.expr_data.get(value);
-            switch (path_data) {
-                .mut => |mut| {
-                    const set = c.expr_data.append(.{ .set = .{ .path = mut, .value = value } });
-                    statements.append(set) catch oom();
-                },
-                .name => |name| {
-                    const mut = value_data == .mut;
-                    const let = c.expr_data.append(.{ .let = .{
-                        .mut = mut,
-                        .name = name,
-                        .value = if (mut) value_data.mut else value,
-                    } });
-                    statements.append(let) catch oom();
-                },
-                else => return fail(c, "Invalid LHS of assignment: {}", .{path_data}),
-            }
+            exprs.append(c.expr_data.append(.{ .let_or_set = .{ .path = expr, .value = value } })) catch oom();
         } else {
-            statements.append(statement) catch oom();
+            exprs.append(expr) catch oom();
         }
         if (!(takeIf(c, .@";") or takeIf(c, .newline))) break;
         allowNewline(c);
     }
-    return c.expr_data.append(.{ .statements = statements.toOwnedSlice() catch oom() });
+    return c.expr_data.append(.{ .block = exprs.toOwnedSlice() catch oom() });
 }
 
 fn parseExpr(c: *Compiler) error{ParseError}!Expr {
@@ -97,23 +76,23 @@ fn parseWhile(c: *Compiler) error{ParseError}!Expr {
 
 fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
     var head = try parseExprTight(c);
-    var prev_op: ?BinaryOp = null;
+    var prev_op: ?Builtin = null;
     while (true) {
         if (!peekSpace(c)) break;
         switch (peek(c)) {
             .@"==", .@"~=", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
                 const token = take(c);
-                const op = switch (token) {
-                    .@"==" => BinaryOp.equal,
-                    .@"~=" => BinaryOp.equivalent,
-                    .@"<" => BinaryOp.less_than,
-                    .@"<=" => BinaryOp.less_than_or_equal,
-                    .@">" => BinaryOp.more_than,
-                    .@">=" => BinaryOp.more_than_or_equal,
-                    .@"+" => BinaryOp.add,
-                    .@"-" => BinaryOp.subtract,
-                    .@"*" => BinaryOp.multiply,
-                    .@"/" => BinaryOp.divide,
+                const op: Builtin = switch (token) {
+                    .@"==" => .equal,
+                    .@"~=" => .equivalent,
+                    .@"<" => .less_than,
+                    .@"<=" => .less_than_or_equal,
+                    .@">" => .more_than,
+                    .@">=" => .more_than_or_equal,
+                    .@"+" => .add,
+                    .@"-" => .subtract,
+                    .@"*" => .multiply,
+                    .@"/" => .divide,
                     else => unreachable,
                 };
                 if (prev_op != null and prev_op != op) {
@@ -127,7 +106,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!Expr {
                 const zero = c.expr_data.append(.{ .i32 = 0 });
                 const one = c.expr_data.append(.{ .i32 = 1 });
                 head = c.expr_data.append(.{ .call = .{
-                    .head = c.expr_data.append(.{ .binary_op = op }),
+                    .head = c.expr_data.append(.{ .builtin = op }),
                     .args = .{
                         .keys = c.allocator.dupe(Expr, &.{ zero, one }) catch oom(),
                         .values = c.allocator.dupe(Expr, &.{ head, right }) catch oom(),
@@ -145,10 +124,10 @@ fn parseExprTight(c: *Compiler) error{ParseError}!Expr {
     while (true) {
         if (peekSpace(c)) break;
         switch (peek(c)) {
-            .@"/" => head = try parseGet(c, head),
+            .@"." => head = try parseGet(c, head),
             .@"(" => head = try parseCall(c, head),
             .@"[" => head = try parseMake(c, head),
-            .@"." => head = try parseCallDot(c, head),
+            .@"/" => head = try parseCallSlash(c, head),
             else => break,
         }
     }
@@ -156,10 +135,18 @@ fn parseExprTight(c: *Compiler) error{ParseError}!Expr {
 }
 
 fn parseGet(c: *Compiler, object: Expr) error{ParseError}!Expr {
-    try expect(c, .@"/");
+    try expect(c, .@".");
     try expectNoSpace(c);
     const key = try parseExprAtom(c);
-    return c.expr_data.append(.{ .get = .{ .object = object, .key = key } });
+    const zero = c.expr_data.append(.{ .i32 = 0 });
+    const one = c.expr_data.append(.{ .i32 = 1 });
+    return c.expr_data.append(.{ .call = .{
+        .head = c.expr_data.append(.{ .builtin = .get }),
+        .args = .{
+            .keys = c.allocator.dupe(Expr, &.{ zero, one }) catch oom(),
+            .values = c.allocator.dupe(Expr, &.{ object, key }) catch oom(),
+        },
+    } });
 }
 
 fn parseCall(c: *Compiler, head: Expr) error{ParseError}!Expr {
@@ -176,8 +163,8 @@ fn parseMake(c: *Compiler, head: Expr) error{ParseError}!Expr {
     return c.expr_data.append(.{ .make = .{ .head = head, .args = args } });
 }
 
-fn parseCallDot(c: *Compiler, arg: Expr) error{ParseError}!Expr {
-    try expect(c, .@".");
+fn parseCallSlash(c: *Compiler, arg: Expr) error{ParseError}!Expr {
+    try expect(c, .@"/");
     allowNewline(c);
     const head = try parseName(c);
     try expectNoSpace(c);
@@ -208,7 +195,7 @@ fn parseExprPath(c: *Compiler) error{ParseError}!Expr {
         while (true) {
             if (peekSpace(c)) break;
             switch (peek(c)) {
-                .@"/" => head = try parseGet(c, head),
+                .@"." => head = try parseGet(c, head),
                 else => break,
             }
         }
@@ -221,7 +208,6 @@ fn parseExprPath(c: *Compiler) error{ParseError}!Expr {
 fn parseExprAtom(c: *Compiler) error{ParseError}!Expr {
     switch (peek(c)) {
         .name => return parseName(c),
-        .@"%" => return parseIntrinsic(c),
         .number => return parseNumber(c),
         .string => return parseString(c),
         .@"[" => return parseObject(c),
@@ -242,19 +228,6 @@ fn parseName(c: *Compiler) error{ParseError}!Expr {
         }
     }
     return c.expr_data.append(.{ .name = name });
-}
-
-fn parseIntrinsic(c: *Compiler) error{ParseError}!Expr {
-    try expect(c, .@"%");
-    try expectNoSpace(c);
-    try expect(c, .name);
-    const name = lastTokenText(c);
-    inline for (@typeInfo(Intrinsic).Enum.fields) |field| {
-        if (std.mem.eql(u8, name, field.name)) {
-            return c.expr_data.append(.{ .intrinsic = @as(Intrinsic, @enumFromInt(field.value)) });
-        }
-    }
-    return fail(c, "Invalid intrinsic: {s}", .{name});
 }
 
 fn parseNumber(c: *Compiler) error{ParseError}!Expr {
@@ -305,9 +278,9 @@ fn parseObject(c: *Compiler) error{ParseError}!Expr {
 
 fn parseGroup(c: *Compiler) error{ParseError}!Expr {
     try expect(c, .@"{");
-    const statements = try parseStatements(c, .@"}");
+    const exprs = try parseBlock(c, .@"}");
     try expect(c, .@"}");
-    return statements;
+    return exprs;
 }
 
 fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!ObjectExprData {
@@ -316,40 +289,33 @@ fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!Obje
 
     allowNewline(c);
 
-    // positional args
-    var ix: i32 = start_ix;
-    while (peek(c) != end and peek(c) != .@"/") {
-        const key = c.expr_data.append(.{ .i32 = ix });
-        ix += 1;
-        const value = try parseExpr(c);
-        keys.append(key) catch oom();
-        values.append(value) catch oom();
-        if (!takeIf(c, .@",")) break;
-        allowNewline(c);
-    }
-
-    // keyed args
+    // ix set to null when positional args are no longer allowed
+    var ix: ?i32 = start_ix;
     while (peek(c) != end) {
-        try expect(c, .@"/");
-        var key = try parseExprAtom(c);
-        var value: ?Expr = null;
-        if (peek(c) == .@"," or peek(c) == end) {
-            value = key;
-            switch (c.expr_data.get(key)) {
-                .name => {},
-                .mut => |mut| {
-                    switch (c.expr_data.get(mut)) {
-                        .name => key = mut,
-                        else => return fail(c, "Short keys must be either /name or /@name", .{}),
-                    }
-                },
-                else => return fail(c, "Short keys must be either /name or /@name", .{}),
-            }
+        if (takeIf(c, .@":")) {
+            // Looks like `:name`
+            ix = null;
+            try expect(c, .name);
+            const name = lastTokenText(c);
+            keys.append(c.expr_data.append(.{ .name = name })) catch oom();
+            values.append(c.expr_data.append(.{ .name = name })) catch oom();
         } else {
-            value = try parseExpr(c);
+            const expr = try parseExpr(c);
+            if (takeIf(c, .@":")) {
+                // Looks like `key: value`
+                const value = try parseExpr(c);
+                keys.append(expr) catch oom();
+                values.append(value) catch oom();
+            } else {
+                // Looks like `value`
+                if (ix) |key| {
+                    keys.append(c.expr_data.append(.{ .i32 = key })) catch oom();
+                    values.append(expr) catch oom();
+                } else {
+                    return fail(c, "Positional args are not allowed after keyed args", .{});
+                }
+            }
         }
-        keys.append(key) catch oom();
-        values.append(value.?) catch oom();
         if (!takeIf(c, .@",")) break;
         allowNewline(c);
     }
