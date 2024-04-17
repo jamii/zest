@@ -345,10 +345,7 @@ fn peekNewline(c: *Compiler) bool {
 
 fn take(c: *Compiler) TokenData {
     while (true) {
-        const token = if (c.token_next.id > c.token_data.count())
-            .eof
-        else
-            c.token_data.get(c.token_next);
+        const token = c.token_data.get(c.token_next);
         c.token_next.id += 1;
         switch (token) {
             .space, .comment => {},
