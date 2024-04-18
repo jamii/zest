@@ -84,7 +84,7 @@ pub fn main() !void {
             if (eval(allocator, &compiler)) |result| {
                 actual = result;
             } else |_| {
-                actual = std.fmt.allocPrint(allocator, "{}", .{compiler.error_data.?}) catch oom();
+                actual = zest.formatError(&compiler);
             }
 
             if (!std.mem.eql(

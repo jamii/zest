@@ -40,11 +40,32 @@ pub const Value = union(enum) {
         // TODO May need to think about this.
         return deepEqual(self, other);
     }
+
+    pub fn get(self: Value, key: Value) ?Value {
+        return switch (self) {
+            .i32, .string, .repr => null,
+            .@"struct" => |@"struct"| @"struct".get(key),
+            .@"union" => panic("TODO", .{}),
+        };
+    }
+
+    pub fn format(self: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        switch (self) {
+            .i32 => |i| try writer.print("{}", .{i}),
+            else => try writer.print("TODO {}", .{self}),
+        }
+    }
 };
 
 pub const ValueStruct = struct {
     repr: ReprStruct,
     values: []Value,
+
+    pub fn get(self: ValueStruct, key: Value) ?Value {
+        return if (self.repr.get(key)) |i| self.values[i] else null;
+    }
 };
 
 pub const ValueUnion = struct {

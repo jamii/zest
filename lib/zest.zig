@@ -377,6 +377,23 @@ pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
 pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 
+pub fn formatError(c: *Compiler) []const u8 {
+    return if (c.error_data) |error_data|
+        switch (error_data) {
+            .lower => |err| switch (err.data) {
+                .invalid_pattern => format(c, "Invalid pattern: {}", .{c.sir_expr_data.get(err.expr)}),
+                .todo => format(c, "TODO: {}", .{c.sir_expr_data.get(err.expr)}),
+            },
+            else => format(c, "{}", .{c.error_data.?}),
+        }
+    else
+        "ok";
+}
+
+pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const u8 {
+    return std.fmt.allocPrint(c.allocator, message, args) catch oom();
+}
+
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
 pub const ReprUnion = @import("./repr.zig").ReprUnion;

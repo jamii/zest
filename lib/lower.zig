@@ -66,12 +66,11 @@ fn lowerPattern(c: *Compiler, f: *DirFunData, input: DirExpr, pattern: SirExpr) 
 }
 
 fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!DirExpr {
-    _ = f;
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
-        //.i32 => |i| {
-        //    return f.expr_data.append(.{ .value = .{ .i32 = i } });
-        //},
+        .i32 => |i| {
+            return f.expr_data.append(.{ .i32 = i });
+        },
         //.object => |object| {
         //    return f.expr_data.append(try lowerObject(c, f, object));
         //},
@@ -170,20 +169,21 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!DirE
         //    const key = try evalKey(c, f, get.key);
         //    return f.expr_data.append(.{ .get = .{ .object = object, .key = key } });
         //},
-        //.statements => |statements| {
-        //    const scope_saved = c.scope.save();
-        //    defer c.scope.restore(scope_saved);
+        .block => |block| {
+            const scope_saved = c.scope.save();
+            defer c.scope.restore(scope_saved);
 
-        //    if (statements.len == 0) {
-        //        return f.expr_data.append(.{ .value = Value.emptyStruct() });
-        //    } else {
-        //        var dir: ?Dir = null;
-        //        for (statements) |statement| {
-        //            dir = try lowerExpr(c, f, statement);
-        //        }
-        //        return dir.?;
-        //    }
-        //},
+            if (block.len == 0) {
+                return fail(c, expr, .todo);
+                //return f.expr_data.append(.{ .value = Value.emptyStruct() });
+            } else {
+                var last_expr: ?DirExpr = null;
+                for (block) |statement| {
+                    last_expr = try lowerExpr(c, f, statement);
+                }
+                return last_expr.?;
+            }
+        },
         else => return fail(c, expr, .todo),
     }
 }
