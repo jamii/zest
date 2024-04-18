@@ -119,50 +119,6 @@ pub const TokenData = enum {
     eof,
 };
 
-pub const Expr = struct { id: usize };
-
-pub const ExprSyntax = union(enum) {
-    // TODO Replace i32/f32 with bigInt/bigDec
-    i32: i32,
-    f32: f32,
-    string: []const u8,
-    object: ObjectExprData,
-    name: []const u8,
-    builtin: Builtin,
-    mut: Expr,
-    let_or_set: struct {
-        path: Expr,
-        value: Expr,
-    },
-    @"if": struct {
-        cond: Expr,
-        then: Expr,
-        @"else": Expr,
-    },
-    @"while": struct {
-        cond: Expr,
-        body: Expr,
-    },
-    @"fn": struct {
-        params: ObjectExprData,
-        body: Expr,
-    },
-    make: struct {
-        head: Expr,
-        args: ObjectExprData,
-    },
-    call: struct {
-        head: Expr,
-        args: ObjectExprData,
-    },
-    block: []Expr,
-};
-
-pub const ObjectExprData = struct {
-    keys: []Expr,
-    values: []Expr,
-};
-
 pub const Builtin = enum {
     // binary ops
     equal,
@@ -180,24 +136,71 @@ pub const Builtin = enum {
     get,
 };
 
-pub const Arg = struct { id: usize };
+// Syntax IR
+pub const SirExpr = struct { id: usize };
 
-pub const Local = struct { id: usize };
+pub const SirExprData = union(enum) {
+    // TODO Replace i32/f32 with bigInt/bigDec
+    i32: i32,
+    f32: f32,
+    string: []const u8,
+    object: SirObject,
+    name: []const u8,
+    builtin: Builtin,
+    mut: SirExpr,
+    let_or_set: struct {
+        path: SirExpr,
+        value: SirExpr,
+    },
+    @"if": struct {
+        cond: SirExpr,
+        then: SirExpr,
+        @"else": SirExpr,
+    },
+    @"while": struct {
+        cond: SirExpr,
+        body: SirExpr,
+    },
+    @"fn": struct {
+        params: SirObject,
+        body: SirExpr,
+    },
+    make: struct {
+        head: SirExpr,
+        args: SirObject,
+    },
+    call: struct {
+        head: SirExpr,
+        args: SirObject,
+    },
+    block: []SirExpr,
+};
 
-pub const Shadow = struct { id: usize };
+pub const SirObject = struct {
+    keys: []SirExpr,
+    values: []SirExpr,
+};
 
-pub const Function = struct { id: usize };
+// Dynamic IR
+pub const DirExpr = struct { id: usize };
 
-pub const FunctionData = struct {
-    local_repr: List(Local, Repr),
+pub const DirExprData = union(enum) {
+    i32: i32,
+    f32: f32,
+    string: []const u8,
+    arg, // Argument to the current function.
+    name: usize, // Index from end of stack.
+    block: []DirExpr,
+};
 
-    //node_data: List(Node, NodeData),
+pub const DirFun = struct { id: usize };
 
-    pub fn init(allocator: Allocator) FunctionData {
+pub const DirFunData = struct {
+    dir_expr_data: List(DirExpr, DirExprData),
+
+    pub fn init(allocator: Allocator) DirFunData {
         return .{
-            .local_repr = fieldType(FunctionData, .local_repr).init(allocator),
-
-            .node_data = fieldType(FunctionData, .node_data).init(allocator),
+            .dir_expr_data = fieldType(DirFunData, .dir_expr_data).init(allocator),
         };
     }
 };
@@ -242,12 +245,12 @@ pub const Binding = struct {
 
 pub const AbstractValue = union(enum) {
     //node: Node,
-    function: Function,
+    //function: Function,
     builtin: Builtin,
 };
 
 pub const SpecializationArgs = struct {
-    function: Function,
+    //function: Function,
     mode: enum { lax, strict },
     in_repr: Repr,
 };
@@ -255,11 +258,11 @@ pub const SpecializationArgs = struct {
 pub const Specialization = struct { id: usize };
 
 pub const SpecializationData = struct {
-    function: Function,
+    //function: Function,
 
-    local_repr: List(Local, Repr),
+    //local_repr: List(Local, Repr),
 
-    shadow_repr: List(Shadow, Repr),
+    //shadow_repr: List(Shadow, Repr),
 
     //node_data: List(Node, NodeData),
     //node_first: ?Node,
@@ -271,13 +274,16 @@ pub const SpecializationData = struct {
     //out_repr: Repr,
     //node_repr: List(Node, Repr),
 
-    pub fn init(allocator: Allocator, function: Function) SpecializationData {
+    pub fn init(
+        //allocator: Allocator,
+        //function: Function,
+    ) SpecializationData {
         return .{
-            .function = function,
+            //.function = function,
 
-            .local_repr = fieldType(SpecializationData, .local_repr).init(allocator),
+            //.local_repr = fieldType(SpecializationData, .local_repr).init(allocator),
 
-            .shadow_repr = fieldType(SpecializationData, .shadow_repr).init(allocator),
+            //.shadow_repr = fieldType(SpecializationData, .shadow_repr).init(allocator),
 
             //.node_data = fieldType(SpecializationData, .node_data).init(allocator),
             //.node_first = null,
@@ -300,11 +306,11 @@ pub const Compiler = struct {
     token_to_source: List(Token, [2]usize),
 
     token_next: Token,
-    expr_syntax: List(Expr, ExprSyntax),
+    sir_expr_data: List(SirExpr, SirExprData),
 
     scope: Scope,
-    function_data: List(Function, FunctionData),
-    function_main: ?Function,
+    dir_fun_data: List(DirFun, DirFunData),
+    dir_fun_main: ?DirFun,
 
     args_to_specialization: Map(SpecializationArgs, ?Specialization),
     specialization_data: List(Specialization, SpecializationData),
@@ -323,11 +329,11 @@ pub const Compiler = struct {
             .token_to_source = fieldType(Compiler, .token_to_source).init(allocator),
 
             .token_next = .{ .id = 0 },
-            .expr_syntax = fieldType(Compiler, .expr_syntax).init(allocator),
+            .sir_expr_data = fieldType(Compiler, .sir_expr_data).init(allocator),
 
             .scope = fieldType(Compiler, .scope).init(allocator),
-            .function_main = null,
-            .function_data = fieldType(Compiler, .function_data).init(allocator),
+            .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
+            .dir_fun_main = null,
 
             .args_to_specialization = fieldType(Compiler, .args_to_specialization).init(allocator),
             .specialization_main = null,
@@ -361,7 +367,7 @@ pub const ValueUnion = @import("./value.zig").ValueUnion;
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
-//pub const lower = @import("./lower.zig").lower;
+pub const lower = @import("./lower.zig").lower;
 //pub const infer = @import("./infer.zig").infer;
 //pub const shadowify = @import("./shadowify.zig").shadowify;
 //pub const reinfer = @import("./infer.zig").reinfer;
@@ -376,7 +382,7 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
     assert(c.token_next.id == c.token_data.count());
 
     //try lower(c);
-    //assert(c.function_main != null);
+    //assert(c.dir_fun_main != null);
 
     //try infer(c);
     //assert(c.specialization_main != null);
