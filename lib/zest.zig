@@ -190,17 +190,24 @@ pub const DirExprData = union(enum) {
     string: []const u8,
     arg, // Argument to the current function.
     name: usize, // Index from end of stack.
-    block: []DirExpr,
+    block: DirExprs,
+    get: struct {
+        object: DirExpr,
+        key: DirExpr,
+    },
+    @"return": DirExpr,
 };
+
+pub const DirExprs = [2]DirExpr; // First and last.
 
 pub const DirFun = struct { id: usize };
 
 pub const DirFunData = struct {
-    dir_expr_data: List(DirExpr, DirExprData),
+    expr_data: List(DirExpr, DirExprData),
 
     pub fn init(allocator: Allocator) DirFunData {
         return .{
-            .dir_expr_data = fieldType(DirFunData, .dir_expr_data).init(allocator),
+            .expr_data = fieldType(DirFunData, .expr_data).init(allocator),
         };
     }
 };
@@ -244,7 +251,7 @@ pub const Binding = struct {
 };
 
 pub const AbstractValue = union(enum) {
-    //node: Node,
+    expr: DirExpr,
     //function: Function,
     builtin: Builtin,
 };
@@ -302,12 +309,15 @@ pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
 
+    // tokenize
     token_data: List(Token, TokenData),
     token_to_source: List(Token, [2]usize),
 
+    // parse
     token_next: Token,
     sir_expr_data: List(SirExpr, SirExprData),
 
+    // lower
     scope: Scope,
     dir_fun_data: List(DirFun, DirFunData),
     dir_fun_main: ?DirFun,
@@ -353,9 +363,19 @@ pub const Compiler = struct {
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
+    lower: struct {
+        expr: SirExpr,
+        data: LowerErrorData,
+    },
+    eval: struct {
+        expr: DirExpr,
+        data: EvalErrorData,
+    },
 };
 pub const TokenizeErrorData = @import("./tokenize.zig").TokenizeErrorData;
 pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
+pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
+pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
@@ -368,6 +388,7 @@ pub const ValueUnion = @import("./value.zig").ValueUnion;
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
+pub const eval = @import("./eval.zig").eval;
 //pub const infer = @import("./infer.zig").infer;
 //pub const shadowify = @import("./shadowify.zig").shadowify;
 //pub const reinfer = @import("./infer.zig").reinfer;
@@ -381,8 +402,8 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
     try parse(c);
     assert(c.token_next.id == c.token_data.count());
 
-    //try lower(c);
-    //assert(c.dir_fun_main != null);
+    try lower(c);
+    assert(c.dir_fun_main != null);
 
     //try infer(c);
     //assert(c.specialization_main != null);
