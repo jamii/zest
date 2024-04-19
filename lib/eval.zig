@@ -58,11 +58,11 @@ fn eval(c: *Compiler) error{EvalError}!Value {
             const expr_data = f.expr_data.get(frame.expr);
             switch (expr_data) {
                 .@"return" => {
-                    _ = c.frame_stack.pop();
                     c.local_stack.shrinkRetainingCapacity(
                         c.local_stack.items.len -
                             c.dir_fun_data.get(frame.fun).local_data.count(),
                     );
+                    _ = c.frame_stack.pop();
                     continue :fun;
                 },
                 inline else => |data, expr_tag| {
