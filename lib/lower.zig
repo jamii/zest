@@ -89,6 +89,7 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
                 .name => |name| {
                     const local = f.local_data.append(.{});
                     _ = f.expr_data.append(.{ .local_set = local });
+                    _ = f.expr_data.append(.{ .i32 = 0 }); // TODO should be empty struct
                     c.scope.push(.{
                         .name = name,
                         .value = .{ .local = local },

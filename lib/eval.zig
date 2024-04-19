@@ -9,6 +9,7 @@ const oom = zest.oom;
 const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Compiler = zest.Compiler;
+const DirLocal = zest.DirLocal;
 const DirExpr = zest.DirExpr;
 const DirExprData = zest.DirExprData;
 const DirExprInput = zest.DirExprInput;
@@ -31,10 +32,16 @@ fn evalFun(
     assert(c.frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
 
+    var local_value = List(DirLocal, Value).init(c.allocator);
+    local_value.appendNTimes(
+        Value.emptyStruct(),
+        c.dir_fun_data.get(fun).local_data.count(),
+    );
     c.frame_stack.append(.{
         .fun = fun,
         .arg = arg,
         .expr = .{ .id = 0 },
+        .local_value = local_value,
     }) catch oom();
 
     fun: while (true) {
@@ -88,6 +95,15 @@ fn evalExprWithInput(
 ) error{EvalError}!std.meta.TagPayload(DirExprOutput, expr_tag) {
     switch (expr_tag) {
         .i32 => return .{ .value = .{ .i32 = data } },
+        .local_get => {
+            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+            return .{ .value = frame.local_value.get(data) };
+        },
+        .local_set => {
+            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+            frame.local_value.getPtr(data).* = input.value;
+            return;
+        },
         .object_get => {
             const value = input.object.get(input.key) orelse
                 return fail(c, .{ .get_missing = .{ .object = input.object, .key = input.key } });

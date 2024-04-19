@@ -362,6 +362,7 @@ pub const DirFrame = struct {
     fun: DirFun,
     arg: Value,
     expr: DirExpr,
+    local_value: List(DirLocal, Value),
 };
 
 pub const Compiler = struct {
