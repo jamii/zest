@@ -145,35 +145,6 @@ fn pop(c: *Compiler, f: *DirFunData) AbstractValue {
     return .{ .local = local };
 }
 
-fn evalExpr(c: *Compiler, expr: SirExpr) error{LowerError}!Value {
-    const expr_data = c.expr_data.get(expr);
-    switch (expr_data) {
-        .i32 => |i| return .{ .i32 = i },
-        .string => |string| return .{ .string = string },
-        else => return fail(c, expr, "Can't const-eval", .{}),
-    }
-}
-
-const BuiltinOrFun = union(enum) {
-    builtin: Builtin,
-    fun: DirFun,
-};
-
-fn evalFun(c: *Compiler, expr: SirExpr) error{LowerError}!BuiltinOrFun {
-    const expr_data = c.expr_data.get(expr);
-    switch (expr_data) {
-        .name => |name| {
-            const binding = c.scope.lookup(name) orelse
-                return fail(c, expr, .name_not_in_scope);
-            switch (binding.value) {
-                .arg, .local => return c.fail(expr, .not_a_fun),
-                .builtin => |builtin| return .{ .builtin = builtin },
-            }
-        },
-        else => return fail(c, expr, "Can't const-eval", .{}),
-    }
-}
-
 fn fail(c: *Compiler, expr: SirExpr, data: LowerErrorData) error{LowerError} {
     c.error_data = .{ .lower = .{ .expr = expr, .data = data } };
     return error.LowerError;
