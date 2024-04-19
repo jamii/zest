@@ -54,7 +54,7 @@ pub const Value = union(enum) {
         _ = options;
         switch (self) {
             .i32 => |i| try writer.print("{}", .{i}),
-            else => try writer.print("TODO {}", .{self}),
+            else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }
 };

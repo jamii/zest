@@ -17,6 +17,7 @@ const DirExprOutput = zest.DirExprOutput;
 const DirFun = zest.DirFun;
 const DirFunData = zest.DirFunData;
 const Value = zest.Value;
+const Repr = zest.Repr;
 
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.frame_stack.items.len == 0);
@@ -58,12 +59,14 @@ fn eval(c: *Compiler) error{EvalError}!Value {
             switch (expr_data) {
                 .@"return" => {
                     _ = c.frame_stack.pop();
-                    c.local_stack.shrinkRetainingCapacity(c.local_stack.items.len -
-                        c.dir_fun_data.get(frame.fun).local_data.count());
+                    c.local_stack.shrinkRetainingCapacity(
+                        c.local_stack.items.len -
+                            c.dir_fun_data.get(frame.fun).local_data.count(),
+                    );
                     continue :fun;
                 },
                 inline else => |data, expr_tag| {
-                    const input = popExprInput(c, frame.arg, expr_tag);
+                    const input = popExprInput(c, frame.arg, expr_tag, data);
                     const output = try evalExprWithInput(c, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);
                 },
@@ -77,18 +80,32 @@ fn popExprInput(
     c: *Compiler,
     arg: Value,
     comptime expr_tag: std.meta.Tag(DirExprData),
+    data: std.meta.TagPayload(DirExprData, expr_tag),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     _ = arg;
-    const Input = std.meta.TagPayload(DirExprInput, expr_tag);
-    if (Input == void) return;
-    var input: Input = undefined;
-    const fields = @typeInfo(Input).Struct.fields;
-    comptime var i: usize = fields.len;
-    inline while (i > 0) : (i -= 1) {
-        const field = fields[i - 1];
-        @field(input, field.name) = c.value_stack.pop();
+    switch (expr_tag) {
+        .i32, .f32, .string, .arg, .local_get => return,
+        .local_set, .object_get, .drop, .@"return" => {
+            const Input = std.meta.TagPayload(DirExprInput, expr_tag);
+            var input: Input = undefined;
+            const fields = @typeInfo(Input).Struct.fields;
+            comptime var i: usize = fields.len;
+            inline while (i > 0) : (i -= 1) {
+                const field = fields[i - 1];
+                @field(input, field.name) = c.value_stack.pop();
+            }
+            return input;
+        },
+        .struct_init => {
+            const keys = c.allocator.alloc(Value, data) catch oom();
+            const values = c.allocator.alloc(Value, data) catch oom();
+            for (0..data) |i| {
+                values[data - 1 - i] = c.value_stack.pop();
+                keys[data - 1 - i] = c.value_stack.pop();
+            }
+            return .{ .keys = keys, .values = values };
+        },
     }
-    return input;
 }
 
 fn evalExprWithInput(
@@ -99,6 +116,21 @@ fn evalExprWithInput(
 ) error{EvalError}!std.meta.TagPayload(DirExprOutput, expr_tag) {
     switch (expr_tag) {
         .i32 => return .{ .value = .{ .i32 = data } },
+        .string => return .{ .value = .{ .string = data } },
+        .struct_init => {
+            const reprs = c.allocator.alloc(Repr, data) catch oom();
+            for (input.values, reprs) |value, *repr| {
+                repr.* = value.reprOf();
+            }
+            // TODO sort
+            return .{ .value = .{ .@"struct" = .{
+                .repr = .{
+                    .keys = input.keys,
+                    .reprs = reprs,
+                },
+                .values = input.values,
+            } } };
+        },
         .local_get => {
             const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
             return .{ .value = value };

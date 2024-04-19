@@ -131,9 +131,6 @@ pub const Builtin = enum {
     subtract,
     multiply,
     divide,
-
-    // syntax
-    get,
 };
 
 // Syntax IR
@@ -151,6 +148,10 @@ pub const SirExprData = union(enum) {
     let_or_set: struct {
         path: SirExpr,
         value: SirExpr,
+    },
+    get: struct {
+        object: SirExpr,
+        key: SirExpr,
     },
     @"if": struct {
         cond: SirExpr,
@@ -193,7 +194,8 @@ pub const DirExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
-    arg, // Argument to the current function.
+    struct_init: usize,
+    arg,
     local_get: DirLocal,
     local_set: DirLocal,
     object_get,
@@ -207,6 +209,10 @@ pub const DirExprInput = union(std.meta.Tag(DirExprData)) {
     i32,
     f32,
     string,
+    struct_init: struct {
+        keys: []Value,
+        values: []Value,
+    },
     arg,
     local_get,
     local_set: struct {
@@ -232,6 +238,9 @@ pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
         value: Value,
     },
     string: struct {
+        value: Value,
+    },
+    struct_init: struct {
         value: Value,
     },
     arg: struct {
@@ -455,6 +464,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_in_scope => format(c, "Name not in scope: {s}", .{expr_data.name}),
                     .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
+                    .not_a_fun => format(c, "Not a function: {}", .{expr_data}),
                     .todo => format(c, "TODO lower: {}", .{expr_data}),
                 };
             },

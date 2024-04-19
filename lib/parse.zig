@@ -140,14 +140,9 @@ fn parseGet(c: *Compiler, object: SirExpr) error{ParseError}!SirExpr {
         // We want to parse `x.4.2` as `{x.4}.2`, not `x.{4.2}`.
         .allow_floats = false,
     });
-    const zero = c.sir_expr_data.append(.{ .i32 = 0 });
-    const one = c.sir_expr_data.append(.{ .i32 = 1 });
-    return c.sir_expr_data.append(.{ .call = .{
-        .head = c.sir_expr_data.append(.{ .builtin = .get }),
-        .args = .{
-            .keys = c.allocator.dupe(SirExpr, &.{ zero, one }) catch oom(),
-            .values = c.allocator.dupe(SirExpr, &.{ object, key }) catch oom(),
-        },
+    return c.sir_expr_data.append(.{ .get = .{
+        .object = object,
+        .key = key,
     } });
 }
 
