@@ -358,6 +358,12 @@ pub const SpecializationData = struct {
     }
 };
 
+pub const DirFrame = struct {
+    fun: DirFun,
+    arg: Value,
+    expr: DirExpr,
+};
+
 pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
@@ -374,6 +380,10 @@ pub const Compiler = struct {
     scope: Scope,
     dir_fun_data: List(DirFun, DirFunData),
     dir_fun_main: ?DirFun,
+
+    // eval
+    frame_stack: ArrayList(DirFrame),
+    value_stack: ArrayList(Value),
 
     args_to_specialization: Map(SpecializationArgs, ?Specialization),
     specialization_data: List(Specialization, SpecializationData),
@@ -398,6 +408,9 @@ pub const Compiler = struct {
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
 
+            .frame_stack = fieldType(Compiler, .frame_stack).init(allocator),
+            .value_stack = fieldType(Compiler, .value_stack).init(allocator),
+
             .args_to_specialization = fieldType(Compiler, .args_to_specialization).init(allocator),
             .specialization_main = null,
             .specialization_data = fieldType(Compiler, .specialization_data).init(allocator),
@@ -421,6 +434,7 @@ pub const ErrorData = union(enum) {
         data: LowerErrorData,
     },
     eval: struct {
+        fun: DirFun,
         expr: DirExpr,
         data: EvalErrorData,
     },
@@ -431,16 +445,28 @@ pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 
 pub fn formatError(c: *Compiler) []const u8 {
-    return if (c.error_data) |error_data|
+    if (c.error_data) |error_data|
         switch (error_data) {
-            .lower => |err| switch (err.data) {
-                .invalid_pattern => format(c, "Invalid pattern: {}", .{c.sir_expr_data.get(err.expr)}),
-                .todo => format(c, "TODO: {}", .{c.sir_expr_data.get(err.expr)}),
+            .lower => |err| {
+                const expr_data = c.sir_expr_data.get(err.expr);
+                return switch (err.data) {
+                    .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
+                    .name_not_in_scope => format(c, "Name not in scope: {s}", .{expr_data.name}),
+                    .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
+                    .todo => format(c, "TODO lower: {}", .{expr_data}),
+                };
             },
-            else => format(c, "{}", .{c.error_data.?}),
+            .eval => |err| {
+                const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
+                return switch (err.data) {
+                    .get_missing => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
+                    .todo => format(c, "TODO eval: {}", .{expr_data}),
+                };
+            },
+            else => return format(c, "{}", .{c.error_data.?}),
         }
     else
-        "ok";
+        return "ok";
 }
 
 pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const u8 {

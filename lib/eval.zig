@@ -18,53 +18,53 @@ const DirFunData = zest.DirFunData;
 const Value = zest.Value;
 
 pub fn eval(c: *Compiler) error{EvalError}!Value {
-    var value_stack = ArrayList(Value).init(c.allocator);
-    return evalFun(c, c.dir_fun_main.?, &value_stack, Value.emptyStruct());
+    assert(c.frame_stack.items.len == 0);
+    assert(c.value_stack.items.len == 0);
+    return evalFun(c, c.dir_fun_main.?, Value.emptyStruct());
 }
 
 fn evalFun(
     c: *Compiler,
     fun: DirFun,
-    value_stack: *ArrayList(Value),
     arg: Value,
 ) error{EvalError}!Value {
-    const f = c.dir_fun_data.get(fun);
+    assert(c.frame_stack.items.len == 0);
+    assert(c.value_stack.items.len == 0);
 
-    var expr = DirExpr{ .id = 0 };
-    while (true) {
-        const expr_data = f.expr_data.get(expr);
-        switch (expr_data) {
-            .@"return" => {
-                assert(value_stack.items.len == 1);
-                return value_stack.pop();
-            },
-            else => {},
+    c.frame_stack.append(.{
+        .fun = fun,
+        .arg = arg,
+        .expr = .{ .id = 0 },
+    }) catch oom();
+
+    fun: while (true) {
+        if (c.frame_stack.items.len == 0) {
+            assert(c.value_stack.items.len == 1);
+            return c.value_stack.pop();
         }
-        try evalExpr(c, f, arg, value_stack, expr);
-        expr.id += 1;
-    }
-}
-
-fn evalExpr(
-    c: *Compiler,
-    f: DirFunData,
-    arg: Value,
-    value_stack: *ArrayList(Value),
-    expr: DirExpr,
-) error{EvalError}!void {
-    const expr_data = f.expr_data.get(expr);
-    switch (expr_data) {
-        inline else => |data, expr_tag| {
-            const input = popExprInput(arg, value_stack, expr_tag);
-            const output = try evalExprWithInput(c, expr, expr_tag, data, input);
-            pushExprOutput(value_stack, expr_tag, output);
-        },
+        const frame = &c.frame_stack.items[c.frame_stack.items.len - 1];
+        const f = c.dir_fun_data.get(frame.fun);
+        while (true) {
+            const expr_data = f.expr_data.get(frame.expr);
+            switch (expr_data) {
+                .@"return" => {
+                    _ = c.frame_stack.pop();
+                    continue :fun;
+                },
+                inline else => |data, expr_tag| {
+                    const input = popExprInput(c, arg, expr_tag);
+                    const output = try evalExprWithInput(c, expr_tag, data, input);
+                    pushExprOutput(c, expr_tag, output);
+                },
+            }
+            frame.expr.id += 1;
+        }
     }
 }
 
 fn popExprInput(
+    c: *Compiler,
     arg: Value,
-    value_stack: *ArrayList(Value),
     comptime expr_tag: std.meta.Tag(DirExprData),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     _ = arg;
@@ -75,14 +75,13 @@ fn popExprInput(
     comptime var i: usize = fields.len;
     inline while (i > 0) : (i -= 1) {
         const field = fields[i - 1];
-        @field(input, field.name) = value_stack.pop();
+        @field(input, field.name) = c.value_stack.pop();
     }
     return input;
 }
 
 fn evalExprWithInput(
     c: *Compiler,
-    expr: DirExpr,
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
     input: std.meta.TagPayload(DirExprInput, expr_tag),
@@ -91,29 +90,30 @@ fn evalExprWithInput(
         .i32 => return .{ .value = .{ .i32 = data } },
         .object_get => {
             const value = input.object.get(input.key) orelse
-                return fail(c, expr, .{ .get_missing = .{ .object = input.object, .key = input.key } });
+                return fail(c, .{ .get_missing = .{ .object = input.object, .key = input.key } });
             return .{ .value = value };
         },
         .drop => return,
         .@"return" => panic("Can't eval control flow expr: {}", .{expr_tag}),
-        else => return fail(c, expr, .todo),
+        else => return fail(c, .todo),
     }
 }
 
 fn pushExprOutput(
-    value_stack: *ArrayList(Value),
+    c: *Compiler,
     comptime expr_tag: std.meta.Tag(DirExprData),
     output: std.meta.TagPayload(DirExprOutput, expr_tag),
 ) void {
     const Output = std.meta.TagPayload(DirExprOutput, expr_tag);
     if (Output == void) return;
     inline for (@typeInfo(Output).Struct.fields) |field| {
-        value_stack.append(@field(output, field.name)) catch oom();
+        c.value_stack.append(@field(output, field.name)) catch oom();
     }
 }
 
-fn fail(c: *Compiler, expr: DirExpr, data: EvalErrorData) error{EvalError} {
-    c.error_data = .{ .eval = .{ .expr = expr, .data = data } };
+fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
+    const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+    c.error_data = .{ .eval = .{ .fun = frame.fun, .expr = frame.expr, .data = data } };
     return error.EvalError;
 }
 

@@ -73,16 +73,32 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
         .i32 => |i| {
             _ = f.expr_data.append(.{ .i32 = i });
         },
+        .name => |name| {
+            const binding = c.scope.lookup(name) orelse
+                return fail(c, expr, .name_not_in_scope);
+            switch (binding.value) {
+                .arg => _ = f.expr_data.append(.arg),
+                .local => |local| _ = f.expr_data.append(.{ .local_get = local }),
+                .builtin => return fail(c, expr, .todo),
+            }
+        },
+        .let_or_set => |let_or_set| {
+            try lowerExpr(c, f, let_or_set.value);
+            switch (c.sir_expr_data.get(let_or_set.path)) {
+                .mut => return fail(c, expr, .todo),
+                .name => |name| {
+                    const local = f.local_data.append(.{});
+                    _ = f.expr_data.append(.{ .local_set = local });
+                    c.scope.push(.{
+                        .name = name,
+                        .value = .{ .local = local },
+                    });
+                },
+                else => return fail(c, let_or_set.path, .invalid_let_path),
+            }
+        },
         //.object => |object| {
         //    return f.expr_data.append(try lowerObject(c, f, object));
-        //},
-        //.name => |name| {
-        //    const binding = c.scope.lookup(name) orelse
-        //        return fail(c, expr, "Not defined: {s}", .{name});
-        //    switch (binding.value) {
-        //        .dir => |dir| return dir,
-        //        .function, .intrinsic, .builtin => return fail(c, expr, "You may not use a function here", .{}),
-        //    }
         //},
         //.intrinsic => {
         //    return fail(c, expr, "Intrinsics may only be called", .{});
@@ -272,5 +288,7 @@ fn fail(c: *Compiler, expr: SirExpr, data: LowerErrorData) error{LowerError} {
 
 pub const LowerErrorData = union(enum) {
     invalid_pattern,
+    name_not_in_scope,
+    invalid_let_path,
     todo,
 };
