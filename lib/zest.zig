@@ -182,6 +182,11 @@ pub const SirObject = struct {
 };
 
 // Dynamic IR
+
+pub const DirLocal = struct { id: usize };
+
+pub const DirLocalData = struct {};
+
 pub const DirExpr = struct { id: usize };
 
 pub const DirExprData = union(enum) {
@@ -189,24 +194,71 @@ pub const DirExprData = union(enum) {
     f32: f32,
     string: []const u8,
     arg, // Argument to the current function.
-    name: usize, // Index from end of stack.
-    block: DirExprs,
-    get: struct {
-        object: DirExpr,
-        key: DirExpr,
-    },
-    @"return": DirExpr,
+    local_get: DirLocal,
+    local_set: DirLocal,
+    object_get,
+    drop,
+    @"return",
 };
 
-pub const DirExprs = [2]DirExpr; // First and last.
+// Push in order.
+// Pop in reverse order.
+pub const DirExprInput = union(std.meta.Tag(DirExprData)) {
+    i32,
+    f32,
+    string,
+    arg,
+    local_get,
+    local_set: struct {
+        value: Value,
+    },
+    object_get: struct {
+        object: Value,
+        key: Value,
+    },
+    drop: struct {
+        value: Value,
+    },
+    @"return": struct {
+        value: Value,
+    },
+};
+
+pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
+    i32: struct {
+        value: Value,
+    },
+    f32: struct {
+        value: Value,
+    },
+    string: struct {
+        value: Value,
+    },
+    arg: struct {
+        value: Value,
+    },
+    local_get: struct {
+        value: Value,
+    },
+    local_set,
+    object_get: struct {
+        value: Value,
+    },
+    drop,
+    @"return",
+};
 
 pub const DirFun = struct { id: usize };
 
 pub const DirFunData = struct {
+    local_data: List(DirLocal, DirLocalData),
+
     expr_data: List(DirExpr, DirExprData),
 
     pub fn init(allocator: Allocator) DirFunData {
         return .{
+            .local_data = fieldType(DirFunData, .local_data).init(allocator),
+
             .expr_data = fieldType(DirFunData, .expr_data).init(allocator),
         };
     }
@@ -251,7 +303,8 @@ pub const Binding = struct {
 };
 
 pub const AbstractValue = union(enum) {
-    expr: DirExpr,
+    arg,
+    local: DirLocal,
     //function: Function,
     builtin: Builtin,
 };
