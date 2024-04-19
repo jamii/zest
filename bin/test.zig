@@ -35,7 +35,7 @@ fn eval(
     compiler: *Compiler,
 ) ![]const u8 {
     try zest.compile(compiler);
-    const value = try zest.eval(compiler);
+    const value = try zest.evalMain(compiler);
     return std.fmt.allocPrint(allocator, "{}", .{value});
     //return eval_wasm(allocator, compiler.wasm.items);
 }

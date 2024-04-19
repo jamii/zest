@@ -18,7 +18,7 @@ const DirFun = zest.DirFun;
 const DirFunData = zest.DirFunData;
 const Value = zest.Value;
 
-pub fn eval(c: *Compiler) error{EvalError}!Value {
+pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
     return evalFun(c, c.dir_fun_main.?, Value.emptyStruct());
@@ -32,18 +32,20 @@ fn evalFun(
     assert(c.frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
 
-    var local_value = List(DirLocal, Value).init(c.allocator);
-    local_value.appendNTimes(
-        Value.emptyStruct(),
-        c.dir_fun_data.get(fun).local_data.count(),
-    );
     c.frame_stack.append(.{
         .fun = fun,
         .arg = arg,
         .expr = .{ .id = 0 },
-        .local_value = local_value,
     }) catch oom();
+    c.local_stack.appendNTimes(
+        Value.emptyStruct(),
+        c.dir_fun_data.get(fun).local_data.count(),
+    ) catch oom();
 
+    return eval(c);
+}
+
+fn eval(c: *Compiler) error{EvalError}!Value {
     fun: while (true) {
         if (c.frame_stack.items.len == 0) {
             assert(c.value_stack.items.len == 1);
@@ -56,10 +58,12 @@ fn evalFun(
             switch (expr_data) {
                 .@"return" => {
                     _ = c.frame_stack.pop();
+                    c.local_stack.shrinkRetainingCapacity(c.local_stack.items.len -
+                        c.dir_fun_data.get(frame.fun).local_data.count());
                     continue :fun;
                 },
                 inline else => |data, expr_tag| {
-                    const input = popExprInput(c, arg, expr_tag);
+                    const input = popExprInput(c, frame.arg, expr_tag);
                     const output = try evalExprWithInput(c, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);
                 },
@@ -96,12 +100,11 @@ fn evalExprWithInput(
     switch (expr_tag) {
         .i32 => return .{ .value = .{ .i32 = data } },
         .local_get => {
-            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
-            return .{ .value = frame.local_value.get(data) };
+            const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
+            return .{ .value = value };
         },
         .local_set => {
-            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
-            frame.local_value.getPtr(data).* = input.value;
+            c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
             return;
         },
         .object_get => {

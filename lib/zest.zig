@@ -362,7 +362,6 @@ pub const DirFrame = struct {
     fun: DirFun,
     arg: Value,
     expr: DirExpr,
-    local_value: List(DirLocal, Value),
 };
 
 pub const Compiler = struct {
@@ -385,6 +384,7 @@ pub const Compiler = struct {
     // eval
     frame_stack: ArrayList(DirFrame),
     value_stack: ArrayList(Value),
+    local_stack: ArrayList(Value),
 
     args_to_specialization: Map(SpecializationArgs, ?Specialization),
     specialization_data: List(Specialization, SpecializationData),
@@ -411,6 +411,7 @@ pub const Compiler = struct {
 
             .frame_stack = fieldType(Compiler, .frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
+            .local_stack = fieldType(Compiler, .local_stack).init(allocator),
 
             .args_to_specialization = fieldType(Compiler, .args_to_specialization).init(allocator),
             .specialization_main = null,
@@ -485,7 +486,7 @@ pub const ValueUnion = @import("./value.zig").ValueUnion;
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
-pub const eval = @import("./eval.zig").eval;
+pub const evalMain = @import("./eval.zig").evalMain;
 //pub const infer = @import("./infer.zig").infer;
 //pub const shadowify = @import("./shadowify.zig").shadowify;
 //pub const reinfer = @import("./infer.zig").reinfer;
