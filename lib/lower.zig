@@ -88,11 +88,7 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
                 return fail(c, expr, .name_not_in_scope);
-            switch (binding.value) {
-                .arg => _ = f.expr_data.append(.arg),
-                .local => |local| _ = f.expr_data.append(.{ .local_get = local }),
-                .builtin => return fail(c, expr, .todo),
-            }
+            push(c, f, binding.value);
         },
         .let_or_set => |let_or_set| {
             try lowerExpr(c, f, let_or_set.value);
@@ -116,11 +112,20 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
             _ = f.expr_data.append(.object_get);
         },
         .fun => |fun| {
-            // TODO Want to instead capture from this scope.
-            const scope = c.scope.bindings.toOwnedSlice() catch oom();
-            defer c.scope.bindings.appendSlice(scope) catch oom();
+            const dir_fun = dir_fun: {
+                const closure = c.scope.pushClosure();
+                defer c.scope.popClosure(closure);
 
-            const dir_fun = try lowerFun(c, fun.params, fun.body);
+                break :dir_fun try lowerFun(c, fun.params, fun.body);
+            };
+
+            const dir_fun_data = c.dir_fun_data.get(dir_fun);
+            for (dir_fun_data.closure_keys.items) |name| {
+                _ = f.expr_data.append(.{ .string = name });
+                push(c, f, c.scope.lookup(name).?.value);
+            }
+            _ = f.expr_data.append(.{ .struct_init = dir_fun_data.closure_keys.items.len });
+
             _ = f.expr_data.append(.{ .fun_init = .{ .fun = dir_fun } });
         },
         .call => |call| {
@@ -146,6 +151,15 @@ fn push(c: *Compiler, f: *DirFunData, value: AbstractValue) void {
     _ = c;
     switch (value) {
         .arg => _ = f.expr_data.append(.arg),
+        .closure => |name| {
+            if (!f.closure_keys_index.contains(name)) {
+                f.closure_keys_index.put(name, {}) catch oom();
+                f.closure_keys.append(name) catch oom();
+            }
+            _ = f.expr_data.append(.closure);
+            _ = f.expr_data.append(.{ .string = name });
+            _ = f.expr_data.append(.object_get);
+        },
         .local => |local| _ = f.expr_data.append(.{ .local_get = local }),
         .builtin => panic("TODO: {}", .{value}),
     }

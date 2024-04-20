@@ -84,4 +84,5 @@ pub const ReprUnion = struct {
 
 pub const ReprFun = struct {
     fun: DirFun,
+    closure: ReprStruct,
 };

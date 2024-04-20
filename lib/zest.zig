@@ -199,6 +199,7 @@ pub const DirExprData = union(enum) {
         fun: DirFun,
     },
     arg,
+    closure,
     local_get: DirLocal,
     local_set: DirLocal,
     object_get,
@@ -217,8 +218,11 @@ pub const DirExprInput = union(std.meta.Tag(DirExprData)) {
         keys: []Value,
         values: []Value,
     },
-    fun_init,
+    fun_init: struct {
+        closure: Value,
+    },
     arg,
+    closure,
     local_get,
     local_set: struct {
         value: Value,
@@ -258,6 +262,9 @@ pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
     arg: struct {
         value: Value,
     },
+    closure: struct {
+        value: Value,
+    },
     local_get: struct {
         value: Value,
     },
@@ -275,12 +282,18 @@ pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
 pub const DirFun = struct { id: usize };
 
 pub const DirFunData = struct {
+    closure_keys_index: Map([]const u8, void),
+    closure_keys: ArrayList([]const u8),
+
     local_data: List(DirLocal, DirLocalData),
 
     expr_data: List(DirExpr, DirExprData),
 
     pub fn init(allocator: Allocator) DirFunData {
         return .{
+            .closure_keys_index = fieldType(DirFunData, .closure_keys_index).init(allocator),
+            .closure_keys = fieldType(DirFunData, .closure_keys).init(allocator),
+
             .local_data = fieldType(DirFunData, .local_data).init(allocator),
 
             .expr_data = fieldType(DirFunData, .expr_data).init(allocator),
@@ -289,10 +302,12 @@ pub const DirFunData = struct {
 };
 
 pub const Scope = struct {
+    closure_until_len: usize,
     bindings: ArrayList(Binding),
 
     pub fn init(allocator: Allocator) Scope {
         return .{
+            .closure_until_len = 0,
             .bindings = fieldType(Scope, .bindings).init(allocator),
         };
     }
@@ -309,12 +324,29 @@ pub const Scope = struct {
         self.bindings.shrinkRetainingCapacity(saved);
     }
 
+    pub fn pushClosure(self: *Scope) usize {
+        const closure = self.closure_until_len;
+        self.closure_until_len = self.bindings.items.len;
+        return closure;
+    }
+
+    pub fn popClosure(self: *Scope, closure: usize) void {
+        self.closure_until_len = closure;
+    }
+
     pub fn lookup(self: *Scope, name: []const u8) ?Binding {
         var i: usize = self.bindings.items.len;
         while (i > 0) : (i -= 1) {
             const binding = self.bindings.items[i - 1];
             if (std.mem.eql(u8, binding.name, name)) {
-                return binding;
+                if (i - 1 < self.closure_until_len) {
+                    return .{
+                        .name = binding.name,
+                        .value = .{ .closure = binding.name },
+                    };
+                } else {
+                    return binding;
+                }
             }
         }
         return null;
@@ -328,6 +360,7 @@ pub const Binding = struct {
 
 pub const AbstractValue = union(enum) {
     arg,
+    closure: []const u8,
     local: DirLocal,
     //function: Function,
     builtin: Builtin,
@@ -385,6 +418,7 @@ pub const SpecializationData = struct {
 pub const DirFrame = struct {
     fun: DirFun,
     arg: Value,
+    closure: Value,
     expr: DirExpr,
 };
 

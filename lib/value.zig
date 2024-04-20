@@ -96,4 +96,12 @@ pub const ValueUnion = struct {
 
 pub const ValueFun = struct {
     repr: ReprFun,
+    closure: []Value,
+
+    pub fn getClosure(fun: ValueFun) ValueStruct {
+        return .{
+            .repr = fun.repr.closure,
+            .values = fun.closure,
+        };
+    }
 };

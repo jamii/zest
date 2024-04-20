@@ -22,14 +22,15 @@ const Repr = zest.Repr;
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
-    pushFun(c, c.dir_fun_main.?, Value.emptyStruct());
+    pushFun(c, c.dir_fun_main.?, Value.emptyStruct(), Value.emptyStruct());
     return eval(c);
 }
 
-fn pushFun(c: *Compiler, fun: DirFun, arg: Value) void {
+fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
     c.frame_stack.append(.{
         .fun = fun,
         .arg = arg,
+        .closure = closure,
         .expr = .{ .id = 0 },
     }) catch oom();
     c.local_stack.appendNTimes(
@@ -39,6 +40,7 @@ fn pushFun(c: *Compiler, fun: DirFun, arg: Value) void {
 }
 
 fn eval(c: *Compiler) error{EvalError}!Value {
+    //std.debug.print("---\n\n", .{});
     fun: while (true) {
         const frame = &c.frame_stack.items[c.frame_stack.items.len - 1];
         const f = c.dir_fun_data.get(frame.fun);
@@ -62,13 +64,15 @@ fn eval(c: *Compiler) error{EvalError}!Value {
                     const input = popExprInput(c, .call, call);
                     if (input.fun != .fun)
                         return fail(c, .{ .not_a_fun = input.fun });
-                    pushFun(c, input.fun.fun.repr.fun, input.args);
+                    const fun = input.fun.fun;
+                    pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
                     continue :fun;
                 },
                 inline else => |data, expr_tag| {
                     const input = popExprInput(c, expr_tag, data);
-                    const output = try evalExprWithInput(c, frame.arg, expr_tag, data, input);
+                    const output = try evalExprWithInput(c, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);
+                    //std.debug.print("{}\n{}\n{}\n\n", .{ expr_data, input, output });
                 },
             }
             frame.expr.id += 1;
@@ -82,8 +86,8 @@ fn popExprInput(
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .local_get, .fun_init => return,
-        .local_set, .object_get, .drop, .@"return", .call => {
+        .i32, .f32, .string, .arg, .closure, .local_get => return,
+        .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -108,7 +112,6 @@ fn popExprInput(
 
 fn evalExprWithInput(
     c: *Compiler,
-    arg: Value,
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
     input: std.meta.TagPayload(DirExprInput, expr_tag),
@@ -131,9 +134,22 @@ fn evalExprWithInput(
             } } };
         },
         .fun_init => {
-            return .{ .value = .{ .fun = .{ .repr = .{ .fun = data.fun } } } };
+            return .{ .value = .{ .fun = .{
+                .repr = .{
+                    .fun = data.fun,
+                    .closure = input.closure.@"struct".repr,
+                },
+                .closure = input.closure.@"struct".values,
+            } } };
         },
-        .arg => return .{ .value = arg },
+        .arg => {
+            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+            return .{ .value = frame.arg };
+        },
+        .closure => {
+            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+            return .{ .value = frame.closure };
+        },
         .local_get => {
             const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
             return .{ .value = value };
