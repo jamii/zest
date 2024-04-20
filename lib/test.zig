@@ -123,6 +123,6 @@ pub fn main() !void {
         std.debug.print("Ok!", .{});
     } else {
         std.debug.print("Failures: {}!", .{failures});
-        std.os.exit(1);
+        std.process.exit(1);
     }
 }
