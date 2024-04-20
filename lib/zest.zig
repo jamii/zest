@@ -162,7 +162,7 @@ pub const SirExprData = union(enum) {
         cond: SirExpr,
         body: SirExpr,
     },
-    @"fn": struct {
+    fun: struct {
         params: SirObject,
         body: SirExpr,
     },
@@ -195,10 +195,14 @@ pub const DirExprData = union(enum) {
     f32: f32,
     string: []const u8,
     struct_init: usize,
+    fun_init: struct {
+        fun: DirFun,
+    },
     arg,
     local_get: DirLocal,
     local_set: DirLocal,
     object_get,
+    call,
     drop,
     @"return",
 };
@@ -213,6 +217,7 @@ pub const DirExprInput = union(std.meta.Tag(DirExprData)) {
         keys: []Value,
         values: []Value,
     },
+    fun_init,
     arg,
     local_get,
     local_set: struct {
@@ -221,6 +226,10 @@ pub const DirExprInput = union(std.meta.Tag(DirExprData)) {
     object_get: struct {
         object: Value,
         key: Value,
+    },
+    call: struct {
+        fun: Value,
+        args: Value,
     },
     drop: struct {
         value: Value,
@@ -243,6 +252,9 @@ pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
     struct_init: struct {
         value: Value,
     },
+    fun_init: struct {
+        value: Value,
+    },
     arg: struct {
         value: Value,
     },
@@ -251,6 +263,9 @@ pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
     },
     local_set,
     object_get: struct {
+        value: Value,
+    },
+    call: struct {
         value: Value,
     },
     drop,
@@ -464,7 +479,6 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_in_scope => format(c, "Name not in scope: {s}", .{expr_data.name}),
                     .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
-                    .not_a_fun => format(c, "Not a function: {}", .{expr_data}),
                     .todo => format(c, "TODO lower: {}", .{expr_data}),
                 };
             },
@@ -472,6 +486,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
                 return switch (err.data) {
                     .get_missing => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
+                    .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },
@@ -488,10 +503,12 @@ pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
 pub const ReprUnion = @import("./repr.zig").ReprUnion;
+pub const ReprFun = @import("./repr.zig").ReprFun;
 
 pub const Value = @import("./value.zig").Value;
 pub const ValueStruct = @import("./value.zig").ValueStruct;
 pub const ValueUnion = @import("./value.zig").ValueUnion;
+pub const ValueFun = @import("./value.zig").ValueFun;
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;

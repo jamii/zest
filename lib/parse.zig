@@ -54,7 +54,7 @@ fn parseFn(c: *Compiler) error{ParseError}!SirExpr {
     const params = try parseArgs(c, .@")", 0);
     try expect(c, .@")");
     const body = try parseExpr(c);
-    return c.sir_expr_data.append(.{ .@"fn" = .{ .params = params, .body = body } });
+    return c.sir_expr_data.append(.{ .fun = .{ .params = params, .body = body } });
 }
 
 fn parseIf(c: *Compiler) error{ParseError}!SirExpr {
@@ -310,6 +310,7 @@ fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!SirO
                 } else {
                     return fail(c, .positional_args_after_keyed_args);
                 }
+                ix = ix.? + 1;
             }
         }
         if (!takeIf(c, .@",")) break;

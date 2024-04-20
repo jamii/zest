@@ -22,17 +22,11 @@ const Repr = zest.Repr;
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
-    return evalFun(c, c.dir_fun_main.?, Value.emptyStruct());
+    pushFun(c, c.dir_fun_main.?, Value.emptyStruct());
+    return eval(c);
 }
 
-fn evalFun(
-    c: *Compiler,
-    fun: DirFun,
-    arg: Value,
-) error{EvalError}!Value {
-    assert(c.frame_stack.items.len == 0);
-    assert(c.value_stack.items.len == 0);
-
+fn pushFun(c: *Compiler, fun: DirFun, arg: Value) void {
     c.frame_stack.append(.{
         .fun = fun,
         .arg = arg,
@@ -42,16 +36,10 @@ fn evalFun(
         Value.emptyStruct(),
         c.dir_fun_data.get(fun).local_data.count(),
     ) catch oom();
-
-    return eval(c);
 }
 
 fn eval(c: *Compiler) error{EvalError}!Value {
     fun: while (true) {
-        if (c.frame_stack.items.len == 0) {
-            assert(c.value_stack.items.len == 1);
-            return c.value_stack.pop();
-        }
         const frame = &c.frame_stack.items[c.frame_stack.items.len - 1];
         const f = c.dir_fun_data.get(frame.fun);
         while (true) {
@@ -63,11 +51,23 @@ fn eval(c: *Compiler) error{EvalError}!Value {
                             c.dir_fun_data.get(frame.fun).local_data.count(),
                     );
                     _ = c.frame_stack.pop();
+                    if (c.frame_stack.items.len == 0) {
+                        assert(c.value_stack.items.len == 1);
+                        return c.value_stack.pop();
+                    }
+                    c.frame_stack.items[c.frame_stack.items.len - 1].expr.id += 1;
+                    continue :fun;
+                },
+                .call => |call| {
+                    const input = popExprInput(c, .call, call);
+                    if (input.fun != .fun)
+                        return fail(c, .{ .not_a_fun = input.fun });
+                    pushFun(c, input.fun.fun.repr.fun, input.args);
                     continue :fun;
                 },
                 inline else => |data, expr_tag| {
-                    const input = popExprInput(c, frame.arg, expr_tag, data);
-                    const output = try evalExprWithInput(c, expr_tag, data, input);
+                    const input = popExprInput(c, expr_tag, data);
+                    const output = try evalExprWithInput(c, frame.arg, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);
                 },
             }
@@ -78,14 +78,12 @@ fn eval(c: *Compiler) error{EvalError}!Value {
 
 fn popExprInput(
     c: *Compiler,
-    arg: Value,
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
-    _ = arg;
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .local_get => return,
-        .local_set, .object_get, .drop, .@"return" => {
+        .i32, .f32, .string, .arg, .local_get, .fun_init => return,
+        .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -110,6 +108,7 @@ fn popExprInput(
 
 fn evalExprWithInput(
     c: *Compiler,
+    arg: Value,
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
     input: std.meta.TagPayload(DirExprInput, expr_tag),
@@ -131,6 +130,10 @@ fn evalExprWithInput(
                 .values = input.values,
             } } };
         },
+        .fun_init => {
+            return .{ .value = .{ .fun = .{ .repr = .{ .fun = data.fun } } } };
+        },
+        .arg => return .{ .value = arg },
         .local_get => {
             const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
             return .{ .value = value };
@@ -145,7 +148,7 @@ fn evalExprWithInput(
             return .{ .value = value };
         },
         .drop => return,
-        .@"return" => panic("Can't eval control flow expr: {}", .{expr_tag}),
+        .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_tag}),
         else => return fail(c, .todo),
     }
 }
@@ -173,5 +176,6 @@ pub const EvalErrorData = union(enum) {
         object: Value,
         key: Value,
     },
+    not_a_fun: Value,
     todo,
 };

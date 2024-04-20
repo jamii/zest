@@ -10,6 +10,7 @@ const oom = zest.oom;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
+const ReprFun = zest.ReprFun;
 const deepEqual = zest.deepEqual;
 
 pub const Value = union(enum) {
@@ -17,6 +18,7 @@ pub const Value = union(enum) {
     string: []const u8,
     @"struct": ValueStruct,
     @"union": ValueUnion,
+    fun: ValueFun,
     repr: Repr,
 
     pub fn reprOf(value: Value) Repr {
@@ -25,6 +27,7 @@ pub const Value = union(enum) {
             .string => return .string,
             .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
+            .fun => |fun| return .{ .fun = fun.repr },
             .repr => return .repr,
         }
     }
@@ -43,7 +46,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .i32, .string, .repr => null,
+            .i32, .string, .repr, .fun => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => panic("TODO", .{}),
         };
@@ -54,6 +57,23 @@ pub const Value = union(enum) {
         _ = options;
         switch (self) {
             .i32 => |i| try writer.print("{}", .{i}),
+            .string => |string| try writer.print("'{s}'", .{string}), // TODO escape
+            .@"struct" => |@"struct"| {
+                try writer.writeAll("[");
+                var positional = true;
+                for (@"struct".repr.keys, @"struct".values, 0..) |key, value, i| {
+                    if (i != 0) {
+                        try writer.writeAll(", ");
+                    }
+                    if (positional and key == .i32 and key.i32 == i) {
+                        try writer.print("{}", .{value});
+                    } else {
+                        positional = false;
+                        try writer.print("{}: {}", .{ key, value });
+                    }
+                }
+                try writer.writeAll("]");
+            },
             else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }
@@ -72,4 +92,8 @@ pub const ValueUnion = struct {
     repr: ReprUnion,
     tag: usize,
     value: *Value,
+};
+
+pub const ValueFun = struct {
+    repr: ReprFun,
 };

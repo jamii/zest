@@ -77,7 +77,8 @@ pub fn main() !void {
             const source_untrimmed = parts.next().?;
             const source = std.mem.trim(u8, source_untrimmed, "\n");
             const expected = std.mem.trim(u8, case[source_untrimmed.len..], "\n");
-            //assert(parts.next() == null);
+
+            //std.debug.print("{s}\n", .{source});
 
             var compiler = Compiler.init(allocator, source);
             var actual: ?[]const u8 = null;

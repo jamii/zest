@@ -3,12 +3,14 @@ const panic = std.debug.panic;
 
 const zest = @import("./zest.zig");
 const Value = zest.Value;
+const DirFun = zest.DirFun;
 
 pub const Repr = union(enum) {
     i32,
     string,
     @"struct": ReprStruct,
     @"union": ReprUnion,
+    fun: ReprFun,
     repr,
 
     pub fn emptyStruct() Repr {
@@ -78,4 +80,8 @@ pub const ReprUnion = struct {
         size += 4; // An i32 tag.
         return size;
     }
+};
+
+pub const ReprFun = struct {
+    fun: DirFun,
 };

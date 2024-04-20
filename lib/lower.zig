@@ -115,6 +115,19 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
             try lowerKey(c, f, get.key);
             _ = f.expr_data.append(.object_get);
         },
+        .fun => |fun| {
+            // TODO Want to instead capture from this scope.
+            const scope = c.scope.bindings.toOwnedSlice() catch oom();
+            defer c.scope.bindings.appendSlice(scope) catch oom();
+
+            const dir_fun = try lowerFun(c, fun.params, fun.body);
+            _ = f.expr_data.append(.{ .fun_init = .{ .fun = dir_fun } });
+        },
+        .call => |call| {
+            try lowerExpr(c, f, call.head);
+            try lowerObject(c, f, call.args);
+            _ = f.expr_data.append(.call);
+        },
         .block => |block| {
             const scope_saved = c.scope.save();
             defer c.scope.restore(scope_saved);
@@ -154,6 +167,5 @@ pub const LowerErrorData = union(enum) {
     invalid_pattern,
     name_not_in_scope,
     invalid_let_path,
-    not_a_fun,
     todo,
 };
