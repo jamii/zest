@@ -210,74 +210,78 @@ pub const DirExprData = union(enum) {
 
 // Push in order.
 // Pop in reverse order.
-pub const DirExprInput = union(std.meta.Tag(DirExprData)) {
-    i32,
-    f32,
-    string,
-    struct_init: struct {
-        keys: []Value,
-        values: []Value,
-    },
-    fun_init: struct {
-        closure: Value,
-    },
-    arg,
-    closure,
-    local_get,
-    local_set: struct {
-        value: Value,
-    },
-    object_get: struct {
-        object: Value,
-        key: Value,
-    },
-    call: struct {
-        fun: Value,
-        args: Value,
-    },
-    drop: struct {
-        value: Value,
-    },
-    @"return": struct {
-        value: Value,
-    },
-};
+pub fn DirExprInput(comptime T: type) type {
+    return union(std.meta.Tag(DirExprData)) {
+        i32,
+        f32,
+        string,
+        struct_init: struct {
+            keys: []Value,
+            values: []T,
+        },
+        fun_init: struct {
+            closure: T,
+        },
+        arg,
+        closure,
+        local_get,
+        local_set: struct {
+            value: T,
+        },
+        object_get: struct {
+            object: T,
+            key: Value,
+        },
+        call: struct {
+            fun: T,
+            args: T,
+        },
+        drop: struct {
+            value: T,
+        },
+        @"return": struct {
+            value: T,
+        },
+    };
+}
 
-pub const DirExprOutput = union(std.meta.Tag(DirExprData)) {
-    i32: struct {
-        value: Value,
-    },
-    f32: struct {
-        value: Value,
-    },
-    string: struct {
-        value: Value,
-    },
-    struct_init: struct {
-        value: Value,
-    },
-    fun_init: struct {
-        value: Value,
-    },
-    arg: struct {
-        value: Value,
-    },
-    closure: struct {
-        value: Value,
-    },
-    local_get: struct {
-        value: Value,
-    },
-    local_set,
-    object_get: struct {
-        value: Value,
-    },
-    call: struct {
-        value: Value,
-    },
-    drop,
-    @"return",
-};
+pub fn DirExprOutput(comptime T: type) type {
+    return union(std.meta.Tag(DirExprData)) {
+        i32: struct {
+            value: T,
+        },
+        f32: struct {
+            value: T,
+        },
+        string: struct {
+            value: T,
+        },
+        struct_init: struct {
+            value: T,
+        },
+        fun_init: struct {
+            value: T,
+        },
+        arg: struct {
+            value: T,
+        },
+        closure: struct {
+            value: T,
+        },
+        local_get: struct {
+            value: T,
+        },
+        local_set,
+        object_get: struct {
+            value: T,
+        },
+        call: struct {
+            value: T,
+        },
+        drop,
+        @"return",
+    };
+}
 
 pub const DirFun = struct { id: usize };
 
@@ -366,60 +370,116 @@ pub const AbstractValue = union(enum) {
     builtin: Builtin,
 };
 
-pub const SpecializationArgs = struct {
-    //function: Function,
-    mode: enum { lax, strict },
-    in_repr: Repr,
-};
-
-pub const Specialization = struct { id: usize };
-
-pub const SpecializationData = struct {
-    //function: Function,
-
-    //local_repr: List(Local, Repr),
-
-    //shadow_repr: List(Shadow, Repr),
-
-    //node_data: List(Node, NodeData),
-    //node_first: ?Node,
-    //node_last: ?Node,
-    //node_next: List(Node, ?Node),
-    //node_prev: List(Node, ?Node),
-
-    //in_repr: List(Arg, Repr),
-    //out_repr: Repr,
-    //node_repr: List(Node, Repr),
-
-    pub fn init(
-        //allocator: Allocator,
-        //function: Function,
-    ) SpecializationData {
-        return .{
-            //.function = function,
-
-            //.local_repr = fieldType(SpecializationData, .local_repr).init(allocator),
-
-            //.shadow_repr = fieldType(SpecializationData, .shadow_repr).init(allocator),
-
-            //.node_data = fieldType(SpecializationData, .node_data).init(allocator),
-            //.node_first = null,
-            //.node_last = null,
-            //.node_next = fieldType(SpecializationData, .node_next).init(allocator),
-            //.node_prev = fieldType(SpecializationData, .node_prev).init(allocator),
-
-            //.in_repr = fieldType(SpecializationData, .in_repr).init(allocator),
-            //.out_repr = Repr.emptyUnion(),
-            //.node_repr = fieldType(SpecializationData, .node_repr).init(allocator),
-        };
-    }
-};
-
 pub const DirFrame = struct {
     fun: DirFun,
     arg: Value,
     closure: Value,
     expr: DirExpr,
+};
+
+// Typed IR
+
+pub fn FlatLattice(comptime T: type) type {
+    return union(enum) {
+        zero,
+        one: T,
+        many: T,
+    };
+}
+
+pub const TirLocal = struct { id: usize };
+
+pub const TirLocalData = struct {
+    repr: FlatLattice(Repr),
+};
+
+pub const TirExpr = struct { id: usize };
+
+pub const TirExprData = union(enum) {
+    i32: i32,
+    string: []const u8,
+    struct_init: usize,
+    local_get: TirLocal,
+    local_set: TirLocal,
+    @"return",
+};
+
+// Push in order.
+// Pop in reverse order.
+pub const TirExprInput = union(std.meta.Tag(TirExprData)) {
+    i32,
+    string,
+    struct_init: struct {
+        keys: Value,
+        values: Repr,
+    },
+    local_get,
+    local_set: struct {
+        value: Value,
+    },
+    @"return": struct {
+        value: Value,
+    },
+};
+
+pub const TirExprOutput = union(std.meta.Tag(TirExprData)) {
+    i32: struct {
+        value: Value,
+    },
+    string: struct {
+        value: Value,
+    },
+    local_get: struct {
+        value: Value,
+    },
+    local_set,
+    @"return",
+};
+
+pub const TirFunKey = struct {
+    fun: DirFun,
+    closure_repr: Repr,
+    arg_repr: Repr,
+};
+
+pub const TirFun = struct { id: usize };
+
+pub const TirFunData = struct {
+    local_data: List(TirLocal, TirLocalData),
+
+    expr_data: List(TirExpr, TirExprData),
+    expr_repr: List(TirExpr, ?Repr), // Some exprs don't return a value.
+
+    return_repr: FlatLattice(Repr),
+
+    pub fn init(allocator: Allocator) TirFunData {
+        return .{
+            .local_data = fieldType(TirFunData, .local_data).init(allocator),
+
+            .expr_data = fieldType(TirFunData, .expr_data).init(allocator),
+            .expr_repr = fieldType(TirFunData, .expr_repr).init(allocator),
+
+            .return_repr = .zero,
+        };
+    }
+};
+
+pub const TirFrame = struct {
+    key: TirFunKey,
+    fun: TirFun,
+    expr: DirExpr,
+};
+
+pub const ReprOrValue = union(enum) {
+    repr: Repr,
+    value: Value,
+
+    pub fn reprOf(self: ReprOrValue) Repr {
+        switch (self) {
+            .repr => |repr| return repr,
+            .value => |value| return value.reprOf(),
+        }
+    }
 };
 
 pub const Compiler = struct {
@@ -440,13 +500,16 @@ pub const Compiler = struct {
     dir_fun_main: ?DirFun,
 
     // eval
-    frame_stack: ArrayList(DirFrame),
+    dir_frame_stack: ArrayList(DirFrame),
     value_stack: ArrayList(Value),
     local_stack: ArrayList(Value),
 
-    args_to_specialization: Map(SpecializationArgs, ?Specialization),
-    specialization_data: List(Specialization, SpecializationData),
-    specialization_main: ?Specialization,
+    // infer
+    tir_fun_data: List(TirFun, TirFunData),
+    tir_fun_by_key: Map(TirFunKey, TirFun),
+    tir_fun_main: ?TirFun,
+    tir_frame_stack: ArrayList(TirFrame),
+    repr_or_value_stack: ArrayList(ReprOrValue),
 
     wasm: ArrayList(u8),
 
@@ -467,13 +530,15 @@ pub const Compiler = struct {
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
 
-            .frame_stack = fieldType(Compiler, .frame_stack).init(allocator),
+            .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
             .local_stack = fieldType(Compiler, .local_stack).init(allocator),
 
-            .args_to_specialization = fieldType(Compiler, .args_to_specialization).init(allocator),
-            .specialization_main = null,
-            .specialization_data = fieldType(Compiler, .specialization_data).init(allocator),
+            .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
+            .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
+            .tir_fun_main = null,
+            .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
+            .repr_or_value_stack = fieldType(Compiler, .repr_or_value_stack).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
@@ -498,11 +563,18 @@ pub const ErrorData = union(enum) {
         expr: DirExpr,
         data: EvalErrorData,
     },
+    infer: struct {
+        key: TirFunKey,
+        fun: TirFun,
+        expr: DirExpr,
+        data: InferErrorData,
+    },
 };
 pub const TokenizeErrorData = @import("./tokenize.zig").TokenizeErrorData;
 pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
 pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
+pub const InferErrorData = @import("./infer.zig").InferErrorData;
 
 pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
@@ -522,6 +594,14 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .get_missing => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
+                };
+            },
+            .infer => |err| {
+                const expr_data = c.dir_fun_data.get(err.key.fun).expr_data.get(err.expr);
+                return switch (err.data) {
+                    .not_compile_time_known => |data| format(c, "Cannot evaluate at compile-time: {}", .{data}),
+                    .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
+                    .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },
             else => return format(c, "{}", .{c.error_data.?}),
@@ -548,10 +628,7 @@ pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
 pub const evalMain = @import("./eval.zig").evalMain;
-//pub const infer = @import("./infer.zig").infer;
-//pub const shadowify = @import("./shadowify.zig").shadowify;
-//pub const reinfer = @import("./infer.zig").reinfer;
-//pub const stackify = @import("./stackify.zig").stackify;
+pub const inferMain = @import("./infer.zig").inferMain;
 //pub const generate = @import("./generate.zig").generate;
 
 pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
@@ -564,14 +641,8 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
     try lower(c);
     assert(c.dir_fun_main != null);
 
-    //try infer(c);
-    //assert(c.specialization_main != null);
-
-    //shadowify(c);
-
-    //try reinfer(c);
-
-    //stackify(c);
+    try inferMain(c);
+    //assert(c.tir_fun_main != null);
 
     //try generate(c);
 }

@@ -7,167 +7,229 @@ const ArrayList = std.ArrayList;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const deepEqual = zest.deepEqual;
+const List = zest.List;
 const Compiler = zest.Compiler;
-const Function = zest.Function;
-const FunctionData = zest.FunctionData;
-const Specialization = zest.Specialization;
-const SpecializationArgs = zest.SpecializationArgs;
-const SpecializationData = zest.SpecializationData;
-const Node = zest.Node;
-const NodeData = zest.NodeData;
+const TirLocal = zest.TirLocal;
+const DirExpr = zest.DirExpr;
+const DirExprData = zest.DirExprData;
+const DirExprInput = zest.DirExprInput(Repr);
+const DirExprOutput = zest.DirExprOutput(Repr);
+const TirExprData = zest.TirExprData;
+const TirFun = zest.TirFun;
+const TirFunData = zest.TirFunData;
+const TirFunKey = zest.TirFunKey;
+const Value = zest.Value;
 const Repr = zest.Repr;
+const FlatLattice = zest.FlatLattice;
 
-pub fn infer(c: *Compiler) error{InferError}!void {
-    c.specialization_main = try inferFunction(c, c.function_main.?, Repr.emptyStruct());
+pub fn inferMain(c: *Compiler) error{InferError}!void {
+    assert(c.tir_frame_stack.items.len == 0);
+    c.tir_fun_main = try pushFun(
+        c,
+        .{
+            .fun = c.dir_fun_main.?,
+            .closure_repr = Repr.emptyStruct(),
+            .arg_repr = Repr.emptyStruct(),
+        },
+    );
+    try infer(c);
 }
 
-pub fn reinfer(c: *Compiler) error{InferError}!void {
-    for (c.specialization_data.items()) |*s| {
-        try reinferSpecialization(c, s);
-    }
+fn pushFun(c: *Compiler, key: TirFunKey) error{InferError}!TirFun {
+    const fun = c.tir_fun_data.append(TirFunData.init(c.allocator));
+    const f = c.tir_fun_data.getPtr(fun);
+    f.local_data.appendNTimes(.{ .repr = .zero }, c.dir_fun_data.get(key.fun).local_data.count());
+    c.tir_frame_stack.append(.{ .key = key, .fun = fun, .expr = .{ .id = 0 } }) catch oom();
+    return fun;
 }
 
-fn inferFunction(c: *Compiler, function: Function, in_repr: Repr) error{InferError}!Specialization {
-    const args = SpecializationArgs{ .function = function, .in_repr = in_repr };
-    if (c.args_to_specialization.get(args)) |specialization_or_pending| {
-        if (specialization_or_pending) |specialization| {
-            return specialization;
-        } else {
-            // TODO arbitrary choice of node - fix `fail` to not require this.
-            return fail(c, function, .{ .id = 0 }, "Cyclic dependency during type inference", .{});
+fn infer(c: *Compiler) error{InferError}!void {
+    while (true) {
+        const frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+        const dir_f = c.dir_fun_data.get(frame.key.fun);
+        const f = c.tir_fun_data.getPtr(frame.fun);
+        while (frame.expr.id < dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
+            const expr_data = dir_f.expr_data.get(frame.expr);
+            switch (expr_data) {
+                inline else => |data, expr_tag| {
+                    const input = try popExprInput(c, expr_tag, data);
+                    const output = try inferExpr(c, f, expr_tag, data, input);
+                    pushExprOutput(c, expr_tag, output);
+                },
+            }
         }
-    }
-    // Mark args as pending.
-    c.args_to_specialization.put(args, null) catch oom();
-
-    const function_data = c.function_data.get(function);
-
-    var s = SpecializationData.init(c.allocator, function);
-
-    s.local_repr.appendSlice(function_data.local_repr.items());
-
-    s.node_data.appendSlice(function_data.node_data.items());
-    s.node_first = s.node_data.firstKey();
-    s.node_last = s.node_data.lastKey();
-    for (0..s.node_data.count()) |node_id| {
-        _ = s.node_next.append(if (node_id + 1 == s.node_data.count()) null else .{ .id = node_id + 1 });
-        _ = s.node_prev.append(if (node_id == 0) null else .{ .id = node_id - 1 });
-    }
-
-    _ = s.in_repr.append(in_repr);
-    for (0..s.node_data.count()) |node_id| {
-        const repr = try inferNode(c, &s, .{ .id = node_id });
-        _ = s.node_repr.append(repr);
-    }
-    // TODO need to ensure that every branch returns the same type - currently we allow some to return union[][] so long as the last branch returns a value
-    // s.out_repr may be updated by inferNode
-
-    const specialization = c.specialization_data.append(s);
-    c.args_to_specialization.put(args, specialization) catch oom();
-    return specialization;
-}
-
-pub fn reinferSpecialization(c: *Compiler, s: *SpecializationData) error{InferError}!void {
-    s.out_repr = Repr.emptyUnion();
-
-    s.node_repr.data.shrinkRetainingCapacity(0);
-    // TODO I would prefer to mark repr as unknown in case there is some out of order dependency.
-    s.node_repr.appendNTimes(Repr.emptyUnion(), s.node_data.count());
-
-    var node_next = s.node_first;
-    while (node_next) |node| {
-        // Get next node before inserting anything after this node.
-        node_next = s.node_next.get(node);
-        s.node_repr.getPtr(node).* = try inferNode(c, s, node);
+        _ = c.tir_frame_stack.pop();
+        if (c.tir_frame_stack.items.len == 0)
+            break;
+        c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].expr.id += 1;
     }
 }
 
-fn inferNode(c: *Compiler, s: *SpecializationData, node: Node) !Repr {
-    const node_data = s.node_data.get(node);
-    switch (node_data) {
-        .value => |value| {
-            return value.reprOf();
+fn popExprInput(
+    c: *Compiler,
+    comptime expr_tag: std.meta.Tag(DirExprData),
+    data: std.meta.TagPayload(DirExprData, expr_tag),
+) error{InferError}!std.meta.TagPayload(DirExprInput, expr_tag) {
+    switch (expr_tag) {
+        .i32, .f32, .string, .arg, .closure, .local_get => return,
+        .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
+            const Input = std.meta.TagPayload(DirExprInput, expr_tag);
+            var input: Input = undefined;
+            const fields = @typeInfo(Input).Struct.fields;
+            comptime var i: usize = fields.len;
+            inline while (i > 0) : (i -= 1) {
+                const field = fields[i - 1];
+                @field(input, field.name) = switch (field.type) {
+                    Repr => popRepr(c),
+                    Value => try popValue(c),
+                    else => @compileError(@typeName(field.type)),
+                };
+            }
+            return input;
         },
-        .struct_init => |struct_init| {
-            const reprs = c.allocator.alloc(Repr, struct_init.values.len) catch oom();
-            for (reprs, struct_init.values) |*repr, value| repr.* = try inferNode(c, s, value);
-            return .{ .@"struct" = .{ .keys = struct_init.keys, .reprs = reprs } };
+        .struct_init => {
+            const keys = c.allocator.alloc(Value, data) catch oom();
+            const reprs = c.allocator.alloc(Repr, data) catch oom();
+            for (0..data) |i| {
+                reprs[data - 1 - i] = popRepr(c);
+                keys[data - 1 - i] = try popValue(c);
+            }
+            return .{ .keys = keys, .values = reprs };
         },
-        .arg_get => |arg_get| {
-            return s.in_repr.get(arg_get.arg);
+    }
+}
+
+fn inferExpr(
+    c: *Compiler,
+    f: *TirFunData,
+    comptime expr_tag: std.meta.Tag(DirExprData),
+    data: std.meta.TagPayload(DirExprData, expr_tag),
+    input: std.meta.TagPayload(DirExprInput, expr_tag),
+) error{InferError}!std.meta.TagPayload(DirExprOutput, expr_tag) {
+    switch (expr_tag) {
+        .i32 => {
+            push(c, f, .{ .i32 = data }, .i32);
+            return .{ .value = .i32 };
         },
-        .local_get => |local_get| {
-            return s.local_repr.get(local_get.local);
+        .string => {
+            push(c, f, .{ .string = data }, .string);
+            return .{ .value = .string };
+        },
+        .struct_init => {
+            // TODO sort?
+            const repr = Repr{ .@"struct" = .{
+                .keys = input.keys,
+                .reprs = input.values,
+            } };
+            push(c, f, .{ .struct_init = data }, repr);
+            return .{ .value = repr };
+        },
+        //.fun_init => {
+        //    return .{ .value = .{ .fun = .{
+        //        .repr = .{
+        //            .fun = data.fun,
+        //            .closure = input.closure.@"struct".repr,
+        //        },
+        //        .closure = input.closure.@"struct".values,
+        //    } } };
+        //},
+        //.arg => {
+        //    const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+        //    return .{ .value = frame.arg };
+        //},
+        //.closure => {
+        //    const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+        //    return .{ .value = frame.closure };
+        //},
+        .local_get => {
+            const local = TirLocal{ .id = data.id };
+            // Shouldn't be able to reach get before set.
+            const repr = f.local_data.get(local).repr.one;
+            push(c, f, .{ .local_get = local }, repr);
+            return .{ .value = repr };
         },
         .local_set => {
-            return Repr.emptyStruct();
+            const local = TirLocal{ .id = data.id };
+            push(c, f, .{ .local_set = local }, null);
+            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
+            return;
         },
-        .@"return" => |returned_node| {
-            const returned_repr = s.node_repr.get(returned_node);
-            s.out_repr = reprUnion(s.out_repr, returned_repr) orelse
-                return fail(c, s.function, node, "Expected {}, found {}", .{ s.out_repr, returned_repr });
-            return Repr.emptyStruct();
+        //.object_get => {
+        //    const value = input.object.get(input.key) orelse
+        //        return fail(c, .{ .get_missing = .{ .object = input.object, .key = input.key } });
+        //    return .{ .value = value };
+        //},
+        .drop => return,
+        .@"return" => {
+            push(c, f, .@"return", null);
+            _ = try reprUnion(c, &f.return_repr, input.value);
+            return;
         },
-        .call => |call| {
-            if (call.specialization) |specialization| {
-                return c.specialization_data.get(specialization).out_repr;
-            } else {
-                // Multiple args are for SRA, after specialization.
-                assert(call.args.len == 1);
-                const in_repr = s.node_repr.get(call.args[0]);
-                const specialization = try inferFunction(c, call.function, in_repr);
-                s.node_data.getPtr(node).call.specialization = specialization;
-                return c.specialization_data.get(specialization).out_repr;
-            }
-        },
-        .get => |get| {
-            const object_repr = s.node_repr.get(get.object);
-            switch (object_repr) {
-                .i32, .string, .repr => return fail(c, s.function, node, "Expected object, found {}", .{object_repr}),
-                .@"struct" => |@"struct"| {
-                    const index = @"struct".get(get.key) orelse
-                        return fail(c, s.function, node, "Key {} not found in struct {}", .{ get.key, object_repr });
-                    return @"struct".reprs[index];
-                },
-                .@"union" => panic("TODO {}", .{node_data}),
-            }
-        },
-        .shadow_ptr => return .i32,
-        .get_repr_data => {
-            panic("TODO unions {}", .{node_data});
-            //return Repr.reprData();
-        },
-        .add => |args| {
-            for (args) |arg| {
-                const arg_repr = s.node_repr.get(arg);
-                if (arg_repr != .i32)
-                    return fail(c, s.function, node, "Expected {}, found {}", .{ Repr.i32, arg_repr });
-            }
-            return .i32;
-        },
-        .load => |load| return load.repr,
-        .store => return Repr.emptyStruct(),
-        .copy => return Repr.emptyStruct(),
-        .stack_top => return .i32,
+        //.call => panic("Can't eval control flow expr: {}", .{expr_tag}),
+        else => return fail(c, .todo),
     }
 }
 
-fn reprUnion(a: Repr, b: Repr) ?Repr {
-    if (deepEqual(a, b)) return a;
-    if (a.isEmptyUnion()) return b;
-    if (b.isEmptyUnion()) return a;
-    return null;
+fn pushExprOutput(
+    c: *Compiler,
+    comptime expr_tag: std.meta.Tag(DirExprData),
+    output: std.meta.TagPayload(DirExprOutput, expr_tag),
+) void {
+    const Output = std.meta.TagPayload(DirExprOutput, expr_tag);
+    if (Output == void) return;
+    inline for (@typeInfo(Output).Struct.fields) |field| {
+        c.repr_or_value_stack.append(.{ .repr = @field(output, field.name) }) catch oom();
+    }
 }
 
-fn fail(c: *Compiler, function: Function, node: Node, comptime message: []const u8, args: anytype) error{InferError} {
-    const function_data = c.function_data.get(function);
-    const node_data = function_data.node_data.get(node);
-    c.error_message = std.fmt.allocPrint(
-        c.allocator,
-        "At {}={}, {}={}. " ++
-            message,
-        .{ function, function_data, node, node_data } ++
-            args,
-    ) catch oom();
+fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr {
+    switch (lattice.*) {
+        .zero => {
+            lattice.* = .{ .one = found_repr };
+            return found_repr;
+        },
+        .one => |expected_repr| {
+            if (expected_repr.equal(found_repr)) {
+                return found_repr;
+            } else {
+                lattice.* = .{ .many = expected_repr };
+                return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
+            }
+        },
+        .many => |expected_repr| {
+            return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
+        },
+    }
+}
+
+fn popRepr(c: *Compiler) Repr {
+    return c.repr_or_value_stack.pop().reprOf();
+}
+
+fn popValue(c: *Compiler) error{InferError}!Value {
+    switch (c.repr_or_value_stack.pop()) {
+        .repr => return fail(c, .not_compile_time_known),
+        .value => |value| return value,
+    }
+}
+
+fn push(c: *Compiler, f: *TirFunData, expr: TirExprData, repr: ?Repr) void {
+    _ = c;
+    _ = f.expr_data.append(expr);
+    _ = f.expr_repr.append(repr);
+}
+
+fn fail(c: *Compiler, data: InferErrorData) error{InferError} {
+    const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+    c.error_data = .{ .infer = .{ .key = frame.key, .fun = frame.fun, .expr = frame.expr, .data = data } };
     return error.InferError;
 }
+
+pub const InferErrorData = union(enum) {
+    not_compile_time_known,
+    type_error: struct {
+        expected: Repr,
+        found: Repr,
+    },
+    todo,
+};

@@ -12,22 +12,22 @@ const Compiler = zest.Compiler;
 const DirLocal = zest.DirLocal;
 const DirExpr = zest.DirExpr;
 const DirExprData = zest.DirExprData;
-const DirExprInput = zest.DirExprInput;
-const DirExprOutput = zest.DirExprOutput;
+const DirExprInput = zest.DirExprInput(Value);
+const DirExprOutput = zest.DirExprOutput(Value);
 const DirFun = zest.DirFun;
 const DirFunData = zest.DirFunData;
 const Value = zest.Value;
 const Repr = zest.Repr;
 
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
-    assert(c.frame_stack.items.len == 0);
+    assert(c.dir_frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
     pushFun(c, c.dir_fun_main.?, Value.emptyStruct(), Value.emptyStruct());
     return eval(c);
 }
 
 fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
-    c.frame_stack.append(.{
+    c.dir_frame_stack.append(.{
         .fun = fun,
         .arg = arg,
         .closure = closure,
@@ -42,7 +42,7 @@ fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
 fn eval(c: *Compiler) error{EvalError}!Value {
     //std.debug.print("---\n\n", .{});
     fun: while (true) {
-        const frame = &c.frame_stack.items[c.frame_stack.items.len - 1];
+        const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
         const f = c.dir_fun_data.get(frame.fun);
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
@@ -52,12 +52,12 @@ fn eval(c: *Compiler) error{EvalError}!Value {
                         c.local_stack.items.len -
                             c.dir_fun_data.get(frame.fun).local_data.count(),
                     );
-                    _ = c.frame_stack.pop();
-                    if (c.frame_stack.items.len == 0) {
+                    _ = c.dir_frame_stack.pop();
+                    if (c.dir_frame_stack.items.len == 0) {
                         assert(c.value_stack.items.len == 1);
                         return c.value_stack.pop();
                     }
-                    c.frame_stack.items[c.frame_stack.items.len - 1].expr.id += 1;
+                    c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
                     continue :fun;
                 },
                 .call => |call| {
@@ -70,7 +70,7 @@ fn eval(c: *Compiler) error{EvalError}!Value {
                 },
                 inline else => |data, expr_tag| {
                     const input = popExprInput(c, expr_tag, data);
-                    const output = try evalExprWithInput(c, expr_tag, data, input);
+                    const output = try evalExpr(c, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);
                     //std.debug.print("{}\n{}\n{}\n\n", .{ expr_data, input, output });
                 },
@@ -110,7 +110,7 @@ fn popExprInput(
     }
 }
 
-fn evalExprWithInput(
+fn evalExpr(
     c: *Compiler,
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
@@ -143,11 +143,11 @@ fn evalExprWithInput(
             } } };
         },
         .arg => {
-            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+            const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             return .{ .value = frame.arg };
         },
         .closure => {
-            const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+            const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             return .{ .value = frame.closure };
         },
         .local_get => {
@@ -182,7 +182,7 @@ fn pushExprOutput(
 }
 
 fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
-    const frame = c.frame_stack.items[c.frame_stack.items.len - 1];
+    const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     c.error_data = .{ .eval = .{ .fun = frame.fun, .expr = frame.expr, .data = data } };
     return error.EvalError;
 }

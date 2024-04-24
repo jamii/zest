@@ -4,6 +4,7 @@ const panic = std.debug.panic;
 const zest = @import("./zest.zig");
 const Value = zest.Value;
 const DirFun = zest.DirFun;
+const deepEqual = zest.deepEqual;
 
 pub const Repr = union(enum) {
     i32,
@@ -29,6 +30,11 @@ pub const Repr = union(enum) {
 
     pub fn isEmptyUnion(self: Repr) bool {
         return (self == .@"union" and self.@"union".keys.len == 0);
+    }
+
+    pub fn equal(self: Repr, other: Repr) bool {
+        // TODO May need to think about this.
+        return deepEqual(self, other);
     }
 
     pub fn sizeOf(self: Repr) usize {
