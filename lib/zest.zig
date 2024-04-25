@@ -599,7 +599,7 @@ pub fn formatError(c: *Compiler) []const u8 {
             .infer => |err| {
                 const expr_data = c.dir_fun_data.get(err.key.fun).expr_data.get(err.expr);
                 return switch (err.data) {
-                    .not_compile_time_known => |data| format(c, "Cannot evaluate at compile-time: {}", .{data}),
+                    .not_compile_time_known => format(c, "Cannot evaluate at compile-time: {}", .{expr_data}),
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };

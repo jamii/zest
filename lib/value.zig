@@ -86,6 +86,8 @@ pub const ValueStruct = struct {
     pub fn get(self: ValueStruct, key: Value) ?Value {
         return if (self.repr.get(key)) |i| self.values[i] else null;
     }
+
+    // TODO init function that sorts
 };
 
 pub const ValueUnion = struct {

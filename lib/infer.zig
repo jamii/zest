@@ -70,6 +70,7 @@ fn popExprInput(
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) error{InferError}!std.meta.TagPayload(DirExprInput, expr_tag) {
+    // TODO use of popValue in here reports errors to the wrong expr
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
@@ -116,7 +117,6 @@ fn inferExpr(
             return .{ .value = .string };
         },
         .struct_init => {
-            // TODO sort?
             const repr = Repr{ .@"struct" = .{
                 .keys = input.keys,
                 .reprs = input.values,
