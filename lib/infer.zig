@@ -22,7 +22,9 @@ const Value = zest.Value;
 const Repr = zest.Repr;
 const FlatLattice = zest.FlatLattice;
 
-pub fn inferMain(c: *Compiler) error{InferError}!void {
+const eval = @import("./eval.zig");
+
+pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
     assert(c.tir_frame_stack.items.len == 0);
     c.tir_fun_main = try pushFun(
         c,
@@ -43,19 +45,39 @@ fn pushFun(c: *Compiler, key: TirFunKey) error{InferError}!TirFun {
     return fun;
 }
 
-fn infer(c: *Compiler) error{InferError}!void {
+fn infer(c: *Compiler) error{ EvalError, InferError }!void {
     while (true) {
         const frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
         const dir_f = c.dir_fun_data.get(frame.key.fun);
         const f = c.tir_fun_data.getPtr(frame.fun);
         while (frame.expr.id < dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
             const expr_data = dir_f.expr_data.get(frame.expr);
-            switch (expr_data) {
-                inline else => |data, expr_tag| {
-                    const input = try popExprInput(c, expr_tag, data);
-                    const output = try inferExpr(c, f, expr_tag, data, input);
-                    pushExprOutput(c, expr_tag, output);
-                },
+            if (dir_f.expr_is_staged.isSet(frame.expr.id)) {
+                switch (expr_data) {
+                    .call => |call| {
+                        const input = try popExprInputValue(c, .call, call);
+                        if (input.fun != .fun)
+                            return eval.fail(c, .{ .not_a_fun = input.fun });
+                        const fun = input.fun.fun;
+                        eval.pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
+                        const value = try eval.eval(c);
+                        c.repr_or_value_stack.append(.{ .value = value }) catch oom();
+                    },
+                    .@"return" => return fail(c, .staged_return),
+                    inline else => |data, expr_tag| {
+                        const input = try popExprInputValue(c, expr_tag, data);
+                        const output = try eval.evalExpr(c, expr_tag, data, input);
+                        pushExprOutputValue(c, expr_tag, output);
+                    },
+                }
+            } else {
+                switch (expr_data) {
+                    inline else => |data, expr_tag| {
+                        const input = try popExprInput(c, expr_tag, data);
+                        const output = try inferExpr(c, f, expr_tag, data, input);
+                        pushExprOutput(c, expr_tag, output);
+                    },
+                }
             }
         }
         _ = c.tir_frame_stack.pop();
@@ -70,7 +92,6 @@ fn popExprInput(
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) error{InferError}!std.meta.TagPayload(DirExprInput, expr_tag) {
-    // TODO use of popValue in here reports errors to the wrong expr
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
@@ -96,6 +117,36 @@ fn popExprInput(
                 keys[data - 1 - i] = try popValue(c);
             }
             return .{ .keys = keys, .values = reprs };
+        },
+    }
+}
+
+fn popExprInputValue(
+    c: *Compiler,
+    comptime expr_tag: std.meta.Tag(DirExprData),
+    data: std.meta.TagPayload(DirExprData, expr_tag),
+) error{InferError}!std.meta.TagPayload(zest.DirExprInput(Value), expr_tag) {
+    switch (expr_tag) {
+        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end => return,
+        .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
+            const Input = std.meta.TagPayload(zest.DirExprInput(Value), expr_tag);
+            var input: Input = undefined;
+            const fields = @typeInfo(Input).Struct.fields;
+            comptime var i: usize = fields.len;
+            inline while (i > 0) : (i -= 1) {
+                const field = fields[i - 1];
+                @field(input, field.name) = try popValue(c);
+            }
+            return input;
+        },
+        .struct_init => {
+            const keys = c.allocator.alloc(Value, data) catch oom();
+            const values = c.allocator.alloc(Value, data) catch oom();
+            for (0..data) |i| {
+                values[data - 1 - i] = try popValue(c);
+                keys[data - 1 - i] = try popValue(c);
+            }
+            return .{ .keys = keys, .values = values };
         },
     }
 }
@@ -154,11 +205,19 @@ fn inferExpr(
             _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
             return;
         },
-        //.object_get => {
-        //    const value = input.object.get(input.key) orelse
-        //        return fail(c, .{ .get_missing = .{ .object = input.object, .key = input.key } });
-        //    return .{ .value = value };
-        //},
+        .object_get => {
+            const repr = switch (input.object) {
+                .i32, .string, .repr, .fun => return fail(c, .{ .not_an_object = input.object }),
+                .@"struct" => |@"struct"| repr: {
+                    const ix = @"struct".get(input.key) orelse
+                        return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
+                    break :repr @"struct".reprs[ix];
+                },
+                .@"union" => return fail(c, .todo),
+            };
+            push(c, f, .{ .object_get = .{ .key = input.key } }, repr);
+            return .{ .value = repr };
+        },
         .drop => {
             push(c, f, .drop, null);
             return;
@@ -183,6 +242,18 @@ fn pushExprOutput(
     if (Output == void) return;
     inline for (@typeInfo(Output).Struct.fields) |field| {
         c.repr_or_value_stack.append(.{ .repr = @field(output, field.name) }) catch oom();
+    }
+}
+
+fn pushExprOutputValue(
+    c: *Compiler,
+    comptime expr_tag: std.meta.Tag(DirExprData),
+    output: std.meta.TagPayload(zest.DirExprOutput(Value), expr_tag),
+) void {
+    const Output = std.meta.TagPayload(zest.DirExprOutput(Value), expr_tag);
+    if (Output == void) return;
+    inline for (@typeInfo(Output).Struct.fields) |field| {
+        c.repr_or_value_stack.append(.{ .value = @field(output, field.name) }) catch oom();
     }
 }
 
@@ -234,6 +305,12 @@ pub const InferErrorData = union(enum) {
     type_error: struct {
         expected: Repr,
         found: Repr,
+    },
+    staged_return,
+    not_an_object: Repr,
+    key_not_found: struct {
+        object: Repr,
+        key: Value,
     },
     todo,
 };

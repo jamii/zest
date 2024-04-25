@@ -26,7 +26,7 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     return eval(c);
 }
 
-fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
+pub fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
     c.dir_frame_stack.append(.{
         .fun = fun,
         .arg = arg,
@@ -39,7 +39,7 @@ fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
     ) catch oom();
 }
 
-fn eval(c: *Compiler) error{EvalError}!Value {
+pub fn eval(c: *Compiler) error{EvalError}!Value {
     //std.debug.print("---\n\n", .{});
     fun: while (true) {
         const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
@@ -111,7 +111,7 @@ fn popExprInput(
     }
 }
 
-fn evalExpr(
+pub fn evalExpr(
     c: *Compiler,
     comptime expr_tag: std.meta.Tag(DirExprData),
     data: std.meta.TagPayload(DirExprData, expr_tag),
@@ -182,7 +182,7 @@ fn pushExprOutput(
     }
 }
 
-fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
+pub fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
     const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     c.error_data = .{ .eval = .{ .fun = frame.fun, .expr = frame.expr, .data = data } };
     return error.EvalError;

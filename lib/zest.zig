@@ -599,7 +599,10 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.dir_fun_data.get(err.key.fun).expr_data.get(err.expr);
                 return switch (err.data) {
                     .not_compile_time_known => format(c, "Cannot evaluate at compile-time: {}", .{expr_data}),
+                    .staged_return => format(c, "Cannot return from compile-time block", .{}),
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
+                    .not_an_object => |data| format(c, "Not an object: {}", .{data}),
+                    .key_not_found => |data| format(c, "Key {} not found in object {}", .{ data.key, data.object }),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },
@@ -630,7 +633,7 @@ pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
 //pub const generate = @import("./generate.zig").generate;
 
-pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, InferError, GenerateError }!void {
+pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, EvalError, InferError, GenerateError }!void {
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
 
