@@ -29,6 +29,7 @@ fn lowerFun(c: *Compiler, params: SirObject, body: SirExpr) error{LowerError}!Di
     try lowerObjectPattern(c, &f, .arg, params);
     try lowerExpr(c, &f, body);
     _ = f.expr_data.append(.@"return");
+    inferExprIsStaged(c, &f);
     return c.dir_fun_data.append(f);
 }
 
@@ -137,11 +138,15 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
             const scope_saved = c.scope.save();
             defer c.scope.restore(scope_saved);
 
+            const begin = f.expr_data.append(.{ .block_begin = .{ .expr_count = 0 } });
             for (block, 0..) |statement, i| {
                 try lowerExpr(c, f, statement);
                 if (i < block.len - 1)
                     _ = f.expr_data.append(.drop);
             }
+            const expr_count = f.expr_data.lastKey().?.id - begin.id;
+            f.expr_data.getPtr(begin).block_begin.expr_count = expr_count;
+            _ = f.expr_data.append(.{ .block_end = .{ .expr_count = expr_count } });
         },
         else => return fail(c, expr, .todo),
     }
@@ -170,6 +175,73 @@ fn pop(c: *Compiler, f: *DirFunData) AbstractValue {
     const local = f.local_data.append(.{});
     _ = f.expr_data.append(.{ .local_set = local });
     return .{ .local = local };
+}
+
+fn inferExprIsStaged(c: *Compiler, f: *DirFunData) void {
+    f.expr_is_staged.resize(f.expr_data.count(), false) catch oom();
+    assert(c.is_staged_stack.items.len == 0);
+    var expr = DirExpr{ .id = f.expr_data.count() };
+    while (expr.id > 0) {
+        expr.id -= 1;
+        const expr_data = f.expr_data.get(expr);
+        switch (expr_data) {
+            // 0 input, 0 output
+            .block_begin => {},
+            // 0 input, 1 output
+            .i32, .f32, .string, .arg, .closure, .local_get => {
+                const is_staged = c.is_staged_stack.pop();
+                f.expr_is_staged.setValue(expr.id, is_staged);
+            },
+            // 1 input, 0 output
+            .local_set, .drop, .@"return" => {
+                c.is_staged_stack.append(false) catch oom();
+            },
+            // 1 input, 1 output
+            .fun_init => {
+                const is_staged = c.is_staged_stack.pop();
+                f.expr_is_staged.setValue(expr.id, is_staged);
+                c.is_staged_stack.append(is_staged) catch oom();
+            },
+            .struct_init => |pair_count| {
+                const is_staged = c.is_staged_stack.pop();
+                f.expr_is_staged.setValue(expr.id, is_staged);
+                for (0..pair_count) |_| {
+                    c.is_staged_stack.append(true) catch oom();
+                    c.is_staged_stack.append(is_staged) catch oom();
+                }
+            },
+            .object_get => {
+                const is_staged = c.is_staged_stack.pop();
+                f.expr_is_staged.setValue(expr.id, is_staged);
+                // object
+                c.is_staged_stack.append(is_staged) catch oom();
+                // key
+                c.is_staged_stack.append(true) catch oom();
+            },
+            .call => {
+                const is_staged = c.is_staged_stack.pop();
+                f.expr_is_staged.setValue(expr.id, is_staged);
+                // fun
+                c.is_staged_stack.append(is_staged) catch oom();
+                // args
+                c.is_staged_stack.append(is_staged) catch oom();
+            },
+            .block_end => |block_end| {
+                const is_staged = c.is_staged_stack.pop();
+                f.expr_is_staged.setValue(expr.id, is_staged);
+                if (is_staged) {
+                    // Everything in this block is staged
+                    for (expr.id - 1 - block_end.expr_count..expr.id - 1) |id| {
+                        f.expr_is_staged.setValue(id, true);
+                    }
+                    expr.id -= block_end.expr_count;
+                } else {
+                    // Otherwise look inside block.
+                    c.is_staged_stack.append(is_staged) catch oom();
+                }
+            },
+        }
+    }
 }
 
 fn fail(c: *Compiler, expr: SirExpr, data: LowerErrorData) error{LowerError} {

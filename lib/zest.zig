@@ -205,6 +205,12 @@ pub const DirExprData = union(enum) {
     object_get,
     call,
     drop,
+    block_begin: struct {
+        expr_count: usize,
+    },
+    block_end: struct {
+        expr_count: usize,
+    },
     @"return",
 };
 
@@ -239,6 +245,8 @@ pub fn DirExprInput(comptime T: type) type {
         drop: struct {
             value: T,
         },
+        block_begin,
+        block_end,
         @"return": struct {
             value: T,
         },
@@ -279,6 +287,8 @@ pub fn DirExprOutput(comptime T: type) type {
             value: T,
         },
         drop,
+        block_begin,
+        block_end,
         @"return",
     };
 }
@@ -292,6 +302,7 @@ pub const DirFunData = struct {
     local_data: List(DirLocal, DirLocalData),
 
     expr_data: List(DirExpr, DirExprData),
+    expr_is_staged: std.DynamicBitSet,
 
     pub fn init(allocator: Allocator) DirFunData {
         return .{
@@ -301,6 +312,7 @@ pub const DirFunData = struct {
             .local_data = fieldType(DirFunData, .local_data).init(allocator),
 
             .expr_data = fieldType(DirFunData, .expr_data).init(allocator),
+            .expr_is_staged = std.DynamicBitSet.initEmpty(allocator, 0) catch oom(),
         };
     }
 };
@@ -397,42 +409,27 @@ pub const TirExpr = struct { id: usize };
 
 pub const TirExprData = union(enum) {
     i32: i32,
+    f32: f32,
     string: []const u8,
-    struct_init: usize,
+    struct_init,
+    fun_init: struct {
+        fun: TirFun,
+    },
+    arg,
+    closure,
     local_get: TirLocal,
     local_set: TirLocal,
-    @"return",
-};
-
-// Push in order.
-// Pop in reverse order.
-pub const TirExprInput = union(std.meta.Tag(TirExprData)) {
-    i32,
-    string,
-    struct_init: struct {
-        keys: Value,
-        values: Repr,
+    object_get: struct {
+        key: Value,
     },
-    local_get,
-    local_set: struct {
-        value: Value,
+    call,
+    drop,
+    block_begin: struct {
+        expr_count: usize,
     },
-    @"return": struct {
-        value: Value,
+    block_end: struct {
+        expr_count: usize,
     },
-};
-
-pub const TirExprOutput = union(std.meta.Tag(TirExprData)) {
-    i32: struct {
-        value: Value,
-    },
-    string: struct {
-        value: Value,
-    },
-    local_get: struct {
-        value: Value,
-    },
-    local_set,
     @"return",
 };
 
@@ -498,6 +495,7 @@ pub const Compiler = struct {
     scope: Scope,
     dir_fun_data: List(DirFun, DirFunData),
     dir_fun_main: ?DirFun,
+    is_staged_stack: ArrayList(bool),
 
     // eval
     dir_frame_stack: ArrayList(DirFrame),
@@ -529,6 +527,7 @@ pub const Compiler = struct {
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
+            .is_staged_stack = fieldType(Compiler, .is_staged_stack).init(allocator),
 
             .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
@@ -642,7 +641,7 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, Infer
     assert(c.dir_fun_main != null);
 
     try inferMain(c);
-    //assert(c.tir_fun_main != null);
+    assert(c.tir_fun_main != null);
 
     //try generate(c);
 }

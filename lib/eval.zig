@@ -47,6 +47,15 @@ fn eval(c: *Compiler) error{EvalError}!Value {
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
             switch (expr_data) {
+                .call => |call| {
+                    const input = popExprInput(c, .call, call);
+                    if (input.fun != .fun)
+                        return fail(c, .{ .not_a_fun = input.fun });
+                    const fun = input.fun.fun;
+                    pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
+                    continue :fun;
+                },
+                .block_begin, .block_end => {},
                 .@"return" => {
                     c.local_stack.shrinkRetainingCapacity(
                         c.local_stack.items.len -
@@ -58,14 +67,6 @@ fn eval(c: *Compiler) error{EvalError}!Value {
                         return c.value_stack.pop();
                     }
                     c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
-                    continue :fun;
-                },
-                .call => |call| {
-                    const input = popExprInput(c, .call, call);
-                    if (input.fun != .fun)
-                        return fail(c, .{ .not_a_fun = input.fun });
-                    const fun = input.fun.fun;
-                    pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
                     continue :fun;
                 },
                 inline else => |data, expr_tag| {
@@ -86,7 +87,7 @@ fn popExprInput(
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;

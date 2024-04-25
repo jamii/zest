@@ -72,7 +72,7 @@ fn popExprInput(
 ) error{InferError}!std.meta.TagPayload(DirExprInput, expr_tag) {
     // TODO use of popValue in here reports errors to the wrong expr
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
@@ -121,7 +121,7 @@ fn inferExpr(
                 .keys = input.keys,
                 .reprs = input.values,
             } };
-            push(c, f, .{ .struct_init = data }, repr);
+            push(c, f, .struct_init, repr);
             return .{ .value = repr };
         },
         //.fun_init => {
@@ -159,7 +159,11 @@ fn inferExpr(
         //        return fail(c, .{ .get_missing = .{ .object = input.object, .key = input.key } });
         //    return .{ .value = value };
         //},
-        .drop => return,
+        .drop => {
+            push(c, f, .drop, null);
+            return;
+        },
+        .block_begin, .block_end => return,
         .@"return" => {
             push(c, f, .@"return", null);
             _ = try reprUnion(c, &f.return_repr, input.value);
