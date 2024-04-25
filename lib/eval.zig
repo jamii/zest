@@ -161,7 +161,7 @@ pub fn evalExpr(
         },
         .object_get => {
             const value = input.object.get(input.key) orelse
-                return fail(c, .{ .get_missing = .{ .object = input.object, .key = input.key } });
+                return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
             return .{ .value = value };
         },
         .drop => return,
@@ -189,7 +189,7 @@ pub fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
 }
 
 pub const EvalErrorData = union(enum) {
-    get_missing: struct {
+    key_not_found: struct {
         object: Value,
         key: Value,
     },

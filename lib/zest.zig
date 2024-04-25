@@ -412,9 +412,7 @@ pub const TirExprData = union(enum) {
     f32: f32,
     string: []const u8,
     struct_init,
-    fun_init: struct {
-        fun: TirFun,
-    },
+    fun_init,
     arg,
     closure,
     local_get: TirLocal,
@@ -422,7 +420,7 @@ pub const TirExprData = union(enum) {
     object_get: struct {
         key: Value,
     },
-    call,
+    call: TirFun,
     drop,
     block_begin: struct {
         expr_count: usize,
@@ -590,7 +588,7 @@ pub fn formatError(c: *Compiler) []const u8 {
             .eval => |err| {
                 const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
                 return switch (err.data) {
-                    .get_missing => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
+                    .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
@@ -602,7 +600,8 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .staged_return => format(c, "Cannot return from compile-time block", .{}),
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
                     .not_an_object => |data| format(c, "Not an object: {}", .{data}),
-                    .key_not_found => |data| format(c, "Key {} not found in object {}", .{ data.key, data.object }),
+                    .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
+                    .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

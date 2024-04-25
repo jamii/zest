@@ -18,6 +18,7 @@ const TirExprData = zest.TirExprData;
 const TirFun = zest.TirFun;
 const TirFunData = zest.TirFunData;
 const TirFunKey = zest.TirFunKey;
+const TirFrame = zest.TirFrame;
 const Value = zest.Value;
 const Repr = zest.Repr;
 const FlatLattice = zest.FlatLattice;
@@ -26,7 +27,7 @@ const eval = @import("./eval.zig");
 
 pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
     assert(c.tir_frame_stack.items.len == 0);
-    c.tir_fun_main = try pushFun(
+    c.tir_fun_main = pushFun(
         c,
         .{
             .fun = c.dir_fun_main.?,
@@ -37,7 +38,7 @@ pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
     try infer(c);
 }
 
-fn pushFun(c: *Compiler, key: TirFunKey) error{InferError}!TirFun {
+fn pushFun(c: *Compiler, key: TirFunKey) TirFun {
     const fun = c.tir_fun_data.append(TirFunData.init(c.allocator));
     const f = c.tir_fun_data.getPtr(fun);
     f.local_data.appendNTimes(.{ .repr = .zero }, c.dir_fun_data.get(key.fun).local_data.count());
@@ -47,44 +48,101 @@ fn pushFun(c: *Compiler, key: TirFunKey) error{InferError}!TirFun {
 
 fn infer(c: *Compiler) error{ EvalError, InferError }!void {
     while (true) {
-        const frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-        const dir_f = c.dir_fun_data.get(frame.key.fun);
-        const f = c.tir_fun_data.getPtr(frame.fun);
-        while (frame.expr.id < dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
-            const expr_data = dir_f.expr_data.get(frame.expr);
-            if (dir_f.expr_is_staged.isSet(frame.expr.id)) {
-                switch (expr_data) {
-                    .call => |call| {
-                        const input = try popExprInputValue(c, .call, call);
-                        if (input.fun != .fun)
-                            return eval.fail(c, .{ .not_a_fun = input.fun });
-                        const fun = input.fun.fun;
-                        eval.pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
-                        const value = try eval.eval(c);
-                        c.repr_or_value_stack.append(.{ .value = value }) catch oom();
-                    },
-                    .@"return" => return fail(c, .staged_return),
-                    inline else => |data, expr_tag| {
-                        const input = try popExprInputValue(c, expr_tag, data);
-                        const output = try eval.evalExpr(c, expr_tag, data, input);
-                        pushExprOutputValue(c, expr_tag, output);
-                    },
-                }
-            } else {
-                switch (expr_data) {
-                    inline else => |data, expr_tag| {
-                        const input = try popExprInput(c, expr_tag, data);
-                        const output = try inferExpr(c, f, expr_tag, data, input);
-                        pushExprOutput(c, expr_tag, output);
-                    },
-                }
-            }
+        const direction = try inferFrame(
+            c,
+            &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1],
+        );
+        switch (direction) {
+            .call => continue,
+            .@"return" => {},
         }
-        _ = c.tir_frame_stack.pop();
+        const child_frame = c.tir_frame_stack.pop();
+        const return_repr_lattice = &c.tir_fun_data.getPtr(child_frame.fun).return_repr;
+        switch (return_repr_lattice.*) {
+            .zero => return_repr_lattice.* = .{ .one = Repr.emptyUnion() },
+            .one => {},
+            .many => panic("Unreachable - should have errored earlier", .{}),
+        }
+        c.tir_fun_by_key.put(child_frame.key, child_frame.fun) catch oom();
         if (c.tir_frame_stack.items.len == 0)
             break;
-        c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].expr.id += 1;
+        // Don't need to advance expr.id here - we'll revisit the call and use the cached repr this time.
     }
+}
+
+fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enum { call, @"return" } {
+    const dir_f = c.dir_fun_data.get(frame.key.fun);
+    const f = c.tir_fun_data.getPtr(frame.fun);
+    while (frame.expr.id <= dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
+        const expr_data = dir_f.expr_data.get(frame.expr);
+        if (dir_f.expr_is_staged.isSet(frame.expr.id)) {
+            switch (expr_data) {
+                .call => |call| {
+                    const input = try popExprInputValue(c, .call, call);
+                    if (input.fun != .fun)
+                        return fail(c, .{ .not_a_fun = input.fun.reprOf() });
+                    const fun = input.fun.fun;
+                    eval.pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
+                    const value = try eval.eval(c);
+                    c.repr_or_value_stack.append(.{ .value = value }) catch oom();
+                },
+                .@"return" => return fail(c, .staged_return),
+                .arg, .closure => return fail(c, .not_compile_time_known),
+                .block_begin, .block_end => {},
+                inline else => |data, expr_tag| {
+                    const input = try popExprInputValue(c, expr_tag, data);
+                    // TODO Kinda annoying that we have to push this frame for error handling in evalExpr.
+                    c.dir_frame_stack.append(.{
+                        .fun = frame.key.fun,
+                        .arg = Value.emptyStruct(),
+                        .closure = Value.emptyStruct(),
+                        .expr = frame.expr,
+                    }) catch oom();
+                    // TODO this is obviously not correct
+                    c.local_stack.appendNTimes(
+                        Value.emptyStruct(),
+                        dir_f.local_data.count(),
+                    ) catch oom();
+                    const output = try eval.evalExpr(c, expr_tag, data, input);
+                    _ = c.dir_frame_stack.pop();
+                    for (0..dir_f.local_data.count()) |_| {
+                        _ = c.local_stack.pop();
+                    }
+                    pushExprOutputValue(c, expr_tag, output);
+                },
+            }
+        } else {
+            switch (expr_data) {
+                .call => |call| {
+                    const input = try popExprInput(c, .call, call);
+                    if (input.fun != .fun)
+                        return fail(c, .{ .not_a_fun = input.fun });
+                    const key = TirFunKey{
+                        .fun = input.fun.fun.fun,
+                        .closure_repr = .{ .@"struct" = input.fun.fun.closure },
+                        .arg_repr = input.args,
+                    };
+                    if (c.tir_fun_by_key.get(key)) |fun| {
+                        const return_repr = c.tir_fun_data.get(fun).return_repr.one;
+                        _ = push(c, f, .{ .call = fun }, return_repr);
+                        pushExprOutput(c, .call, .{ .value = return_repr });
+                    } else {
+                        // Put inputs back on stack and switch to the called function.
+                        c.repr_or_value_stack.append(.{ .repr = input.fun }) catch oom();
+                        c.repr_or_value_stack.append(.{ .repr = input.args }) catch oom();
+                        _ = pushFun(c, key);
+                        return .call;
+                    }
+                },
+                inline else => |data, expr_tag| {
+                    const input = try popExprInput(c, expr_tag, data);
+                    const output = try inferExpr(c, f, expr_tag, data, input);
+                    pushExprOutput(c, expr_tag, output);
+                },
+            }
+        }
+    }
+    return .@"return";
 }
 
 fn popExprInput(
@@ -175,23 +233,22 @@ fn inferExpr(
             push(c, f, .struct_init, repr);
             return .{ .value = repr };
         },
-        //.fun_init => {
-        //    return .{ .value = .{ .fun = .{
-        //        .repr = .{
-        //            .fun = data.fun,
-        //            .closure = input.closure.@"struct".repr,
-        //        },
-        //        .closure = input.closure.@"struct".values,
-        //    } } };
-        //},
-        //.arg => {
-        //    const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-        //    return .{ .value = frame.arg };
-        //},
-        //.closure => {
-        //    const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-        //    return .{ .value = frame.closure };
-        //},
+        .fun_init => {
+            const repr = Repr{ .fun = .{
+                .fun = data.fun,
+                .closure = input.closure.@"struct",
+            } };
+            push(c, f, .fun_init, repr);
+            return .{ .value = repr };
+        },
+        .arg => {
+            const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+            return .{ .value = frame.key.arg_repr };
+        },
+        .closure => {
+            const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+            return .{ .value = frame.key.closure_repr };
+        },
         .local_get => {
             const local = TirLocal{ .id = data.id };
             // Shouldn't be able to reach get before set.
@@ -228,7 +285,7 @@ fn inferExpr(
             _ = try reprUnion(c, &f.return_repr, input.value);
             return;
         },
-        //.call => panic("Can't eval control flow expr: {}", .{expr_tag}),
+        .call => panic("Should be handled in infer, not inferExpr", .{}),
         else => return fail(c, .todo),
     }
 }
@@ -312,5 +369,6 @@ pub const InferErrorData = union(enum) {
         object: Repr,
         key: Value,
     },
+    not_a_fun: Repr,
     todo,
 };

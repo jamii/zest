@@ -180,6 +180,7 @@ fn pop(c: *Compiler, f: *DirFunData) AbstractValue {
     return .{ .local = local };
 }
 
+// TODO Could have just done this during lower itself.
 fn inferExprIsStaged(c: *Compiler, f: *DirFunData) void {
     f.expr_is_staged.resize(f.expr_data.count(), false) catch oom();
     assert(c.is_staged_stack.items.len == 0);
@@ -234,7 +235,7 @@ fn inferExprIsStaged(c: *Compiler, f: *DirFunData) void {
                 f.expr_is_staged.setValue(expr.id, is_staged);
                 if (is_staged) {
                     // Everything in this block is staged
-                    for (expr.id - 1 - block_end.expr_count..expr.id - 1) |id| {
+                    for (expr.id - block_end.expr_count..expr.id) |id| {
                         f.expr_is_staged.setValue(id, true);
                     }
                     expr.id -= block_end.expr_count;

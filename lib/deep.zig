@@ -43,6 +43,11 @@ pub fn deepEqual(a: anytype, b: @TypeOf(a)) bool {
             }
             unreachable;
         },
+        .Optional => {
+            if (a == null) return b == null;
+            if (b == null) return false;
+            return deepEqual(a.?, b.?);
+        },
         else => @compileError(@typeName(T)),
     }
 }
