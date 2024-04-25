@@ -83,6 +83,9 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
         .i32 => |i| {
             _ = f.expr_data.append(.{ .i32 = i });
         },
+        .string => |string| {
+            _ = f.expr_data.append(.{ .string = string });
+        },
         .object => |object| {
             try lowerObject(c, f, object);
         },
