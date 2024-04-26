@@ -82,7 +82,11 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                     if (input.fun != .fun)
                         return fail(c, .{ .not_a_fun = input.fun.reprOf() });
                     const fun = input.fun.fun;
-                    eval.pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
+                    eval.pushFun(c, .{
+                        .fun = fun.repr.fun,
+                        .arg = input.args,
+                        .closure = .{ .@"struct" = fun.getClosure() },
+                    });
                     const value = try eval.eval(c);
                     c.repr_or_value_stack.append(.{ .value = value }) catch oom();
                 },
@@ -104,10 +108,7 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                         dir_f.local_data.count(),
                     ) catch oom();
                     const output = try eval.evalExpr(c, expr_tag, data, input);
-                    _ = c.dir_frame_stack.pop();
-                    for (0..dir_f.local_data.count()) |_| {
-                        _ = c.local_stack.pop();
-                    }
+                    _ = eval.popFun(c);
                     pushExprOutputValue(c, expr_tag, output);
                 },
             }
@@ -123,6 +124,7 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                         .arg_repr = input.args,
                     };
                     if (c.tir_fun_by_key.get(key)) |fun| {
+                        // TODO once we have recursive functions, seeing a .zero here indicates that type inference is cyclic
                         const return_repr = c.tir_fun_data.get(fun).return_repr.one;
                         _ = push(c, f, .{ .call = fun }, return_repr);
                         pushExprOutput(c, .call, .{ .value = return_repr });

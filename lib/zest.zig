@@ -386,7 +386,7 @@ pub const DirFrame = struct {
     fun: DirFun,
     arg: Value,
     closure: Value,
-    expr: DirExpr,
+    expr: DirExpr = .{ .id = 0 },
 };
 
 // Typed IR

@@ -16,27 +16,36 @@ const DirExprInput = zest.DirExprInput(Value);
 const DirExprOutput = zest.DirExprOutput(Value);
 const DirFun = zest.DirFun;
 const DirFunData = zest.DirFunData;
+const DirFrame = zest.DirFrame;
 const Value = zest.Value;
 const Repr = zest.Repr;
 
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.dir_frame_stack.items.len == 0);
     assert(c.value_stack.items.len == 0);
-    pushFun(c, c.dir_fun_main.?, Value.emptyStruct(), Value.emptyStruct());
+    pushFun(c, .{
+        .fun = c.dir_fun_main.?,
+        .closure = Value.emptyStruct(),
+        .arg = Value.emptyStruct(),
+    });
     return eval(c);
 }
 
-pub fn pushFun(c: *Compiler, fun: DirFun, arg: Value, closure: Value) void {
-    c.dir_frame_stack.append(.{
-        .fun = fun,
-        .arg = arg,
-        .closure = closure,
-        .expr = .{ .id = 0 },
-    }) catch oom();
+pub fn pushFun(c: *Compiler, frame: DirFrame) void {
+    c.dir_frame_stack.append(frame) catch oom();
     c.local_stack.appendNTimes(
         Value.emptyStruct(),
-        c.dir_fun_data.get(fun).local_data.count(),
+        c.dir_fun_data.get(frame.fun).local_data.count(),
     ) catch oom();
+}
+
+pub fn popFun(c: *Compiler) DirFrame {
+    const frame = c.dir_frame_stack.pop();
+    c.local_stack.shrinkRetainingCapacity(
+        c.local_stack.items.len -
+            c.dir_fun_data.get(frame.fun).local_data.count(),
+    );
+    return frame;
 }
 
 pub fn eval(c: *Compiler) error{EvalError}!Value {
@@ -52,16 +61,16 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     if (input.fun != .fun)
                         return fail(c, .{ .not_a_fun = input.fun });
                     const fun = input.fun.fun;
-                    pushFun(c, fun.repr.fun, input.args, .{ .@"struct" = fun.getClosure() });
+                    pushFun(c, .{
+                        .fun = fun.repr.fun,
+                        .closure = .{ .@"struct" = fun.getClosure() },
+                        .arg = input.args,
+                    });
                     continue :fun;
                 },
                 .block_begin, .block_end => {},
                 .@"return" => {
-                    c.local_stack.shrinkRetainingCapacity(
-                        c.local_stack.items.len -
-                            c.dir_fun_data.get(frame.fun).local_data.count(),
-                    );
-                    _ = c.dir_frame_stack.pop();
+                    _ = popFun(c);
                     if (c.dir_frame_stack.items.len == 0) {
                         assert(c.value_stack.items.len == 1);
                         return c.value_stack.pop();
