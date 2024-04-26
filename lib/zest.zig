@@ -465,18 +465,6 @@ pub const TirFrame = struct {
     expr: DirExpr,
 };
 
-pub const ReprOrValue = union(enum) {
-    repr: Repr,
-    value: Value,
-
-    pub fn reprOf(self: ReprOrValue) Repr {
-        switch (self) {
-            .repr => |repr| return repr,
-            .value => |value| return value.reprOf(),
-        }
-    }
-};
-
 pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
@@ -505,7 +493,7 @@ pub const Compiler = struct {
     tir_fun_by_key: Map(TirFunKey, TirFun),
     tir_fun_main: ?TirFun,
     tir_frame_stack: ArrayList(TirFrame),
-    repr_or_value_stack: ArrayList(ReprOrValue),
+    repr_stack: ArrayList(Repr),
 
     wasm: ArrayList(u8),
 
@@ -535,12 +523,18 @@ pub const Compiler = struct {
             .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
             .tir_fun_main = null,
             .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
-            .repr_or_value_stack = fieldType(Compiler, .repr_or_value_stack).init(allocator),
+            .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
         };
+    }
+
+    pub fn box(c: *Compiler, value: anytype) *@TypeOf(value) {
+        const ptr = c.allocator.create(@TypeOf(value)) catch oom();
+        ptr.* = value;
+        return ptr;
     }
 
     pub fn dupeOne(c: *Compiler, value: anytype) []@TypeOf(value) {

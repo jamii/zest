@@ -48,6 +48,14 @@ pub const Repr = union(enum) {
             .repr => panic("TODO {}", .{self}),
         };
     }
+
+    pub fn valueOf(self: Repr) ?Value {
+        return switch (self) {
+            .only => |value| value.*,
+            // TODO Can handle some of these when there are zero-sized.
+            .i32, .string, .@"struct", .@"union", .fun, .repr => null,
+        };
+    }
 };
 
 pub const ReprStruct = struct {

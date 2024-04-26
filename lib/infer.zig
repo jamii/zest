@@ -88,7 +88,7 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                         .closure = .{ .@"struct" = fun.getClosure() },
                     });
                     const value = try eval.eval(c);
-                    c.repr_or_value_stack.append(.{ .value = value }) catch oom();
+                    c.repr_stack.append(.{ .only = c.box(value) }) catch oom();
                 },
                 .@"return" => return fail(c, .staged_return),
                 .arg, .closure => return fail(c, .not_compile_time_known),
@@ -130,8 +130,8 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                         pushExprOutput(c, .call, .{ .value = return_repr });
                     } else {
                         // Put inputs back on stack and switch to the called function.
-                        c.repr_or_value_stack.append(.{ .repr = input.fun }) catch oom();
-                        c.repr_or_value_stack.append(.{ .repr = input.args }) catch oom();
+                        c.repr_stack.append(input.fun) catch oom();
+                        c.repr_stack.append(input.args) catch oom();
                         _ = pushFun(c, key);
                         return .call;
                     }
@@ -162,7 +162,7 @@ fn popExprInput(
             inline while (i > 0) : (i -= 1) {
                 const field = fields[i - 1];
                 @field(input, field.name) = switch (field.type) {
-                    Repr => popRepr(c),
+                    Repr => c.repr_stack.pop(),
                     Value => try popValue(c),
                     else => @compileError(@typeName(field.type)),
                 };
@@ -173,7 +173,7 @@ fn popExprInput(
             const keys = c.allocator.alloc(Value, data) catch oom();
             const reprs = c.allocator.alloc(Repr, data) catch oom();
             for (0..data) |i| {
-                reprs[data - 1 - i] = popRepr(c);
+                reprs[data - 1 - i] = c.repr_stack.pop();
                 keys[data - 1 - i] = try popValue(c);
             }
             return .{ .keys = keys, .values = reprs };
@@ -300,7 +300,7 @@ fn pushExprOutput(
     const Output = std.meta.TagPayload(DirExprOutput, expr_tag);
     if (Output == void) return;
     inline for (@typeInfo(Output).Struct.fields) |field| {
-        c.repr_or_value_stack.append(.{ .repr = @field(output, field.name) }) catch oom();
+        c.repr_stack.append(@field(output, field.name)) catch oom();
     }
 }
 
@@ -312,7 +312,7 @@ fn pushExprOutputValue(
     const Output = std.meta.TagPayload(zest.DirExprOutput(Value), expr_tag);
     if (Output == void) return;
     inline for (@typeInfo(Output).Struct.fields) |field| {
-        c.repr_or_value_stack.append(.{ .value = @field(output, field.name) }) catch oom();
+        c.repr_stack.append(.{ .only = c.box(@field(output, field.name)) }) catch oom();
     }
 }
 
@@ -336,15 +336,9 @@ fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr 
     }
 }
 
-fn popRepr(c: *Compiler) Repr {
-    return c.repr_or_value_stack.pop().reprOf();
-}
-
 fn popValue(c: *Compiler) error{InferError}!Value {
-    switch (c.repr_or_value_stack.pop()) {
-        .repr => return fail(c, .not_compile_time_known),
-        .value => |value| return value,
-    }
+    return c.repr_stack.pop().valueOf() orelse
+        fail(c, .not_compile_time_known);
 }
 
 fn push(c: *Compiler, f: *TirFunData, expr: TirExprData, repr: ?Repr) void {
