@@ -266,7 +266,7 @@ fn inferExpr(
         },
         .object_get => {
             const repr = switch (input.object) {
-                .i32, .string, .repr, .fun => return fail(c, .{ .not_an_object = input.object }),
+                .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.object }),
                 .@"struct" => |@"struct"| repr: {
                     const ix = @"struct".get(input.key) orelse
                         return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });

@@ -12,6 +12,7 @@ pub const Repr = union(enum) {
     @"struct": ReprStruct,
     @"union": ReprUnion,
     fun: ReprFun,
+    only: *Value,
     repr,
 
     pub fn emptyStruct() Repr {
@@ -43,6 +44,7 @@ pub const Repr = union(enum) {
             .string => panic("TODO {}", .{self}),
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
+            .only => 0,
             .repr => panic("TODO {}", .{self}),
         };
     }
