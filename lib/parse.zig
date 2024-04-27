@@ -207,12 +207,6 @@ fn parseExprAtom(c: *Compiler, options: SirExprAtomOptions) error{ParseError}!Si
 fn parseName(c: *Compiler) error{ParseError}!SirExpr {
     try expect(c, .name);
     const name = lastTokenText(c);
-    // TODO move this into lower, so that we get shadow errors
-    //inline for (@typeInfo(Builtin).Enum.fields) |field| {
-    //    if (std.mem.eql(u8, name, field.name)) {
-    //        return c.sir_expr_data.append(.{ .builtin = @as(Builtin, @enumFromInt(field.value)) });
-    //    }
-    //}
     return c.sir_expr_data.append(.{ .name = name });
 }
 

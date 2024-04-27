@@ -47,6 +47,8 @@ fn lowerPattern(c: *Compiler, f: *DirFunData, value: AbstractValue, pattern: Sir
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
+            if (c.scope.lookup(name)) |_|
+                return fail(c, pattern, .{ .name_already_bound = .{ .name = name } });
             c.scope.push(.{
                 .name = name,
                 .value = value,
@@ -90,7 +92,7 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
         },
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
-                return fail(c, expr, .name_not_in_scope);
+                return fail(c, expr, .{ .name_not_bound = .{ .name = name } });
             push(c, f, binding.value, binding.is_staged);
         },
         .let_or_set => |let_or_set| {
@@ -98,6 +100,8 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
             switch (c.sir_expr_data.get(let_or_set.path)) {
                 .mut => return fail(c, expr, .todo),
                 .name => |name| {
+                    if (c.scope.lookup(name)) |_|
+                        return fail(c, expr, .{ .name_already_bound = .{ .name = name } });
                     const local = f.local_data.append(.{});
                     _ = f.expr_data.append(.{ .local_set = local });
                     _ = f.expr_data.append(.{ .struct_init = 0 });
@@ -216,7 +220,12 @@ fn fail(c: *Compiler, expr: SirExpr, data: LowerErrorData) error{LowerError} {
 
 pub const LowerErrorData = union(enum) {
     invalid_pattern,
-    name_not_in_scope,
+    name_not_bound: struct {
+        name: []const u8,
+    },
+    name_already_bound: struct {
+        name: []const u8,
+    },
     invalid_let_path,
     todo,
 };
