@@ -115,26 +115,28 @@ pub fn main() !void {
             const correct_strict = std.mem.eql(u8, expected_strict, actual_strict);
             if (!correct_lax or !correct_strict) {
                 std.debug.print(
+                    \\=== source ===
                     \\{s}
                     \\
                 , .{source});
                 if (!correct_lax)
                     std.debug.print(
-                        \\   --- expected lax ---
+                        \\--- expected lax ---
                         \\{s}
-                        \\   --- actual lax ---
+                        \\--- actual lax ---
                         \\{s}
                         \\
                     , .{ expected_lax, actual_lax });
                 if (!correct_strict)
                     std.debug.print(
-                        \\   --- expected strict ---
+                        \\--- expected strict ---
                         \\{s}
-                        \\   --- actual strict ---
+                        \\--- actual strict ---
                         \\{s}
                         \\
                     , .{ expected_strict, actual_strict });
                 failures += 1;
+                std.debug.print("\n", .{});
             }
             try writer.print(
                 \\{s}

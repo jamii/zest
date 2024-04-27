@@ -627,7 +627,7 @@ pub const parse = @import("./parse.zig").parse;
 pub const lower = @import("./lower.zig").lower;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
-//pub const generate = @import("./generate.zig").generate;
+pub const generate = @import("./generate.zig").generate;
 
 pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, LowerError }!void {
     try tokenize(c);
@@ -646,5 +646,6 @@ pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }
     try inferMain(c);
     assert(c.tir_fun_main != null);
 
-    //try generate(c);
+    try generate(c);
+    assert(c.wasm.items.len != 0);
 }
