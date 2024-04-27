@@ -447,7 +447,7 @@ pub const TirFunData = struct {
     local_data: List(TirLocal, TirLocalData),
 
     expr_data: List(TirExpr, TirExprData),
-    expr_repr: List(TirExpr, ?Repr), // Some exprs don't return a value.
+    expr_repr: List(TirExpr, ?Repr), // null for exprs that don't return a value
 
     return_repr: FlatLattice(Repr),
 
