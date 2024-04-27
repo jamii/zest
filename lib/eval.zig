@@ -195,42 +195,42 @@ pub fn evalExpr(
     input: std.meta.TagPayload(DirExprInput, expr_tag),
 ) error{EvalError}!std.meta.TagPayload(DirExprOutput, expr_tag) {
     switch (expr_tag) {
-        .i32 => return .{ .value = .{ .i32 = data } },
-        .string => return .{ .value = .{ .string = data } },
+        .i32 => return .{ .i32 = data },
+        .string => return .{ .string = data },
         .struct_init => {
             const reprs = c.allocator.alloc(Repr, data) catch oom();
             for (input.values, reprs) |value, *repr| {
                 repr.* = value.reprOf();
             }
             // TODO sort
-            return .{ .value = .{ .@"struct" = .{
+            return .{ .@"struct" = .{
                 .repr = .{
                     .keys = input.keys,
                     .reprs = reprs,
                 },
                 .values = input.values,
-            } } };
+            } };
         },
         .fun_init => {
-            return .{ .value = .{ .fun = .{
+            return .{ .fun = .{
                 .repr = .{
                     .fun = data.fun,
                     .closure = input.closure.@"struct".repr,
                 },
                 .closure = input.closure.@"struct".values,
-            } } };
+            } };
         },
         .arg => {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            return .{ .value = frame.arg };
+            return frame.arg;
         },
         .closure => {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            return .{ .value = frame.closure };
+            return frame.closure;
         },
         .local_get => {
             const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
-            return .{ .value = value };
+            return value;
         },
         .local_set => {
             c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
@@ -239,7 +239,7 @@ pub fn evalExpr(
         .object_get => {
             const value = input.object.get(input.key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
-            return .{ .value = value };
+            return value;
         },
         .drop => return,
         .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_tag}),
@@ -252,10 +252,10 @@ fn pushExprOutput(
     comptime expr_tag: std.meta.Tag(DirExprData),
     output: std.meta.TagPayload(DirExprOutput, expr_tag),
 ) void {
-    const Output = std.meta.TagPayload(DirExprOutput, expr_tag);
-    if (Output == void) return;
-    inline for (@typeInfo(Output).Struct.fields) |field| {
-        c.value_stack.append(@field(output, field.name)) catch oom();
+    switch (@TypeOf(output)) {
+        void => return,
+        Value => c.value_stack.append(output) catch oom(),
+        else => @compileError(@typeName(@TypeOf(output))),
     }
 }
 

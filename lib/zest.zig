@@ -259,47 +259,23 @@ pub fn DirExprInput(comptime T: type) type {
 
 pub fn DirExprOutput(comptime T: type) type {
     return union(std.meta.Tag(DirExprData)) {
-        i32: struct {
-            value: T,
-        },
-        f32: struct {
-            value: T,
-        },
-        string: struct {
-            value: T,
-        },
-        struct_init: struct {
-            value: T,
-        },
-        fun_init: struct {
-            value: T,
-        },
-        arg: struct {
-            value: T,
-        },
-        closure: struct {
-            value: T,
-        },
-        local_get: struct {
-            value: T,
-        },
+        i32: T,
+        f32: T,
+        string: T,
+        struct_init: T,
+        fun_init: T,
+        arg: T,
+        closure: T,
+        local_get: T,
         local_set,
-        object_get: struct {
-            value: T,
-        },
-        call: struct {
-            value: T,
-        },
+        object_get: T,
+        call: T,
         drop,
         block_begin,
         block_end,
         @"return",
-        stage: struct {
-            value: T,
-        },
-        unstage: struct {
-            value: T,
-        },
+        stage: T,
+        unstage: T,
     };
 }
 

@@ -89,7 +89,7 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                     // TODO once we have recursive functions, seeing a .zero here indicates that type inference is cyclic
                     const return_repr = c.tir_fun_data.get(fun).return_repr.one;
                     _ = pushExpr(c, f, .{ .call = fun }, return_repr);
-                    pushExprOutput(c, .call, .{ .value = return_repr });
+                    pushExprOutput(c, .call, return_repr);
                 } else {
                     // Put inputs back on stack and switch to the called function.
                     c.repr_stack.append(input.fun) catch oom();
@@ -164,11 +164,11 @@ fn inferExpr(
     switch (expr_tag) {
         .i32 => {
             pushExpr(c, f, .{ .i32 = data }, .i32);
-            return .{ .value = .i32 };
+            return .i32;
         },
         .string => {
             pushExpr(c, f, .{ .string = data }, .string);
-            return .{ .value = .string };
+            return .string;
         },
         .struct_init => {
             const repr = Repr{ .@"struct" = .{
@@ -176,7 +176,7 @@ fn inferExpr(
                 .reprs = input.values,
             } };
             pushExpr(c, f, .struct_init, repr);
-            return .{ .value = repr };
+            return repr;
         },
         .fun_init => {
             const repr = Repr{ .fun = .{
@@ -184,22 +184,22 @@ fn inferExpr(
                 .closure = input.closure.@"struct",
             } };
             pushExpr(c, f, .fun_init, repr);
-            return .{ .value = repr };
+            return repr;
         },
         .arg => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-            return .{ .value = frame.key.arg_repr };
+            return frame.key.arg_repr;
         },
         .closure => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-            return .{ .value = frame.key.closure_repr };
+            return frame.key.closure_repr;
         },
         .local_get => {
             const local = TirLocal{ .id = data.id };
             // Shouldn't be able to reach get before set.
             const repr = f.local_data.get(local).repr.one;
             pushExpr(c, f, .{ .local_get = local }, repr);
-            return .{ .value = repr };
+            return repr;
         },
         .local_set => {
             const local = TirLocal{ .id = data.id };
@@ -218,7 +218,7 @@ fn inferExpr(
                 .@"union" => return fail(c, .todo),
             };
             pushExpr(c, f, .{ .object_get = .{ .key = input.key } }, repr);
-            return .{ .value = repr };
+            return repr;
         },
         .drop => {
             pushExpr(c, f, .drop, null);
@@ -230,7 +230,7 @@ fn inferExpr(
             _ = try reprUnion(c, &f.return_repr, input.value);
             return;
         },
-        .call => panic("Should be handled in infer, not inferExpr", .{}),
+        .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
         else => return fail(c, .todo),
     }
 }
@@ -240,10 +240,10 @@ fn pushExprOutput(
     comptime expr_tag: std.meta.Tag(DirExprData),
     output: std.meta.TagPayload(DirExprOutput, expr_tag),
 ) void {
-    const Output = std.meta.TagPayload(DirExprOutput, expr_tag);
-    if (Output == void) return;
-    inline for (@typeInfo(Output).Struct.fields) |field| {
-        c.repr_stack.append(@field(output, field.name)) catch oom();
+    switch (@TypeOf(output)) {
+        void => return,
+        Repr => c.repr_stack.append(output) catch oom(),
+        else => @compileError(@typeName(@TypeOf(output))),
     }
 }
 
