@@ -2,12 +2,18 @@
 42
 
 42
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
 1000001
 
 1000001
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -15,6 +21,9 @@
 2
 
 2
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -23,6 +32,19 @@ b = 2
 a
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
+```
+
+```
+a = 1
+a = 2
+a
+
+Name already bound: a
+
+Name already bound: a
 ```
 
 ```
@@ -30,6 +52,9 @@ a = [x: 1, y: 2]
 a.x
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -37,6 +62,9 @@ a = [x: 1, y: 2]
 a.y
 
 2
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -44,6 +72,9 @@ a = [[x: 1, y: 2], z: 3]
 a.0.x
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -51,6 +82,9 @@ a = [[x: 1, y: 2], z: 3]
 a.0.y
 
 2
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -58,6 +92,9 @@ a = [[x: 1, y: 2], z: 3]
 a.z
 
 3
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -77,6 +114,9 @@ a = [{k()}: 1]
 a.x
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -96,6 +136,9 @@ b = 2
 a()
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -104,6 +147,9 @@ b = 2
 a(1)
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -111,6 +157,9 @@ a = (x, y) x
 a(7,11)
 
 7
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -118,6 +167,9 @@ a = (x, y) y
 a(7,11)
 
 11
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -125,13 +177,19 @@ a = (:x, :y) y
 a(y: 7, x: 11)
 
 7
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
-a = (a) a.y
+a = (b) b.y
 a([x: 11, y: 7])
 
 7
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -139,6 +197,9 @@ a = (x, y) [:x, :y]
 a(7, 11).x
 
 7
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -146,6 +207,9 @@ a = (x, y) [:x, :y]
 a(7, 11).y
 
 11
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
@@ -154,14 +218,15 @@ b = () a
 b()
 
 1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
 
 ```
 a = 1
 b = () {
-  a = 2
   c = () {
-    a = 3
     d = () a
     d()
   }
@@ -169,5 +234,8 @@ b = () {
 }
 b()
 
-3
+1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
 ```
