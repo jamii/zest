@@ -629,7 +629,7 @@ pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
 //pub const generate = @import("./generate.zig").generate;
 
-pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, EvalError, InferError, GenerateError }!void {
+pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, LowerError }!void {
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
 
@@ -637,6 +637,10 @@ pub fn compile(c: *Compiler) error{ TokenizeError, ParseError, LowerError, EvalE
     assert(c.token_next.id == c.token_data.count());
 
     try lower(c);
+    assert(c.dir_fun_main != null);
+}
+
+pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }!void {
     assert(c.dir_fun_main != null);
 
     try inferMain(c);

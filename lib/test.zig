@@ -30,14 +30,38 @@ fn eval_wasm(
     }
 }
 
-fn eval(
+fn evalLax(
     allocator: Allocator,
     compiler: *Compiler,
 ) ![]const u8 {
-    try zest.compile(compiler);
+    try zest.compileLax(compiler);
     const value = try zest.evalMain(compiler);
     return std.fmt.allocPrint(allocator, "{}", .{value});
-    //return eval_wasm(allocator, compiler.wasm.items);
+}
+
+fn evalStrict(
+    allocator: Allocator,
+    compiler: *Compiler,
+) ![]const u8 {
+    try zest.compileLax(compiler);
+    try zest.compileStrict(compiler);
+
+    const file = std.fs.cwd().createFile("test.wasm", .{ .truncate = true }) catch |err|
+        panic("Error opening test.wasm: {}", .{err});
+    defer file.close();
+
+    file.writeAll(compiler.wasm.items) catch |err|
+        panic("Error writing test.wasm: {}", .{err});
+
+    if (std.ChildProcess.run(.{
+        .allocator = allocator,
+        .argv = &.{ "deno", "run", "--allow-read", "test.js" },
+        .max_output_bytes = std.math.maxInt(usize),
+    })) |result| {
+        return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
+    } else |err| {
+        panic("Error running test.js: {}", .{err});
+    }
 }
 
 pub fn main() !void {
@@ -74,42 +98,52 @@ pub fn main() !void {
             try writer.writeAll("```\n");
             const case = cases.next() orelse break;
             var parts = std.mem.split(u8, case, "\n\n");
-            const source_untrimmed = parts.next().?;
-            const source = std.mem.trim(u8, source_untrimmed, "\n");
-            const expected = std.mem.trim(u8, case[source_untrimmed.len..], "\n");
+            const source = std.mem.trim(u8, parts.next().?, "\n");
+            const expected_lax = std.mem.trim(u8, parts.next() orelse "", "\n");
+            const expected_strict = std.mem.trim(u8, parts.next() orelse "", "\n");
+            assert(parts.next() == null);
 
             //std.debug.print("{s}\n", .{source});
 
             var compiler = Compiler.init(allocator, source);
-            var actual: ?[]const u8 = null;
-            if (eval(allocator, &compiler)) |result| {
-                actual = result;
-            } else |_| {
-                actual = zest.formatError(&compiler);
-            }
+            const actual_lax = std.mem.trim(u8, evalLax(allocator, &compiler) catch zest.formatError(&compiler), "\n");
 
-            if (!std.mem.eql(
-                u8,
-                expected,
-                std.mem.trim(u8, actual.?, "\n"),
-            )) {
+            compiler = Compiler.init(allocator, source);
+            const actual_strict = std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n");
+
+            const correct_lax = std.mem.eql(u8, expected_lax, actual_lax);
+            const correct_strict = std.mem.eql(u8, expected_strict, actual_strict);
+            if (!correct_lax or !correct_strict) {
                 std.debug.print(
                     \\{s}
-                    \\   --- expected ---
-                    \\{s}
-                    \\   --- actual ---
-                    \\{s}
                     \\
-                    \\
-                , .{ source, expected, actual.? });
+                , .{source});
+                if (!correct_lax)
+                    std.debug.print(
+                        \\   --- expected lax ---
+                        \\{s}
+                        \\   --- actual lax ---
+                        \\{s}
+                        \\
+                    , .{ expected_lax, actual_lax });
+                if (!correct_strict)
+                    std.debug.print(
+                        \\   --- expected strict ---
+                        \\{s}
+                        \\   --- actual strict ---
+                        \\{s}
+                        \\
+                    , .{ expected_strict, actual_strict });
                 failures += 1;
             }
             try writer.print(
                 \\{s}
                 \\
                 \\{s}
+                \\
+                \\{s}
                 \\```
-            , .{ source, actual.? });
+            , .{ source, actual_lax, actual_strict });
         }
 
         if (rewrite) {
