@@ -239,3 +239,22 @@ b()
 TypeError: wasmInstance.exports.main is not a function
     at file:///home/jamie/zest/test.js:18:39
 ```
+
+```
+a = ([:x]) x
+a([x: 1])
+
+1
+
+TypeError: wasmInstance.exports.main is not a function
+    at file:///home/jamie/zest/test.js:18:39
+```
+
+```
+a = ([:x]) x
+a(1)
+
+Not an object: 1
+
+Not an object: repr.Repr{ .i32 = void }
+```

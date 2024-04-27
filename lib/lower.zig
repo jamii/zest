@@ -43,7 +43,6 @@ fn lowerObjectPattern(c: *Compiler, f: *DirFunData, object: AbstractValue, patte
 }
 
 fn lowerPattern(c: *Compiler, f: *DirFunData, value: AbstractValue, pattern: SirExpr) error{LowerError}!void {
-    _ = f;
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
@@ -54,10 +53,11 @@ fn lowerPattern(c: *Compiler, f: *DirFunData, value: AbstractValue, pattern: Sir
                 .value = value,
             });
         },
-        //.object => |object| {
-        //    TODO assert input is an object
-        //    try lowerObjectPattern(c, f, input, object);
-        //}
+        .object => |object| {
+            push(c, f, value, false);
+            _ = f.expr_data.append(.assert_object);
+            try lowerObjectPattern(c, f, value, object);
+        },
         else => return fail(c, pattern, .invalid_pattern),
     }
 }

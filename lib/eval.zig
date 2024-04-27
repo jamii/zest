@@ -165,7 +165,7 @@ fn popExprInput(
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
-        .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
+        .fun_init, .local_set, .assert_object, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -236,6 +236,14 @@ pub fn evalExpr(
             c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
             return;
         },
+        .assert_object => {
+            switch (input.value) {
+                .@"struct" => {},
+                .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
+                .@"union" => return fail(c, .todo),
+            }
+            return;
+        },
         .object_get => {
             const value = input.object.get(input.key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
@@ -270,6 +278,7 @@ pub const EvalErrorData = union(enum) {
         object: Value,
         key: Value,
     },
+    not_an_object: Value,
     not_a_fun: Value,
     cannot_stage_expr,
     cannot_unstage_value: Repr,

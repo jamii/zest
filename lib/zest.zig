@@ -202,6 +202,7 @@ pub const DirExprData = union(enum) {
     closure,
     local_get: DirLocal,
     local_set: DirLocal,
+    assert_object,
     object_get,
     call,
     drop,
@@ -236,6 +237,9 @@ pub fn DirExprInput(comptime T: type) type {
         local_set: struct {
             value: T,
         },
+        assert_object: struct {
+            value: T,
+        },
         object_get: struct {
             object: T,
             key: Value,
@@ -268,6 +272,7 @@ pub fn DirExprOutput(comptime T: type) type {
         closure: T,
         local_get: T,
         local_set,
+        assert_object,
         object_get: T,
         call: T,
         drop,
@@ -568,6 +573,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
                 return switch (err.data) {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
+                    .not_an_object => |data| format(c, "Not an object: {}", .{data}),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
                     .cannot_unstage_value => |data| format(c, "Cannot unstage value: {}", .{data}),
