@@ -78,6 +78,9 @@ pub fn evalStaged(c: *Compiler, tir_f: *TirFunData, arg_repr: Repr, closure_repr
                 const return_value = try eval(c);
                 c.value_stack.append(return_value) catch oom();
             },
+            // TODO This is a simple version.
+            //      To make things like `stage(repr-of(a.b.c))` work we'd need to switch back to infer.
+            //      Also have to limit to exprs with no side-effects or panics.
             .unstage => {
                 frame.expr.id += 1;
                 const value = switch (f.expr_data.get(frame.expr)) {
