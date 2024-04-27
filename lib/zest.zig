@@ -213,6 +213,7 @@ pub const DirExprData = union(enum) {
     },
     @"return",
     stage, // Stage the following block.
+    unstage, // Unstage the following expr.
 };
 
 // Push in order.
@@ -252,6 +253,7 @@ pub fn DirExprInput(comptime T: type) type {
             value: T,
         },
         stage,
+        unstage,
     };
 }
 
@@ -293,6 +295,9 @@ pub fn DirExprOutput(comptime T: type) type {
         block_end,
         @"return",
         stage: struct {
+            value: T,
+        },
+        unstage: struct {
             value: T,
         },
     };
@@ -345,19 +350,19 @@ pub const Scope = struct {
         self.bindings.shrinkRetainingCapacity(saved);
     }
 
-    pub fn lookup(self: *Scope, name: []const u8) ?Binding {
+    pub fn lookup(self: *Scope, name: []const u8) ?BindingInfo {
         var i: usize = self.bindings.items.len;
         while (i > 0) : (i -= 1) {
             const binding = self.bindings.items[i - 1];
             if (std.mem.eql(u8, binding.name, name)) {
-                if (i - 1 < self.closure_until_len) {
-                    return .{
-                        .name = binding.name,
-                        .value = .{ .closure = binding.name },
-                    };
-                } else {
-                    return binding;
-                }
+                return BindingInfo{
+                    .name = binding.name,
+                    .value = if (i - 1 < self.closure_until_len)
+                        .{ .closure = binding.name }
+                    else
+                        binding.value,
+                    .is_staged = i - 1 < self.staged_until_len,
+                };
             }
         }
         return null;
@@ -367,6 +372,12 @@ pub const Scope = struct {
 pub const Binding = struct {
     name: []const u8,
     value: AbstractValue,
+};
+
+pub const BindingInfo = struct {
+    name: []const u8,
+    value: AbstractValue,
+    is_staged: bool,
 };
 
 pub const AbstractValue = union(enum) {
@@ -575,7 +586,8 @@ pub fn formatError(c: *Compiler) []const u8 {
                 return switch (err.data) {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
-                    .cannot_staged_eval => format(c, "Cannot stage", .{}),
+                    .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
+                    .cannot_unstage_value => |data| format(c, "Cannot unstage value: {}", .{data}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },

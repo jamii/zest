@@ -3,6 +3,7 @@ const panic = std.debug.panic;
 
 const zest = @import("./zest.zig");
 const Value = zest.Value;
+const ValueStruct = zest.ValueStruct;
 const DirFun = zest.DirFun;
 const deepEqual = zest.deepEqual;
 
@@ -52,8 +53,15 @@ pub const Repr = union(enum) {
     pub fn valueOf(self: Repr) ?Value {
         return switch (self) {
             .only => |value| value.*,
-            // TODO Can handle some of these when there are zero-sized.
-            .i32, .string, .@"struct", .@"union", .fun, .repr => null,
+            .@"struct" => |@"struct"| if (@"struct".valueOf()) |value|
+                .{ .@"struct" = value }
+            else
+                null,
+            .fun => |fun| if (fun.closure.valueOf()) |closure|
+                .{ .fun = .{ .repr = fun, .closure = closure.values } }
+            else
+                null,
+            .i32, .string, .@"union", .repr => null,
         };
     }
 };
@@ -71,6 +79,13 @@ pub const ReprStruct = struct {
         var size: usize = 0;
         for (self.reprs) |repr| size += repr.sizeOf();
         return size;
+    }
+
+    pub fn valueOf(self: ReprStruct) ?ValueStruct {
+        return if (self.keys.len == 0)
+            .{ .repr = self, .values = &.{} }
+        else
+            null;
     }
 
     pub fn get(self: ReprStruct, key: Value) ?usize {

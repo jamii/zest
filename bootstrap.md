@@ -61,9 +61,29 @@ a.z
 ```
 
 ```
+// TODO Should all constants be stageable?
+k = 'x'
+a = [{k}: 1]
+a.x
+
+Cannot unstage value: repr.Repr{ .string = void }
+```
+
+```
 k = () 'x'
 a = [{k()}: 1]
-a.{k()}
+a.x
+
+1
+```
+
+```
+k = 'x'
+k2 = () k
+a = [{k2()}: 1]
+a.x
+
+Cannot unstage value: repr.Repr{ .fun = repr.ReprFun{ .fun = zest.DirFun{ .id = 0 }, .closure = repr.ReprStruct{ .keys = { ... }, .reprs = { ... } } } }
 ```
 
 ```

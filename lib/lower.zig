@@ -34,7 +34,7 @@ fn lowerFun(c: *Compiler, params: SirObject, body: SirExpr) error{LowerError}!Di
 
 fn lowerObjectPattern(c: *Compiler, f: *DirFunData, object: AbstractValue, pattern: SirObject) error{LowerError}!void {
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
-        push(c, f, object);
+        push(c, f, object, false);
         try lowerKey(c, f, key_expr);
         _ = f.expr_data.append(.object_get);
         const value = pop(c, f);
@@ -91,7 +91,7 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
                 return fail(c, expr, .name_not_in_scope);
-            push(c, f, binding.value);
+            push(c, f, binding.value, binding.is_staged);
         },
         .let_or_set => |let_or_set| {
             try lowerExpr(c, f, let_or_set.value);
@@ -126,7 +126,8 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
             const dir_fun_data = c.dir_fun_data.get(dir_fun);
             for (dir_fun_data.closure_keys.items) |name| {
                 stageString(c, f, name);
-                push(c, f, c.scope.lookup(name).?.value);
+                const binding = c.scope.lookup(name).?;
+                push(c, f, binding.value, binding.is_staged);
             }
             _ = f.expr_data.append(.{ .struct_init = dir_fun_data.closure_keys.items.len });
 
@@ -183,7 +184,9 @@ fn blockEnd(c: *Compiler, f: *DirFunData, begin: DirExpr) void {
     _ = f.expr_data.append(.{ .block_end = .{ .expr_count = expr_count } });
 }
 
-fn push(c: *Compiler, f: *DirFunData, value: AbstractValue) void {
+fn push(c: *Compiler, f: *DirFunData, value: AbstractValue, is_staged: bool) void {
+    if (is_staged)
+        _ = f.expr_data.append(.unstage);
     switch (value) {
         .arg => _ = f.expr_data.append(.arg),
         .closure => |name| {

@@ -17,6 +17,7 @@ const DirExprOutput = zest.DirExprOutput(Value);
 const DirFun = zest.DirFun;
 const DirFunData = zest.DirFunData;
 const DirFrame = zest.DirFrame;
+const TirFunData = zest.TirFunData;
 const Value = zest.Value;
 const Repr = zest.Repr;
 
@@ -48,7 +49,7 @@ pub fn popFun(c: *Compiler) DirFrame {
     return frame;
 }
 
-pub fn evalStaged(c: *Compiler) error{EvalError}!Value {
+pub fn evalStaged(c: *Compiler, tir_f: *TirFunData, arg_repr: Repr, closure_repr: Repr) error{EvalError}!Value {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
 
@@ -77,9 +78,25 @@ pub fn evalStaged(c: *Compiler) error{EvalError}!Value {
                 const return_value = try eval(c);
                 c.value_stack.append(return_value) catch oom();
             },
+            .unstage => {
+                frame.expr.id += 1;
+                const value = switch (f.expr_data.get(frame.expr)) {
+                    .local_get => |local| value: {
+                        const local_repr = tir_f.local_data.get(.{ .id = local.id }).repr.one;
+                        break :value local_repr.valueOf() orelse
+                            return fail(c, .{ .cannot_unstage_value = local_repr });
+                    },
+                    .arg => arg_repr.valueOf() orelse
+                        return fail(c, .{ .cannot_unstage_value = arg_repr }),
+                    .closure => closure_repr.valueOf() orelse
+                        return fail(c, .{ .cannot_unstage_value = closure_repr }),
+                    else => |other| panic("Invalid unstaged expr: {}", .{other}),
+                };
+                c.value_stack.append(value) catch oom();
+            },
             .block_begin, .block_end => {},
             .@"return", .arg, .closure => {
-                return fail(c, .cannot_staged_eval);
+                return fail(c, .cannot_stage_expr);
             },
             inline else => |data, expr_tag| {
                 const input = popExprInput(c, expr_tag, data);
@@ -116,7 +133,7 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     });
                     continue :fun;
                 },
-                .stage, .block_begin, .block_end => {},
+                .stage, .unstage, .block_begin, .block_end => {},
                 .@"return" => {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index) {
@@ -144,7 +161,7 @@ fn popExprInput(
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
@@ -251,6 +268,7 @@ pub const EvalErrorData = union(enum) {
         key: Value,
     },
     not_a_fun: Value,
-    cannot_staged_eval,
+    cannot_stage_expr,
+    cannot_unstage_value: Repr,
     todo,
 };

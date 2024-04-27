@@ -105,7 +105,7 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                     .arg = Value.emptyStruct(),
                     .closure = Value.emptyStruct(),
                 });
-                const return_value = try eval.evalStaged(c);
+                const return_value = try eval.evalStaged(c, f, frame.key.arg_repr, frame.key.closure_repr);
                 const eval_frame = eval.popFun(c);
                 frame.expr = eval_frame.expr;
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
@@ -126,7 +126,7 @@ fn popExprInput(
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) error{InferError}!std.meta.TagPayload(DirExprInput, expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
