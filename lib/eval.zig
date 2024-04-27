@@ -48,8 +48,57 @@ pub fn popFun(c: *Compiler) DirFrame {
     return frame;
 }
 
+pub fn evalStaged(c: *Compiler) error{EvalError}!Value {
+    const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+    const f = c.dir_fun_data.get(frame.fun);
+
+    const return_after = return_after: {
+        assert(f.expr_data.get(frame.expr) == .stage);
+        frame.expr.id += 1;
+        const block_begin_data = f.expr_data.get(frame.expr);
+        assert(block_begin_data == .block_begin);
+        const expr_block_end = DirExpr{ .id = frame.expr.id + block_begin_data.block_begin.expr_count + 1 };
+        assert(f.expr_data.get(expr_block_end) == .block_end);
+        break :return_after expr_block_end;
+    };
+
+    while (true) {
+        const expr_data = f.expr_data.get(frame.expr);
+        switch (expr_data) {
+            .call => |call| {
+                const input = popExprInput(c, .call, call);
+                if (input.fun != .fun)
+                    return fail(c, .{ .not_a_fun = input.fun });
+                pushFun(c, .{
+                    .fun = input.fun.fun.repr.fun,
+                    .closure = .{ .@"struct" = input.fun.fun.getClosure() },
+                    .arg = input.args,
+                });
+                const return_value = try eval(c);
+                c.value_stack.append(return_value) catch oom();
+            },
+            .block_begin, .block_end => {},
+            .@"return", .arg, .closure => {
+                return fail(c, .cannot_staged_eval);
+            },
+            inline else => |data, expr_tag| {
+                const input = popExprInput(c, expr_tag, data);
+                const output = try evalExpr(c, expr_tag, data, input);
+                pushExprOutput(c, expr_tag, output);
+                //std.debug.print("{}\n{}\n{}\n\n", .{ expr_data, input, output });
+            },
+        }
+        if (frame.expr.id == return_after.id) {
+            assert(c.value_stack.items.len == 1);
+            return c.value_stack.pop();
+        }
+        frame.expr.id += 1;
+    }
+}
+
 pub fn eval(c: *Compiler) error{EvalError}!Value {
     //std.debug.print("---\n\n", .{});
+    const start_frame_index = c.dir_frame_stack.items.len;
     fun: while (true) {
         const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
         const f = c.dir_fun_data.get(frame.fun);
@@ -60,18 +109,17 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     const input = popExprInput(c, .call, call);
                     if (input.fun != .fun)
                         return fail(c, .{ .not_a_fun = input.fun });
-                    const fun = input.fun.fun;
                     pushFun(c, .{
-                        .fun = fun.repr.fun,
-                        .closure = .{ .@"struct" = fun.getClosure() },
+                        .fun = input.fun.fun.repr.fun,
+                        .closure = .{ .@"struct" = input.fun.fun.getClosure() },
                         .arg = input.args,
                     });
                     continue :fun;
                 },
-                .block_begin, .block_end => {},
+                .stage, .block_begin, .block_end => {},
                 .@"return" => {
                     _ = popFun(c);
-                    if (c.dir_frame_stack.items.len == 0) {
+                    if (c.dir_frame_stack.items.len < start_frame_index) {
                         assert(c.value_stack.items.len == 1);
                         return c.value_stack.pop();
                     }
@@ -96,7 +144,7 @@ fn popExprInput(
     data: std.meta.TagPayload(DirExprData, expr_tag),
 ) std.meta.TagPayload(DirExprInput, expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage => return,
         .fun_init, .local_set, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(DirExprInput, expr_tag);
             var input: Input = undefined;
@@ -191,7 +239,7 @@ fn pushExprOutput(
     }
 }
 
-pub fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
+fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
     const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     c.error_data = .{ .eval = .{ .fun = frame.fun, .expr = frame.expr, .data = data } };
     return error.EvalError;
@@ -203,5 +251,6 @@ pub const EvalErrorData = union(enum) {
         key: Value,
     },
     not_a_fun: Value,
+    cannot_staged_eval,
     todo,
 };

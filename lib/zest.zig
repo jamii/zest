@@ -212,6 +212,7 @@ pub const DirExprData = union(enum) {
         expr_count: usize,
     },
     @"return",
+    stage, // Stage the following block.
 };
 
 // Push in order.
@@ -250,6 +251,7 @@ pub fn DirExprInput(comptime T: type) type {
         @"return": struct {
             value: T,
         },
+        stage,
     };
 }
 
@@ -290,6 +292,9 @@ pub fn DirExprOutput(comptime T: type) type {
         block_begin,
         block_end,
         @"return",
+        stage: struct {
+            value: T,
+        },
     };
 }
 
@@ -302,7 +307,6 @@ pub const DirFunData = struct {
     local_data: List(DirLocal, DirLocalData),
 
     expr_data: List(DirExpr, DirExprData),
-    expr_is_staged: std.DynamicBitSet,
 
     pub fn init(allocator: Allocator) DirFunData {
         return .{
@@ -312,7 +316,6 @@ pub const DirFunData = struct {
             .local_data = fieldType(DirFunData, .local_data).init(allocator),
 
             .expr_data = fieldType(DirFunData, .expr_data).init(allocator),
-            .expr_is_staged = std.DynamicBitSet.initEmpty(allocator, 0) catch oom(),
         };
     }
 };
@@ -481,7 +484,6 @@ pub const Compiler = struct {
     scope: Scope,
     dir_fun_data: List(DirFun, DirFunData),
     dir_fun_main: ?DirFun,
-    is_staged_stack: ArrayList(bool),
 
     // eval
     dir_frame_stack: ArrayList(DirFrame),
@@ -513,7 +515,6 @@ pub const Compiler = struct {
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
-            .is_staged_stack = fieldType(Compiler, .is_staged_stack).init(allocator),
 
             .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
@@ -584,14 +585,14 @@ pub fn formatError(c: *Compiler) []const u8 {
                 return switch (err.data) {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
+                    .cannot_staged_eval => format(c, "Cannot stage", .{}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },
             .infer => |err| {
                 const expr_data = c.dir_fun_data.get(err.key.fun).expr_data.get(err.expr);
                 return switch (err.data) {
-                    .not_compile_time_known => format(c, "Cannot evaluate at compile-time: {}", .{expr_data}),
-                    .staged_return => format(c, "Cannot return from compile-time block", .{}),
+                    .value_not_staged => |data| format(c, "Value not staged: {}", .{data}),
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
                     .not_an_object => |data| format(c, "Not an object: {}", .{data}),
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
