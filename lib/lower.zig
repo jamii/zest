@@ -116,8 +116,9 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
         },
         .fun => |fun| {
             const dir_fun = dir_fun: {
-                const closure = c.scope.pushClosure();
-                defer c.scope.popClosure(closure);
+                const prev_closure_until_len = c.scope.closure_until_len;
+                c.scope.closure_until_len = c.scope.bindings.items.len;
+                defer c.scope.closure_until_len = prev_closure_until_len;
 
                 break :dir_fun try lowerFun(c, fun.params, fun.body);
             };
@@ -153,6 +154,10 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
 }
 
 fn stageExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void {
+    const prev_staged_until_len = c.scope.staged_until_len;
+    c.scope.staged_until_len = c.scope.bindings.items.len;
+    defer c.scope.staged_until_len = prev_staged_until_len;
+
     _ = f.expr_data.append(.stage);
     const begin = blockBegin(c, f);
     try lowerExpr(c, f, expr);
@@ -191,7 +196,6 @@ fn push(c: *Compiler, f: *DirFunData, value: AbstractValue) void {
             _ = f.expr_data.append(.object_get);
         },
         .local => |local| _ = f.expr_data.append(.{ .local_get = local }),
-        .builtin => panic("TODO: {}", .{value}),
     }
 }
 

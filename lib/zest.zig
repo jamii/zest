@@ -322,11 +322,13 @@ pub const DirFunData = struct {
 
 pub const Scope = struct {
     closure_until_len: usize,
+    staged_until_len: usize,
     bindings: ArrayList(Binding),
 
     pub fn init(allocator: Allocator) Scope {
         return .{
             .closure_until_len = 0,
+            .staged_until_len = 0,
             .bindings = fieldType(Scope, .bindings).init(allocator),
         };
     }
@@ -341,16 +343,6 @@ pub const Scope = struct {
 
     pub fn restore(self: *Scope, saved: usize) void {
         self.bindings.shrinkRetainingCapacity(saved);
-    }
-
-    pub fn pushClosure(self: *Scope) usize {
-        const closure = self.closure_until_len;
-        self.closure_until_len = self.bindings.items.len;
-        return closure;
-    }
-
-    pub fn popClosure(self: *Scope, closure: usize) void {
-        self.closure_until_len = closure;
     }
 
     pub fn lookup(self: *Scope, name: []const u8) ?Binding {
@@ -381,8 +373,6 @@ pub const AbstractValue = union(enum) {
     arg,
     closure: []const u8,
     local: DirLocal,
-    //function: Function,
-    builtin: Builtin,
 };
 
 pub const DirFrame = struct {
