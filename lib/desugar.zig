@@ -14,29 +14,29 @@ const Builtin = zest.Builtin;
 const sir = zest.sir;
 const dir = zest.dir;
 
-pub fn lower(c: *Compiler) error{LowerError}!void {
-    c.dir_fun_main = try lowerFun(c, .{ .keys = &.{}, .values = &.{} }, c.sir_expr_data.lastKey().?);
+pub fn desugar(c: *Compiler) error{DesugarError}!void {
+    c.dir_fun_main = try desugarFun(c, .{ .keys = &.{}, .values = &.{} }, c.sir_expr_data.lastKey().?);
 }
 
-fn lowerFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{LowerError}!dir.Fun {
+fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarError}!dir.Fun {
     var f = dir.FunData.init(c.allocator);
-    try lowerObjectPattern(c, &f, .arg, params);
-    try lowerExpr(c, &f, body);
+    try desugarObjectPattern(c, &f, .arg, params);
+    try desugarExpr(c, &f, body);
     _ = f.expr_data.append(.@"return");
     return c.dir_fun_data.append(f);
 }
 
-fn lowerObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue, pattern: sir.Object) error{LowerError}!void {
+fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue, pattern: sir.Object) error{DesugarError}!void {
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
         push(c, f, object, false);
-        try lowerKey(c, f, key_expr);
+        try desugarKey(c, f, key_expr);
         _ = f.expr_data.append(.object_get);
         const value = pop(c, f);
-        try lowerPattern(c, f, value, value_expr);
+        try desugarPattern(c, f, value, value_expr);
     }
 }
 
-fn lowerPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, pattern: sir.Expr) error{LowerError}!void {
+fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, pattern: sir.Expr) error{DesugarError}!void {
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
@@ -50,13 +50,13 @@ fn lowerPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, pattern
         .object => |object| {
             push(c, f, value, false);
             _ = f.expr_data.append(.assert_object);
-            try lowerObjectPattern(c, f, value, object);
+            try desugarObjectPattern(c, f, value, object);
         },
         else => return fail(c, pattern, .invalid_pattern),
     }
 }
 
-fn lowerKey(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!void {
+fn desugarKey(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
         .name => |name| stageString(c, f, name),
@@ -64,15 +64,15 @@ fn lowerKey(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!voi
     }
 }
 
-fn lowerObject(c: *Compiler, f: *dir.FunData, object: sir.Object) error{LowerError}!void {
+fn desugarObject(c: *Compiler, f: *dir.FunData, object: sir.Object) error{DesugarError}!void {
     for (object.keys, object.values) |key, value| {
-        try lowerKey(c, f, key);
-        try lowerExpr(c, f, value);
+        try desugarKey(c, f, key);
+        try desugarExpr(c, f, value);
     }
     _ = f.expr_data.append(.{ .struct_init = object.keys.len });
 }
 
-fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!void {
+fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
         .i32 => |i| {
@@ -82,7 +82,7 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
             _ = f.expr_data.append(.{ .string = string });
         },
         .object => |object| {
-            try lowerObject(c, f, object);
+            try desugarObject(c, f, object);
         },
         .name => |name| {
             const binding = c.scope.lookup(name) orelse
@@ -90,7 +90,7 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
             push(c, f, binding.value, binding.is_staged);
         },
         .let_or_set => |let_or_set| {
-            try lowerExpr(c, f, let_or_set.value);
+            try desugarExpr(c, f, let_or_set.value);
             switch (c.sir_expr_data.get(let_or_set.path)) {
                 .mut => return fail(c, expr, .todo),
                 .name => |name| {
@@ -108,8 +108,8 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
             }
         },
         .get => |get| {
-            try lowerExpr(c, f, get.object);
-            try lowerKey(c, f, get.key);
+            try desugarExpr(c, f, get.object);
+            try desugarKey(c, f, get.key);
             _ = f.expr_data.append(.object_get);
         },
         .fun => |fun| {
@@ -118,7 +118,7 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
                 c.scope.closure_until_len = c.scope.bindings.items.len;
                 defer c.scope.closure_until_len = prev_closure_until_len;
 
-                break :dir_fun try lowerFun(c, fun.params, fun.body);
+                break :dir_fun try desugarFun(c, fun.params, fun.body);
             };
 
             const dir_fun_data = c.dir_fun_data.get(dir_fun);
@@ -132,8 +132,8 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
             _ = f.expr_data.append(.{ .fun_init = .{ .fun = dir_fun } });
         },
         .call => |call| {
-            try lowerExpr(c, f, call.head);
-            try lowerObject(c, f, call.args);
+            try desugarExpr(c, f, call.head);
+            try desugarObject(c, f, call.args);
             _ = f.expr_data.append(.call);
         },
         .block => |block| {
@@ -142,7 +142,7 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
 
             const begin = blockBegin(c, f);
             for (block, 0..) |statement, i| {
-                try lowerExpr(c, f, statement);
+                try desugarExpr(c, f, statement);
                 if (i < block.len - 1)
                     _ = f.expr_data.append(.drop);
             }
@@ -152,14 +152,14 @@ fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!vo
     }
 }
 
-fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!void {
+fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
     const prev_staged_until_len = c.scope.staged_until_len;
     c.scope.staged_until_len = c.scope.bindings.items.len;
     defer c.scope.staged_until_len = prev_staged_until_len;
 
     _ = f.expr_data.append(.stage);
     const begin = blockBegin(c, f);
-    try lowerExpr(c, f, expr);
+    try desugarExpr(c, f, expr);
     blockEnd(c, f, begin);
 }
 
@@ -207,12 +207,12 @@ fn pop(c: *Compiler, f: *dir.FunData) dir.AbstractValue {
     return .{ .local = local };
 }
 
-fn fail(c: *Compiler, expr: sir.Expr, data: LowerErrorData) error{LowerError} {
-    c.error_data = .{ .lower = .{ .expr = expr, .data = data } };
-    return error.LowerError;
+fn fail(c: *Compiler, expr: sir.Expr, data: DesugarErrorData) error{DesugarError} {
+    c.error_data = .{ .desugar = .{ .expr = expr, .data = data } };
+    return error.DesugarError;
 }
 
-pub const LowerErrorData = union(enum) {
+pub const DesugarErrorData = union(enum) {
     invalid_pattern,
     name_not_bound: struct {
         name: []const u8,

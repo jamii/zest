@@ -8,10 +8,6 @@ const wasm = std.wasm;
 pub const deepEqual = @import("deep.zig").deepEqual;
 pub const deepHash = @import("deep.zig").deepHash;
 
-pub const sir = @import("./sir.zig");
-pub const dir = @import("./dir.zig");
-pub const tir = @import("./tir.zig");
-
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
 pub const ReprUnion = @import("./repr.zig").ReprUnion;
@@ -22,9 +18,14 @@ pub const ValueStruct = @import("./value.zig").ValueStruct;
 pub const ValueUnion = @import("./value.zig").ValueUnion;
 pub const ValueFun = @import("./value.zig").ValueFun;
 
+pub const sir = @import("./sir.zig");
+pub const dir = @import("./dir.zig");
+pub const tir = @import("./tir.zig");
+pub const wir = @import("./wir.zig");
+
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
-pub const lower = @import("./lower.zig").lower;
+pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
 pub const generate = @import("./generate.zig").generate;
@@ -174,7 +175,7 @@ pub const Compiler = struct {
     token_next: Token,
     sir_expr_data: List(sir.Expr, sir.ExprData),
 
-    // lower
+    // desugar
     scope: dir.Scope,
     dir_fun_data: List(dir.Fun, dir.FunData),
     dir_fun_main: ?dir.Fun,
@@ -239,15 +240,15 @@ pub const Compiler = struct {
 
 pub const TokenizeErrorData = @import("./tokenize.zig").TokenizeErrorData;
 pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
-pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
+pub const DesugarErrorData = @import("./desugar.zig").DesugarErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 pub const InferErrorData = @import("./infer.zig").InferErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
-    lower: struct {
+    desugar: struct {
         expr: sir.Expr,
-        data: LowerErrorData,
+        data: DesugarErrorData,
     },
     eval: struct {
         fun: dir.Fun,
@@ -265,14 +266,14 @@ pub const ErrorData = union(enum) {
 pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
         switch (error_data) {
-            .lower => |err| {
+            .desugar => |err| {
                 const expr_data = c.sir_expr_data.get(err.expr);
                 return switch (err.data) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
                     .name_already_bound => |data| format(c, "Name already bound: {s}", .{data.name}),
                     .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
-                    .todo => format(c, "TODO lower: {}", .{expr_data}),
+                    .todo => format(c, "TODO desugar: {}", .{expr_data}),
                 };
             },
             .eval => |err| {
@@ -307,14 +308,14 @@ pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const
     return std.fmt.allocPrint(c.allocator, message, args) catch oom();
 }
 
-pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, LowerError }!void {
+pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }!void {
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
 
     try parse(c);
     assert(c.token_next.id == c.token_data.count());
 
-    try lower(c);
+    try desugar(c);
     assert(c.dir_fun_main != null);
 }
 
