@@ -8,11 +8,8 @@ const wasm = std.wasm;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const Compiler = zest.Compiler;
-const Specialization = zest.Specialization;
-const SpecializationData = zest.SpecializationData;
-const Node = zest.Node;
-const NodeData = zest.NodeData;
 const Repr = zest.Repr;
+const wir = zest.wir;
 
 const stack_global = 0;
 const stack_top = 1 * wasm.page_size;
@@ -21,143 +18,152 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
     emitBytes(c, &wasm.magic);
     emitBytes(c, &wasm.version);
 
-    //{
-    //    const section = emitSectionStart(c, wasm.Section.type);
-    //    defer emitSectionEnd(c, section);
+    {
+        const section = emitSectionStart(c, wasm.Section.type);
+        defer emitSectionEnd(c, section);
 
-    //    emitLebU32(c, @intCast(c.specialization_data.count()));
-    //    for (c.specialization_data.items()) |specialization_data| {
-    //        emitByte(c, wasm.function_type);
+        emitLebU32(c, @intCast(c.fun_type_data.count()));
+        for (c.fun_type_data.items()) |fun_type_data| {
+            emitByte(c, wasm.function_type);
 
-    //        // Param types
-    //        emitLebU32(c, @intCast(specialization_data.in_repr.count()));
-    //        for (specialization_data.in_repr.items()) |in_repr| {
-    //            emitEnum(c, try valtypeFromRepr(c, in_repr));
-    //        }
+            emitLebU32(c, @intCast(fun_type_data.arg_types.len));
+            for (fun_type_data.arg_types) |arg_type| {
+                emitEnum(c, arg_type);
+            }
 
-    //        // Result types
-    //        emitLebU32(c, 1);
-    //        emitEnum(c, try valtypeFromRepr(c, specialization_data.out_repr));
-    //    }
-    //}
+            emitLebU32(c, @intCast(fun_type_data.return_types.len));
+            for (fun_type_data.return_types) |return_type| {
+                emitEnum(c, return_type);
+            }
+        }
+    }
 
-    //{
-    //    const section = emitSectionStart(c, wasm.Section.function);
-    //    defer emitSectionEnd(c, section);
+    {
+        const section = emitSectionStart(c, wasm.Section.function);
+        defer emitSectionEnd(c, section);
 
-    //    emitLebU32(c, @intCast(c.specialization_data.count()));
-    //    for (0..c.specialization_data.count()) |specialization_id| {
-    //        // Specialization i has type i
-    //        emitLebU32(c, @intCast(specialization_id));
-    //    }
-    //}
+        emitLebU32(c, @intCast(c.wir_fun_data.count()));
+        for (c.wir_fun_data.items()) |f| {
+            emitLebU32(c, @intCast(f.fun_type.id));
+        }
+    }
 
-    //{
-    //    const section = emitSectionStart(c, wasm.Section.memory);
-    //    defer emitSectionEnd(c, section);
+    {
+        const section = emitSectionStart(c, wasm.Section.memory);
+        defer emitSectionEnd(c, section);
 
-    //    // Number of memories.
-    //    emitLebU32(c, 1);
-    //    // No maximum.
-    //    emitByte(c, 0x00);
-    //    // At minimum enough space for stack.
-    //    emitLebU32(c, @divExact(stack_top, wasm.page_size));
-    //}
+        // Number of memories.
+        emitLebU32(c, 1);
+        // No maximum.
+        emitByte(c, 0x00);
+        // At minimum enough space for stack.
+        emitLebU32(c, @divExact(stack_top, wasm.page_size));
+    }
 
-    //{
-    //    const section = emitSectionStart(c, wasm.Section.global);
-    //    defer emitSectionEnd(c, section);
+    {
+        const section = emitSectionStart(c, wasm.Section.global);
+        defer emitSectionEnd(c, section);
 
-    //    // Number of globals.
-    //    emitLebU32(c, 1);
+        // Number of globals.
+        emitLebU32(c, 1);
 
-    //    emitEnum(c, wasm.Valtype.i32);
-    //    emitByte(c, 0x01); // mutable
-    //    emitEnum(c, wasm.Opcode.i32_const);
-    //    emitLebU32(c, stack_top);
-    //    emitEnum(c, wasm.Opcode.end);
-    //}
+        emitEnum(c, wasm.Valtype.i32);
+        emitByte(c, 0x01); // mutable
+        emitEnum(c, wasm.Opcode.i32_const);
+        emitLebU32(c, stack_top);
+        emitEnum(c, wasm.Opcode.end);
+    }
 
-    //{
-    //    const section = emitSectionStart(c, wasm.Section.@"export");
-    //    defer emitSectionEnd(c, section);
+    {
+        const section = emitSectionStart(c, wasm.Section.@"export");
+        defer emitSectionEnd(c, section);
 
-    //    // Number of exports.
-    //    emitLebU32(c, 2);
+        // Number of exports.
+        emitLebU32(c, 2);
 
-    //    emitName(c, "main");
-    //    emitEnum(c, wasm.ExternalKind.function);
-    //    emitLebU32(c, @intCast(c.specialization_main.?.id));
+        emitName(c, "main");
+        emitEnum(c, wasm.ExternalKind.function);
+        emitLebU32(c, @intCast(c.wir_fun_main.?.id));
 
-    //    emitName(c, "memory");
-    //    emitEnum(c, wasm.ExternalKind.memory);
-    //    emitLebU32(c, 0);
-    //}
+        emitName(c, "memory");
+        emitEnum(c, wasm.ExternalKind.memory);
+        emitLebU32(c, 0);
+    }
 
-    //{
-    //    const section = emitSectionStart(c, wasm.Section.code);
-    //    defer emitSectionEnd(c, section);
+    {
+        const section = emitSectionStart(c, wasm.Section.code);
+        defer emitSectionEnd(c, section);
 
-    //    emitLebU32(c, @intCast(c.specialization_data.count()));
-    //    for (c.specialization_data.items()) |s| {
-    //        const start = emitByteCountLater(c);
-    //        defer emitByteCount(c, start);
+        emitLebU32(c, @intCast(c.wir_fun_data.count()));
+        for (c.wir_fun_data.items()) |f| {
+            const start = emitByteCountLater(c);
+            defer emitByteCount(c, start);
 
-    //        // Locals
-    //        emitLebU32(c, @intCast(s.local_repr.count()));
-    //        for (s.local_repr.items()) |repr| {
-    //            emitLebU32(c, 1);
-    //            emitEnum(c, try valtypeFromRepr(c, repr));
-    //        }
+            // Locals
+            emitLebU32(c, @intCast(f.local_data.count()));
+            for (f.local_data.items()) |l| {
+                emitLebU32(c, 1);
+                emitEnum(c, l.type);
+            }
 
-    //        var shadow_size: usize = 0;
-    //        for (s.shadow_repr.items()) |repr| {
-    //            shadow_size += repr.sizeOf();
-    //        }
+            //// Frame push
+            //if (shadow_size != 0) {
+            //    emitEnum(c, wasm.Opcode.global_get);
+            //    emitLebU32(c, stack_global);
+            //    emitEnum(c, wasm.Opcode.i32_const);
+            //    emitLebU32(c, @intCast(shadow_size));
+            //    emitEnum(c, wasm.Opcode.i32_sub);
+            //    emitEnum(c, wasm.Opcode.global_set);
+            //    emitLebU32(c, stack_global);
+            //}
 
-    //        // Frame push
-    //        if (shadow_size != 0) {
-    //            emitEnum(c, wasm.Opcode.global_get);
-    //            emitLebU32(c, stack_global);
-    //            emitEnum(c, wasm.Opcode.i32_const);
-    //            emitLebU32(c, @intCast(shadow_size));
-    //            emitEnum(c, wasm.Opcode.i32_sub);
-    //            emitEnum(c, wasm.Opcode.global_set);
-    //            emitLebU32(c, stack_global);
-    //        }
+            for (f.expr_data.items()) |expr_data| {
+                emitExpr(c, f, expr_data);
+            }
 
-    //        // Body
-    //        var node_next = s.node_first;
-    //        while (node_next) |node| {
-    //            node_next = s.node_next.get(node);
-    //            emitNode(c, s, node);
-    //            if (s.node_data.get(node) == .@"return") break;
-    //        }
+            //// Frame pop
+            //if (shadow_size != 0) {
+            //    emitEnum(c, wasm.Opcode.global_get);
+            //    emitLebU32(c, stack_global);
+            //    emitEnum(c, wasm.Opcode.i32_const);
+            //    emitLebU32(c, @intCast(shadow_size));
+            //    emitEnum(c, wasm.Opcode.i32_add);
+            //    emitEnum(c, wasm.Opcode.global_set);
+            //    emitLebU32(c, stack_global);
+            //}
 
-    //        // Frame pop
-    //        if (shadow_size != 0) {
-    //            emitEnum(c, wasm.Opcode.global_get);
-    //            emitLebU32(c, stack_global);
-    //            emitEnum(c, wasm.Opcode.i32_const);
-    //            emitLebU32(c, @intCast(shadow_size));
-    //            emitEnum(c, wasm.Opcode.i32_add);
-    //            emitEnum(c, wasm.Opcode.global_set);
-    //            emitLebU32(c, stack_global);
-    //        }
-
-    //        emitEnum(c, wasm.Opcode.@"return");
-    //        emitEnum(c, wasm.Opcode.end);
-    //    }
-    //}
+            emitEnum(c, wasm.Opcode.@"return");
+            emitEnum(c, wasm.Opcode.end);
+        }
+    }
 }
 
-//fn valtypeFromRepr(c: *Compiler, repr: Repr) !wasm.Valtype {
-//    _ = c;
-//    return switch (repr) {
-//        .i32 => .i32,
-//        .string, .@"struct", .@"union", .repr => panic("Unexpected {}", .{repr}),
-//    };
-//}
+fn emitExpr(c: *Compiler, f: wir.FunData, expr_data: wir.ExprData) void {
+    switch (expr_data) {
+        .i32 => |i| {
+            emitEnum(c, wasm.Opcode.i32_const);
+            emitLebI32(c, i);
+        },
+        .local_get => |local| {
+            emitEnum(c, wasm.Opcode.local_get);
+            const arg_count = c.fun_type_data.get(f.fun_type).arg_types.len;
+            emitLebU32(c, @intCast(arg_count + local.id));
+        },
+        .local_set => |local| {
+            emitEnum(c, wasm.Opcode.local_set);
+            const arg_count = c.fun_type_data.get(f.fun_type).arg_types.len;
+            emitLebU32(c, @intCast(arg_count + local.id));
+        },
+        .drop => {
+            emitEnum(c, wasm.Opcode.drop);
+        },
+        .@"return" => {
+            // Do nothing here - leave the value on the stack and it will be returned after frame pop.
+            // TODO Once we have non-trivial control flow we'll need to break to the outermost block.
+        },
+        else => panic("TODO generate: {}", .{expr_data}),
+    }
+}
 
 //fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
 //    const node_data = s.node_data.get(node);

@@ -30,6 +30,7 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
     if (!tir_f.key.closure_repr.isEmptyStruct() or
         !tir_f.key.arg_repr.isEmptyStruct())
         return fail(c, .todo);
+    return_types.append(try lowerRepr(c, tir_f.return_repr.one)) catch oom();
     const fun_type_data = wir.FunTypeData{
         .arg_types = arg_types.toOwnedSlice() catch oom(),
         .return_types = return_types.toOwnedSlice() catch oom(),
@@ -44,13 +45,13 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
     const f = c.wir_fun_data.getPtr(fun);
     assert(tir_fun.id == fun.id);
 
-    for (tir_f.local_data.data.items) |local_data| {
+    for (tir_f.local_data.items()) |local_data| {
         _ = f.local_data.append(.{
             .type = try lowerRepr(c, local_data.repr.one),
         });
     }
 
-    for (tir_f.expr_data.data.items, tir_f.expr_repr.data.items) |expr_data, repr| {
+    for (tir_f.expr_data.items(), tir_f.expr_repr.items()) |expr_data, repr| {
         switch (expr_data) {
             .i32 => |i| {
                 _ = f.expr_data.append(.{ .i32 = i });

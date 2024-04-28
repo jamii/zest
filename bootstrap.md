@@ -3,8 +3,7 @@
 
 42
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+42
 ```
 
 ```
@@ -12,8 +11,7 @@ TypeError: wasmInstance.exports.main is not a function
 
 1000001
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+1000001
 ```
 
 ```
@@ -22,8 +20,7 @@ TypeError: wasmInstance.exports.main is not a function
 
 2
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+2
 ```
 
 ```
@@ -33,8 +30,7 @@ a
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+1
 ```
 
 ```
@@ -53,8 +49,7 @@ a.x
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -63,8 +58,7 @@ a.y
 
 2
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -73,8 +67,7 @@ a.0.x
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -83,8 +76,7 @@ a.0.y
 
 2
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -93,8 +85,7 @@ a.z
 
 3
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -115,8 +106,7 @@ a.x
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -137,8 +127,7 @@ a()
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -148,8 +137,7 @@ a(1)
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -158,8 +146,7 @@ a(7,11)
 
 7
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -168,8 +155,7 @@ a(7,11)
 
 11
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -178,8 +164,7 @@ a(y: 7, x: 11)
 
 7
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -188,8 +173,7 @@ a([x: 11, y: 7])
 
 7
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -198,8 +182,7 @@ a(7, 11).x
 
 7
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -208,8 +191,7 @@ a(7, 11).y
 
 11
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -219,8 +201,7 @@ b()
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -236,8 +217,7 @@ b()
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
@@ -246,8 +226,7 @@ a([x: 1])
 
 1
 
-TypeError: wasmInstance.exports.main is not a function
-    at file:///home/jamie/zest/test.js:18:39
+TODO lower
 ```
 
 ```
