@@ -127,7 +127,7 @@ a.x
 
 1
 
-Cannot unstage value: repr.Repr{ .fun = repr.ReprFun{ .fun = zest.DirFun{ .id = 0 }, .closure = repr.ReprStruct{ .keys = { ... }, .reprs = { ... } } } }
+Cannot unstage value: repr.Repr{ .fun = repr.ReprFun{ .fun = dir.Fun{ .id = 0 }, .closure = repr.ReprStruct{ .keys = { ... }, .reprs = { ... } } } }
 ```
 
 ```

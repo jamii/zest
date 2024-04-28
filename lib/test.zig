@@ -95,7 +95,6 @@ pub fn main() !void {
         while (true) {
             const not_case = cases.next().?;
             try writer.writeAll(not_case);
-            try writer.writeAll("```\n");
             const case = cases.next() orelse break;
             var parts = std.mem.split(u8, case, "\n\n");
             const source = std.mem.trim(u8, parts.next().?, "\n");
@@ -139,6 +138,7 @@ pub fn main() !void {
                 std.debug.print("\n", .{});
             }
             try writer.print(
+                \\```
                 \\{s}
                 \\
                 \\{s}
