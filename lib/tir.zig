@@ -28,7 +28,7 @@ pub const ExprData = union(enum) {
     arg,
     closure,
     local_get: Local,
-    local_set: Local,
+    local_let: Local,
     object_get: struct {
         key: Value,
     },

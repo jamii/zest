@@ -28,7 +28,7 @@ pub const ExprData = union(enum) {
     arg,
     closure,
     local_get: Local,
-    local_set: Local,
+    local_let: Local,
     assert_object,
     object_get,
     call,
@@ -61,7 +61,7 @@ pub fn ExprInput(comptime T: type) type {
         arg,
         closure,
         local_get,
-        local_set: struct {
+        local_let: struct {
             value: T,
         },
         assert_object: struct {
@@ -98,7 +98,7 @@ pub fn ExprOutput(comptime T: type) type {
         arg: T,
         closure: T,
         local_get: T,
-        local_set,
+        local_let,
         assert_object,
         object_get: T,
         call: T,

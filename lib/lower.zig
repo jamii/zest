@@ -65,7 +65,7 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
             .local_get => |local| {
                 _ = f.expr_data.append(.{ .local_get = .{ .id = local.id } });
             },
-            .local_set => |local| {
+            .local_let => |local| {
                 _ = f.expr_data.append(.{ .local_set = .{ .id = local.id } });
             },
             .drop => {

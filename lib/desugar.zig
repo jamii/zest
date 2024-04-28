@@ -97,7 +97,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                     if (c.scope.lookup(name)) |_|
                         return fail(c, expr, .{ .name_already_bound = .{ .name = name } });
                     const local = f.local_data.append(.{});
-                    _ = f.expr_data.append(.{ .local_set = local });
+                    _ = f.expr_data.append(.{ .local_let = local });
                     _ = f.expr_data.append(.{ .struct_init = 0 });
                     c.scope.push(.{
                         .name = name,
@@ -203,7 +203,7 @@ fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool
 fn pop(c: *Compiler, f: *dir.FunData) dir.AbstractValue {
     _ = c;
     const local = f.local_data.append(.{});
-    _ = f.expr_data.append(.{ .local_set = local });
+    _ = f.expr_data.append(.{ .local_let = local });
     return .{ .local = local };
 }
 

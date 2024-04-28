@@ -158,7 +158,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
-        .fun_init, .local_set, .assert_object, .object_get, .drop, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -225,7 +225,7 @@ pub fn evalExpr(
             const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
             return value;
         },
-        .local_set => {
+        .local_let => {
             c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
             return;
         },
