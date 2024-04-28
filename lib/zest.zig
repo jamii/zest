@@ -192,6 +192,12 @@ pub const Compiler = struct {
     tir_frame_stack: ArrayList(tir.Frame),
     repr_stack: ArrayList(Repr),
 
+    // lower
+    wir_fun_data: List(wir.Fun, wir.FunData),
+    wir_fun_main: ?wir.Fun,
+    wir_constant_value: List(wir.Constant, Value),
+
+    // generate
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -220,6 +226,10 @@ pub const Compiler = struct {
             .tir_fun_main = null,
             .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
             .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
+
+            .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
+            .wir_fun_main = null,
+            .wir_constant_value = fieldType(Compiler, .wir_constant_value).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
