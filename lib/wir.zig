@@ -10,6 +10,8 @@ const fieldType = zest.fieldType;
 const List = zest.List;
 const tir = zest.tir;
 
+pub const Arg = struct { id: usize };
+
 pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
@@ -19,13 +21,20 @@ pub const LocalData = struct {
 pub const Expr = struct { id: usize };
 
 pub const ExprData = union(enum) {
-    i32_const: i32,
-    f32_const: f32,
-    ptr_to_const: Constant,
+    i32: i32,
+    f32: f32,
+    ptr_to_constant: Constant,
+    arg: Arg,
     local_get: Local,
     local_set: Local,
-    load: struct { offset: u32 },
-    store: struct { offset: u32 },
+    load: struct {
+        type: wasm.Valtype,
+        address: Address,
+    },
+    store: struct {
+        type: wasm.Valtype,
+        address: Address,
+    },
     call: Fun,
     drop,
     block_begin: struct {
@@ -37,15 +46,29 @@ pub const ExprData = union(enum) {
     @"return",
 };
 
+pub const Address = struct {
+    base: union(enum) {
+        frame,
+        arg: Arg,
+    },
+    offset: u32,
+};
+
 pub const Constant = struct { id: usize };
+
+pub const FunType = struct { id: usize };
+
+pub const FunTypeData = struct {
+    arg_types: []wasm.Valtype,
+    return_types: []wasm.Valtype,
+};
 
 pub const Fun = struct { id: usize };
 
 pub const FunData = struct {
     tir_fun: tir.Fun,
 
-    arg_types: ArrayList(wasm.Valtype),
-    return_types: ArrayList(wasm.Valtype),
+    fun_type: FunType,
 
     local_data: List(Local, LocalData),
 
@@ -54,12 +77,12 @@ pub const FunData = struct {
     pub fn init(
         allocator: Allocator,
         tir_fun: tir.Fun,
+        fun_type: FunType,
     ) FunData {
         return .{
             .tir_fun = tir_fun,
 
-            .arg_types = fieldType(FunData, .arg_types).init(allocator),
-            .return_types = fieldType(FunData, .return_types).init(allocator),
+            .fun_type = fun_type,
 
             .local_data = fieldType(FunData, .local_data).init(allocator),
 

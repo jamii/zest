@@ -30,6 +30,10 @@ pub const Repr = union(enum) {
         } };
     }
 
+    pub fn isEmptyStruct(self: Repr) bool {
+        return (self == .@"struct" and self.@"struct".keys.len == 0);
+    }
+
     pub fn isEmptyUnion(self: Repr) bool {
         return (self == .@"union" and self.@"union".keys.len == 0);
     }

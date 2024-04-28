@@ -180,11 +180,15 @@ fn inferExpr(
         },
         .arg => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-            return frame.key.arg_repr;
+            const repr = frame.key.arg_repr;
+            pushExpr(c, f, .arg, repr);
+            return repr;
         },
         .closure => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-            return frame.key.closure_repr;
+            const repr = frame.key.closure_repr;
+            pushExpr(c, f, .closure, repr);
+            return repr;
         },
         .local_get => {
             const local = tir.Local{ .id = data.id };
@@ -205,6 +209,7 @@ fn inferExpr(
                 .@"struct" => {},
                 .@"union" => return fail(c, .todo),
             }
+            // Compiled away completely.
             return;
         },
         .object_get => {
@@ -226,8 +231,8 @@ fn inferExpr(
         },
         .block_begin, .block_end => return,
         .@"return" => {
-            pushExpr(c, f, .@"return", null);
             _ = try reprUnion(c, &f.return_repr, input.value);
+            pushExpr(c, f, .@"return", null);
             return;
         },
         .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),

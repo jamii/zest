@@ -196,7 +196,9 @@ pub const Compiler = struct {
     // lower
     wir_fun_data: List(wir.Fun, wir.FunData),
     wir_fun_main: ?wir.Fun,
-    wir_constant_bytes: List(wir.Constant, []const u8),
+    constant_bytes: List(wir.Constant, []const u8),
+    fun_type_memo: Map(wir.FunTypeData, wir.FunType),
+    fun_type_data: List(wir.FunType, wir.FunTypeData),
 
     // generate
     wasm: ArrayList(u8),
@@ -230,7 +232,9 @@ pub const Compiler = struct {
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .wir_fun_main = null,
-            .wir_constant_bytes = fieldType(Compiler, .wir_constant_bytes).init(allocator),
+            .constant_bytes = fieldType(Compiler, .constant_bytes).init(allocator),
+            .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
+            .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
@@ -274,8 +278,6 @@ pub const ErrorData = union(enum) {
         data: InferErrorData,
     },
     lower: struct {
-        fun: wir.Fun,
-        expr: tir.Expr,
         data: LowerErrorData,
     },
 };
@@ -313,6 +315,11 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
+                };
+            },
+            .lower => |err| {
+                return switch (err.data) {
+                    .todo => format(c, "TODO lower", .{}),
                 };
             },
             else => return format(c, "{}", .{c.error_data.?}),
