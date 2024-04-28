@@ -31,7 +31,7 @@ pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
 }
 
 fn pushFun(c: *Compiler, key: tir.FunKey) tir.Fun {
-    const fun = c.tir_fun_data.append(tir.FunData.init(c.allocator));
+    const fun = c.tir_fun_data.append(tir.FunData.init(c.allocator, key));
     const f = c.tir_fun_data.getPtr(fun);
     f.local_data.appendNTimes(.{ .repr = .zero }, c.dir_fun_data.get(key.fun).local_data.count());
     c.tir_frame_stack.append(.{ .key = key, .fun = fun, .expr = .{ .id = 0 } }) catch oom();

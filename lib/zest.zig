@@ -28,6 +28,7 @@ pub const parse = @import("./parse.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
+pub const lower = @import("./lower.zig").lower;
 pub const generate = @import("./generate.zig").generate;
 
 pub fn oom() noreturn {
@@ -195,7 +196,7 @@ pub const Compiler = struct {
     // lower
     wir_fun_data: List(wir.Fun, wir.FunData),
     wir_fun_main: ?wir.Fun,
-    wir_constant_value: List(wir.Constant, Value),
+    wir_constant_bytes: List(wir.Constant, []const u8),
 
     // generate
     wasm: ArrayList(u8),
@@ -229,7 +230,7 @@ pub const Compiler = struct {
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .wir_fun_main = null,
-            .wir_constant_value = fieldType(Compiler, .wir_constant_value).init(allocator),
+            .wir_constant_bytes = fieldType(Compiler, .wir_constant_bytes).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
@@ -253,6 +254,7 @@ pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
 pub const DesugarErrorData = @import("./desugar.zig").DesugarErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 pub const InferErrorData = @import("./infer.zig").InferErrorData;
+pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
@@ -270,6 +272,11 @@ pub const ErrorData = union(enum) {
         fun: tir.Fun,
         expr: dir.Expr,
         data: InferErrorData,
+    },
+    lower: struct {
+        fun: wir.Fun,
+        expr: tir.Expr,
+        data: LowerErrorData,
     },
 };
 
@@ -329,11 +336,14 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
     assert(c.dir_fun_main != null);
 }
 
-pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }!void {
+pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, GenerateError }!void {
     assert(c.dir_fun_main != null);
 
     try inferMain(c);
     assert(c.tir_fun_main != null);
+
+    try lower(c);
+    assert(c.wir_fun_main != null);
 
     try generate(c);
     assert(c.wasm.items.len != 0);

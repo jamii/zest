@@ -52,6 +52,8 @@ pub const FunKey = struct {
 pub const Fun = struct { id: usize };
 
 pub const FunData = struct {
+    key: FunKey,
+
     local_data: List(Local, LocalData),
 
     expr_data: List(Expr, ExprData),
@@ -59,8 +61,10 @@ pub const FunData = struct {
 
     return_repr: FlatLattice(Repr),
 
-    pub fn init(allocator: Allocator) FunData {
+    pub fn init(allocator: Allocator, key: FunKey) FunData {
         return .{
+            .key = key,
+
             .local_data = fieldType(FunData, .local_data).init(allocator),
 
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
