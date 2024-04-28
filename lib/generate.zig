@@ -99,12 +99,35 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
+            var locals_count: u32 = 0;
+
+            const arg_start = locals_count;
+            locals_count += @intCast(c.fun_type_data.get(f.fun_type).arg_types.len);
+
+            const local_start = locals_count;
+            locals_count += @intCast(f.local_data.count());
+
+            const frame_ptr = locals_count;
+            locals_count += 1;
+
+            const local_map = LocalMap{
+                .arg_start = arg_start,
+                .local_start = local_start,
+                .frame_ptr = frame_ptr,
+            };
+
             // Locals
-            emitLebU32(c, @intCast(f.local_data.count()));
+            emitLebU32(c, @intCast(locals_count));
+            for (c.fun_type_data.get(f.fun_type).arg_types) |typ| {
+                emitLebU32(c, 1);
+                emitEnum(c, typ);
+            }
             for (f.local_data.items()) |l| {
                 emitLebU32(c, 1);
                 emitEnum(c, l.type);
             }
+            emitLebU32(c, 1);
+            emitEnum(c, wasm.Valtype.i32);
 
             //// Frame push
             //if (shadow_size != 0) {
@@ -118,7 +141,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             //}
 
             for (f.expr_data.items()) |expr_data| {
-                emitExpr(c, f, expr_data);
+                emitExpr(c, f, local_map, expr_data);
             }
 
             //// Frame pop
@@ -138,7 +161,14 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
     }
 }
 
-fn emitExpr(c: *Compiler, f: wir.FunData, expr_data: wir.ExprData) void {
+const LocalMap = struct {
+    arg_start: u32,
+    local_start: u32,
+    frame_ptr: u32,
+};
+
+fn emitExpr(c: *Compiler, f: wir.FunData, local_map: LocalMap, expr_data: wir.ExprData) void {
+    _ = f;
     switch (expr_data) {
         .i32 => |i| {
             emitEnum(c, wasm.Opcode.i32_const);
@@ -146,13 +176,11 @@ fn emitExpr(c: *Compiler, f: wir.FunData, expr_data: wir.ExprData) void {
         },
         .local_get => |local| {
             emitEnum(c, wasm.Opcode.local_get);
-            const arg_count = c.fun_type_data.get(f.fun_type).arg_types.len;
-            emitLebU32(c, @intCast(arg_count + local.id));
+            emitLebU32(c, local_map.local_start + @as(u32, @intCast(local.id)));
         },
         .local_set => |local| {
             emitEnum(c, wasm.Opcode.local_set);
-            const arg_count = c.fun_type_data.get(f.fun_type).arg_types.len;
-            emitLebU32(c, @intCast(arg_count + local.id));
+            emitLebU32(c, local_map.local_start + @as(u32, @intCast(local.id)));
         },
         .drop => {
             emitEnum(c, wasm.Opcode.drop);
