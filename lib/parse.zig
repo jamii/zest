@@ -8,17 +8,16 @@ const zest = @import("./zest.zig");
 const oom = zest.oom;
 const Compiler = zest.Compiler;
 const TokenData = zest.TokenData;
-const SirExpr = zest.SirExpr;
-const SirObject = zest.SirObject;
 const Builtin = zest.Builtin;
+const sir = @import("./sir.zig");
 
 pub fn parse(c: *Compiler) !void {
     _ = try parseBlock(c, .eof);
     try expect(c, .eof);
 }
 
-fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!SirExpr {
-    var exprs = ArrayList(SirExpr).init(c.allocator);
+fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!sir.Expr {
+    var exprs = ArrayList(sir.Expr).init(c.allocator);
 
     allowNewline(c);
 
@@ -40,7 +39,7 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!SirExpr {
     return c.sir_expr_data.append(.{ .block = exprs.toOwnedSlice() catch oom() });
 }
 
-fn parseExpr(c: *Compiler) error{ParseError}!SirExpr {
+fn parseExpr(c: *Compiler) error{ParseError}!sir.Expr {
     switch (peek(c)) {
         .@"(" => return parseFn(c),
         .@"if" => return parseIf(c),
@@ -49,7 +48,7 @@ fn parseExpr(c: *Compiler) error{ParseError}!SirExpr {
     }
 }
 
-fn parseFn(c: *Compiler) error{ParseError}!SirExpr {
+fn parseFn(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"(");
     const params = try parseArgs(c, .@")", 0);
     try expect(c, .@")");
@@ -57,7 +56,7 @@ fn parseFn(c: *Compiler) error{ParseError}!SirExpr {
     return c.sir_expr_data.append(.{ .fun = .{ .params = params, .body = body } });
 }
 
-fn parseIf(c: *Compiler) error{ParseError}!SirExpr {
+fn parseIf(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"if");
     const cond = try parseExprAtom(c, .{});
     const then = try parseExpr(c);
@@ -66,14 +65,14 @@ fn parseIf(c: *Compiler) error{ParseError}!SirExpr {
     return c.sir_expr_data.append(.{ .@"if" = .{ .cond = cond, .then = then, .@"else" = @"else" } });
 }
 
-fn parseWhile(c: *Compiler) error{ParseError}!SirExpr {
+fn parseWhile(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"while");
     const cond = try parseExprAtom(c, .{});
     const body = try parseExpr(c);
     return c.sir_expr_data.append(.{ .@"while" = .{ .cond = cond, .body = body } });
 }
 
-fn parseExprLoose(c: *Compiler) error{ParseError}!SirExpr {
+fn parseExprLoose(c: *Compiler) error{ParseError}!sir.Expr {
     var head = try parseExprTight(c);
     var prev_op: ?Builtin = null;
     while (true) {
@@ -107,8 +106,8 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!SirExpr {
                 head = c.sir_expr_data.append(.{ .call = .{
                     .head = c.sir_expr_data.append(.{ .builtin = op }),
                     .args = .{
-                        .keys = c.allocator.dupe(SirExpr, &.{ zero, one }) catch oom(),
-                        .values = c.allocator.dupe(SirExpr, &.{ head, right }) catch oom(),
+                        .keys = c.allocator.dupe(sir.Expr, &.{ zero, one }) catch oom(),
+                        .values = c.allocator.dupe(sir.Expr, &.{ head, right }) catch oom(),
                     },
                 } });
             },
@@ -118,7 +117,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!SirExpr {
     return head;
 }
 
-fn parseExprTight(c: *Compiler) error{ParseError}!SirExpr {
+fn parseExprTight(c: *Compiler) error{ParseError}!sir.Expr {
     var head = try parseExprAtom(c, .{});
     while (true) {
         if (peekSpace(c)) break;
@@ -133,7 +132,7 @@ fn parseExprTight(c: *Compiler) error{ParseError}!SirExpr {
     return head;
 }
 
-fn parseGet(c: *Compiler, object: SirExpr) error{ParseError}!SirExpr {
+fn parseGet(c: *Compiler, object: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@".");
     try expectNoSpace(c);
     const key = try parseExprAtom(c, .{
@@ -146,21 +145,21 @@ fn parseGet(c: *Compiler, object: SirExpr) error{ParseError}!SirExpr {
     } });
 }
 
-fn parseCall(c: *Compiler, head: SirExpr) error{ParseError}!SirExpr {
+fn parseCall(c: *Compiler, head: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"(");
     const args = try parseArgs(c, .@")", 0);
     try expect(c, .@")");
     return c.sir_expr_data.append(.{ .call = .{ .head = head, .args = args } });
 }
 
-fn parseMake(c: *Compiler, head: SirExpr) error{ParseError}!SirExpr {
+fn parseMake(c: *Compiler, head: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"[");
     const args = try parseArgs(c, .@"]", 0);
     try expect(c, .@"]");
     return c.sir_expr_data.append(.{ .make = .{ .head = head, .args = args } });
 }
 
-fn parseCallSlash(c: *Compiler, arg: SirExpr) error{ParseError}!SirExpr {
+fn parseCallSlash(c: *Compiler, arg: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"/");
     allowNewline(c);
     const head = try parseName(c);
@@ -169,11 +168,11 @@ fn parseCallSlash(c: *Compiler, arg: SirExpr) error{ParseError}!SirExpr {
     const args = try parseArgs(c, .@")", 1);
     try expect(c, .@")");
 
-    var keys = ArrayList(SirExpr).init(c.allocator);
+    var keys = ArrayList(sir.Expr).init(c.allocator);
     keys.append(c.sir_expr_data.append(.{ .i32 = 0 })) catch oom();
     keys.appendSlice(args.keys) catch oom();
 
-    var values = ArrayList(SirExpr).init(c.allocator);
+    var values = ArrayList(sir.Expr).init(c.allocator);
     values.append(arg) catch oom();
     values.appendSlice(args.values) catch oom();
 
@@ -186,11 +185,11 @@ fn parseCallSlash(c: *Compiler, arg: SirExpr) error{ParseError}!SirExpr {
     } });
 }
 
-const SirExprAtomOptions = struct {
+const ExprAtomOptions = struct {
     allow_floats: bool = true,
 };
 
-fn parseExprAtom(c: *Compiler, options: SirExprAtomOptions) error{ParseError}!SirExpr {
+fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.Expr {
     switch (peek(c)) {
         .name => return parseName(c),
         .number => return parseNumber(c, options),
@@ -204,13 +203,13 @@ fn parseExprAtom(c: *Compiler, options: SirExprAtomOptions) error{ParseError}!Si
     }
 }
 
-fn parseName(c: *Compiler) error{ParseError}!SirExpr {
+fn parseName(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .name);
     const name = lastTokenText(c);
     return c.sir_expr_data.append(.{ .name = name });
 }
 
-fn parseNumber(c: *Compiler, options: SirExprAtomOptions) error{ParseError}!SirExpr {
+fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.Expr {
     try expect(c, .number);
     if (options.allow_floats and !peekSpace(c) and takeIf(c, .@".")) {
         try expectNoSpace(c);
@@ -234,7 +233,7 @@ fn parseNumber(c: *Compiler, options: SirExprAtomOptions) error{ParseError}!SirE
     }
 }
 
-fn parseString(c: *Compiler) error{ParseError}!SirExpr {
+fn parseString(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .string);
     const text = lastTokenText(c);
     var chars = ArrayList(u8).initCapacity(c.allocator, text.len) catch oom();
@@ -259,23 +258,23 @@ fn parseString(c: *Compiler) error{ParseError}!SirExpr {
     return c.sir_expr_data.append(.{ .string = chars.toOwnedSlice() catch oom() });
 }
 
-fn parseObject(c: *Compiler) error{ParseError}!SirExpr {
+fn parseObject(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"[");
     const fields = try parseArgs(c, .@"]", 0);
     try expect(c, .@"]");
     return c.sir_expr_data.append(.{ .object = fields });
 }
 
-fn parseGroup(c: *Compiler) error{ParseError}!SirExpr {
+fn parseGroup(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"{");
     const exprs = try parseBlock(c, .@"}");
     try expect(c, .@"}");
     return exprs;
 }
 
-fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!SirObject {
-    var keys = ArrayList(SirExpr).init(c.allocator);
-    var values = ArrayList(SirExpr).init(c.allocator);
+fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!sir.Object {
+    var keys = ArrayList(sir.Expr).init(c.allocator);
+    var values = ArrayList(sir.Expr).init(c.allocator);
 
     allowNewline(c);
 

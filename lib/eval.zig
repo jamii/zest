@@ -9,17 +9,10 @@ const oom = zest.oom;
 const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Compiler = zest.Compiler;
-const DirLocal = zest.DirLocal;
-const DirExpr = zest.DirExpr;
-const DirExprData = zest.DirExprData;
-const DirExprInput = zest.DirExprInput(Value);
-const DirExprOutput = zest.DirExprOutput(Value);
-const DirFun = zest.DirFun;
-const DirFunData = zest.DirFunData;
-const DirFrame = zest.DirFrame;
-const TirFunData = zest.TirFunData;
 const Value = zest.Value;
 const Repr = zest.Repr;
+const dir = zest.dir;
+const tir = zest.tir;
 
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.dir_frame_stack.items.len == 0);
@@ -32,7 +25,7 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     return eval(c);
 }
 
-pub fn pushFun(c: *Compiler, frame: DirFrame) void {
+pub fn pushFun(c: *Compiler, frame: dir.Frame) void {
     c.dir_frame_stack.append(frame) catch oom();
     c.local_stack.appendNTimes(
         Value.emptyStruct(),
@@ -40,7 +33,7 @@ pub fn pushFun(c: *Compiler, frame: DirFrame) void {
     ) catch oom();
 }
 
-pub fn popFun(c: *Compiler) DirFrame {
+pub fn popFun(c: *Compiler) dir.Frame {
     const frame = c.dir_frame_stack.pop();
     c.local_stack.shrinkRetainingCapacity(
         c.local_stack.items.len -
@@ -49,7 +42,7 @@ pub fn popFun(c: *Compiler) DirFrame {
     return frame;
 }
 
-pub fn evalStaged(c: *Compiler, tir_f: *TirFunData, arg_repr: Repr, closure_repr: Repr) error{EvalError}!Value {
+pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_repr: Repr) error{EvalError}!Value {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
 
@@ -58,7 +51,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *TirFunData, arg_repr: Repr, closure_repr
         frame.expr.id += 1;
         const block_begin_data = f.expr_data.get(frame.expr);
         assert(block_begin_data == .block_begin);
-        const expr_block_end = DirExpr{ .id = frame.expr.id + block_begin_data.block_begin.expr_count + 1 };
+        const expr_block_end = dir.Expr{ .id = frame.expr.id + block_begin_data.block_begin.expr_count + 1 };
         assert(f.expr_data.get(expr_block_end) == .block_end);
         break :return_after expr_block_end;
     };
@@ -160,13 +153,13 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
 
 fn popExprInput(
     c: *Compiler,
-    comptime expr_tag: std.meta.Tag(DirExprData),
-    data: std.meta.TagPayload(DirExprData, expr_tag),
-) std.meta.TagPayload(DirExprInput, expr_tag) {
+    comptime expr_tag: std.meta.Tag(dir.ExprData),
+    data: std.meta.TagPayload(dir.ExprData, expr_tag),
+) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
         .fun_init, .local_set, .assert_object, .object_get, .drop, .@"return", .call => {
-            const Input = std.meta.TagPayload(DirExprInput, expr_tag);
+            const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
             comptime var i: usize = fields.len;
@@ -190,10 +183,10 @@ fn popExprInput(
 
 pub fn evalExpr(
     c: *Compiler,
-    comptime expr_tag: std.meta.Tag(DirExprData),
-    data: std.meta.TagPayload(DirExprData, expr_tag),
-    input: std.meta.TagPayload(DirExprInput, expr_tag),
-) error{EvalError}!std.meta.TagPayload(DirExprOutput, expr_tag) {
+    comptime expr_tag: std.meta.Tag(dir.ExprData),
+    data: std.meta.TagPayload(dir.ExprData, expr_tag),
+    input: std.meta.TagPayload(dir.ExprInput(Value), expr_tag),
+) error{EvalError}!std.meta.TagPayload(dir.ExprOutput(Value), expr_tag) {
     switch (expr_tag) {
         .i32 => return .{ .i32 = data },
         .string => return .{ .string = data },
@@ -257,8 +250,8 @@ pub fn evalExpr(
 
 fn pushExprOutput(
     c: *Compiler,
-    comptime expr_tag: std.meta.Tag(DirExprData),
-    output: std.meta.TagPayload(DirExprOutput, expr_tag),
+    comptime expr_tag: std.meta.Tag(dir.ExprData),
+    output: std.meta.TagPayload(dir.ExprOutput(Value), expr_tag),
 ) void {
     switch (@TypeOf(output)) {
         void => return,

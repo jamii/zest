@@ -4,8 +4,8 @@ const panic = std.debug.panic;
 const zest = @import("./zest.zig");
 const Value = zest.Value;
 const ValueStruct = zest.ValueStruct;
-const DirFun = zest.DirFun;
 const deepEqual = zest.deepEqual;
+const dir = zest.dir;
 
 pub const Repr = union(enum) {
     i32,
@@ -114,6 +114,6 @@ pub const ReprUnion = struct {
 };
 
 pub const ReprFun = struct {
-    fun: DirFun,
+    fun: dir.Fun,
     closure: ReprStruct,
 };

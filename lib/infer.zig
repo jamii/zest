@@ -9,19 +9,11 @@ const oom = zest.oom;
 const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Compiler = zest.Compiler;
-const TirLocal = zest.TirLocal;
-const DirExpr = zest.DirExpr;
-const DirExprData = zest.DirExprData;
-const DirExprInput = zest.DirExprInput(Repr);
-const DirExprOutput = zest.DirExprOutput(Repr);
-const TirExprData = zest.TirExprData;
-const TirFun = zest.TirFun;
-const TirFunData = zest.TirFunData;
-const TirFunKey = zest.TirFunKey;
-const TirFrame = zest.TirFrame;
 const Value = zest.Value;
 const Repr = zest.Repr;
 const FlatLattice = zest.FlatLattice;
+const dir = zest.dir;
+const tir = zest.tir;
 
 const eval = @import("./eval.zig");
 
@@ -38,8 +30,8 @@ pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
     try infer(c);
 }
 
-fn pushFun(c: *Compiler, key: TirFunKey) TirFun {
-    const fun = c.tir_fun_data.append(TirFunData.init(c.allocator));
+fn pushFun(c: *Compiler, key: tir.FunKey) tir.Fun {
+    const fun = c.tir_fun_data.append(tir.FunData.init(c.allocator));
     const f = c.tir_fun_data.getPtr(fun);
     f.local_data.appendNTimes(.{ .repr = .zero }, c.dir_fun_data.get(key.fun).local_data.count());
     c.tir_frame_stack.append(.{ .key = key, .fun = fun, .expr = .{ .id = 0 } }) catch oom();
@@ -70,7 +62,7 @@ fn infer(c: *Compiler) error{ EvalError, InferError }!void {
     }
 }
 
-fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enum { call, @"return" } {
+fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!enum { call, @"return" } {
     const dir_f = c.dir_fun_data.get(frame.key.fun);
     const f = c.tir_fun_data.getPtr(frame.fun);
     while (frame.expr.id <= dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
@@ -80,7 +72,7 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
                 const input = try popExprInput(c, .call, call);
                 if (input.fun != .fun)
                     return fail(c, .{ .not_a_fun = input.fun });
-                const key = TirFunKey{
+                const key = tir.FunKey{
                     .fun = input.fun.fun.fun,
                     .closure_repr = .{ .@"struct" = input.fun.fun.closure },
                     .arg_repr = input.args,
@@ -122,13 +114,13 @@ fn inferFrame(c: *Compiler, frame: *TirFrame) error{ EvalError, InferError }!enu
 
 fn popExprInput(
     c: *Compiler,
-    comptime expr_tag: std.meta.Tag(DirExprData),
-    data: std.meta.TagPayload(DirExprData, expr_tag),
-) error{InferError}!std.meta.TagPayload(DirExprInput, expr_tag) {
+    comptime expr_tag: std.meta.Tag(dir.ExprData),
+    data: std.meta.TagPayload(dir.ExprData, expr_tag),
+) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
         .fun_init, .local_set, .object_get, .assert_object, .drop, .@"return", .call => {
-            const Input = std.meta.TagPayload(DirExprInput, expr_tag);
+            const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
             comptime var i: usize = fields.len;
@@ -156,11 +148,11 @@ fn popExprInput(
 
 fn inferExpr(
     c: *Compiler,
-    f: *TirFunData,
-    comptime expr_tag: std.meta.Tag(DirExprData),
-    data: std.meta.TagPayload(DirExprData, expr_tag),
-    input: std.meta.TagPayload(DirExprInput, expr_tag),
-) error{InferError}!std.meta.TagPayload(DirExprOutput, expr_tag) {
+    f: *tir.FunData,
+    comptime expr_tag: std.meta.Tag(dir.ExprData),
+    data: std.meta.TagPayload(dir.ExprData, expr_tag),
+    input: std.meta.TagPayload(dir.ExprInput(Repr), expr_tag),
+) error{InferError}!std.meta.TagPayload(dir.ExprOutput(Repr), expr_tag) {
     switch (expr_tag) {
         .i32 => {
             pushExpr(c, f, .{ .i32 = data }, .i32);
@@ -195,14 +187,14 @@ fn inferExpr(
             return frame.key.closure_repr;
         },
         .local_get => {
-            const local = TirLocal{ .id = data.id };
+            const local = tir.Local{ .id = data.id };
             // Shouldn't be able to reach get before set.
             const repr = f.local_data.get(local).repr.one;
             pushExpr(c, f, .{ .local_get = local }, repr);
             return repr;
         },
         .local_set => {
-            const local = TirLocal{ .id = data.id };
+            const local = tir.Local{ .id = data.id };
             pushExpr(c, f, .{ .local_set = local }, null);
             _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
             return;
@@ -245,8 +237,8 @@ fn inferExpr(
 
 fn pushExprOutput(
     c: *Compiler,
-    comptime expr_tag: std.meta.Tag(DirExprData),
-    output: std.meta.TagPayload(DirExprOutput, expr_tag),
+    comptime expr_tag: std.meta.Tag(dir.ExprData),
+    output: std.meta.TagPayload(dir.ExprOutput(Repr), expr_tag),
 ) void {
     switch (@TypeOf(output)) {
         void => return,
@@ -281,7 +273,7 @@ fn popValue(c: *Compiler) error{InferError}!Value {
         fail(c, .{ .value_not_staged = repr });
 }
 
-fn pushExpr(c: *Compiler, f: *TirFunData, expr: TirExprData, repr: ?Repr) void {
+fn pushExpr(c: *Compiler, f: *tir.FunData, expr: tir.ExprData, repr: ?Repr) void {
     _ = c;
     _ = f.expr_data.append(expr);
     _ = f.expr_repr.append(repr);

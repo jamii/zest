@@ -8,31 +8,25 @@ const zest = @import("./zest.zig");
 const oom = zest.oom;
 const deepEqual = zest.deepEqual;
 const Compiler = zest.Compiler;
-const SirExpr = zest.SirExpr;
-const SirExprData = zest.SirExprData;
-const SirObject = zest.SirObject;
-const DirExpr = zest.DirExpr;
-const DirExprData = zest.DirExprData;
-const DirFun = zest.DirFun;
-const DirFunData = zest.DirFunData;
 const Local = zest.Local;
 const Value = zest.Value;
-const AbstractValue = zest.AbstractValue;
 const Builtin = zest.Builtin;
+const sir = zest.sir;
+const dir = zest.dir;
 
 pub fn lower(c: *Compiler) error{LowerError}!void {
     c.dir_fun_main = try lowerFun(c, .{ .keys = &.{}, .values = &.{} }, c.sir_expr_data.lastKey().?);
 }
 
-fn lowerFun(c: *Compiler, params: SirObject, body: SirExpr) error{LowerError}!DirFun {
-    var f = DirFunData.init(c.allocator);
+fn lowerFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{LowerError}!dir.Fun {
+    var f = dir.FunData.init(c.allocator);
     try lowerObjectPattern(c, &f, .arg, params);
     try lowerExpr(c, &f, body);
     _ = f.expr_data.append(.@"return");
     return c.dir_fun_data.append(f);
 }
 
-fn lowerObjectPattern(c: *Compiler, f: *DirFunData, object: AbstractValue, pattern: SirObject) error{LowerError}!void {
+fn lowerObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue, pattern: sir.Object) error{LowerError}!void {
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
         push(c, f, object, false);
         try lowerKey(c, f, key_expr);
@@ -42,7 +36,7 @@ fn lowerObjectPattern(c: *Compiler, f: *DirFunData, object: AbstractValue, patte
     }
 }
 
-fn lowerPattern(c: *Compiler, f: *DirFunData, value: AbstractValue, pattern: SirExpr) error{LowerError}!void {
+fn lowerPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, pattern: sir.Expr) error{LowerError}!void {
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
@@ -62,7 +56,7 @@ fn lowerPattern(c: *Compiler, f: *DirFunData, value: AbstractValue, pattern: Sir
     }
 }
 
-fn lowerKey(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void {
+fn lowerKey(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!void {
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
         .name => |name| stageString(c, f, name),
@@ -70,7 +64,7 @@ fn lowerKey(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void 
     }
 }
 
-fn lowerObject(c: *Compiler, f: *DirFunData, object: SirObject) error{LowerError}!void {
+fn lowerObject(c: *Compiler, f: *dir.FunData, object: sir.Object) error{LowerError}!void {
     for (object.keys, object.values) |key, value| {
         try lowerKey(c, f, key);
         try lowerExpr(c, f, value);
@@ -78,7 +72,7 @@ fn lowerObject(c: *Compiler, f: *DirFunData, object: SirObject) error{LowerError
     _ = f.expr_data.append(.{ .struct_init = object.keys.len });
 }
 
-fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void {
+fn lowerExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!void {
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
         .i32 => |i| {
@@ -158,7 +152,7 @@ fn lowerExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
     }
 }
 
-fn stageExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void {
+fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{LowerError}!void {
     const prev_staged_until_len = c.scope.staged_until_len;
     c.scope.staged_until_len = c.scope.bindings.items.len;
     defer c.scope.staged_until_len = prev_staged_until_len;
@@ -169,26 +163,26 @@ fn stageExpr(c: *Compiler, f: *DirFunData, expr: SirExpr) error{LowerError}!void
     blockEnd(c, f, begin);
 }
 
-fn stageString(c: *Compiler, f: *DirFunData, string: []const u8) void {
+fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
     _ = f.expr_data.append(.stage);
     const begin = blockBegin(c, f);
     _ = f.expr_data.append(.{ .string = string });
     blockEnd(c, f, begin);
 }
 
-fn blockBegin(c: *Compiler, f: *DirFunData) DirExpr {
+fn blockBegin(c: *Compiler, f: *dir.FunData) dir.Expr {
     _ = c;
     return f.expr_data.append(.{ .block_begin = .{ .expr_count = 0 } });
 }
 
-fn blockEnd(c: *Compiler, f: *DirFunData, begin: DirExpr) void {
+fn blockEnd(c: *Compiler, f: *dir.FunData, begin: dir.Expr) void {
     _ = c;
     const expr_count = f.expr_data.lastKey().?.id - begin.id;
     f.expr_data.getPtr(begin).block_begin.expr_count = expr_count;
     _ = f.expr_data.append(.{ .block_end = .{ .expr_count = expr_count } });
 }
 
-fn push(c: *Compiler, f: *DirFunData, value: AbstractValue, is_staged: bool) void {
+fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool) void {
     if (is_staged)
         _ = f.expr_data.append(.unstage);
     switch (value) {
@@ -206,14 +200,14 @@ fn push(c: *Compiler, f: *DirFunData, value: AbstractValue, is_staged: bool) voi
     }
 }
 
-fn pop(c: *Compiler, f: *DirFunData) AbstractValue {
+fn pop(c: *Compiler, f: *dir.FunData) dir.AbstractValue {
     _ = c;
     const local = f.local_data.append(.{});
     _ = f.expr_data.append(.{ .local_set = local });
     return .{ .local = local };
 }
 
-fn fail(c: *Compiler, expr: SirExpr, data: LowerErrorData) error{LowerError} {
+fn fail(c: *Compiler, expr: sir.Expr, data: LowerErrorData) error{LowerError} {
     c.error_data = .{ .lower = .{ .expr = expr, .data = data } };
     return error.LowerError;
 }
