@@ -8,6 +8,7 @@ const ArrayList = std.ArrayList;
 const zest = @import("./zest.zig");
 const fieldType = zest.fieldType;
 const List = zest.List;
+const Value = zest.Value;
 const tir = zest.tir;
 
 pub const Arg = struct { id: usize };
