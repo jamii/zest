@@ -28,6 +28,7 @@ pub const parse = @import("./parse.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
+pub const place = @import("./place.zig").place;
 pub const lower = @import("./lower.zig").lower;
 pub const generate = @import("./generate.zig").generate;
 
@@ -200,6 +201,9 @@ pub const Compiler = struct {
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
 
+    // place
+    tir_address_stack: ArrayList(tir.Address),
+
     // generate
     wasm: ArrayList(u8),
 
@@ -235,6 +239,8 @@ pub const Compiler = struct {
             .constant_bytes = fieldType(Compiler, .constant_bytes).init(allocator),
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
+
+            .tir_address_stack = fieldType(Compiler, .tir_address_stack).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
@@ -348,6 +354,8 @@ pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, Gen
 
     try inferMain(c);
     assert(c.tir_fun_main != null);
+
+    place(c);
 
     try lower(c);
     assert(c.wir_fun_main != null);

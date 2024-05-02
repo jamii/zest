@@ -49,6 +49,7 @@ pub const Repr = union(enum) {
             .string => panic("TODO {}", .{self}),
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
+            .fun => |fun| fun.sizeOf(),
             .only => 0,
             .repr => panic("TODO {}", .{self}),
         };
@@ -98,6 +99,14 @@ pub const ReprStruct = struct {
         }
         return null;
     }
+
+    pub fn offsetOf(self: ReprStruct, i: usize) usize {
+        var offset: usize = 0;
+        for (self.reprs[0..i]) |repr| {
+            offset += repr.sizeOf();
+        }
+        return offset;
+    }
 };
 
 pub const ReprUnion = struct {
@@ -120,4 +129,8 @@ pub const ReprUnion = struct {
 pub const ReprFun = struct {
     fun: dir.Fun,
     closure: ReprStruct,
+
+    pub fn sizeOf(self: ReprFun) usize {
+        return self.closure.sizeOf();
+    }
 };

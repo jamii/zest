@@ -6,8 +6,6 @@ const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
 const oom = zest.oom;
-const deepEqual = zest.deepEqual;
-const List = zest.List;
 const Compiler = zest.Compiler;
 const Value = zest.Value;
 const Repr = zest.Repr;
@@ -209,7 +207,7 @@ fn inferExpr(
                 .@"struct" => {},
                 .@"union" => return fail(c, .todo),
             }
-            // Compiled away completely.
+            pushExpr(c, f, .drop, null);
             return;
         },
         .object_get => {
