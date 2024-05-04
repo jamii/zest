@@ -46,9 +46,15 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
     assert(tir_fun.id == fun.id);
 
     for (tir_f.local_data.items()) |local_data| {
-        _ = f.local_data.append(.{
-            .type = try lowerRepr(c, local_data.repr.one),
-        });
+        const repr = local_data.repr.one;
+        if (storeOnShadow(repr)) {
+            _ = f.local_from_tir.append(null);
+        } else {
+            const local = f.local_data.append(.{
+                .type = try lowerRepr(c, local_data.repr.one),
+            });
+            _ = f.local_from_tir.append(local);
+        }
     }
 
     for (tir_f.expr_data.items(), tir_f.expr_repr.items()) |expr_data, repr| {
@@ -63,10 +69,10 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                 _ = f.expr_data.append(.{ .i32 = 0 });
             },
             .local_get => |local| {
-                _ = f.expr_data.append(.{ .local_get = .{ .id = local.id } });
+                _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(local).? });
             },
             .local_let => |local| {
-                _ = f.expr_data.append(.{ .local_set = .{ .id = local.id } });
+                _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(local).? });
             },
             .drop => {
                 _ = f.expr_data.append(.drop);
@@ -78,7 +84,7 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                 _ = f.expr_data.append(.@"return");
             },
             else => {
-                std.debug.print("{}\n", .{expr_data});
+                //std.debug.print("{}\n", .{expr_data});
                 return fail(c, .todo);
             },
         }
@@ -89,6 +95,13 @@ fn lowerRepr(c: *Compiler, repr: Repr) error{LowerError}!wasm.Valtype {
     return switch (repr) {
         .i32 => .i32,
         else => fail(c, .todo),
+    };
+}
+
+fn storeOnShadow(repr: Repr) bool {
+    return switch (repr) {
+        .i32 => false,
+        .string, .@"struct", .@"union", .fun, .only, .repr => true,
     };
 }
 
