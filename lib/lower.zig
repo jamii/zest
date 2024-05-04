@@ -95,17 +95,17 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                 _ = f.expr_data.append(.drop);
             },
             .block_begin => {
-                f.shadow_block_stack.append(.{
+                f.block_stack.append(.{
                     .block_begin = .{ .id = expr_id },
-                    .offset = f.shadow_offset_next,
-                    .address_index = f.shadow_address_stack.items.len,
+                    .shadow_offset_next = f.shadow_offset_next,
+                    .shadow_address_index = f.shadow_address_stack.items.len,
                 }) catch oom();
             },
             .block_end => |block_end| {
-                const shadow_block = f.shadow_block_stack.pop();
-                assert(expr_id - block_end.expr_count == shadow_block.block_begin.id);
-                f.shadow_offset_next = shadow_block.offset;
-                f.shadow_address_stack.shrinkRetainingCapacity(shadow_block.address_index);
+                const block = f.block_stack.pop();
+                assert(expr_id - block_end.expr_count == block.block_begin.id);
+                f.shadow_offset_next = block.shadow_offset_next;
+                f.shadow_address_stack.shrinkRetainingCapacity(block.shadow_address_index);
             },
             .@"return" => {
                 assert(c.wir_address_stack.pop() == null);

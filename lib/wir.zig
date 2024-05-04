@@ -72,10 +72,10 @@ pub const ShadowAddress = struct {
     offset: usize,
 };
 
-pub const ShadowBlock = struct {
+pub const Block = struct {
     block_begin: tir.Expr,
-    offset: usize,
-    address_index: usize,
+    shadow_offset_next: usize,
+    shadow_address_index: usize,
 };
 
 pub const FunData = struct {
@@ -88,8 +88,9 @@ pub const FunData = struct {
 
     expr_data: List(Expr, ExprData),
 
+    block_stack: ArrayList(Block),
+
     shadow_address_stack: ArrayList(ShadowAddress),
-    shadow_block_stack: ArrayList(ShadowBlock),
     shadow_offset_next: usize,
     shadow_offset_max: usize,
 
@@ -109,7 +110,7 @@ pub const FunData = struct {
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
 
             .shadow_address_stack = fieldType(FunData, .shadow_address_stack).init(allocator),
-            .shadow_block_stack = fieldType(FunData, .shadow_block_stack).init(allocator),
+            .block_stack = fieldType(FunData, .block_stack).init(allocator),
             .shadow_offset_max = 0,
             .shadow_offset_next = 0,
         };
