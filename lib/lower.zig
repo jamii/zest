@@ -57,7 +57,7 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
         }
     }
 
-    for (tir_f.expr_data.items(), tir_f.expr_repr.items()) |expr_data, repr| {
+    for (tir_f.expr_data.items(), tir_f.expr_repr.items(), 0..) |expr_data, repr, expr_id| {
         switch (expr_data) {
             .i32 => |i| {
                 _ = f.expr_data.append(.{ .i32 = i });
@@ -77,8 +77,18 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
             .drop => {
                 _ = f.expr_data.append(.drop);
             },
-            .block_begin, .block_end => {
-                // TODO Can ignore these for now, until we add break.
+            .block_begin => {
+                f.shadow_block_stack.append(.{
+                    .block_begin = .{ .id = expr_id },
+                    .offset = f.shadow_offset_next,
+                    .address_index = f.shadow_address_stack.items.len,
+                }) catch oom();
+            },
+            .block_end => |block_end| {
+                const shadow_block = f.shadow_block_stack.pop();
+                assert(expr_id - block_end.expr_count == shadow_block.block_begin.id);
+                f.shadow_offset_next = shadow_block.offset;
+                f.shadow_address_stack.shrinkRetainingCapacity(shadow_block.address_index);
             },
             .@"return" => {
                 _ = f.expr_data.append(.@"return");
@@ -96,6 +106,19 @@ fn lowerRepr(c: *Compiler, repr: Repr) error{LowerError}!wasm.Valtype {
         .i32 => .i32,
         else => fail(c, .todo),
     };
+}
+
+fn shadowPush(c: *Compiler, f: *wir.FunData, shadow: tir.Shadow, repr: Repr) usize {
+    _ = c;
+    for (f.shadow_address_stack) |shadow_address| {
+        if (shadow_address.shadow == shadow)
+            return shadow_address.offset;
+    }
+    const offset = f.shadow_offset_next;
+    f.shadow_address_stack.append(.{ .shadow = shadow, .offset = offset });
+    f.shadow_offset_next += repr.sizeOf();
+    f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_nex);
+    return offset;
 }
 
 fn storeOnShadow(repr: Repr) bool {
