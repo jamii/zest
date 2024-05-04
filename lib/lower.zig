@@ -60,7 +60,9 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
 
     assert(c.wir_address_stack.items.len == 0);
 
+    //std.debug.print("---\n", .{});
     for (tir_f.expr_data.items(), tir_f.expr_repr.items(), tir_f.expr_address.items(), 0..) |expr_data, repr, tir_address, expr_id| {
+        //std.debug.print("{} {}\n", .{ expr_data, c.wir_address_stack.items.len });
         switch (expr_data) {
             .i32 => |i| {
                 _ = f.expr_data.append(.{ .i32 = i });
@@ -76,7 +78,8 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                     store(c, f, .{
                         .base = address.base,
                         .offset = @intCast(address.offset + value_offset),
-                    }, value_repr);
+                        .repr = value_repr,
+                    });
                 }
                 c.wir_address_stack.append(address) catch oom();
             },
@@ -104,6 +107,17 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                     },
                 }
             },
+            .object_get => |object_get| {
+                const object_address = c.wir_address_stack.pop().?;
+                const object_repr = object_address.repr.@"struct"; // TODO other object reprs
+                const i = object_repr.get(object_get.key).?;
+                const offset = object_repr.offsetOf(i);
+                c.wir_address_stack.append(.{
+                    .base = object_address.base,
+                    .offset = object_address.offset + @as(u32, @intCast(offset)),
+                    .repr = object_repr.reprs[i],
+                }) catch oom();
+            },
             .drop => {
                 const dropped_address = c.wir_address_stack.pop();
                 if (dropped_address == null) {
@@ -124,7 +138,9 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                 f.shadow_address_stack.shrinkRetainingCapacity(block.shadow_address_index);
             },
             .@"return" => {
-                assert(c.wir_address_stack.pop() == null);
+                if (c.wir_address_stack.pop()) |from_address| {
+                    copy(c, f, from_address, .{ .base = .@"return", .offset = 0, .repr = tir_f.return_repr.one });
+                }
                 _ = f.expr_data.append(.@"return");
             },
             else => {
@@ -156,22 +172,28 @@ fn lowerRepr(repr: Repr) WirRepr {
     };
 }
 
-fn store(c: *Compiler, f: *wir.FunData, to_address: wir.Address, repr: Repr) void {
+fn store(c: *Compiler, f: *wir.FunData, to_address: wir.Address) void {
     const from_address = c.wir_address_stack.pop();
-    switch (lowerRepr(repr)) {
-        .primitive => |typ| {
+    switch (lowerRepr(to_address.repr)) {
+        .primitive => {
             assert(from_address == null);
-            _ = f.expr_data.append(.{ .store = .{ .type = typ, .address = to_address } });
+            _ = f.expr_data.append(.{ .store = .{ .address = to_address } });
         },
         .shadow => {
             assert(from_address != null);
-            _ = f.expr_data.append(.{ .copy = .{
-                .from_address = from_address.?,
-                .to_address = to_address,
-                .byte_count = @intCast(repr.sizeOf()),
-            } });
+            copy(c, f, from_address.?, to_address);
         },
     }
+}
+
+fn copy(c: *Compiler, f: *wir.FunData, from_address: wir.Address, to_address: wir.Address) void {
+    _ = c;
+    assert(from_address.repr.equal(to_address.repr));
+    if (deepEqual(from_address, to_address)) return;
+    _ = f.expr_data.append(.{ .copy = .{
+        .from_address = from_address,
+        .to_address = to_address,
+    } });
 }
 
 fn shadowPush(c: *Compiler, f: *wir.FunData, tir_address: tir.Address, repr: Repr) wir.Address {
@@ -181,6 +203,7 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, tir_address: tir.Address, repr: Rep
             return .{
                 .base = .shadow,
                 .offset = @intCast(shadow_address.offset + tir_address.offset),
+                .repr = repr,
             };
     }
     const offset = f.shadow_offset_next;
@@ -190,6 +213,7 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, tir_address: tir.Address, repr: Rep
     return .{
         .base = .shadow,
         .offset = @intCast(offset + tir_address.offset),
+        .repr = repr,
     };
 }
 

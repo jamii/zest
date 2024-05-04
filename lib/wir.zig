@@ -9,6 +9,7 @@ const zest = @import("./zest.zig");
 const fieldType = zest.fieldType;
 const List = zest.List;
 const Value = zest.Value;
+const Repr = zest.Repr;
 const tir = zest.tir;
 
 pub const Arg = struct { id: usize };
@@ -29,17 +30,14 @@ pub const ExprData = union(enum) {
     local_get: Local,
     local_set: Local,
     load: struct {
-        type: wasm.Valtype,
         address: Address,
     },
     store: struct {
-        type: wasm.Valtype,
         address: Address,
     },
     copy: struct {
         from_address: Address,
         to_address: Address,
-        byte_count: u32,
     },
     call: Fun,
     drop,
@@ -59,6 +57,7 @@ pub const Address = struct {
         shadow,
     },
     offset: u32,
+    repr: Repr,
 };
 
 pub const Constant = struct { id: usize };
