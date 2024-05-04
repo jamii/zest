@@ -203,7 +203,7 @@ pub const Compiler = struct {
     constant_bytes: List(wir.Constant, []const u8),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
-    wir_address_stack: ArrayList(?wir.Address), // null if value is on wasm stack
+    wir_address_stack: ArrayList(?wir.Address), // null if on wasm stack
     local_address: List(wir.Local, wir.Address),
 
     // generate

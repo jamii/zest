@@ -30,7 +30,7 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
     if (!tir_f.key.closure_repr.isEmptyStruct() or
         !tir_f.key.arg_repr.isEmptyStruct())
         return fail(c, .todo);
-    return_types.append(try lowerRepr(c, tir_f.return_repr.one)) catch oom();
+    return_types.append(lowerRepr(tir_f.return_repr.one).abi()) catch oom();
     const fun_type_data = wir.FunTypeData{
         .arg_types = arg_types.toOwnedSlice() catch oom(),
         .return_types = return_types.toOwnedSlice() catch oom(),
@@ -47,52 +47,68 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
 
     for (tir_f.local_data.items()) |local_data| {
         const repr = local_data.repr.one;
-        if (storeOnShadow(repr)) {
-            _ = f.local_from_tir.append(null);
-        } else {
-            const local = f.local_data.append(.{
-                .type = try lowerRepr(c, local_data.repr.one),
-            });
-            _ = f.local_from_tir.append(local);
+        switch (lowerRepr(repr)) {
+            .primitive => |typ| {
+                const local = f.local_data.append(.{ .type = typ });
+                _ = f.local_from_tir.append(local);
+            },
+            .shadow => {
+                _ = f.local_from_tir.append(null);
+            },
         }
     }
 
     assert(c.wir_address_stack.items.len == 0);
 
-    for (tir_f.expr_data.items(), tir_f.expr_repr.items(), 0..) |expr_data, repr, expr_id| {
+    for (tir_f.expr_data.items(), tir_f.expr_repr.items(), tir_f.expr_address.items(), 0..) |expr_data, repr, tir_address, expr_id| {
         switch (expr_data) {
             .i32 => |i| {
                 _ = f.expr_data.append(.{ .i32 = i });
                 c.wir_address_stack.append(null) catch oom();
             },
             .struct_init => {
-                if (!repr.?.isEmptyStruct())
-                    return fail(c, .todo);
-                // TODO Replace with constant address
-                _ = f.expr_data.append(.{ .i32 = 0 });
-                c.wir_address_stack.append(null) catch oom();
+                const address = shadowPush(c, f, tir_address.?, repr.?);
+                const value_reprs = repr.?.@"struct".reprs;
+                var i: usize = value_reprs.len;
+                while (i > 0) : (i -= 1) {
+                    const value_repr = value_reprs[i - 1];
+                    const value_offset = repr.?.@"struct".offsetOf(i - 1);
+                    store(c, f, .{
+                        .base = address.base,
+                        .offset = @intCast(address.offset + value_offset),
+                    }, value_repr);
+                }
+                c.wir_address_stack.append(address) catch oom();
             },
-            .local_get => |local| {
-                const local_repr = tir_f.local_data.get(local).repr.one;
-                if (storeOnShadow(local_repr)) {
-                    return fail(c, .todo);
-                } else {
-                    _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(local).? });
-                    c.wir_address_stack.append(null) catch oom();
+            .local_get => |tir_local| {
+                const local_repr = tir_f.local_data.get(tir_local).repr.one;
+                switch (lowerRepr(local_repr)) {
+                    .primitive => {
+                        _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(tir_local).? });
+                        c.wir_address_stack.append(null) catch oom();
+                    },
+                    .shadow => {
+                        return fail(c, .todo);
+                    },
                 }
             },
-            .local_let => |local| {
-                const local_repr = tir_f.local_data.get(local).repr.one;
-                if (storeOnShadow(local_repr)) {
-                    return fail(c, .todo);
-                } else {
-                    assert(c.wir_address_stack.pop() == null);
-                    _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(local).? });
+            .local_let => |tir_local| {
+                const local_repr = tir_f.local_data.get(tir_local).repr.one;
+                switch (lowerRepr(local_repr)) {
+                    .primitive => {
+                        assert(c.wir_address_stack.pop() == null);
+                        _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(tir_local).? });
+                    },
+                    .shadow => {
+                        return fail(c, .todo);
+                    },
                 }
             },
             .drop => {
-                _ = c.wir_address_stack.pop();
-                _ = f.expr_data.append(.drop);
+                const dropped_address = c.wir_address_stack.pop();
+                if (dropped_address == null) {
+                    _ = f.expr_data.append(.drop);
+                }
             },
             .block_begin => {
                 f.block_stack.append(.{
@@ -121,30 +137,59 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
     assert(c.wir_address_stack.items.len == 0);
 }
 
-fn lowerRepr(c: *Compiler, repr: Repr) error{LowerError}!wasm.Valtype {
+const WirRepr = union(enum) {
+    primitive: wasm.Valtype,
+    shadow,
+
+    fn abi(self: WirRepr) wasm.Valtype {
+        return switch (self) {
+            .primitive => |primitive| primitive,
+            .shadow => .i32, // pointer to shadow
+        };
+    }
+};
+
+fn lowerRepr(repr: Repr) WirRepr {
     return switch (repr) {
-        .i32 => .i32,
-        else => fail(c, .todo),
+        .i32 => .{ .primitive = .i32 },
+        .string, .@"struct", .@"union", .fun, .only, .repr => .shadow,
     };
 }
 
-fn shadowPush(c: *Compiler, f: *wir.FunData, shadow: tir.Shadow, repr: Repr) usize {
-    _ = c;
-    for (f.shadow_address_stack) |shadow_address| {
-        if (shadow_address.shadow == shadow)
-            return shadow_address.offset;
+fn store(c: *Compiler, f: *wir.FunData, to_address: wir.Address, repr: Repr) void {
+    const from_address = c.wir_address_stack.pop();
+    switch (lowerRepr(repr)) {
+        .primitive => |typ| {
+            assert(from_address == null);
+            _ = f.expr_data.append(.{ .store = .{ .type = typ, .address = to_address } });
+        },
+        .shadow => {
+            assert(from_address != null);
+            _ = f.expr_data.append(.{ .copy = .{
+                .from_address = from_address.?,
+                .to_address = to_address,
+                .byte_count = @intCast(repr.sizeOf()),
+            } });
+        },
     }
-    const offset = f.shadow_offset_next;
-    f.shadow_address_stack.append(.{ .shadow = shadow, .offset = offset });
-    f.shadow_offset_next += repr.sizeOf();
-    f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_nex);
-    return offset;
 }
 
-fn storeOnShadow(repr: Repr) bool {
-    return switch (repr) {
-        .i32 => false,
-        .string, .@"struct", .@"union", .fun, .only, .repr => true,
+fn shadowPush(c: *Compiler, f: *wir.FunData, tir_address: tir.Address, repr: Repr) wir.Address {
+    _ = c;
+    for (f.shadow_address_stack.items) |shadow_address| {
+        if (deepEqual(shadow_address.tir_address, tir_address))
+            return .{
+                .base = .shadow,
+                .offset = @intCast(shadow_address.offset + tir_address.offset),
+            };
+    }
+    const offset = f.shadow_offset_next;
+    f.shadow_address_stack.append(.{ .tir_address = tir_address, .offset = @intCast(offset) }) catch oom();
+    f.shadow_offset_next += repr.sizeOf();
+    f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
+    return .{
+        .base = .shadow,
+        .offset = @intCast(offset + tir_address.offset),
     };
 }
 

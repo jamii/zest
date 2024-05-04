@@ -36,6 +36,11 @@ pub const ExprData = union(enum) {
         type: wasm.Valtype,
         address: Address,
     },
+    copy: struct {
+        from_address: Address,
+        to_address: Address,
+        byte_count: u32,
+    },
     call: Fun,
     drop,
     block_begin: struct {
@@ -67,15 +72,15 @@ pub const FunTypeData = struct {
 
 pub const Fun = struct { id: usize };
 
-pub const ShadowAddress = struct {
-    shadow: tir.Shadow,
-    offset: usize,
-};
-
 pub const Block = struct {
     block_begin: tir.Expr,
     shadow_offset_next: usize,
     shadow_address_index: usize,
+};
+
+pub const ShadowAddress = struct {
+    tir_address: tir.Address,
+    offset: u32,
 };
 
 pub const FunData = struct {
