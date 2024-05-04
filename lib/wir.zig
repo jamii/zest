@@ -49,8 +49,9 @@ pub const ExprData = union(enum) {
 
 pub const Address = struct {
     base: union(enum) {
-        frame,
+        @"return",
         arg: Arg,
+        shadow: tir.Shadow,
     },
     offset: u32,
 };
@@ -72,8 +73,12 @@ pub const FunData = struct {
     fun_type: FunType,
 
     local_data: List(Local, LocalData),
+    local_from_tir: List(tir.Local, ?Local), // null if moved to shadow stack
 
     expr_data: List(Expr, ExprData),
+
+    shadow_offset_next: usize,
+    shadow_offset_max: usize,
 
     pub fn init(
         allocator: Allocator,
@@ -86,8 +91,12 @@ pub const FunData = struct {
             .fun_type = fun_type,
 
             .local_data = fieldType(FunData, .local_data).init(allocator),
+            .local_from_tir = fieldType(FunData, .local_from_tir).init(allocator),
 
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
+
+            .shadow_offset_max = 0,
+            .shadow_offset_next = 0,
         };
     }
 };

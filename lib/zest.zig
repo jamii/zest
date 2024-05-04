@@ -203,6 +203,8 @@ pub const Compiler = struct {
     constant_bytes: List(wir.Constant, []const u8),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
+    wir_address_stack: ArrayList(wir.Address),
+    local_address: List(wir.Local, wir.Address),
 
     // generate
     wasm: ArrayList(u8),
@@ -241,6 +243,8 @@ pub const Compiler = struct {
             .constant_bytes = fieldType(Compiler, .constant_bytes).init(allocator),
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
+            .wir_address_stack = fieldType(Compiler, .wir_address_stack).init(allocator),
+            .local_address = fieldType(Compiler, .local_address).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
