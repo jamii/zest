@@ -57,24 +57,41 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
         }
     }
 
+    assert(c.wir_address_stack.items.len == 0);
+
     for (tir_f.expr_data.items(), tir_f.expr_repr.items(), 0..) |expr_data, repr, expr_id| {
         switch (expr_data) {
             .i32 => |i| {
                 _ = f.expr_data.append(.{ .i32 = i });
+                c.wir_address_stack.append(null) catch oom();
             },
             .struct_init => {
                 if (!repr.?.isEmptyStruct())
                     return fail(c, .todo);
-                // TODO How do we get rid of these zero-size values?
+                // TODO Replace with constant address
                 _ = f.expr_data.append(.{ .i32 = 0 });
+                c.wir_address_stack.append(null) catch oom();
             },
             .local_get => |local| {
-                _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(local).? });
+                const local_repr = tir_f.local_data.get(local).repr.one;
+                if (storeOnShadow(local_repr)) {
+                    return fail(c, .todo);
+                } else {
+                    _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(local).? });
+                    c.wir_address_stack.append(null) catch oom();
+                }
             },
             .local_let => |local| {
-                _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(local).? });
+                const local_repr = tir_f.local_data.get(local).repr.one;
+                if (storeOnShadow(local_repr)) {
+                    return fail(c, .todo);
+                } else {
+                    assert(c.wir_address_stack.pop() == null);
+                    _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(local).? });
+                }
             },
             .drop => {
+                _ = c.wir_address_stack.pop();
                 _ = f.expr_data.append(.drop);
             },
             .block_begin => {
@@ -91,6 +108,7 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
                 f.shadow_address_stack.shrinkRetainingCapacity(shadow_block.address_index);
             },
             .@"return" => {
+                assert(c.wir_address_stack.pop() == null);
                 _ = f.expr_data.append(.@"return");
             },
             else => {
@@ -99,6 +117,8 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
             },
         }
     }
+
+    assert(c.wir_address_stack.items.len == 0);
 }
 
 fn lowerRepr(c: *Compiler, repr: Repr) error{LowerError}!wasm.Valtype {
