@@ -17,6 +17,10 @@ const stack_global = 0;
 const stack_top = 1 * wasm.page_size;
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
+    for (0..c.tir_fun_data.count()) |tir_fun_id| {
+        try generateFun(c, .{ .id = tir_fun_id });
+    }
+
     emitBytes(c, &wasm.magic);
     emitBytes(c, &wasm.version);
 
@@ -161,22 +165,15 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
     }
 }
 
-pub fn lower(c: *Compiler) error{LowerError}!void {
-    for (0..c.tir_fun_data.count()) |tir_fun_id| {
-        try lowerFun(c, .{ .id = tir_fun_id });
-    }
-    c.wir_fun_main = .{ .id = c.tir_fun_main.?.id };
-}
-
-fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
-    const tir_f = c.tir_fun_data.get(tir_fun);
+fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
+    const tir_f = c.tir_fun_data.get(fun);
 
     var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
     var return_types = ArrayList(wasm.Valtype).init(c.allocator);
     if (!tir_f.key.closure_repr.isEmptyStruct() or
         !tir_f.key.arg_repr.isEmptyStruct())
         return fail(c, .todo);
-    return_types.append(lowerRepr(tir_f.return_repr.one).abi()) catch oom();
+    return_types.append(wasmAbi(tir_f.return_repr.one)) catch oom();
     const fun_type_data = wir.FunTypeData{
         .arg_types = arg_types.toOwnedSlice() catch oom(),
         .return_types = return_types.toOwnedSlice() catch oom(),
@@ -187,319 +184,144 @@ fn lowerFun(c: *Compiler, tir_fun: tir.Fun) error{LowerError}!void {
         c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
     }
 
-    const fun = c.wir_fun_data.append(wir.FunData.init(c.allocator, tir_fun, fun_type.?));
+    _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?));
     const f = c.wir_fun_data.getPtr(fun);
-    assert(tir_fun.id == fun.id);
 
-    for (tir_f.local_data.items()) |local_data| {
-        const repr = local_data.repr.one;
-        switch (lowerRepr(repr)) {
-            .primitive => |typ| {
-                const local = f.local_data.append(.{ .type = typ });
-                _ = f.local_from_tir.append(local);
-            },
-            .shadow => {
-                _ = f.local_from_tir.append(null);
-            },
-        }
-    }
-
-    assert(c.wir_address_stack.items.len == 0);
-
-    //std.debug.print("---\n", .{});
-    for (tir_f.expr_data.items(), tir_f.expr_repr.items(), tir_f.expr_address.items(), 0..) |expr_data, repr, tir_address, expr_id| {
-        //std.debug.print("{} {}\n", .{ expr_data, c.wir_address_stack.items.len });
-        switch (expr_data) {
-            .i32 => |i| {
-                _ = f.expr_data.append(.{ .i32 = i });
-                c.wir_address_stack.append(null) catch oom();
-            },
-            .struct_init => {
-                const address = shadowPush(c, f, tir_address.?, repr.?);
-                const value_reprs = repr.?.@"struct".reprs;
-                var i: usize = value_reprs.len;
-                while (i > 0) : (i -= 1) {
-                    const value_repr = value_reprs[i - 1];
-                    const value_offset = repr.?.@"struct".offsetOf(i - 1);
-                    store(c, f, .{
-                        .base = address.base,
-                        .offset = @intCast(address.offset + value_offset),
-                        .repr = value_repr,
-                    });
-                }
-                c.wir_address_stack.append(address) catch oom();
-            },
-            .local_get => |tir_local| {
-                const local_repr = tir_f.local_data.get(tir_local).repr.one;
-                switch (lowerRepr(local_repr)) {
-                    .primitive => {
-                        _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(tir_local).? });
-                        c.wir_address_stack.append(null) catch oom();
-                    },
-                    .shadow => {
-                        return fail(c, .todo);
-                    },
-                }
-            },
-            .local_let => |tir_local| {
-                const local_repr = tir_f.local_data.get(tir_local).repr.one;
-                switch (lowerRepr(local_repr)) {
-                    .primitive => {
-                        assert(c.wir_address_stack.pop() == null);
-                        _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(tir_local).? });
-                    },
-                    .shadow => {
-                        return fail(c, .todo);
-                    },
-                }
-            },
-            .object_get => |object_get| {
-                const object_address = c.wir_address_stack.pop().?;
-                const object_repr = object_address.repr.@"struct"; // TODO other object reprs
-                const i = object_repr.get(object_get.key).?;
-                const offset = object_repr.offsetOf(i);
-                c.wir_address_stack.append(.{
-                    .base = object_address.base,
-                    .offset = object_address.offset + @as(u32, @intCast(offset)),
-                    .repr = object_repr.reprs[i],
-                }) catch oom();
-            },
-            .drop => {
-                const dropped_address = c.wir_address_stack.pop();
-                if (dropped_address == null) {
-                    _ = f.expr_data.append(.drop);
-                }
-            },
-            .block_begin => {
-                f.block_stack.append(.{
-                    .block_begin = .{ .id = expr_id },
-                    .shadow_offset_next = f.shadow_offset_next,
-                    .shadow_address_index = f.shadow_address_stack.items.len,
-                }) catch oom();
-            },
-            .block_end => |block_end| {
-                const block = f.block_stack.pop();
-                assert(expr_id - block_end.expr_count == block.block_begin.id);
-                f.shadow_offset_next = block.shadow_offset_next;
-                f.shadow_address_stack.shrinkRetainingCapacity(block.shadow_address_index);
-            },
-            .@"return" => {
-                if (c.wir_address_stack.pop()) |from_address| {
-                    copy(c, f, from_address, .{ .base = .@"return", .offset = 0, .repr = tir_f.return_repr.one });
-                }
-                _ = f.expr_data.append(.@"return");
-            },
-            else => {
-                //std.debug.print("{}\n", .{expr_data});
-                return fail(c, .todo);
-            },
-        }
-    }
-
-    assert(c.wir_address_stack.items.len == 0);
-}
-
-const WirRepr = union(enum) {
-    primitive: wasm.Valtype,
-    shadow,
-
-    fn abi(self: WirRepr) wasm.Valtype {
-        return switch (self) {
-            .primitive => |primitive| primitive,
-            .shadow => .i32, // pointer to shadow
-        };
-    }
-};
-
-fn lowerRepr(repr: Repr) WirRepr {
-    return switch (repr) {
-        .i32 => .{ .primitive = .i32 },
-        .string, .@"struct", .@"union", .fun, .only, .repr => .shadow,
-    };
-}
-
-fn store(c: *Compiler, f: *wir.FunData, to_address: wir.Address) void {
-    const from_address = c.wir_address_stack.pop();
-    switch (lowerRepr(to_address.repr)) {
-        .primitive => {
-            assert(from_address == null);
-            _ = f.expr_data.append(.{ .store = .{ .address = to_address } });
-        },
-        .shadow => {
-            assert(from_address != null);
-            copy(c, f, from_address.?, to_address);
-        },
-    }
-}
-
-fn copy(c: *Compiler, f: *wir.FunData, from_address: wir.Address, to_address: wir.Address) void {
-    _ = c;
-    assert(from_address.repr.equal(to_address.repr));
-    if (deepEqual(from_address, to_address)) return;
-    _ = f.expr_data.append(.{ .copy = .{
-        .from_address = from_address,
-        .to_address = to_address,
-    } });
-}
-
-fn shadowPush(c: *Compiler, f: *wir.FunData, tir_address: tir.Address, repr: Repr) wir.Address {
-    _ = c;
-    for (f.shadow_address_stack.items) |shadow_address| {
-        if (deepEqual(shadow_address.tir_address, tir_address))
-            return .{
-                .base = .shadow,
-                .offset = @intCast(shadow_address.offset + tir_address.offset),
-                .repr = repr,
-            };
-    }
-    const offset = f.shadow_offset_next;
-    f.shadow_address_stack.append(.{ .tir_address = tir_address, .offset = @intCast(offset) }) catch oom();
-    f.shadow_offset_next += repr.sizeOf();
-    f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
-    return .{
-        .base = .shadow,
-        .offset = @intCast(offset + tir_address.offset),
-        .repr = repr,
-    };
-}
-
-pub const GenerateErrorData = union(enum) {
-    todo,
-};
-
-fn fail(c: *Compiler, data: GenerateErrorData) error{GenerateError} {
-    c.error_data = .{ .generate = .{ .data = data } };
-    return error.GenerateError;
-}
-
-const LocalMap = struct {
-    arg_start: u32,
-    local_start: u32,
-    frame_ptr: u32,
-};
-
-fn emitExpr(c: *Compiler, f: wir.FunData, local_map: LocalMap, expr_data: wir.ExprData) void {
     _ = f;
-    switch (expr_data) {
-        .i32 => |i| {
-            emitEnum(c, wasm.Opcode.i32_const);
-            emitLebI32(c, i);
-        },
-        .local_get => |local| {
-            emitEnum(c, wasm.Opcode.local_get);
-            emitLebU32(c, local_map.local_start + @as(u32, @intCast(local.id)));
-        },
-        .local_set => |local| {
-            emitEnum(c, wasm.Opcode.local_set);
-            emitLebU32(c, local_map.local_start + @as(u32, @intCast(local.id)));
-        },
-        //.store => |store| {
-        //    // TODO need base on stack before value :(
-        //    emitEnum(c, switch (store.address.repr) {
-        //        .i32 => wasm.Opcode.i32_store,
-        //        else => panic("No store opcode exists for repr: {}", .{store.address.repr}),
-        //    });
-        //    emitLebU32(c, 0); // alignment
-        //    emitLebU32(c, store.address.offset);
-        //},
-        .drop => {
-            emitEnum(c, wasm.Opcode.drop);
-        },
-        .@"return" => {
-            // Do nothing here - leave the value on the stack and it will be returned after frame pop.
-            // TODO Once we have non-trivial control flow we'll need to break to the outermost block.
-        },
-        else => panic("TODO generate: {}", .{expr_data}),
-    }
+
+    //for (tir_f.local_data.items()) |local_data| {
+    //    const repr = local_data.repr.one;
+    //    switch (lowerRepr(repr)) {
+    //        .primitive => |typ| {
+    //            const local = f.local_data.append(.{ .type = typ });
+    //            _ = f.local_from_tir.append(local);
+    //        },
+    //        .shadow => {
+    //            _ = f.local_from_tir.append(null);
+    //        },
+    //    }
+    //}
+
+    //assert(c.wir_address_stack.items.len == 0);
+
+    ////std.debug.print("---\n", .{});
+    //for (tir_f.expr_data.items(), tir_f.expr_repr.items(), tir_f.expr_address.items(), 0..) |expr_data, repr, tir_address, expr_id| {
+    //    //std.debug.print("{} {}\n", .{ expr_data, c.wir_address_stack.items.len });
+    //    switch (expr_data) {
+    //        .i32 => |i| {
+    //            _ = f.expr_data.append(.{ .i32 = i });
+    //            c.wir_address_stack.append(null) catch oom();
+    //        },
+    //        .struct_init => {
+    //            const address = shadowPush(c, f, tir_address.?, repr.?);
+    //            const value_reprs = repr.?.@"struct".reprs;
+    //            var i: usize = value_reprs.len;
+    //            while (i > 0) : (i -= 1) {
+    //                const value_repr = value_reprs[i - 1];
+    //                const value_offset = repr.?.@"struct".offsetOf(i - 1);
+    //                store(c, f, .{
+    //                    .base = address.base,
+    //                    .offset = @intCast(address.offset + value_offset),
+    //                    .repr = value_repr,
+    //                });
+    //            }
+    //            c.wir_address_stack.append(address) catch oom();
+    //        },
+    //        .local_get => |tir_local| {
+    //            const local_repr = tir_f.local_data.get(tir_local).repr.one;
+    //            switch (lowerRepr(local_repr)) {
+    //                .primitive => {
+    //                    _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(tir_local).? });
+    //                    c.wir_address_stack.append(null) catch oom();
+    //                },
+    //                .shadow => {
+    //                    return fail(c, .todo);
+    //                },
+    //            }
+    //        },
+    //        .local_let => |tir_local| {
+    //            const local_repr = tir_f.local_data.get(tir_local).repr.one;
+    //            switch (lowerRepr(local_repr)) {
+    //                .primitive => {
+    //                    assert(c.wir_address_stack.pop() == null);
+    //                    _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(tir_local).? });
+    //                },
+    //                .shadow => {
+    //                    return fail(c, .todo);
+    //                },
+    //            }
+    //        },
+    //        .object_get => |object_get| {
+    //            const object_address = c.wir_address_stack.pop().?;
+    //            const object_repr = object_address.repr.@"struct"; // TODO other object reprs
+    //            const i = object_repr.get(object_get.key).?;
+    //            const offset = object_repr.offsetOf(i);
+    //            c.wir_address_stack.append(.{
+    //                .base = object_address.base,
+    //                .offset = object_address.offset + @as(u32, @intCast(offset)),
+    //                .repr = object_repr.reprs[i],
+    //            }) catch oom();
+    //        },
+    //        .drop => {
+    //            const dropped_address = c.wir_address_stack.pop();
+    //            if (dropped_address == null) {
+    //                _ = f.expr_data.append(.drop);
+    //            }
+    //        },
+    //        .block_begin => {
+    //            f.block_stack.append(.{
+    //                .block_begin = .{ .id = expr_id },
+    //                .shadow_offset_next = f.shadow_offset_next,
+    //                .shadow_address_index = f.shadow_address_stack.items.len,
+    //            }) catch oom();
+    //        },
+    //        .block_end => |block_end| {
+    //            const block = f.block_stack.pop();
+    //            assert(expr_id - block_end.expr_count == block.block_begin.id);
+    //            f.shadow_offset_next = block.shadow_offset_next;
+    //            f.shadow_address_stack.shrinkRetainingCapacity(block.shadow_address_index);
+    //        },
+    //        .@"return" => {
+    //            if (c.wir_address_stack.pop()) |from_address| {
+    //                copy(c, f, from_address, .{ .base = .@"return", .offset = 0, .repr = tir_f.return_repr.one });
+    //            }
+    //            _ = f.expr_data.append(.@"return");
+    //        },
+    //        else => {
+    //            //std.debug.print("{}\n", .{expr_data});
+    //            return fail(c, .todo);
+    //        },
+    //    }
+    //}
+
+    //assert(c.wir_address_stack.items.len == 0);
 }
 
-//fn emitNode(c: *Compiler, s: SpecializationData, node: Node) void {
-//    const node_data = s.node_data.get(node);
-//    switch (node_data) {
-//        .value => |value| {
-//            switch (value) {
-//                .i32 => |i| {
-//                    emitEnum(c, wasm.Opcode.i32_const);
-//                    emitLebI32(c, i);
-//                },
-//                .string, .@"struct", .@"union", .repr => panic("Unexpected {}", .{node_data}),
-//            }
-//        },
-//        .struct_init => panic("Unexpected {}", .{node_data}),
-//        .@"return" => {
-//            // Do nothing here - leave the value on the stack and it will be returned after frame pop.
-//        },
-//        .call => |call| {
-//            emitEnum(c, wasm.Opcode.call);
-//            emitLebU32(c, @intCast(call.specialization.?.id));
-//        },
-//        .get => panic("Unexpected {}", .{node_data}),
-//        .arg_get => |arg_get| {
-//            emitEnum(c, wasm.Opcode.local_get);
-//            emitLebU32(c, @intCast(arg_get.arg.id));
-//        },
-//        .local_get => |local_get| {
-//            emitEnum(c, wasm.Opcode.local_get);
-//            emitLebU32(c, @intCast(s.in_repr.count() + local_get.local.id));
-//        },
-//        .local_set => |local_set| {
-//            emitEnum(c, wasm.Opcode.local_set);
-//            emitLebU32(c, @intCast(s.in_repr.count() + local_set.local.id));
-//        },
-//        .shadow_ptr => |shadow| {
-//            var offset: usize = 0;
-//            for (s.shadow_repr.items()[0..shadow.id]) |repr_before| {
-//                offset += repr_before.sizeOf();
-//            }
-//            emitEnum(c, wasm.Opcode.global_get);
-//            emitLebU32(c, stack_global);
-//            emitEnum(c, wasm.Opcode.i32_const);
-//            emitLebU32(c, @intCast(offset));
-//            emitEnum(c, wasm.Opcode.i32_add);
-//        },
-//        .get_repr_data => {
-//            panic("TODO unions {}", .{node_data});
-//            //return Repr.reprData();
-//        },
-//        .add => {
-//            emitEnum(c, wasm.Opcode.i32_add);
-//        },
-//        .load => |load| {
-//            const valtype = try valtypeFromRepr(c, load.repr);
-//            emitEnum(c, switch (valtype) {
-//                .i32 => wasm.Opcode.i32_load,
-//                else => panic("TODO {}", .{valtype}),
-//            });
-//            emitLebU32(c, 0); // alignment
-//            emitLebU32(c, 0); // offset
-//        },
-//        .store => |store| {
-//            const valtype = try valtypeFromRepr(c, s.node_repr.get(store.value));
-//            emitEnum(c, switch (valtype) {
-//                .i32 => wasm.Opcode.i32_store,
-//                else => panic("TODO {}", .{valtype}),
-//            });
-//            emitLebU32(c, 0); // alignment
-//            emitLebU32(c, 0); // offset
-//        },
-//        .copy => {
-//            emitEnum(c, wasm.Opcode.misc_prefix);
-//            emitLebU32(c, @intFromEnum(wasm.MiscOpcode.memory_copy));
-//            emitLebU32(c, 0); // from memory
-//            emitLebU32(c, 0); // to memory
-//        },
-//        .stack_top => {
-//            emitEnum(c, wasm.Opcode.i32_const);
-//            emitLebU32(c, stack_top);
-//        },
-//    }
-//}
+const WasmRepr = enum {
+    primitive,
+    heap,
+};
 
-fn emitByte(c: *Compiler, byte: u8) void {
+fn wasmRepr(repr: Repr) WasmRepr {
+    return switch (repr) {
+        .i32 => .primitive,
+        .string, .@"struct", .@"union", .fun, .only, .repr => .heap,
+    };
+}
+
+fn wasmAbi(repr: Repr) wasm.Valtype {
+    return switch (repr) {
+        .i32 => .i32,
+        // Pointer to heap.
+        .string, .@"struct", .@"union", .fun, .only, .repr => .i32,
+    };
+}
+
+fn emitByte(c: anytype, byte: u8) void {
     c.wasm.append(byte) catch oom();
 }
 
-fn emitEnum(c: *Compiler, e: anytype) void {
+fn emitEnum(c: anytype, e: anytype) void {
     switch (@TypeOf(e)) {
         wasm.Valtype, wasm.ExternalKind, wasm.Section, wasm.Opcode => {},
         else => @compileError(@typeName(@TypeOf(e))),
@@ -507,11 +329,11 @@ fn emitEnum(c: *Compiler, e: anytype) void {
     c.wasm.append(@intFromEnum(e)) catch oom();
 }
 
-fn emitBytes(c: *Compiler, bs: []const u8) void {
+fn emitBytes(c: anytype, bs: []const u8) void {
     c.wasm.appendSlice(bs) catch oom();
 }
 
-fn emitLebU32(c: *Compiler, i: u32) void {
+fn emitLebU32(c: anytype, i: u32) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
@@ -524,11 +346,11 @@ fn emitLebU32(c: *Compiler, i: u32) void {
     }
 }
 
-fn emitLebI32(c: *Compiler, i: i32) void {
+fn emitLebI32(c: anytype, i: i32) void {
     emitLebU32(c, @bitCast(i));
 }
 
-fn emitLebU64(c: *Compiler, i: u64) void {
+fn emitLebU64(c: anytype, i: u64) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
@@ -541,11 +363,11 @@ fn emitLebU64(c: *Compiler, i: u64) void {
     }
 }
 
-fn emitLebI64(c: *Compiler, i: i64) void {
+fn emitLebI64(c: anytype, i: i64) void {
     emitLebU64(c, @bitCast(i));
 }
 
-fn emitName(c: *Compiler, string: []const u8) void {
+fn emitName(c: anytype, string: []const u8) void {
     emitLebU32(c, @intCast(string.len));
     emitBytes(c, string);
 }
@@ -555,14 +377,14 @@ const bytesForU32Max = 5; // ceil(32/7)
 const ByteCountLater = struct { index: usize };
 
 // Write zeroes here and fix it up later.
-fn emitByteCountLater(c: *Compiler) ByteCountLater {
+fn emitByteCountLater(c: anytype) ByteCountLater {
     const index = c.wasm.items.len;
     c.wasm.appendNTimes(0, bytesForU32Max) catch oom();
     return .{ .index = index };
 }
 
 // Fix up some zeroes that we wrote earlier.
-fn emitByteCount(c: *Compiler, byte_count_later: ByteCountLater) void {
+fn emitByteCount(c: anytype, byte_count_later: ByteCountLater) void {
     const ix = byte_count_later.index;
     const byte_count = c.wasm.items.len - ix - bytesForU32Max;
 
@@ -583,11 +405,20 @@ fn emitByteCount(c: *Compiler, byte_count_later: ByteCountLater) void {
     }
 }
 
-fn emitSectionStart(c: *Compiler, section: wasm.Section) ByteCountLater {
+fn emitSectionStart(c: anytype, section: wasm.Section) ByteCountLater {
     emitEnum(c, section);
     return emitByteCountLater(c);
 }
 
-fn emitSectionEnd(c: *Compiler, byte_count_later: ByteCountLater) void {
+fn emitSectionEnd(c: anytype, byte_count_later: ByteCountLater) void {
     emitByteCount(c, byte_count_later);
+}
+
+pub const GenerateErrorData = union(enum) {
+    todo,
+};
+
+fn fail(c: *Compiler, data: GenerateErrorData) error{GenerateError} {
+    c.error_data = .{ .generate = .{ .data = data } };
+    return error.GenerateError;
 }

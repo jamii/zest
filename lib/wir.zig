@@ -38,8 +38,6 @@ pub const FunTypeData = struct {
     return_types: []wasm.Valtype,
 };
 
-pub const Fun = struct { id: usize };
-
 pub const Block = struct {
     begin: tir.Expr,
     offset_next: usize,
@@ -52,8 +50,6 @@ pub const LocalData = struct {
 };
 
 pub const FunData = struct {
-    tir_fun: tir.Fun,
-
     fun_type: FunType,
 
     local_data: List(Local, LocalData),
@@ -65,12 +61,9 @@ pub const FunData = struct {
 
     pub fn init(
         allocator: Allocator,
-        tir_fun: tir.Fun,
         fun_type: FunType,
     ) FunData {
         return .{
-            .tir_fun = tir_fun,
-
             .fun_type = fun_type,
 
             .local_data = fieldType(FunData, .local_data).init(allocator),

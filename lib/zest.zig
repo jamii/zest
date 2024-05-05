@@ -193,7 +193,7 @@ pub const Compiler = struct {
     repr_stack: ArrayList(Repr),
 
     // generate
-    wir_fun_data: List(wir.Fun, wir.FunData),
+    wir_fun_data: List(tir.Fun, wir.FunData),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
     shadow_offset_stack: ArrayList(usize),
@@ -260,6 +260,7 @@ pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
 pub const DesugarErrorData = @import("./desugar.zig").DesugarErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 pub const InferErrorData = @import("./infer.zig").InferErrorData;
+pub const GenerateErrorData = @import("./generate.zig").GenerateErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
@@ -277,6 +278,9 @@ pub const ErrorData = union(enum) {
         fun: tir.Fun,
         expr: dir.Expr,
         data: InferErrorData,
+    },
+    generate: struct {
+        data: GenerateErrorData,
     },
 };
 
