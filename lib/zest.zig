@@ -28,7 +28,6 @@ pub const parse = @import("./parse.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
-pub const place = @import("./place.zig").place;
 pub const lower = @import("./lower.zig").lower;
 pub const generate = @import("./generate.zig").generate;
 
@@ -194,16 +193,13 @@ pub const Compiler = struct {
     tir_frame_stack: ArrayList(tir.Frame),
     repr_stack: ArrayList(Repr),
 
-    // place
-    tir_address_stack: ArrayList(tir.Address),
-
     // lower
     wir_fun_data: List(wir.Fun, wir.FunData),
     wir_fun_main: ?wir.Fun,
     constant_bytes: List(wir.Constant, []const u8),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
-    wir_address_stack: ArrayList(?wir.Address), // null if on wasm stack
+    address_stack: ArrayList(?wir.Address), // null if on wasm stack
     local_address: List(wir.Local, wir.Address),
 
     // generate
@@ -236,14 +232,12 @@ pub const Compiler = struct {
             .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
             .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
 
-            .tir_address_stack = fieldType(Compiler, .tir_address_stack).init(allocator),
-
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .wir_fun_main = null,
             .constant_bytes = fieldType(Compiler, .constant_bytes).init(allocator),
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
-            .wir_address_stack = fieldType(Compiler, .wir_address_stack).init(allocator),
+            .address_stack = fieldType(Compiler, .address_stack).init(allocator),
             .local_address = fieldType(Compiler, .local_address).init(allocator),
 
             .wasm = fieldType(Compiler, .wasm).init(allocator),
@@ -358,8 +352,6 @@ pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, Gen
 
     try inferMain(c);
     assert(c.tir_fun_main != null);
-
-    //place(c);
 
     //try lower(c);
     //assert(c.wir_fun_main != null);

@@ -77,11 +77,6 @@ pub const Block = struct {
     shadow_address_index: usize,
 };
 
-pub const ShadowAddress = struct {
-    tir_address: tir.Address,
-    offset: u32,
-};
-
 pub const FunData = struct {
     tir_fun: tir.Fun,
 
@@ -94,7 +89,7 @@ pub const FunData = struct {
 
     block_stack: ArrayList(Block),
 
-    shadow_address_stack: ArrayList(ShadowAddress),
+    shadow_offset_stack: ArrayList(usize),
     shadow_offset_next: usize,
     shadow_offset_max: usize,
 
@@ -113,7 +108,7 @@ pub const FunData = struct {
 
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
 
-            .shadow_address_stack = fieldType(FunData, .shadow_address_stack).init(allocator),
+            .shadow_offset_stack = fieldType(FunData, .shadow_offset_stack).init(allocator),
             .block_stack = fieldType(FunData, .block_stack).init(allocator),
             .shadow_offset_max = 0,
             .shadow_offset_next = 0,

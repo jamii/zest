@@ -103,9 +103,6 @@ pub const FunData = struct {
 
     return_repr: FlatLattice(Repr),
 
-    expr_address: List(Expr, ?Address), // null for exprs that don't return a value
-    shadow_data: List(Shadow, void),
-
     pub fn init(allocator: Allocator, key: FunKey) FunData {
         return .{
             .key = key,
@@ -116,22 +113,8 @@ pub const FunData = struct {
             .expr_repr = fieldType(FunData, .expr_repr).init(allocator),
 
             .return_repr = .zero,
-
-            .expr_address = fieldType(FunData, .expr_address).init(allocator),
-            .shadow_data = fieldType(FunData, .shadow_data).init(allocator),
         };
     }
-};
-
-pub const Shadow = struct { id: usize };
-
-pub const Address = struct {
-    base: union(enum) {
-        @"return",
-        local: Local,
-        shadow: Shadow,
-    },
-    offset: usize = 0,
 };
 
 pub const Frame = struct {
