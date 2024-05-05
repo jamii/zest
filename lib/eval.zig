@@ -117,33 +117,47 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
         const f = c.dir_fun_data.get(frame.fun);
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
+            //std.debug.print("{}\n", .{expr_data});
             switch (expr_data) {
-                .call => |call| {
-                    const input = popExprInput(c, .call, call);
-                    if (input.fun != .fun)
-                        return fail(c, .{ .not_a_fun = input.fun });
-                    pushFun(c, .{
-                        .fun = input.fun.fun.repr.fun,
-                        .closure = .{ .@"struct" = input.fun.fun.getClosure() },
-                        .arg = input.args,
-                    });
-                    continue :fun;
-                },
-                .stage, .unstage, .block_begin, .block_end => {},
-                .@"return" => {
-                    _ = popFun(c);
-                    if (c.dir_frame_stack.items.len < start_frame_index) {
-                        assert(c.value_stack.items.len == 1);
-                        return c.value_stack.pop();
-                    }
-                    c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
-                    continue :fun;
-                },
-                inline else => |data, expr_tag| {
+                inline .i32, .f32, .string, .arg, .closure, .local_get => |data, expr_tag| {
                     const input = popExprInput(c, expr_tag, data);
                     const output = try evalExpr(c, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);
-                    //std.debug.print("{}\n{}\n{}\n\n", .{ expr_data, input, output });
+                },
+                .struct_init, .fun_init, .local_let, .assert_object, .object_get, .drop, .stage, .unstage, .call, .@"return" => {
+                    c.dir_end_stack.append(frame.expr) catch oom();
+                },
+                .end => {
+                    const expr_begin = c.dir_end_stack.pop();
+                    switch (f.expr_data.get(expr_begin)) {
+                        .call => |call| {
+                            const input = popExprInput(c, .call, call);
+                            if (input.fun != .fun)
+                                return fail(c, .{ .not_a_fun = input.fun });
+                            pushFun(c, .{
+                                .fun = input.fun.fun.repr.fun,
+                                .closure = .{ .@"struct" = input.fun.fun.getClosure() },
+                                .arg = input.args,
+                            });
+                            continue :fun;
+                        },
+                        .@"return" => {
+                            _ = popFun(c);
+                            if (c.dir_frame_stack.items.len < start_frame_index) {
+                                assert(c.value_stack.items.len == 1);
+                                return c.value_stack.pop();
+                            }
+                            c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
+                            continue :fun;
+                        },
+                        .stage, .unstage => {},
+                        inline else => |data, expr_tag| {
+                            //std.debug.print("end={}\n", .{expr_tag});
+                            const input = popExprInput(c, expr_tag, data);
+                            const output = try evalExpr(c, expr_tag, data, input);
+                            pushExprOutput(c, expr_tag, output);
+                        },
+                    }
                 },
             }
             frame.expr.id += 1;
@@ -157,7 +171,7 @@ fn popExprInput(
     data: std.meta.TagPayload(dir.ExprData, expr_tag),
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .stage, .unstage, .end => return,
         .fun_init, .local_let, .assert_object, .object_get, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;

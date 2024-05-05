@@ -182,6 +182,15 @@ fn emitExpr(c: *Compiler, f: wir.FunData, local_map: LocalMap, expr_data: wir.Ex
             emitEnum(c, wasm.Opcode.local_set);
             emitLebU32(c, local_map.local_start + @as(u32, @intCast(local.id)));
         },
+        //.store => |store| {
+        //    // TODO need base on stack before value :(
+        //    emitEnum(c, switch (store.address.repr) {
+        //        .i32 => wasm.Opcode.i32_store,
+        //        else => panic("No store opcode exists for repr: {}", .{store.address.repr}),
+        //    });
+        //    emitLebU32(c, 0); // alignment
+        //    emitLebU32(c, store.address.offset);
+        //},
         .drop => {
             emitEnum(c, wasm.Opcode.drop);
         },

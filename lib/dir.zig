@@ -21,27 +21,24 @@ pub const ExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
+    arg,
+    closure,
+    local_get: Local,
+
     struct_init: usize,
     fun_init: struct {
         fun: Fun,
     },
-    arg,
-    closure,
-    local_get: Local,
     local_let: Local,
     assert_object,
     object_get,
     call,
     drop,
-    block_begin: struct {
-        expr_count: usize,
-    },
-    block_end: struct {
-        expr_count: usize,
-    },
     @"return",
-    stage, // Stage the following block.
-    unstage, // Unstage the following expr.
+    stage,
+    unstage,
+
+    end,
 };
 
 // Push in order.
@@ -51,6 +48,10 @@ pub fn ExprInput(comptime T: type) type {
         i32,
         f32,
         string,
+        arg,
+        closure,
+        local_get,
+
         struct_init: struct {
             keys: []Value,
             values: []T,
@@ -58,9 +59,6 @@ pub fn ExprInput(comptime T: type) type {
         fun_init: struct {
             closure: T,
         },
-        arg,
-        closure,
-        local_get,
         local_let: struct {
             value: T,
         },
@@ -78,13 +76,13 @@ pub fn ExprInput(comptime T: type) type {
         drop: struct {
             value: T,
         },
-        block_begin,
-        block_end,
         @"return": struct {
             value: T,
         },
         stage,
         unstage,
+
+        end,
     };
 }
 
@@ -93,21 +91,22 @@ pub fn ExprOutput(comptime T: type) type {
         i32: T,
         f32: T,
         string: T,
-        struct_init: T,
-        fun_init: T,
         arg: T,
         closure: T,
         local_get: T,
+
+        struct_init: T,
+        fun_init: T,
         local_let,
         assert_object,
         object_get: T,
         call: T,
         drop,
-        block_begin,
-        block_end,
         @"return",
         stage: T,
         unstage: T,
+
+        end,
     };
 }
 
