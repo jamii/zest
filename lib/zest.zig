@@ -194,9 +194,9 @@ pub const Compiler = struct {
 
     // generate
     wir_fun_data: List(wir.Fun, wir.FunData),
-    wir_fun_main: ?wir.Fun,
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
+    shadow_offset_stack: ArrayList(usize),
     block_stack: ArrayList(wir.Block),
     input_stack: ArrayList(wir.Address),
     output_stack: ArrayList(wir.Address),
@@ -231,9 +231,9 @@ pub const Compiler = struct {
             .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
-            .wir_fun_main = null,
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
+            .shadow_offset_stack = fieldType(Compiler, .shadow_offset_stack).init(allocator),
             .block_stack = fieldType(Compiler, .block_stack).init(allocator),
             .input_stack = fieldType(Compiler, .input_stack).init(allocator),
             .output_stack = fieldType(Compiler, .output_stack).init(allocator),
@@ -342,9 +342,6 @@ pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, Gen
     try inferMain(c);
     assert(c.tir_fun_main != null);
 
-    //try lower(c);
-    //assert(c.wir_fun_main != null);
-
-    //try generate(c);
-    //assert(c.wasm.items.len != 0);
+    try generate(c);
+    assert(c.wasm.items.len != 0);
 }

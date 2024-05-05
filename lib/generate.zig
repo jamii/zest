@@ -85,7 +85,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
         emitName(c, "main");
         emitEnum(c, wasm.ExternalKind.function);
-        emitLebU32(c, @intCast(c.wir_fun_main.?.id));
+        emitLebU32(c, @intCast(c.tir_fun_main.?.id));
 
         emitName(c, "memory");
         emitEnum(c, wasm.ExternalKind.memory);
@@ -101,25 +101,25 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
-            var locals_count: u32 = 0;
+            //var locals_count: u32 = 0;
 
-            const arg_start = locals_count;
-            locals_count += @intCast(c.fun_type_data.get(f.fun_type).arg_types.len);
+            //const arg_start = locals_count;
+            //locals_count += @intCast(c.fun_type_data.get(f.fun_type).arg_types.len);
 
-            const local_start = locals_count;
-            locals_count += @intCast(f.local_data.count());
+            //const local_start = locals_count;
+            //locals_count += @intCast(f.local_data.count());
 
-            const frame_ptr = locals_count;
-            locals_count += 1;
+            //const frame_ptr = locals_count;
+            //locals_count += 1;
 
-            const local_map = LocalMap{
-                .arg_start = arg_start,
-                .local_start = local_start,
-                .frame_ptr = frame_ptr,
-            };
+            //const local_map = LocalMap{
+            //    .arg_start = arg_start,
+            //    .local_start = local_start,
+            //    .frame_ptr = frame_ptr,
+            //};
 
             // Locals
-            emitLebU32(c, @intCast(locals_count));
+            //emitLebU32(c, @intCast(locals_count));
             for (c.fun_type_data.get(f.fun_type).arg_types) |typ| {
                 emitLebU32(c, 1);
                 emitEnum(c, typ);
@@ -142,9 +142,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             //    emitLebU32(c, stack_global);
             //}
 
-            for (f.expr_data.items()) |expr_data| {
-                emitExpr(c, f, local_map, expr_data);
-            }
+            c.wasm.appendSlice(f.wasm.items) catch oom();
 
             //// Frame pop
             //if (shadow_size != 0) {

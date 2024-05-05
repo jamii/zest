@@ -45,16 +45,21 @@ pub const Block = struct {
     offset_next: usize,
 };
 
+pub const Local = struct { id: usize };
+
+pub const LocalData = struct {
+    type: wasm.Valtype,
+};
+
 pub const FunData = struct {
     tir_fun: tir.Fun,
 
     fun_type: FunType,
 
-    local_id_next: usize,
+    local_data: List(Local, LocalData),
 
-    body: ArrayList(u8),
+    wasm: ArrayList(u8),
 
-    shadow_offset_stack: ArrayList(usize),
     shadow_offset_next: usize,
     shadow_offset_max: usize,
 
@@ -69,12 +74,9 @@ pub const FunData = struct {
             .fun_type = fun_type,
 
             .local_data = fieldType(FunData, .local_data).init(allocator),
-            .local_from_tir = fieldType(FunData, .local_from_tir).init(allocator),
 
-            .expr_data = fieldType(FunData, .expr_data).init(allocator),
+            .wasm = fieldType(FunData, .wasm).init(allocator),
 
-            .shadow_offset_stack = fieldType(FunData, .shadow_offset_stack).init(allocator),
-            .block_stack = fieldType(FunData, .block_stack).init(allocator),
             .shadow_offset_max = 0,
             .shadow_offset_next = 0,
         };
