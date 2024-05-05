@@ -28,7 +28,6 @@ pub const parse = @import("./parse.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
-pub const lower = @import("./lower.zig").lower;
 pub const generate = @import("./generate.zig").generate;
 
 pub fn oom() noreturn {
@@ -193,16 +192,15 @@ pub const Compiler = struct {
     tir_frame_stack: ArrayList(tir.Frame),
     repr_stack: ArrayList(Repr),
 
-    // lower
+    // generate
     wir_fun_data: List(wir.Fun, wir.FunData),
     wir_fun_main: ?wir.Fun,
-    constant_bytes: List(wir.Constant, []const u8),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
-    address_stack: ArrayList(?wir.Address), // null if on wasm stack
-    local_address: List(wir.Local, wir.Address),
-
-    // generate
+    block_stack: ArrayList(wir.Block),
+    input_stack: ArrayList(wir.Address),
+    output_stack: ArrayList(wir.Address),
+    local_address: List(tir.Local, wir.Address),
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -234,12 +232,12 @@ pub const Compiler = struct {
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .wir_fun_main = null,
-            .constant_bytes = fieldType(Compiler, .constant_bytes).init(allocator),
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
-            .address_stack = fieldType(Compiler, .address_stack).init(allocator),
+            .block_stack = fieldType(Compiler, .block_stack).init(allocator),
+            .input_stack = fieldType(Compiler, .input_stack).init(allocator),
+            .output_stack = fieldType(Compiler, .output_stack).init(allocator),
             .local_address = fieldType(Compiler, .local_address).init(allocator),
-
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
@@ -262,7 +260,6 @@ pub const ParseErrorData = @import("./parse.zig").ParseErrorData;
 pub const DesugarErrorData = @import("./desugar.zig").DesugarErrorData;
 pub const EvalErrorData = @import("./eval.zig").EvalErrorData;
 pub const InferErrorData = @import("./infer.zig").InferErrorData;
-pub const LowerErrorData = @import("./lower.zig").LowerErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
@@ -280,9 +277,6 @@ pub const ErrorData = union(enum) {
         fun: tir.Fun,
         expr: dir.Expr,
         data: InferErrorData,
-    },
-    lower: struct {
-        data: LowerErrorData,
     },
 };
 
@@ -319,11 +313,6 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
-                };
-            },
-            .lower => |err| {
-                return switch (err.data) {
-                    .todo => format(c, "TODO lower", .{}),
                 };
             },
             else => return format(c, "{}", .{c.error_data.?}),

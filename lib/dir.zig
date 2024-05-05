@@ -36,6 +36,7 @@ pub const ExprData = union(enum) {
     object_get,
     call,
     drop,
+    block,
     @"return",
     stage,
     unstage,
@@ -78,6 +79,9 @@ pub fn ExprInput(comptime T: type) type {
         drop: struct {
             value: T,
         },
+        block: struct {
+            value: T,
+        },
         @"return": struct {
             value: T,
         },
@@ -104,6 +108,7 @@ pub fn ExprOutput(comptime T: type) type {
         object_get: T,
         call: T,
         drop,
+        block: T,
         @"return",
         stage: T,
         unstage: T,

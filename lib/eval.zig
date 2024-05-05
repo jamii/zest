@@ -99,7 +99,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                 ends_remaining += 1;
             },
             .i32, .f32, .string, .arg, .closure, .local_get => {},
-            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .call, .drop, .@"return", .stage, .unstage => {
+            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .call, .drop, .block, .@"return", .stage, .unstage => {
                 ends_remaining -= 1;
                 if (ends_remaining == 0) {
                     assert(c.value_stack.items.len == 1);
@@ -162,7 +162,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .stage, .unstage, .begin => return,
-        .fun_init, .local_let, .assert_object, .object_get, .drop, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .object_get, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -247,6 +247,7 @@ pub fn evalExpr(
             return value;
         },
         .drop => return,
+        .block => return input.value,
         .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_tag}),
         else => return fail(c, .todo),
     }

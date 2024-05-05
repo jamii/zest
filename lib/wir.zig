@@ -12,55 +12,24 @@ const Value = zest.Value;
 const Repr = zest.Repr;
 const tir = zest.tir;
 
-pub const Arg = struct { id: usize };
-
-pub const Local = struct { id: usize };
-
-pub const LocalData = struct {
-    type: wasm.Valtype,
-};
-
-pub const Expr = struct { id: usize };
-
-pub const ExprData = union(enum) {
-    i32: i32,
-    f32: f32,
-    ptr_to_constant: Constant,
-    arg: Arg,
-    local_get: Local,
-    local_set: Local,
-    load: struct {
-        address: Address,
-    },
-    store: struct {
-        address: Address,
-    },
-    copy: struct {
-        from_address: Address,
-        to_address: Address,
-    },
-    call: Fun,
-    drop,
-    block_begin: struct {
-        expr_count: usize,
-    },
-    block_end: struct {
-        expr_count: usize,
-    },
+pub const AddressDirect = union(enum) {
+    closure,
+    arg,
     @"return",
+    shadow,
+    local: u32,
+    stack,
 };
 
-pub const Address = struct {
-    base: union(enum) {
-        @"return",
-        arg: Arg,
-        shadow,
-    },
+pub const AddressIndirect = struct {
     offset: u32,
     repr: Repr,
 };
 
-pub const Constant = struct { id: usize };
+pub const Address = struct {
+    direct: AddressDirect,
+    indirect: ?AddressIndirect, // null if direct
+};
 
 pub const FunType = struct { id: usize };
 
@@ -72,9 +41,8 @@ pub const FunTypeData = struct {
 pub const Fun = struct { id: usize };
 
 pub const Block = struct {
-    block_begin: tir.Expr,
-    shadow_offset_next: usize,
-    shadow_address_index: usize,
+    begin: tir.Expr,
+    offset_next: usize,
 };
 
 pub const FunData = struct {
@@ -82,12 +50,9 @@ pub const FunData = struct {
 
     fun_type: FunType,
 
-    local_data: List(Local, LocalData),
-    local_from_tir: List(tir.Local, ?Local), // null if moved to shadow stack
+    local_id_next: usize,
 
-    expr_data: List(Expr, ExprData),
-
-    block_stack: ArrayList(Block),
+    body: ArrayList(u8),
 
     shadow_offset_stack: ArrayList(usize),
     shadow_offset_next: usize,

@@ -38,6 +38,7 @@ pub const ExprData = union(enum) {
     },
     call: Fun,
     drop,
+    block,
     @"return",
 };
 
@@ -59,6 +60,7 @@ pub fn ExprInput(comptime T: type) type {
         object_get: T,
         call: [2]T,
         drop: T,
+        block: T,
         @"return": T,
     };
 }
@@ -81,6 +83,7 @@ pub fn ExprOutput(comptime T: type) type {
         object_get: T,
         call: T,
         drop,
+        block: T,
         @"return",
     };
 }

@@ -177,6 +177,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             const scope_saved = c.scope.save();
             defer c.scope.restore(scope_saved);
 
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.block);
+
             for (block, 0..) |statement, i| {
                 if (i < block.len - 1)
                     _ = f.expr_data.append(.begin);
