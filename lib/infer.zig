@@ -56,7 +56,7 @@ fn infer(c: *Compiler) error{ EvalError, InferError }!void {
         c.tir_fun_by_key.put(child_frame.key, child_frame.fun) catch oom();
         if (c.tir_frame_stack.items.len == 0)
             break;
-        // Don't need to advance expr.id here - we'll revisit the call and use the cached repr this time.
+        // Don't need to advance expr.id here - we'll revisit the call and use the cached tir_fun this time.
     }
 }
 
@@ -82,6 +82,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                     pushExprOutput(c, .call, return_repr);
                 } else {
                     // Put inputs back on stack and switch to the called function.
+                    // When we return to this expr we'll hit the cached tir_fun.
                     c.repr_stack.append(input.fun) catch oom();
                     c.repr_stack.append(input.args) catch oom();
                     _ = pushFun(c, key);
