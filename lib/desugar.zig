@@ -23,8 +23,8 @@ fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarErr
     try desugarObjectPattern(c, &f, .arg, params);
 
     {
-        _ = f.expr_data.append(.@"return");
-        defer _ = f.expr_data.append(.end);
+        _ = f.expr_data.append(.begin);
+        defer _ = f.expr_data.append(.@"return");
 
         try desugarExpr(c, &f, body);
     }
@@ -36,11 +36,11 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
         const local = f.local_data.append(.{});
         {
-            _ = f.expr_data.append(.{ .local_let = local });
-            defer _ = f.expr_data.append(.end);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.{ .local_let = local });
 
-            _ = f.expr_data.append(.object_get);
-            defer _ = f.expr_data.append(.end);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.object_get);
 
             push(c, f, object, false);
             try desugarKey(c, f, key_expr);
@@ -63,8 +63,8 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
         },
         .object => |object| {
             {
-                _ = f.expr_data.append(.assert_object);
-                defer _ = f.expr_data.append(.end);
+                _ = f.expr_data.append(.begin);
+                defer _ = f.expr_data.append(.assert_object);
 
                 push(c, f, value, false);
             }
@@ -83,8 +83,8 @@ fn desugarKey(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}
 }
 
 fn desugarObject(c: *Compiler, f: *dir.FunData, object: sir.Object) error{DesugarError}!void {
-    _ = f.expr_data.append(.{ .struct_init = object.keys.len });
-    defer _ = f.expr_data.append(.end);
+    _ = f.expr_data.append(.begin);
+    defer _ = f.expr_data.append(.{ .struct_init = object.keys.len });
 
     for (object.keys, object.values) |key, value| {
         try desugarKey(c, f, key);
@@ -117,14 +117,14 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                         return fail(c, expr, .{ .name_already_bound = .{ .name = name } });
                     const local = f.local_data.append(.{});
                     {
-                        _ = f.expr_data.append(.{ .local_let = local });
-                        defer _ = f.expr_data.append(.end);
+                        _ = f.expr_data.append(.begin);
+                        defer _ = f.expr_data.append(.{ .local_let = local });
 
                         try desugarExpr(c, f, let_or_set.value);
                     }
                     {
-                        _ = f.expr_data.append(.{ .struct_init = 0 });
-                        defer _ = f.expr_data.append(.end);
+                        _ = f.expr_data.append(.begin);
+                        defer _ = f.expr_data.append(.{ .struct_init = 0 });
                     }
                     c.scope.push(.{
                         .name = name,
@@ -135,8 +135,8 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             }
         },
         .get => |get| {
-            _ = f.expr_data.append(.object_get);
-            defer _ = f.expr_data.append(.end);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.object_get);
 
             try desugarExpr(c, f, get.object);
             try desugarKey(c, f, get.key);
@@ -150,14 +150,14 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                 break :dir_fun try desugarFun(c, fun.params, fun.body);
             };
 
-            _ = f.expr_data.append(.{ .fun_init = .{ .fun = dir_fun } });
-            defer _ = f.expr_data.append(.end);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.{ .fun_init = .{ .fun = dir_fun } });
 
             {
                 const dir_fun_data = c.dir_fun_data.get(dir_fun);
 
-                _ = f.expr_data.append(.{ .struct_init = dir_fun_data.closure_keys.items.len });
-                defer _ = f.expr_data.append(.end);
+                _ = f.expr_data.append(.begin);
+                defer _ = f.expr_data.append(.{ .struct_init = dir_fun_data.closure_keys.items.len });
 
                 for (dir_fun_data.closure_keys.items) |name| {
                     stageString(c, f, name);
@@ -167,8 +167,8 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             }
         },
         .call => |call| {
-            _ = f.expr_data.append(.call);
-            defer _ = f.expr_data.append(.end);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.call);
 
             try desugarExpr(c, f, call.head);
             try desugarObject(c, f, call.args);
@@ -179,9 +179,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
 
             for (block, 0..) |statement, i| {
                 if (i < block.len - 1)
-                    _ = f.expr_data.append(.drop);
+                    _ = f.expr_data.append(.begin);
                 defer if (i < block.len - 1) {
-                    _ = f.expr_data.append(.end);
+                    _ = f.expr_data.append(.drop);
                 };
 
                 try desugarExpr(c, f, statement);
@@ -196,8 +196,8 @@ fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!
     c.scope.staged_until_len = c.scope.bindings.items.len;
     defer c.scope.staged_until_len = prev_staged_until_len;
 
-    _ = f.expr_data.append(.stage);
-    defer _ = f.expr_data.append(.end);
+    _ = f.expr_data.append(.begin);
+    defer _ = f.expr_data.append(.stage);
 
     try desugarExpr(c, f, expr);
 }
@@ -205,17 +205,17 @@ fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!
 fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
     _ = c;
 
-    _ = f.expr_data.append(.stage);
-    defer _ = f.expr_data.append(.end);
+    _ = f.expr_data.append(.begin);
+    defer _ = f.expr_data.append(.stage);
 
     _ = f.expr_data.append(.{ .string = string });
 }
 
 fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool) void {
     if (is_staged)
-        _ = f.expr_data.append(.unstage);
+        _ = f.expr_data.append(.begin);
     defer if (is_staged) {
-        _ = f.expr_data.append(.end);
+        _ = f.expr_data.append(.unstage);
     };
 
     switch (value) {
@@ -226,8 +226,8 @@ fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool
                 f.closure_keys.append(name) catch oom();
             }
 
-            _ = f.expr_data.append(.object_get);
-            defer _ = f.expr_data.append(.end);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.object_get);
 
             _ = f.expr_data.append(.closure);
             stageString(c, f, name);

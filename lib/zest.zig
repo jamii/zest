@@ -184,7 +184,6 @@ pub const Compiler = struct {
 
     // eval
     dir_frame_stack: ArrayList(dir.Frame),
-    dir_end_stack: ArrayList(dir.Expr),
     value_stack: ArrayList(Value),
     local_stack: ArrayList(Value),
 
@@ -228,7 +227,6 @@ pub const Compiler = struct {
             .dir_fun_main = null,
 
             .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
-            .dir_end_stack = fieldType(Compiler, .dir_end_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
             .local_stack = fieldType(Compiler, .local_stack).init(allocator),
 
