@@ -98,6 +98,8 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 const return_value = try eval.evalStaged(c, f, frame.key.arg_repr, frame.key.closure_repr);
                 const eval_frame = eval.popFun(c);
                 frame.expr = eval_frame.expr;
+                // Need to balance the begin.
+                _ = pushExpr(c, f, .nop, null);
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
             },
             inline else => |data, expr_tag| {
@@ -116,7 +118,7 @@ fn popExprInput(
     data: std.meta.TagPayload(dir.ExprData, expr_tag),
 ) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .block_begin, .block_end, .stage, .unstage => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage => return,
         .fun_init, .local_let, .object_get, .assert_object, .drop, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
             var input: Input = undefined;
@@ -197,8 +199,8 @@ fn inferExpr(
         },
         .local_let => {
             const local = tir.Local{ .id = data.id };
-            pushExpr(c, f, .{ .local_let = local }, null);
             _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
+            pushExpr(c, f, .{ .local_let = local }, null);
             return;
         },
         .assert_object => {
@@ -227,7 +229,10 @@ fn inferExpr(
             pushExpr(c, f, .drop, null);
             return;
         },
-        .block_begin, .block_end => return,
+        .begin => {
+            pushExpr(c, f, .begin, null);
+            return;
+        },
         .@"return" => {
             _ = try reprUnion(c, &f.return_repr, input.value);
             pushExpr(c, f, .@"return", null);

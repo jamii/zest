@@ -46,15 +46,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
 
-    const return_after = return_after: {
-        assert(f.expr_data.get(frame.expr) == .stage);
-        frame.expr.id += 1;
-        const block_begin_data = f.expr_data.get(frame.expr);
-        assert(block_begin_data == .block_begin);
-        const expr_block_end = dir.Expr{ .id = frame.expr.id + block_begin_data.block_begin.expr_count + 1 };
-        assert(f.expr_data.get(expr_block_end) == .block_end);
-        break :return_after expr_block_end;
-    };
+    var ends_remaining: usize = 0;
 
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
@@ -90,10 +82,10 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                 };
                 c.value_stack.append(value) catch oom();
             },
-            .block_begin, .block_end => {},
             .@"return", .arg, .closure => {
                 return fail(c, .cannot_stage_expr);
             },
+            .begin => {},
             inline else => |data, expr_tag| {
                 const input = popExprInput(c, expr_tag, data);
                 const output = try evalExpr(c, expr_tag, data, input);
@@ -101,10 +93,21 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                 //std.debug.print("{}\n{}\n{}\n\n", .{ expr_data, input, output });
             },
         }
-        if (frame.expr.id == return_after.id) {
-            assert(c.value_stack.items.len == 1);
-            return c.value_stack.pop();
+
+        switch (expr_data) {
+            .begin => {
+                ends_remaining += 1;
+            },
+            .i32, .f32, .string, .arg, .closure, .local_get => {},
+            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .call, .drop, .@"return", .stage, .unstage => {
+                ends_remaining -= 1;
+                if (ends_remaining == 0) {
+                    assert(c.value_stack.items.len == 1);
+                    return c.value_stack.pop();
+                }
+            },
         }
+
         frame.expr.id += 1;
     }
 }

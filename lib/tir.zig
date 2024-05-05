@@ -23,23 +23,21 @@ pub const ExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
-    struct_init,
-    fun_init,
     arg,
     closure,
     local_get: Local,
+
+    begin,
+    nop,
+
+    struct_init,
+    fun_init,
     local_let: Local,
     object_get: struct {
         key: Value,
     },
     call: Fun,
     drop,
-    block_begin: struct {
-        expr_count: usize,
-    },
-    block_end: struct {
-        expr_count: usize,
-    },
     @"return",
 };
 
@@ -48,17 +46,19 @@ pub fn ExprInput(comptime T: type) type {
         i32,
         f32,
         string,
-        struct_init: []T,
-        fun_init: T,
         arg,
         closure,
         local_get,
+
+        begin,
+        nop,
+
+        struct_init: []T,
+        fun_init: T,
         local_let: T,
         object_get: T,
         call: [2]T,
         drop: T,
-        block_begin,
-        block_end,
         @"return": T,
     };
 }
@@ -68,17 +68,19 @@ pub fn ExprOutput(comptime T: type) type {
         i32: T,
         f32: T,
         string: T,
-        struct_init: T,
-        fun_init: T,
         arg: T,
         closure: T,
         local_get: T,
+
+        begin,
+        nop,
+
+        struct_init: T,
+        fun_init: T,
         local_let,
         object_get: T,
         call: T,
         drop,
-        block_begin,
-        block_end,
         @"return",
     };
 }

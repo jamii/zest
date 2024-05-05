@@ -354,12 +354,10 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
 }
 
 pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, GenerateError }!void {
-    _ = c;
+    assert(c.dir_fun_main != null);
 
-    //assert(c.dir_fun_main != null);
-
-    //try inferMain(c);
-    //assert(c.tir_fun_main != null);
+    try inferMain(c);
+    assert(c.tir_fun_main != null);
 
     //place(c);
 
