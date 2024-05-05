@@ -50,6 +50,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
 
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
+        std.debug.print("{} {}\n", .{ expr_data, ends_remaining });
         switch (expr_data) {
             .call => |call| {
                 const input = popExprInput(c, .call, call);
@@ -85,7 +86,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
             .@"return", .arg, .closure => {
                 return fail(c, .cannot_stage_expr);
             },
-            .begin => {},
+            .begin, .stage => {},
             inline else => |data, expr_tag| {
                 const input = popExprInput(c, expr_tag, data);
                 const output = try evalExpr(c, expr_tag, data, input);
@@ -100,11 +101,11 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
             },
             .i32, .f32, .string, .arg, .closure, .local_get => {},
             .struct_init, .fun_init, .local_let, .assert_object, .object_get, .call, .drop, .block, .@"return", .stage, .unstage => {
-                ends_remaining -= 1;
                 if (ends_remaining == 0) {
                     assert(c.value_stack.items.len == 1);
                     return c.value_stack.pop();
                 }
+                ends_remaining -= 1;
             },
         }
 

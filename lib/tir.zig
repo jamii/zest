@@ -23,8 +23,8 @@ pub const ExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
-    arg,
     closure,
+    arg,
     local_get: Local,
 
     begin,
@@ -47,8 +47,8 @@ pub fn ExprInput(comptime T: type) type {
         i32,
         f32,
         string,
-        arg,
         closure,
+        arg,
         local_get,
 
         begin,
@@ -70,8 +70,8 @@ pub fn ExprOutput(comptime T: type) type {
         i32: T,
         f32: T,
         string: T,
-        arg: T,
         closure: T,
+        arg: T,
         local_get: T,
 
         begin,

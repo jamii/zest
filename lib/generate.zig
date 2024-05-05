@@ -105,35 +105,12 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
-            //var locals_count: u32 = 0;
-
-            //const arg_start = locals_count;
-            //locals_count += @intCast(c.fun_type_data.get(f.fun_type).arg_types.len);
-
-            //const local_start = locals_count;
-            //locals_count += @intCast(f.local_data.count());
-
-            //const frame_ptr = locals_count;
-            //locals_count += 1;
-
-            //const local_map = LocalMap{
-            //    .arg_start = arg_start,
-            //    .local_start = local_start,
-            //    .frame_ptr = frame_ptr,
-            //};
-
             // Locals
-            //emitLebU32(c, @intCast(locals_count));
-            for (c.fun_type_data.get(f.fun_type).arg_types) |typ| {
-                emitLebU32(c, 1);
-                emitEnum(c, typ);
-            }
+            emitLebU32(c, @intCast(f.local_data.count()));
             for (f.local_data.items()) |l| {
                 emitLebU32(c, 1);
                 emitEnum(c, l.type);
             }
-            emitLebU32(c, 1);
-            emitEnum(c, wasm.Valtype.i32);
 
             //// Frame push
             //if (shadow_size != 0) {
@@ -168,11 +145,20 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     const tir_f = c.tir_fun_data.get(fun);
 
+    // Get fun_type.
     var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
     var return_types = ArrayList(wasm.Valtype).init(c.allocator);
     if (!tir_f.key.closure_repr.isEmptyStruct() or
         !tir_f.key.arg_repr.isEmptyStruct())
         return fail(c, .todo);
+    var return_arg_count: u32 = 0;
+    switch (wasmRepr(tir_f.return_repr.one)) {
+        .primitive => {},
+        .heap => {
+            return_arg_count += 1;
+            arg_types.append(.i32) catch oom();
+        },
+    }
     return_types.append(wasmAbi(tir_f.return_repr.one)) catch oom();
     const fun_type_data = wir.FunTypeData{
         .arg_types = arg_types.toOwnedSlice() catch oom(),
@@ -184,117 +170,208 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
         c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
     }
 
-    _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?));
+    _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?, return_arg_count));
     const f = c.wir_fun_data.getPtr(fun);
 
-    _ = f;
+    // Map begin exprs to their end.
+    assert(c.begin_stack.items.len == 0);
+    defer assert(c.begin_stack.items.len == 0);
+    assert(c.begin_end.count() == 0);
+    defer c.begin_end.data.shrinkRetainingCapacity(0);
+    c.begin_end.appendNTimes(.{ .id = 0 }, tir_f.expr_data.count());
+    for (tir_f.expr_data.items(), 0..) |expr_data, expr_id| {
+        switch (expr_data) {
+            .begin => c.begin_stack.append(.{ .id = expr_id }) catch oom(),
+            .i32, .f32, .string, .arg, .closure, .local_get => {},
+            .struct_init, .fun_init, .local_let, .object_get, .call, .drop, .block, .@"return", .nop => {
+                const begin = c.begin_stack.pop();
+                c.begin_end.getPtr(begin).* = .{ .id = expr_id };
+            },
+        }
+    }
 
-    //for (tir_f.local_data.items()) |local_data| {
-    //    const repr = local_data.repr.one;
-    //    switch (lowerRepr(repr)) {
-    //        .primitive => |typ| {
-    //            const local = f.local_data.append(.{ .type = typ });
-    //            _ = f.local_from_tir.append(local);
-    //        },
-    //        .shadow => {
-    //            _ = f.local_from_tir.append(null);
-    //        },
-    //    }
-    //}
+    // Map tir locals to wasm locals or shadow stack.
+    assert(c.local_address.count() == 0);
+    defer c.local_address.data.shrinkRetainingCapacity(0);
+    for (tir_f.local_data.items()) |local_data| {
+        const repr = local_data.repr.one;
+        switch (wasmRepr(repr)) {
+            .primitive => {
+                const local = f.local_data.append(.{ .type = wasmAbi(repr) });
+                _ = c.local_address.append(.{ .direct = .{ .local = local } });
+            },
+            .heap => {
+                _ = c.local_address.append(.{
+                    .direct = .shadow,
+                    .indirect = .{
+                        // We'll set offset when we hit local_let.
+                        .offset = 0,
+                        .repr = repr,
+                    },
+                });
+            },
+        }
+    }
 
-    //assert(c.wir_address_stack.items.len == 0);
+    // TODO Uncomment asserts once todo is gone.
+    assert(c.shadow_offset_stack.items.len == 0);
+    //defer assert(c.shadow_offset_stack.items.len == 0);
+    assert(c.block_stack.items.len == 0);
+    //defer assert(c.block_stack.items.len == 0);
+    assert(c.input_stack.items.len == 0);
+    //defer assert(c.input_stack.items.len == 0);
+    assert(c.output_stack.items.len == 0);
+    //defer assert(c.output_stack.items.len == 0);
 
-    ////std.debug.print("---\n", .{});
-    //for (tir_f.expr_data.items(), tir_f.expr_repr.items(), tir_f.expr_address.items(), 0..) |expr_data, repr, tir_address, expr_id| {
-    //    //std.debug.print("{} {}\n", .{ expr_data, c.wir_address_stack.items.len });
-    //    switch (expr_data) {
-    //        .i32 => |i| {
-    //            _ = f.expr_data.append(.{ .i32 = i });
-    //            c.wir_address_stack.append(null) catch oom();
-    //        },
-    //        .struct_init => {
-    //            const address = shadowPush(c, f, tir_address.?, repr.?);
-    //            const value_reprs = repr.?.@"struct".reprs;
-    //            var i: usize = value_reprs.len;
-    //            while (i > 0) : (i -= 1) {
-    //                const value_repr = value_reprs[i - 1];
-    //                const value_offset = repr.?.@"struct".offsetOf(i - 1);
-    //                store(c, f, .{
-    //                    .base = address.base,
-    //                    .offset = @intCast(address.offset + value_offset),
-    //                    .repr = value_repr,
-    //                });
-    //            }
-    //            c.wir_address_stack.append(address) catch oom();
-    //        },
-    //        .local_get => |tir_local| {
-    //            const local_repr = tir_f.local_data.get(tir_local).repr.one;
-    //            switch (lowerRepr(local_repr)) {
-    //                .primitive => {
-    //                    _ = f.expr_data.append(.{ .local_get = f.local_from_tir.get(tir_local).? });
-    //                    c.wir_address_stack.append(null) catch oom();
-    //                },
-    //                .shadow => {
-    //                    return fail(c, .todo);
-    //                },
-    //            }
-    //        },
-    //        .local_let => |tir_local| {
-    //            const local_repr = tir_f.local_data.get(tir_local).repr.one;
-    //            switch (lowerRepr(local_repr)) {
-    //                .primitive => {
-    //                    assert(c.wir_address_stack.pop() == null);
-    //                    _ = f.expr_data.append(.{ .local_set = f.local_from_tir.get(tir_local).? });
-    //                },
-    //                .shadow => {
-    //                    return fail(c, .todo);
-    //                },
-    //            }
-    //        },
-    //        .object_get => |object_get| {
-    //            const object_address = c.wir_address_stack.pop().?;
-    //            const object_repr = object_address.repr.@"struct"; // TODO other object reprs
-    //            const i = object_repr.get(object_get.key).?;
-    //            const offset = object_repr.offsetOf(i);
-    //            c.wir_address_stack.append(.{
-    //                .base = object_address.base,
-    //                .offset = object_address.offset + @as(u32, @intCast(offset)),
-    //                .repr = object_repr.reprs[i],
-    //            }) catch oom();
-    //        },
-    //        .drop => {
-    //            const dropped_address = c.wir_address_stack.pop();
-    //            if (dropped_address == null) {
-    //                _ = f.expr_data.append(.drop);
-    //            }
-    //        },
-    //        .block_begin => {
-    //            f.block_stack.append(.{
-    //                .block_begin = .{ .id = expr_id },
-    //                .shadow_offset_next = f.shadow_offset_next,
-    //                .shadow_address_index = f.shadow_address_stack.items.len,
-    //            }) catch oom();
-    //        },
-    //        .block_end => |block_end| {
-    //            const block = f.block_stack.pop();
-    //            assert(expr_id - block_end.expr_count == block.block_begin.id);
-    //            f.shadow_offset_next = block.shadow_offset_next;
-    //            f.shadow_address_stack.shrinkRetainingCapacity(block.shadow_address_index);
-    //        },
-    //        .@"return" => {
-    //            if (c.wir_address_stack.pop()) |from_address| {
-    //                copy(c, f, from_address, .{ .base = .@"return", .offset = 0, .repr = tir_f.return_repr.one });
-    //            }
-    //            _ = f.expr_data.append(.@"return");
-    //        },
-    //        else => {
-    //            //std.debug.print("{}\n", .{expr_data});
-    //            return fail(c, .todo);
-    //        },
-    //    }
-    //}
+    for (tir_f.expr_data.items(), tir_f.expr_repr.items(), 0..) |expr_data, repr, expr_id| {
+        if (expr_data == .begin) {
+            const end_expr = c.begin_end.get(.{ .id = expr_id });
+            const end_expr_data = tir_f.expr_data.get(end_expr);
+            const end_repr = tir_f.expr_repr.get(end_expr);
+            try generateExpr(c, f, tir_f, end_expr_data, end_repr, .begin);
+        } else {
+            try generateExpr(c, f, tir_f, expr_data, repr, .end);
+        }
+    }
 
-    //assert(c.wir_address_stack.items.len == 0);
+    if (f.shadow_offset_max > 0) {
+        // Add a variable for the shadow.
+        _ = f.local_data.append(.{ .type = .i32 });
+    }
+}
+
+fn generateExpr(
+    c: *Compiler,
+    f: *wir.FunData,
+    tir_f: tir.FunData,
+    expr_data: tir.ExprData,
+    repr: ?Repr,
+    direction: enum { begin, end },
+) error{GenerateError}!void {
+    std.debug.print("{} {}\n", .{ expr_data, direction });
+    switch (expr_data) {
+        .i32 => |i| {
+            _ = c.output_stack.pop();
+            emitEnum(f, wasm.Opcode.i32_const);
+            emitLebI32(f, i);
+            c.input_stack.append(.{
+                .direct = .stack,
+                .indirect = addressIndirect(repr.?),
+            }) catch oom();
+        },
+        .closure => {
+            _ = c.output_stack.pop();
+            c.input_stack.append(.{
+                .direct = .closure,
+                .indirect = addressIndirect(repr.?),
+            }) catch oom();
+        },
+        .arg => {
+            _ = c.output_stack.pop();
+            c.input_stack.append(.{
+                .direct = .arg,
+                .indirect = addressIndirect(repr.?),
+            }) catch oom();
+        },
+        .local_get => |local| {
+            _ = c.output_stack.pop();
+            c.input_stack.append(c.local_address.get(local)) catch oom();
+        },
+
+        .begin => unreachable,
+
+        .block => {},
+        .@"return" => {
+            const output_address: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
+                .primitive => .{
+                    .direct = .stack,
+                },
+                .heap => .{
+                    .direct = .@"return",
+                    .indirect = .{
+                        .offset = 0,
+                        .repr = tir_f.return_repr.one,
+                    },
+                },
+            };
+            switch (direction) {
+                .begin => {
+                    c.output_stack.append(output_address) catch oom();
+                },
+                .end => {
+                    const input = c.input_stack.pop();
+                    copy(c, f, input, output_address);
+                },
+            }
+        },
+
+        else => {
+            //std.debug.print("{}\n", .{expr_data});
+            return fail(c, .todo);
+        },
+    }
+}
+
+fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    if (deepEqual(from, to)) return;
+    assert(from.direct != .nowhere);
+    if (to.direct == .nowhere) return;
+    if (from.indirect == null and to.indirect == null) {
+        load(c, f, from);
+        store(c, f, to);
+    } else {
+        panic("TODO", .{});
+    }
+}
+
+fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
+    loadDirect(c, f, from.direct);
+    if (from.indirect) |indirect| {
+        _ = indirect;
+        panic("TODO", .{});
+    }
+}
+
+fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
+    _ = c;
+    switch (from) {
+        .closure, .arg, .@"return", .local, .shadow => {
+            emitEnum(f, wasm.Opcode.local_get);
+            emitLebU32(f, wasmLocal(f, from));
+        },
+        .stack => {},
+        .nowhere => panic("Can't load from nowhere", .{}),
+    }
+}
+
+fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
+    _ = c;
+    if (to.indirect) |indirect| {
+        _ = indirect;
+        // Expect base address on stack already :(
+        panic("TODO", .{});
+    } else {
+        switch (to.direct) {
+            .closure, .arg, .@"return", .local, .shadow => {
+                emitEnum(f, wasm.Opcode.local_set);
+                emitLebU32(f, wasmLocal(f, to.direct));
+            },
+            .stack => {},
+            .nowhere => {
+                emitEnum(f, wasm.Opcode.drop);
+            },
+        }
+    }
+}
+
+fn addressIndirect(repr: Repr) ?wir.AddressIndirect {
+    return switch (wasmRepr(repr)) {
+        .primitive => null,
+        .heap => .{
+            .offset = 0,
+            .repr = repr,
+        },
+    };
 }
 
 const WasmRepr = enum {
@@ -314,6 +391,17 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
         .i32 => .i32,
         // Pointer to heap.
         .string, .@"struct", .@"union", .fun, .only, .repr => .i32,
+    };
+}
+
+fn wasmLocal(f: *const wir.FunData, address: wir.AddressDirect) u32 {
+    return switch (address) {
+        .closure => 0,
+        .arg => 1,
+        .@"return" => 1 + f.return_arg_count,
+        .local => |local| 1 + f.return_arg_count + @as(u32, @intCast(local.id)),
+        .shadow => 1 + f.return_arg_count + @as(u32, @intCast(f.local_data.count())),
+        .stack, .nowhere => panic("Not a local: {}", .{address}),
     };
 }
 

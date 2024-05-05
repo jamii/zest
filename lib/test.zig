@@ -102,7 +102,7 @@ pub fn main() !void {
             const expected_strict = std.mem.trim(u8, parts.next() orelse "", "\n");
             assert(parts.next() == null);
 
-            //std.debug.print("{s}\n", .{source});
+            std.debug.print("{s}\n", .{source});
 
             var compiler = Compiler.init(allocator, source);
             const actual_lax = std.mem.trim(u8, evalLax(allocator, &compiler) catch zest.formatError(&compiler), "\n");
@@ -111,7 +111,7 @@ pub fn main() !void {
             const actual_strict = std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n");
 
             const correct_lax = std.mem.eql(u8, expected_lax, actual_lax);
-            const correct_strict = true; //std.mem.eql(u8, expected_strict, actual_strict);
+            const correct_strict = std.mem.eql(u8, expected_strict, actual_strict);
             if (!correct_lax or !correct_strict) {
                 std.debug.print(
                     \\=== source ===
