@@ -50,7 +50,6 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
 
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
-        std.debug.print("staged {} {}\n", .{ expr_data, ends_remaining });
         switch (expr_data) {
             .call => |call| {
                 const input = popExprInput(c, .call, call);
@@ -91,7 +90,6 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                 const input = popExprInput(c, expr_tag, data);
                 const output = try evalExpr(c, expr_tag, data, input);
                 pushExprOutput(c, expr_tag, output);
-                //std.debug.print("{}\n{}\n{}\n\n", .{ expr_data, input, output });
             },
         }
 
@@ -107,14 +105,12 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
 }
 
 pub fn eval(c: *Compiler) error{EvalError}!Value {
-    //std.debug.print("---\n\n", .{});
     const start_frame_index = c.dir_frame_stack.items.len;
     fun: while (true) {
         const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
         const f = c.dir_fun_data.get(frame.fun);
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
-            //std.debug.print("{}\n", .{expr_data});
             switch (expr_data) {
                 .call => |call| {
                     const input = popExprInput(c, .call, call);
@@ -138,7 +134,6 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                 },
                 .begin, .stage, .unstage => {},
                 inline else => |data, expr_tag| {
-                    //std.debug.print("end={}\n", .{expr_tag});
                     const input = popExprInput(c, expr_tag, data);
                     const output = try evalExpr(c, expr_tag, data, input);
                     pushExprOutput(c, expr_tag, output);

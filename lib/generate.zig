@@ -247,7 +247,7 @@ fn generateExpr(
     repr: ?Repr,
     direction: enum { begin, end },
 ) error{GenerateError}!void {
-    std.debug.print("{} {}\n", .{ expr_data, direction });
+    //std.debug.print("{} {}\n", .{ expr_data, direction });
     switch (expr_data) {
         .i32 => |i| {
             _ = c.output_stack.pop();
