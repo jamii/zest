@@ -148,9 +148,8 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     // Get fun_type.
     var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
     var return_types = ArrayList(wasm.Valtype).init(c.allocator);
-    if (!tir_f.key.closure_repr.isEmptyStruct() or
-        !tir_f.key.arg_repr.isEmptyStruct())
-        return fail(c, .todo);
+    arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
+    arg_types.append(wasmAbi(tir_f.key.arg_repr)) catch oom();
     var return_arg_count: u32 = 0;
     switch (wasmRepr(tir_f.return_repr.one)) {
         .primitive => {},
@@ -282,32 +281,38 @@ fn generateExpr(
             switch (direction) {
                 .begin => {
                     const output = c.output_stack.pop() orelse shadowPush(c, f, repr.?);
-                    for (struct_repr.reprs, 0..) |value_repr, i| {
-                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i)));
-                        c.output_stack.append(.{
+                    var i: usize = struct_repr.reprs.len;
+                    while (i > 0) : (i -= 1) {
+                        const value_repr = struct_repr.reprs[i - 1];
+                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
+                        const value_output = wir.Address{
                             .direct = output.direct,
                             .indirect = .{
                                 .offset = output.indirect.?.offset + offset,
                                 .repr = value_repr,
                             },
-                        }) catch oom();
+                        };
+                        c.output_stack.append(value_output) catch oom();
                     }
                     c.sideways_stack.append(output) catch oom();
                 },
                 .end => {
                     const output = c.sideways_stack.pop();
-                    var i = struct_repr.keys.len;
+                    var i: usize = struct_repr.reprs.len;
                     while (i > 0) : (i -= 1) {
                         const value_repr = struct_repr.reprs[i - 1];
                         const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                        copy(c, f, c.input_stack.pop(), .{
+                        const value_output = wir.Address{
                             .direct = output.direct,
                             .indirect = .{
                                 .offset = output.indirect.?.offset + offset,
                                 .repr = value_repr,
                             },
-                        });
+                        };
+                        const value_input = c.input_stack.pop();
+                        copy(c, f, value_input, value_output);
                     }
+                    c.input_stack.append(output) catch oom();
                 },
             }
         },
@@ -389,29 +394,35 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
     if (from.equal(to)) return;
-    if (from.indirect == null and to.indirect == null) {
+    if (from.indirect != null and to.indirect != null) {
+        std.debug.print("copy {} {}\n", .{ from, to });
+        const repr = from.indirect.?.repr;
+        assert(repr.equal(to.indirect.?.repr));
+        loadDirect(c, f, to.direct);
+        loadDirect(c, f, from.direct);
+        emitEnum(f, wasm.Opcode.i32_const);
+        emitLebU32(f, @intCast(repr.sizeOf()));
+        emitEnum(f, wasm.Opcode.misc_prefix);
+        emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+    } else {
+        //std.debug.print("load/store {} {}\n", .{ from, to });
+        storeBeforeValue(c, f, to);
         load(c, f, from);
-        store(c, f, to);
-        if (from.indirect != null and to.indirect != null) {
-            const repr = from.indirect.?.repr;
-            assert(repr.equal(to.indirect.?.repr));
-            loadDirect(c, f, to.direct);
-            loadDirect(c, f, from.direct);
-            emitEnum(f, wasm.Opcode.i32_const);
-            emitLebU32(f, @intCast(repr.sizeOf()));
-            emitEnum(f, wasm.Opcode.misc_prefix);
-            emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
-        } else {
-            panic("TODO", .{});
-        }
+        storeAfterValue(c, f, to);
     }
 }
 
 fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
     loadDirect(c, f, from.direct);
     if (from.indirect) |indirect| {
-        _ = indirect;
-        panic("TODO", .{});
+        switch (indirect.repr) {
+            .i32 => {
+                emitEnum(f, wasm.Opcode.i32_load);
+                emitLebU32(f, 0); // align
+                emitLebU32(f, indirect.offset);
+            },
+            else => panic("Can't load {}", .{indirect.repr}),
+        }
     }
 }
 
@@ -427,12 +438,26 @@ fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
     }
 }
 
-fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
+fn storeBeforeValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
+    if (to.indirect != null) {
+        // Put address base on stack.
+        loadDirect(c, f, to.direct);
+    } else {
+        // Nothing to do for direct store.
+    }
+}
+
+fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
     _ = c;
     if (to.indirect) |indirect| {
-        _ = indirect;
-        // Expect base address on stack already :(
-        panic("TODO", .{});
+        switch (indirect.repr) {
+            .i32 => {
+                emitEnum(f, wasm.Opcode.i32_store);
+                emitLebU32(f, 0); // align
+                emitLebU32(f, indirect.offset);
+            },
+            else => panic("Can't store {}", .{indirect.repr}),
+        }
     } else {
         switch (to.direct) {
             .closure, .arg, .@"return", .local, .shadow => {
