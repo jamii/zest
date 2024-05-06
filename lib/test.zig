@@ -102,8 +102,6 @@ pub fn main() !void {
             const expected_strict = std.mem.trim(u8, parts.next() orelse "", "\n");
             assert(parts.next() == null);
 
-            std.debug.print("{s}\n", .{source});
-
             var compiler = Compiler.init(allocator, source);
             const actual_lax = std.mem.trim(u8, evalLax(allocator, &compiler) catch zest.formatError(&compiler), "\n");
 

@@ -40,6 +40,13 @@ pub const ExprData = union(enum) {
     drop,
     block,
     @"return",
+
+    pub fn isEnd(expr_data: ExprData) bool {
+        return switch (expr_data) {
+            .i32, .f32, .string, .arg, .closure, .local_get, .begin => false,
+            .nop, .struct_init, .fun_init, .local_let, .object_get, .call, .drop, .block, .@"return" => true,
+        };
+    }
 };
 
 pub fn ExprInput(comptime T: type) type {

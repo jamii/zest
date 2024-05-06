@@ -95,15 +95,8 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
             },
         }
 
-        switch (expr_data) {
-            .begin => {
-                ends_remaining += 1;
-            },
-            .i32, .f32, .string, .arg, .closure, .local_get => {},
-            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .call, .drop, .block, .@"return", .stage, .unstage => {
-                ends_remaining -= 1;
-            },
-        }
+        if (expr_data == .begin) ends_remaining += 1;
+        if (expr_data.isEnd()) ends_remaining -= 1;
         if (ends_remaining == 0) {
             assert(c.value_stack.items.len == 1);
             return c.value_stack.pop();

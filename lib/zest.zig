@@ -163,6 +163,14 @@ pub fn FlatLattice(comptime T: type) type {
     };
 }
 
+pub const Stage = enum {
+    source,
+    sir,
+    dir,
+    tir,
+    wir,
+};
+
 pub const Compiler = struct {
     allocator: Allocator,
     source: []const u8,
@@ -257,6 +265,85 @@ pub const Compiler = struct {
     pub fn dupeOne(c: *Compiler, value: anytype) []@TypeOf(value) {
         return c.allocator.dupe(@TypeOf(value), &[1]@TypeOf(value){value}) catch oom();
     }
+
+    pub fn print(c: *Compiler, stage: Stage, writer: anytype) !void {
+        switch (stage) {
+            .source => {
+                try writer.print("--- SOURCE ---\n", .{});
+                try writer.print("{s}\n", .{c.source});
+                try writer.print("---\n", .{});
+            },
+            .dir => {
+                try writer.print("--- DIR ---\n", .{});
+                try writer.print("main = f{}\n", .{c.dir_fun_main.?.id});
+                for (c.dir_fun_data.items(), 0..) |f, fun_id| {
+                    try writer.print("f{} = (closure, arg)\n", .{fun_id});
+                    var indent: usize = 1;
+                    for (0..f.local_data.count()) |local_id| {
+                        try writer.writeByteNTimes(' ', indent * 2);
+                        try writer.print("local l{}\n", .{local_id});
+                    }
+                    for (f.expr_data.items()) |expr_data| {
+                        if (expr_data == .begin) {
+                            indent += 1;
+                        } else {
+                            if (expr_data.isEnd()) indent -= 1;
+                            try writer.writeByteNTimes(' ', indent * 2);
+                            try writer.print("{s}", .{@tagName(std.meta.activeTag(expr_data))});
+                            switch (expr_data) {
+                                .i32 => |i| try writer.print(" {}", .{i}),
+                                .f32 => |i| try writer.print(" {}", .{i}),
+                                .string => |s| try writer.print(" {s}", .{s}),
+                                .local_get, .local_let => |local| try writer.print(" l{}", .{local.id}),
+                                .struct_init => |count| try writer.print(" count={}", .{count}),
+                                .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
+                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ tag),
+                            }
+                            try writer.print("\n", .{});
+                        }
+                    }
+                }
+                try writer.print("---\n", .{});
+            },
+            .tir => {
+                try writer.print("--- TIR ---\n", .{});
+                try writer.print("main = f{}\n", .{c.tir_fun_main.?.id});
+                for (c.tir_fun_data.items(), 0..) |f, fun_id| {
+                    try writer.print("f{} = (closure, arg)\n", .{fun_id});
+                    var indent: usize = 1;
+                    for (f.local_data.items(), 0..) |local_data, local_id| {
+                        try writer.writeByteNTimes(' ', indent * 2);
+                        try writer.print("local l{} /{}\n", .{ local_id, local_data.repr });
+                    }
+                    for (f.expr_data.items(), f.expr_repr.items()) |expr_data, repr| {
+                        if (expr_data == .begin) {
+                            indent += 1;
+                        } else {
+                            if (expr_data.isEnd()) indent -= 1;
+                            try writer.writeByteNTimes(' ', indent * 2);
+                            try writer.print("{s}", .{@tagName(std.meta.activeTag(expr_data))});
+                            switch (expr_data) {
+                                .i32 => |i| try writer.print(" {}", .{i}),
+                                .f32 => |i| try writer.print(" {}", .{i}),
+                                .string => |s| try writer.print(" {s}", .{s}),
+                                .local_get, .local_let => |local| try writer.print(" l{}", .{local.id}),
+                                .fun_init => try writer.print(" f{}", .{repr.?.fun.fun.id}),
+                                .object_get => |object_get| try writer.print(" key={}", .{object_get.key}),
+                                .call => |fun| try writer.print(" f{}", .{fun.id}),
+                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ tag),
+                            }
+                            if (repr != null) {
+                                try writer.print(" /{}", .{repr.?});
+                            }
+                            try writer.print("\n", .{});
+                        }
+                    }
+                }
+                try writer.print("---\n", .{});
+            },
+            else => panic("TODO", .{}),
+        }
+    }
 };
 
 pub const TokenizeErrorData = @import("./tokenize.zig").TokenizeErrorData;
@@ -334,6 +421,8 @@ pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const
 }
 
 pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }!void {
+    c.print(.source, std.io.getStdErr().writer()) catch unreachable;
+
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
 
@@ -342,6 +431,7 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
 
     try desugar(c);
     assert(c.dir_fun_main != null);
+    c.print(.dir, std.io.getStdErr().writer()) catch unreachable;
 }
 
 pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, GenerateError }!void {
@@ -349,6 +439,7 @@ pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, Gen
 
     try inferMain(c);
     assert(c.tir_fun_main != null);
+    c.print(.tir, std.io.getStdErr().writer()) catch unreachable;
 
     try generate(c);
     assert(c.wasm.items.len != 0);
