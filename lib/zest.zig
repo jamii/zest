@@ -210,7 +210,7 @@ pub const Compiler = struct {
     shadow_offset_stack: ArrayList(usize),
     block_stack: ArrayList(wir.Block),
     input_stack: ArrayList(wir.Address),
-    output_stack: ArrayList(wir.Address),
+    output_stack: ArrayList(?wir.Address), // null if we don't care
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,

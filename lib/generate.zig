@@ -279,7 +279,24 @@ fn generateExpr(
 
         .begin => unreachable,
 
-        .block => {},
+        .object_get => |object_get| {
+            switch (direction) {
+                .begin => c.output_stack.append(null) catch oom(),
+                .end => {
+                    const input = c.input_stack.pop();
+                    const input_repr = input.indirect.?.repr.@"struct";
+                    const i = input_repr.get(object_get.key).?;
+                    const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
+                    c.input_stack.append(.{
+                        .direct = input.direct,
+                        .indirect = .{
+                            .offset = input.indirect.?.offset + offset,
+                            .repr = input_repr.reprs[i],
+                        },
+                    }) catch oom();
+                },
+            }
+        },
         .drop => {
             const output = wir.Address{ .direct = .nowhere };
             switch (direction) {
@@ -290,6 +307,7 @@ fn generateExpr(
                 },
             }
         },
+        .block => {},
         .@"return" => {
             const output: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
                 .primitive => .{
