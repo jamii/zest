@@ -199,27 +199,20 @@ fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!
     c.scope.staged_until_len = c.scope.bindings.items.len;
     defer c.scope.staged_until_len = prev_staged_until_len;
 
-    _ = f.expr_data.append(.begin);
-    defer _ = f.expr_data.append(.stage);
-
+    _ = f.expr_data.append(.stage);
     try desugarExpr(c, f, expr);
 }
 
 fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
     _ = c;
 
-    _ = f.expr_data.append(.begin);
-    defer _ = f.expr_data.append(.stage);
-
+    _ = f.expr_data.append(.stage);
     _ = f.expr_data.append(.{ .string = string });
 }
 
 fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool) void {
     if (is_staged)
-        _ = f.expr_data.append(.begin);
-    defer if (is_staged) {
         _ = f.expr_data.append(.unstage);
-    };
 
     switch (value) {
         .arg => _ = f.expr_data.append(.arg),

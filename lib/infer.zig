@@ -90,6 +90,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 }
             },
             .stage => {
+                frame.expr.id += 1;
                 eval.pushFun(c, .{
                     .fun = frame.key.fun,
                     .expr = frame.expr,
@@ -99,8 +100,6 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 const return_value = try eval.evalStaged(c, f, frame.key.arg_repr, frame.key.closure_repr);
                 const eval_frame = eval.popFun(c);
                 frame.expr = eval_frame.expr;
-                // Need to balance the begin.
-                _ = pushExpr(c, f, .nop, null);
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
             },
             inline else => |data, expr_tag| {

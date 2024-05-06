@@ -26,6 +26,8 @@ pub const ExprData = union(enum) {
     local_get: Local,
 
     begin,
+    stage,
+    unstage,
 
     struct_init: usize,
     fun_init: struct {
@@ -38,8 +40,6 @@ pub const ExprData = union(enum) {
     drop,
     block,
     @"return",
-    stage,
-    unstage,
 };
 
 // Push in order.
@@ -54,6 +54,8 @@ pub fn ExprInput(comptime T: type) type {
         local_get,
 
         begin,
+        stage,
+        unstage,
 
         struct_init: struct {
             keys: []Value,
@@ -85,8 +87,6 @@ pub fn ExprInput(comptime T: type) type {
         @"return": struct {
             value: T,
         },
-        stage,
-        unstage,
     };
 }
 
@@ -100,6 +100,8 @@ pub fn ExprOutput(comptime T: type) type {
         local_get: T,
 
         begin,
+        stage: T,
+        unstage: T,
 
         struct_init: T,
         fun_init: T,
@@ -110,8 +112,6 @@ pub fn ExprOutput(comptime T: type) type {
         drop,
         block: T,
         @"return",
-        stage: T,
-        unstage: T,
     };
 }
 
