@@ -388,12 +388,22 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
 }
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (deepEqual(from, to)) return;
+    if (from.equal(to)) return;
     if (from.indirect == null and to.indirect == null) {
         load(c, f, from);
         store(c, f, to);
-    } else {
-        panic("TODO", .{});
+        if (from.indirect != null and to.indirect != null) {
+            const repr = from.indirect.?.repr;
+            assert(repr.equal(to.indirect.?.repr));
+            loadDirect(c, f, to.direct);
+            loadDirect(c, f, from.direct);
+            emitEnum(f, wasm.Opcode.i32_const);
+            emitLebU32(f, @intCast(repr.sizeOf()));
+            emitEnum(f, wasm.Opcode.misc_prefix);
+            emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+        } else {
+            panic("TODO", .{});
+        }
     }
 }
 

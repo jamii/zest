@@ -7,6 +7,7 @@ const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
 const fieldType = zest.fieldType;
+const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Value = zest.Value;
 const Repr = zest.Repr;
@@ -30,6 +31,11 @@ pub const AddressIndirect = struct {
 pub const Address = struct {
     direct: AddressDirect,
     indirect: ?AddressIndirect = null,
+
+    pub fn equal(self: Address, other: Address) bool {
+        // TODO May need to think about this, especially if repr.equal changes.
+        return deepEqual(self, other);
+    }
 };
 
 pub const FunType = struct { id: usize };
