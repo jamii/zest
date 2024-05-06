@@ -69,6 +69,38 @@ pub const Repr = union(enum) {
             .i32, .string, .@"union", .repr => null,
         };
     }
+
+    pub fn format(self: Repr, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("{s}", .{@tagName(self)});
+        switch (self) {
+            .i32, .string, .repr => {},
+            .@"struct" => |@"struct"| {
+                try writer.writeAll("[");
+                var positional = true;
+                for (@"struct".keys, @"struct".reprs, 0..) |key, repr, i| {
+                    if (i != 0) {
+                        try writer.writeAll(", ");
+                    }
+                    if (positional and key == .i32 and key.i32 == i) {
+                        try writer.print("{}", .{repr});
+                    } else {
+                        positional = false;
+                        try writer.print("{}: {}", .{ key, repr });
+                    }
+                }
+                try writer.writeAll("]");
+            },
+            .fun => |fun| {
+                try writer.print("[id: {}, closure: {}]", .{
+                    fun.fun.id,
+                    Repr{ .@"struct" = fun.closure },
+                });
+            },
+            else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
+        }
+    }
 };
 
 pub const ReprStruct = struct {

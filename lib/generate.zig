@@ -180,7 +180,6 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     defer c.begin_end.data.shrinkRetainingCapacity(0);
     c.begin_end.appendNTimes(.{ .id = 0 }, tir_f.expr_data.count());
     for (tir_f.expr_data.items(), 0..) |expr_data, expr_id| {
-        std.debug.print("begin/end {} {}", .{ expr_data, c.begin_stack.items.len });
         if (expr_data == .begin) {
             c.begin_stack.append(.{ .id = expr_id }) catch oom();
         }
@@ -188,7 +187,6 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
             const begin = c.begin_stack.pop();
             c.begin_end.getPtr(begin).* = .{ .id = expr_id };
         }
-        std.debug.print(" -> {}\n", .{c.begin_stack.items.len});
     }
 
     // Map tir locals to wasm locals or shadow stack.

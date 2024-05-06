@@ -20,7 +20,7 @@
 
 2
 
-2
+TODO generate
 ```
 
 ```
@@ -30,7 +30,7 @@ a
 
 1
 
-1
+TODO generate
 ```
 
 ```
@@ -48,7 +48,7 @@ Name already bound: a
 
 1
 
-1
+TODO generate
 ```
 
 ```
@@ -56,7 +56,7 @@ Name already bound: a
 
 2
 
-2
+TODO generate
 ```
 
 ```
@@ -64,7 +64,7 @@ Name already bound: a
 
 3
 
-3
+TODO generate
 ```
 
 ```
@@ -73,7 +73,7 @@ a.x
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -82,7 +82,7 @@ a.y
 
 2
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -91,7 +91,7 @@ a.0.x
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -100,7 +100,7 @@ a.0.y
 
 2
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -109,7 +109,7 @@ a.z
 
 3
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -120,7 +120,7 @@ a.x
 
 1
 
-Cannot unstage value: repr.Repr{ .string = void }
+Cannot unstage value: string
 ```
 
 ```
@@ -130,7 +130,7 @@ a.x
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -141,7 +141,7 @@ a.x
 
 1
 
-Cannot unstage value: repr.Repr{ .fun = repr.ReprFun{ .fun = dir.Fun{ .id = 0 }, .closure = repr.ReprStruct{ .keys = { ... }, .reprs = { ... } } } }
+Cannot unstage value: fun[id: 0, closure: struct['k': string]]
 ```
 
 ```
@@ -151,7 +151,7 @@ a()
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -161,7 +161,7 @@ a(1)
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -170,7 +170,7 @@ a(7,11)
 
 7
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -179,7 +179,7 @@ a(7,11)
 
 11
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -188,7 +188,7 @@ a(y: 7, x: 11)
 
 7
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -197,7 +197,7 @@ a([x: 11, y: 7])
 
 7
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -206,7 +206,7 @@ a(7, 11).x
 
 7
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -215,7 +215,7 @@ a(7, 11).y
 
 11
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -225,7 +225,7 @@ b()
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -241,7 +241,7 @@ b()
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -250,7 +250,7 @@ a([x: 1])
 
 1
 
-TODO lower
+TODO generate
 ```
 
 ```
@@ -259,5 +259,5 @@ a(1)
 
 Not an object: 1
 
-Not an object: repr.Repr{ .i32 = void }
+Not an object: i32
 ```

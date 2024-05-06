@@ -289,7 +289,7 @@ pub const Compiler = struct {
                         } else {
                             if (expr_data.isEnd()) indent -= 1;
                             try writer.writeByteNTimes(' ', indent * 2);
-                            try writer.print("{s}", .{@tagName(std.meta.activeTag(expr_data))});
+                            try writer.print("{s}", .{@tagName(expr_data)});
                             switch (expr_data) {
                                 .i32 => |i| try writer.print(" {}", .{i}),
                                 .f32 => |i| try writer.print(" {}", .{i}),
@@ -313,7 +313,7 @@ pub const Compiler = struct {
                     var indent: usize = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
-                        try writer.print("local l{} /{}\n", .{ local_id, local_data.repr });
+                        try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.one });
                     }
                     for (f.expr_data.items(), f.expr_repr.items()) |expr_data, repr| {
                         if (expr_data == .begin) {
@@ -321,7 +321,7 @@ pub const Compiler = struct {
                         } else {
                             if (expr_data.isEnd()) indent -= 1;
                             try writer.writeByteNTimes(' ', indent * 2);
-                            try writer.print("{s}", .{@tagName(std.meta.activeTag(expr_data))});
+                            try writer.print("{s}", .{@tagName(expr_data)});
                             switch (expr_data) {
                                 .i32 => |i| try writer.print(" {}", .{i}),
                                 .f32 => |i| try writer.print(" {}", .{i}),
@@ -408,6 +408,11 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
+                };
+            },
+            .generate => |err| {
+                return switch (err.data) {
+                    .todo => format(c, "TODO generate", .{}),
                 };
             },
             else => return format(c, "{}", .{c.error_data.?}),
