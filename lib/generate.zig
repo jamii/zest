@@ -213,8 +213,6 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     }
 
     // TODO Uncomment asserts once todo is gone.
-    assert(c.shadow_offset_stack.items.len == 0);
-    //defer assert(c.shadow_offset_stack.items.len == 0);
     assert(c.block_stack.items.len == 0);
     //defer assert(c.block_stack.items.len == 0);
     assert(c.input_stack.items.len == 0);
@@ -279,6 +277,40 @@ fn generateExpr(
 
         .begin => unreachable,
 
+        .struct_init => {
+            const struct_repr = repr.?.@"struct";
+            switch (direction) {
+                .begin => {
+                    const output = c.output_stack.pop() orelse shadowPush(c, f, repr.?);
+                    for (struct_repr.reprs, 0..) |value_repr, i| {
+                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i)));
+                        c.output_stack.append(.{
+                            .direct = output.direct,
+                            .indirect = .{
+                                .offset = output.indirect.?.offset + offset,
+                                .repr = value_repr,
+                            },
+                        }) catch oom();
+                    }
+                    c.sideways_stack.append(output) catch oom();
+                },
+                .end => {
+                    const output = c.sideways_stack.pop();
+                    var i = struct_repr.keys.len;
+                    while (i > 0) : (i -= 1) {
+                        const value_repr = struct_repr.reprs[i - 1];
+                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
+                        copy(c, f, c.input_stack.pop(), .{
+                            .direct = output.direct,
+                            .indirect = .{
+                                .offset = output.indirect.?.offset + offset,
+                                .repr = value_repr,
+                            },
+                        });
+                    }
+                },
+            }
+        },
         .object_get => |object_get| {
             switch (direction) {
                 .begin => c.output_stack.append(null) catch oom(),
@@ -307,7 +339,9 @@ fn generateExpr(
                 },
             }
         },
-        .block => {},
+        .block => {
+            // TODO stack reset
+        },
         .@"return" => {
             const output: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
                 .primitive => .{
@@ -337,6 +371,20 @@ fn generateExpr(
             return fail(c, .todo);
         },
     }
+}
+
+fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
+    _ = c;
+    const offset = f.shadow_offset_next;
+    f.shadow_offset_next += repr.sizeOf();
+    f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
+    return .{
+        .direct = .shadow,
+        .indirect = .{
+            .offset = @intCast(offset),
+            .repr = repr,
+        },
+    };
 }
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {

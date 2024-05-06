@@ -40,7 +40,6 @@ pub const FunTypeData = struct {
 };
 
 pub const Block = struct {
-    begin: tir.Expr,
     offset_next: usize,
 };
 
