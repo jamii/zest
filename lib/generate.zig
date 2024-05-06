@@ -280,8 +280,18 @@ fn generateExpr(
         .begin => unreachable,
 
         .block => {},
+        .drop => {
+            const output = wir.Address{ .direct = .nowhere };
+            switch (direction) {
+                .begin => c.output_stack.append(output) catch oom(),
+                .end => {
+                    const input = c.input_stack.pop();
+                    copy(c, f, input, output);
+                },
+            }
+        },
         .@"return" => {
-            const output_address: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
+            const output: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
                 .primitive => .{
                     .direct = .stack,
                 },
@@ -295,17 +305,17 @@ fn generateExpr(
             };
             switch (direction) {
                 .begin => {
-                    c.output_stack.append(output_address) catch oom();
+                    c.output_stack.append(output) catch oom();
                 },
                 .end => {
                     const input = c.input_stack.pop();
-                    copy(c, f, input, output_address);
+                    copy(c, f, input, output);
                 },
             }
         },
 
         else => {
-            //std.debug.print("{}\n", .{expr_data});
+            //std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
         },
     }
@@ -313,8 +323,6 @@ fn generateExpr(
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
     if (deepEqual(from, to)) return;
-    assert(from.direct != .nowhere);
-    if (to.direct == .nowhere) return;
     if (from.indirect == null and to.indirect == null) {
         load(c, f, from);
         store(c, f, to);
