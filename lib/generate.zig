@@ -13,7 +13,7 @@ const Repr = zest.Repr;
 const tir = zest.tir;
 const wir = zest.wir;
 
-const stack_global = 0;
+const global_shadow = 0;
 const stack_top = 1 * wasm.page_size;
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
@@ -105,36 +105,48 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
+            const uses_shadow = f.shadow_offset_max > 0;
+            std.debug.print("shadow {} {}\n", .{ f.shadow_offset_next, f.shadow_offset_max });
+
             // Locals
-            emitLebU32(c, @intCast(f.local_data.count()));
+            const local_count =
+                @as(u32, @intCast(f.local_data.count())) +
+                @as(u32, if (uses_shadow) 1 else 0);
+            emitLebU32(c, local_count);
             for (f.local_data.items()) |l| {
                 emitLebU32(c, 1);
                 emitEnum(c, l.type);
             }
+            if (uses_shadow) {
+                emitLebU32(c, 1);
+                emitEnum(c, wasm.Valtype.i32);
+            }
 
-            //// Frame push
-            //if (shadow_size != 0) {
-            //    emitEnum(c, wasm.Opcode.global_get);
-            //    emitLebU32(c, stack_global);
-            //    emitEnum(c, wasm.Opcode.i32_const);
-            //    emitLebU32(c, @intCast(shadow_size));
-            //    emitEnum(c, wasm.Opcode.i32_sub);
-            //    emitEnum(c, wasm.Opcode.global_set);
-            //    emitLebU32(c, stack_global);
-            //}
+            // Frame push
+            if (uses_shadow) {
+                emitEnum(c, wasm.Opcode.global_get);
+                emitLebU32(c, global_shadow);
+                emitEnum(c, wasm.Opcode.i32_const);
+                emitLebU32(c, @intCast(f.shadow_offset_max));
+                emitEnum(c, wasm.Opcode.i32_sub);
+                emitEnum(c, wasm.Opcode.local_tee);
+                emitLebU32(c, wasmLocal(&f, .shadow));
+                emitEnum(c, wasm.Opcode.global_set);
+                emitLebU32(c, global_shadow);
+            }
 
             c.wasm.appendSlice(f.wasm.items) catch oom();
 
-            //// Frame pop
-            //if (shadow_size != 0) {
-            //    emitEnum(c, wasm.Opcode.global_get);
-            //    emitLebU32(c, stack_global);
-            //    emitEnum(c, wasm.Opcode.i32_const);
-            //    emitLebU32(c, @intCast(shadow_size));
-            //    emitEnum(c, wasm.Opcode.i32_add);
-            //    emitEnum(c, wasm.Opcode.global_set);
-            //    emitLebU32(c, stack_global);
-            //}
+            // Frame pop
+            if (uses_shadow) {
+                emitEnum(c, wasm.Opcode.global_get);
+                emitLebU32(c, global_shadow);
+                emitEnum(c, wasm.Opcode.i32_const);
+                emitLebU32(c, @intCast(f.shadow_offset_max));
+                emitEnum(c, wasm.Opcode.i32_add);
+                emitEnum(c, wasm.Opcode.global_set);
+                emitLebU32(c, global_shadow);
+            }
 
             emitEnum(c, wasm.Opcode.@"return");
             emitEnum(c, wasm.Opcode.end);
@@ -228,11 +240,6 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
         } else {
             try generateExpr(c, f, tir_f, expr_data, repr, .end);
         }
-    }
-
-    if (f.shadow_offset_max > 0) {
-        // Add a variable for the shadow.
-        _ = f.local_data.append(.{ .type = .i32 });
     }
 }
 
@@ -332,9 +339,15 @@ fn generateExpr(
             }
         },
         .local_let => |local| {
-            const output = c.local_address.get(local);
             switch (direction) {
-                .begin => c.hint_stack.append(output) catch oom(),
+                .begin => {
+                    const output = c.local_address.getPtr(local);
+                    switch (wasmRepr(tir_f.local_data.get(local).repr.one)) {
+                        .primitive => {},
+                        .heap => output.* = shadowPush(c, f, tir_f.local_data.get(local).repr.one),
+                    }
+                    c.hint_stack.append(output.*) catch oom();
+                },
                 .end => _ = c.address_stack.pop(),
             }
         },
@@ -383,12 +396,14 @@ fn generateExpr(
                     };
                     const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
+                    std.debug.print("closure {} arg {}\n", .{ closure, arg });
                     loadOrAddress(c, f, closure);
                     loadOrAddress(c, f, arg);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
                         .heap => loadOrAddress(c, f, hint),
                     }
+                    std.debug.print("called\n", .{});
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
                     copyAfterValue(c, f, output, hint);
@@ -543,9 +558,11 @@ fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
 fn loadOrAddress(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     loadDirect(c, f, address.direct);
     if (address.indirect) |indirect| {
-        emitEnum(f, wasm.Opcode.i32_const);
-        emitLebU32(f, indirect.offset);
-        emitEnum(f, wasm.Opcode.i32_add);
+        if (indirect.offset > 0) {
+            emitEnum(f, wasm.Opcode.i32_const);
+            emitLebU32(f, indirect.offset);
+            emitEnum(f, wasm.Opcode.i32_add);
+        }
     }
 }
 
@@ -580,12 +597,13 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
 }
 
 fn wasmLocal(f: *const wir.FunData, address: wir.AddressDirect) u32 {
+    std.debug.print("local {} {} {}\n", .{ f.return_arg_count, f.local_data.count(), address });
     return switch (address) {
         .closure => 0,
         .arg => 1,
-        .@"return" => 1 + f.return_arg_count,
-        .local => |local| 1 + f.return_arg_count + @as(u32, @intCast(local.id)),
-        .shadow => 1 + f.return_arg_count + @as(u32, @intCast(f.local_data.count())),
+        .@"return" => 2,
+        .local => |local| 2 + f.return_arg_count + @as(u32, @intCast(local.id)),
+        .shadow => 2 + f.return_arg_count + @as(u32, @intCast(f.local_data.count())),
         .stack, .nowhere => panic("Not a local: {}", .{address}),
     };
 }
