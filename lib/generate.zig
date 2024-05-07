@@ -369,7 +369,6 @@ fn generateExpr(
                         },
                     };
                     const hint = c.hint_stack.pop() orelse output;
-                    // Don't need copyBeforeValue because output is indirect.
                     copy(c, f, output, hint);
                     c.address_stack.append(hint) catch oom();
                 },
@@ -436,7 +435,12 @@ fn generateExpr(
             };
             switch (direction) {
                 .begin => c.hint_stack.append(output) catch oom(),
-                .end => _ = c.address_stack.pop(),
+                .end => {
+                    _ = c.address_stack.pop();
+                    if (output.indirect != null) {
+                        loadOrAddress(c, f, output);
+                    }
+                },
             }
         },
 
@@ -462,15 +466,18 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
 }
 
 fn copyBeforeValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (from.direct == .stack and from.indirect == null and to.indirect != null) {
+    if (from.equal(to)) return;
+    if (from.indirect != null and to.indirect != null) {
+        // Just copy
+    } else {
         storeBeforeValue(c, f, to);
     }
 }
 
 fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    std.debug.print("copy {} {}\n", .{ from, to });
     if (from.equal(to)) return;
     if (from.indirect != null and to.indirect != null) {
-        std.debug.print("copy {} {}\n", .{ from, to });
         const repr = from.indirect.?.repr;
         assert(repr.equal(to.indirect.?.repr));
         loadDirect(c, f, to.direct);
@@ -488,9 +495,15 @@ fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Addr
 }
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (from.direct == .stack and from.indirect == null and to.indirect != null)
-        panic("Can't copy from stack to heap", .{});
-    copyAfterValue(c, f, from, to);
+    if (from.indirect != null and to.indirect != null) {
+        copyAfterValue(c, f, from, to);
+    } else {
+        if (from.direct == .stack and to.indirect != null)
+            panic("Can't copy from {} to {}", .{ from, to });
+        storeBeforeValue(c, f, to);
+        load(c, f, from);
+        storeAfterValue(c, f, to);
+    }
 }
 
 fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
@@ -556,6 +569,12 @@ fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
 }
 
 fn loadOrAddress(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
+    if (address.indirect != null and address.indirect.?.repr.sizeOf() == 0) {
+        emitEnum(f, wasm.Opcode.i32_const);
+        emitLebU32(f, 0);
+        return;
+    }
+
     loadDirect(c, f, address.direct);
     if (address.indirect) |indirect| {
         if (indirect.offset > 0) {

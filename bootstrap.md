@@ -206,7 +206,7 @@ a(7, 11).x
 
 7
 
-TODO generate
+7
 ```
 
 ```
@@ -215,7 +215,7 @@ a(7, 11).y
 
 11
 
-TODO generate
+11
 ```
 
 ```
@@ -225,7 +225,7 @@ b()
 
 1
 
-TODO generate
+1
 ```
 
 ```
@@ -241,7 +241,7 @@ b()
 
 1
 
-TODO generate
+1
 ```
 
 ```
