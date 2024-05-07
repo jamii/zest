@@ -120,7 +120,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitLebU32(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_sub);
                 emitEnum(c, wasm.Opcode.local_tee);
-                emitLebU32(c, wasmLocal(&f, .shadow));
+                emitLebU32(c, wasmLocal(c, &f, .shadow));
                 emitEnum(c, wasm.Opcode.global_set);
                 emitLebU32(c, global_shadow);
             }
@@ -152,13 +152,9 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     var return_types = ArrayList(wasm.Valtype).init(c.allocator);
     arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
     arg_types.append(wasmAbi(tir_f.key.arg_repr)) catch oom();
-    var return_arg_count: u32 = 0;
     switch (wasmRepr(tir_f.return_repr.one)) {
         .primitive => {},
-        .heap => {
-            return_arg_count += 1;
-            arg_types.append(.i32) catch oom();
-        },
+        .heap => arg_types.append(.i32) catch oom(),
     }
     return_types.append(wasmAbi(tir_f.return_repr.one)) catch oom();
     const fun_type_data = wir.FunTypeData{
@@ -171,7 +167,7 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
         c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
     }
 
-    _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?, return_arg_count));
+    _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?));
     const f = c.wir_fun_data.getPtr(fun);
 
     // Map begin exprs to their end.
@@ -481,11 +477,10 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
 }
 
 fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
-    _ = c;
     switch (from) {
         .closure, .arg, .@"return", .local, .shadow => {
             emitEnum(f, wasm.Opcode.local_get);
-            emitLebU32(f, wasmLocal(f, from));
+            emitLebU32(f, wasmLocal(c, f, from));
         },
         .stack => {},
         .nowhere => panic("Can't load from nowhere", .{}),
@@ -512,10 +507,10 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
             .i32 => {
                 const shuffler = getShuffler(f, .i32);
                 emitEnum(f, wasm.Opcode.local_set);
-                emitLebU32(f, wasmLocal(f, .{ .local = shuffler }));
+                emitLebU32(f, wasmLocal(c, f, .{ .local = shuffler }));
                 loadDirect(c, f, to.direct);
                 emitEnum(f, wasm.Opcode.local_get);
-                emitLebU32(f, wasmLocal(f, .{ .local = shuffler }));
+                emitLebU32(f, wasmLocal(c, f, .{ .local = shuffler }));
                 emitEnum(f, wasm.Opcode.i32_store);
                 emitLebU32(f, 0); // align
                 emitLebU32(f, indirect.offset);
@@ -526,7 +521,7 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
         switch (to.direct) {
             .closure, .arg, .@"return", .local, .shadow => {
                 emitEnum(f, wasm.Opcode.local_set);
-                emitLebU32(f, wasmLocal(f, to.direct));
+                emitLebU32(f, wasmLocal(c, f, to.direct));
             },
             .stack => {},
             .nowhere => {
@@ -589,13 +584,13 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
     };
 }
 
-fn wasmLocal(f: *const wir.FunData, address: wir.AddressDirect) u32 {
+fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u32 {
     return switch (address) {
         .closure => 0,
         .arg => 1,
         .@"return" => 2,
-        .local => |local| 2 + f.return_arg_count + @as(u32, @intCast(local.id)),
-        .shadow => 2 + f.return_arg_count + @as(u32, @intCast(f.local_shadow.?.id)),
+        .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
+        .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
         .stack, .nowhere => panic("Not a local: {}", .{address}),
     };
 }

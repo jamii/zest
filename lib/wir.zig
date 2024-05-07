@@ -57,7 +57,6 @@ pub const LocalData = struct {
 
 pub const FunData = struct {
     fun_type: FunType,
-    return_arg_count: u32,
 
     local_data: List(Local, LocalData),
     local_shadow: ?Local,
@@ -71,11 +70,9 @@ pub const FunData = struct {
     pub fn init(
         allocator: Allocator,
         fun_type: FunType,
-        return_arg_count: u32,
     ) FunData {
         return .{
             .fun_type = fun_type,
-            .return_arg_count = return_arg_count,
 
             .local_data = fieldType(FunData, .local_data).init(allocator),
             .local_shadow = null,
