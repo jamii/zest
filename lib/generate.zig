@@ -222,6 +222,10 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
         }
     }
 
+    // Add locals to shuffle values around during store.
+    // TODO Would be nice to not emit these when not used.
+    f.local_shufflers.i32 = f.local_data.append(.{ .type = .i32 });
+
     // TODO Uncomment asserts once todo is gone.
     assert(c.block_stack.items.len == 0);
     //defer assert(c.block_stack.items.len == 0);
@@ -257,10 +261,9 @@ fn generateExpr(
                 .indirect = addressIndirect(repr.?),
             };
             const hint = c.hint_stack.pop() orelse output;
-            copyBeforeValue(c, f, output, hint);
             emitEnum(f, wasm.Opcode.i32_const);
             emitLebI32(f, i);
-            copyAfterValue(c, f, output, hint);
+            copy(c, f, output, hint);
             c.address_stack.append(hint) catch oom();
         },
         .closure => {
@@ -384,7 +387,6 @@ fn generateExpr(
                     c.hint_stack.append(hint) catch oom();
                     c.hint_stack.append(null) catch oom(); // arg
                     c.hint_stack.append(null) catch oom(); // closure
-                    copyBeforeValue(c, f, output, hint);
                 },
                 .end => {
                     const hint = c.hint_stack.pop().?;
@@ -402,7 +404,7 @@ fn generateExpr(
                     }
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
-                    copyAfterValue(c, f, output, hint);
+                    copy(c, f, output, hint);
                     c.address_stack.append(hint) catch oom();
                 },
             }
@@ -462,17 +464,10 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
     };
 }
 
-fn copyBeforeValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (from.equal(to)) return;
-    if (from.indirect != null and to.indirect != null) {
-        // Just copy
-    } else {
-        storeBeforeValue(c, f, to);
-    }
-}
+fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    if (from.equal(to))
+        return;
 
-fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (from.equal(to)) return;
     if (from.indirect != null and to.indirect != null) {
         const repr = from.indirect.?.repr;
         assert(repr.equal(to.indirect.?.repr));
@@ -484,28 +479,18 @@ fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Addr
         emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
         emitLebU32(f, 0); // memory from
         emitLebU32(f, 0); // memory to
-    } else {
-        load(c, f, from);
-        storeAfterValue(c, f, to);
+        return;
     }
-}
 
-fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (from.indirect != null and to.indirect != null) {
-        copyAfterValue(c, f, from, to);
-    } else {
-        if (from.direct == .stack and to.indirect != null)
-            panic("Can't copy from {} to {}", .{ from, to });
-        if (to.direct == .nowhere) {
-            if (from.direct == .stack) {
-                emitEnum(f, wasm.Opcode.drop);
-            }
-            return;
+    if (to.direct == .nowhere) {
+        if (from.direct == .stack) {
+            emitEnum(f, wasm.Opcode.drop);
         }
-        storeBeforeValue(c, f, to);
-        load(c, f, from);
-        storeAfterValue(c, f, to);
+        return;
     }
+
+    load(c, f, from);
+    store(c, f, to);
 }
 
 fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
@@ -534,21 +519,15 @@ fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
     }
 }
 
-fn storeBeforeValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
-    if (to.indirect != null) {
-        // Put address base on stack.
-        loadDirect(c, f, to.direct);
-    } else {
-        // Nothing to do for direct store.
-    }
-}
-
-fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
-    _ = c;
+fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
     if (to.indirect) |indirect| {
-        // Assumes stack is: loadDirect(from), value
         switch (indirect.repr) {
             .i32 => {
+                emitEnum(f, wasm.Opcode.local_set);
+                emitLebU32(f, wasmLocal(f, .{ .local = f.local_shufflers.i32.? }));
+                loadDirect(c, f, to.direct);
+                emitEnum(f, wasm.Opcode.local_get);
+                emitLebU32(f, wasmLocal(f, .{ .local = f.local_shufflers.i32.? }));
                 emitEnum(f, wasm.Opcode.i32_store);
                 emitLebU32(f, 0); // align
                 emitLebU32(f, indirect.offset);
@@ -556,7 +535,6 @@ fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
             else => panic("Can't store {}", .{indirect.repr}),
         }
     } else {
-        // Assumes stack is: value
         switch (to.direct) {
             .closure, .arg, .@"return", .local, .shadow => {
                 emitEnum(f, wasm.Opcode.local_set);
@@ -617,6 +595,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
     };
 }
 
+// TODO Might be better to assign these on the fly and store everything in local_data
 fn wasmLocal(f: *const wir.FunData, address: wir.AddressDirect) u32 {
     return switch (address) {
         .closure => 0,
