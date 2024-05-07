@@ -60,7 +60,8 @@ pub const FunData = struct {
     return_arg_count: u32,
 
     local_data: List(Local, LocalData),
-    local_shufflers: std.enums.EnumFieldStruct(wasm.Valtype, ?Local, @as(?Local, null)),
+    local_shadow: ?Local,
+    local_shufflers: std.enums.EnumArray(wasm.Valtype, ?Local),
 
     wasm: ArrayList(u8),
 
@@ -77,7 +78,8 @@ pub const FunData = struct {
             .return_arg_count = return_arg_count,
 
             .local_data = fieldType(FunData, .local_data).init(allocator),
-            .local_shufflers = fieldType(FunData, .local_shufflers){},
+            .local_shadow = null,
+            .local_shufflers = fieldType(FunData, .local_shufflers).initFill(null),
 
             .wasm = fieldType(FunData, .wasm).init(allocator),
 

@@ -105,24 +105,15 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             const start = emitByteCountLater(c);
             defer emitByteCount(c, start);
 
-            const uses_shadow = f.shadow_offset_max > 0;
-
             // Locals
-            const local_count =
-                @as(u32, @intCast(f.local_data.count())) +
-                @as(u32, if (uses_shadow) 1 else 0);
-            emitLebU32(c, local_count);
+            emitLebU32(c, @intCast(f.local_data.count()));
             for (f.local_data.items()) |l| {
                 emitLebU32(c, 1);
                 emitEnum(c, l.type);
             }
-            if (uses_shadow) {
-                emitLebU32(c, 1);
-                emitEnum(c, wasm.Valtype.i32);
-            }
 
             // Frame push
-            if (uses_shadow) {
+            if (f.shadow_offset_max > 0) {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
                 emitEnum(c, wasm.Opcode.i32_const);
@@ -137,7 +128,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             c.wasm.appendSlice(f.wasm.items) catch oom();
 
             // Frame pop
-            if (uses_shadow) {
+            if (f.shadow_offset_max > 0) {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
                 emitEnum(c, wasm.Opcode.i32_const);
@@ -221,10 +212,6 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
             },
         }
     }
-
-    // Add locals to shuffle values around during store.
-    // TODO Would be nice to not emit these when not used.
-    f.local_shufflers.i32 = f.local_data.append(.{ .type = .i32 });
 
     // TODO Uncomment asserts once todo is gone.
     assert(c.block_stack.items.len == 0);
@@ -455,6 +442,7 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
     const offset = f.shadow_offset_next;
     f.shadow_offset_next += repr.sizeOf();
     f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
+    f.local_shadow = f.local_shadow orelse f.local_data.append(.{ .type = .i32 });
     return .{
         .direct = .shadow,
         .indirect = .{
@@ -523,11 +511,12 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
     if (to.indirect) |indirect| {
         switch (indirect.repr) {
             .i32 => {
+                const shuffler = getShuffler(f, .i32);
                 emitEnum(f, wasm.Opcode.local_set);
-                emitLebU32(f, wasmLocal(f, .{ .local = f.local_shufflers.i32.? }));
+                emitLebU32(f, wasmLocal(f, .{ .local = shuffler }));
                 loadDirect(c, f, to.direct);
                 emitEnum(f, wasm.Opcode.local_get);
-                emitLebU32(f, wasmLocal(f, .{ .local = f.local_shufflers.i32.? }));
+                emitLebU32(f, wasmLocal(f, .{ .local = shuffler }));
                 emitEnum(f, wasm.Opcode.i32_store);
                 emitLebU32(f, 0); // align
                 emitLebU32(f, indirect.offset);
@@ -546,6 +535,12 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
             },
         }
     }
+}
+
+fn getShuffler(f: *wir.FunData, typ: wasm.Valtype) wir.Local {
+    const shuffler = f.local_shufflers.getPtr(typ);
+    if (shuffler.* == null) shuffler.* = f.local_data.append(.{ .type = typ });
+    return shuffler.*.?;
 }
 
 fn loadOrAddress(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
@@ -595,14 +590,13 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
     };
 }
 
-// TODO Might be better to assign these on the fly and store everything in local_data
 fn wasmLocal(f: *const wir.FunData, address: wir.AddressDirect) u32 {
     return switch (address) {
         .closure => 0,
         .arg => 1,
         .@"return" => 2,
         .local => |local| 2 + f.return_arg_count + @as(u32, @intCast(local.id)),
-        .shadow => 2 + f.return_arg_count + @as(u32, @intCast(f.local_data.count())),
+        .shadow => 2 + f.return_arg_count + @as(u32, @intCast(f.local_shadow.?.id)),
         .stack, .nowhere => panic("Not a local: {}", .{address}),
     };
 }
