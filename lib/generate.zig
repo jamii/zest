@@ -475,7 +475,6 @@ fn copyBeforeValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Add
 }
 
 fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    std.debug.print("copy {} {}\n", .{ from, to });
     if (from.equal(to)) return;
     if (from.indirect != null and to.indirect != null) {
         const repr = from.indirect.?.repr;
@@ -495,11 +494,18 @@ fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Addr
 }
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    std.debug.print("copy {} {}\n", .{ from, to });
     if (from.indirect != null and to.indirect != null) {
         copyAfterValue(c, f, from, to);
     } else {
         if (from.direct == .stack and to.indirect != null)
             panic("Can't copy from {} to {}", .{ from, to });
+        if (to.direct == .nowhere) {
+            if (from.direct == .stack) {
+                emitEnum(f, wasm.Opcode.drop);
+            }
+            return;
+        }
         storeBeforeValue(c, f, to);
         load(c, f, from);
         storeAfterValue(c, f, to);
