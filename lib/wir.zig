@@ -11,6 +11,8 @@ const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Value = zest.Value;
 const Repr = zest.Repr;
+const ReprStruct = zest.ReprStruct;
+const ReprFun = zest.ReprFun;
 const tir = zest.tir;
 
 pub const AddressDirect = union(enum) {
@@ -22,11 +24,19 @@ pub const AddressDirect = union(enum) {
     stack,
     nowhere,
     i32: i32,
+    @"struct": struct {
+        repr: ReprStruct,
+        values: []Address,
+    },
+    fun: struct {
+        repr: ReprFun,
+        closure: *Address,
+    },
 
     pub fn isValue(address: AddressDirect) bool {
         return switch (address) {
             .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => false,
-            .i32 => true,
+            .i32, .@"struct", .fun => true,
         };
     }
 };

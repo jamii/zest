@@ -276,28 +276,45 @@ fn generateExpr(
             const struct_repr = repr.?.@"struct";
             switch (direction) {
                 .begin => {
-                    const hint = c.hint_stack.pop() orelse shadowPush(c, f, repr.?);
-                    c.hint_stack.append(hint) catch oom();
-                    var i: usize = struct_repr.reprs.len;
-                    while (i > 0) : (i -= 1) {
-                        const value_repr = struct_repr.reprs[i - 1];
-                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                        const value_hint = wir.Address{
-                            .direct = hint.direct,
-                            .indirect = .{
-                                .offset = hint.indirect.?.offset + offset,
-                                .repr = value_repr,
-                            },
-                        };
-                        c.hint_stack.append(value_hint) catch oom();
+                    if (c.hint_stack.pop()) |hint| {
+                        c.hint_stack.append(hint) catch oom();
+                        var i: usize = struct_repr.reprs.len;
+                        while (i > 0) : (i -= 1) {
+                            const value_repr = struct_repr.reprs[i - 1];
+                            const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
+                            const value_hint = wir.Address{
+                                .direct = hint.direct,
+                                .indirect = .{
+                                    .offset = hint.indirect.?.offset + offset,
+                                    .repr = value_repr,
+                                },
+                            };
+                            c.hint_stack.append(value_hint) catch oom();
+                        }
+                    } else {
+                        for (0..struct_repr.reprs.len) |_| {
+                            c.hint_stack.append(null) catch oom();
+                        }
+                        c.hint_stack.append(null) catch oom();
                     }
                 },
                 .end => {
-                    const hint = c.hint_stack.pop().?;
-                    for (0..struct_repr.reprs.len) |_| {
-                        _ = c.address_stack.pop();
+                    if (c.hint_stack.pop()) |hint| {
+                        for (0..struct_repr.reprs.len) |_| {
+                            _ = c.address_stack.pop();
+                        }
+                        c.address_stack.append(hint) catch oom();
+                    } else {
+                        const values = c.allocator.alloc(wir.Address, struct_repr.reprs.len) catch oom();
+                        var i: usize = struct_repr.reprs.len;
+                        while (i > 0) : (i -= 1) {
+                            values[i - 1] = c.address_stack.pop();
+                        }
+                        c.address_stack.append(.{ .direct = .{ .@"struct" = .{
+                            .repr = struct_repr,
+                            .values = values,
+                        } } }) catch oom();
                     }
-                    c.address_stack.append(hint) catch oom();
                 },
             }
         },
@@ -312,8 +329,17 @@ fn generateExpr(
                 },
                 .end => {
                     var output = c.address_stack.pop();
-                    output.indirect.?.repr = repr.?;
-                    c.address_stack.append(output) catch oom();
+                    if (output.direct == .@"struct") {
+                        c.address_stack.append(.{ .direct = .{
+                            .fun = .{
+                                .repr = repr.?.fun,
+                                .closure = c.box(output),
+                            },
+                        } }) catch oom();
+                    } else {
+                        output.indirect.?.repr = repr.?;
+                        c.address_stack.append(output) catch oom();
+                    }
                 },
             }
         },
@@ -345,19 +371,27 @@ fn generateExpr(
                 },
                 .end => {
                     const input = c.address_stack.pop();
-                    const input_repr = input.indirect.?.repr.@"struct";
-                    const i = input_repr.get(object_get.key).?;
-                    const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
-                    const output = wir.Address{
-                        .direct = input.direct,
-                        .indirect = .{
-                            .offset = input.indirect.?.offset + offset,
-                            .repr = input_repr.reprs[i],
-                        },
-                    };
-                    const hint = c.hint_stack.pop() orelse output;
-                    copy(c, f, output, hint);
-                    c.address_stack.append(hint) catch oom();
+                    if (input.direct == .@"struct") {
+                        const i = input.direct.@"struct".repr.get(object_get.key).?;
+                        const output = input.direct.@"struct".values[i];
+                        const hint = c.hint_stack.pop() orelse output;
+                        copy(c, f, output, hint);
+                        c.address_stack.append(hint) catch oom();
+                    } else {
+                        const input_repr = input.indirect.?.repr.@"struct";
+                        const i = input_repr.get(object_get.key).?;
+                        const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
+                        const output = wir.Address{
+                            .direct = input.direct,
+                            .indirect = .{
+                                .offset = input.indirect.?.offset + offset,
+                                .repr = input_repr.reprs[i],
+                            },
+                        };
+                        const hint = c.hint_stack.pop() orelse output;
+                        copy(c, f, output, hint);
+                        c.address_stack.append(hint) catch oom();
+                    }
                 },
             }
         },
@@ -480,7 +514,7 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
 
     // Constant to heap - avoid shuffle.
     if (from.isValue() and to.indirect != null) {
-        switch (to.indirect.?.repr) {
+        switch (from.direct) {
             .i32 => {
                 loadDirect(c, f, to.direct);
                 load(c, f, from);
@@ -488,11 +522,28 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
                 emitLebU32(f, 0); // align
                 emitLebU32(f, to.indirect.?.offset);
             },
-            else => panic("Can't store {}", .{to.indirect.?.repr}),
+            .@"struct" => |@"struct"| {
+                for (@"struct".repr.reprs, @"struct".values, 0..) |repr, value_from, i| {
+                    copy(c, f, value_from, .{
+                        .direct = to.direct,
+                        .indirect = .{
+                            .offset = to.indirect.?.offset + @as(u32, @intCast(@"struct".repr.offsetOf(i))),
+                            .repr = repr,
+                        },
+                    });
+                }
+            },
+            .fun => |fun| {
+                var closure_to = to;
+                closure_to.indirect.?.repr = .{ .@"struct" = closure_to.indirect.?.repr.fun.closure };
+                copy(c, f, fun.closure.*, closure_to);
+            },
+            .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => unreachable,
         }
         return;
     }
 
+    // Otherwise copy via stack.
     load(c, f, from);
     store(c, f, to);
 }
@@ -508,7 +559,7 @@ fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
             emitEnum(f, wasm.Opcode.i32_const);
             emitLebI32(f, i);
         },
-        .nowhere => panic("Can't load from nowhere", .{}),
+        .@"struct", .fun, .nowhere => panic("Can't load from {}", .{from}),
     }
 }
 
@@ -521,7 +572,7 @@ fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
                 emitLebU32(f, 0); // align
                 emitLebU32(f, indirect.offset);
             },
-            else => panic("Can't load {}", .{indirect.repr}),
+            else => panic("Can't load repr {}", .{indirect.repr}),
         }
     }
 }
@@ -540,7 +591,7 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
                 emitLebU32(f, 0); // align
                 emitLebU32(f, indirect.offset);
             },
-            else => panic("Can't store {}", .{indirect.repr}),
+            else => panic("Can't store repr {}", .{indirect.repr}),
         }
     } else {
         switch (to.direct) {
@@ -552,7 +603,7 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
             .nowhere => {
                 emitEnum(f, wasm.Opcode.drop);
             },
-            .i32 => panic("Can't store to {}", .{to}),
+            .i32, .@"struct", .fun => panic("Can't store to {}", .{to}),
         }
     }
 }
@@ -567,6 +618,18 @@ fn loadAbi(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     if (address.indirect != null and address.indirect.?.repr.sizeOf() == 0) {
         emitEnum(f, wasm.Opcode.i32_const);
         emitLebU32(f, 0);
+        return;
+    }
+
+    if (address.isValue()) {
+        const tmp = shadowPush(c, f, switch (address.direct) {
+            .i32 => .i32,
+            .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
+            .fun => |fun| .{ .fun = fun.repr },
+            .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => unreachable,
+        });
+        copy(c, f, address, tmp);
+        loadAbi(c, f, tmp);
         return;
     }
 
@@ -617,7 +680,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u3
         .@"return" => 2,
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .nowhere, .i32 => panic("Not a local: {}", .{address}),
+        .stack, .nowhere, .i32, .@"struct", .fun => panic("Not a local: {}", .{address}),
     };
 }
 
