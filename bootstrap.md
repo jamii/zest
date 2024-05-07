@@ -30,7 +30,7 @@ a
 
 1
 
-TODO generate
+1
 ```
 
 ```
@@ -73,7 +73,7 @@ a.x
 
 1
 
-TODO generate
+1
 ```
 
 ```
@@ -82,7 +82,7 @@ a.y
 
 2
 
-TODO generate
+2
 ```
 
 ```
@@ -91,7 +91,7 @@ a.0.x
 
 1
 
-TODO generate
+1
 ```
 
 ```
@@ -100,7 +100,7 @@ a.0.y
 
 2
 
-TODO generate
+2
 ```
 
 ```
@@ -109,7 +109,7 @@ a.z
 
 3
 
-TODO generate
+3
 ```
 
 ```

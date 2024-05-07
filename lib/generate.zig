@@ -272,10 +272,12 @@ fn generateExpr(
         //        .indirect = addressIndirect(repr.?),
         //    }) catch oom();
         //},
-        //.local_get => |local| {
-        //    _ = c.hint_stack.pop();
-        //    c.address_stack.append(c.local_address.get(local)) catch oom();
-        //},
+        .local_get => |local| {
+            const output = c.local_address.get(local);
+            const hint = c.hint_stack.pop() orelse output;
+            copy(c, f, output, hint);
+            c.address_stack.append(hint) catch oom();
+        },
 
         .begin => unreachable,
 
@@ -308,6 +310,13 @@ fn generateExpr(
                 },
             }
         },
+        .local_let => |local| {
+            const output = c.local_address.get(local);
+            switch (direction) {
+                .begin => c.hint_stack.append(output) catch oom(),
+                .end => _ = c.address_stack.pop(),
+            }
+        },
         .object_get => |object_get| {
             switch (direction) {
                 .begin => {
@@ -327,7 +336,7 @@ fn generateExpr(
                     };
                     const hint = c.hint_stack.pop() orelse output;
                     // Don't need copyBeforeValue because output is indirect.
-                    copyAfterValue(c, f, output, hint);
+                    copy(c, f, output, hint);
                     c.address_stack.append(hint) catch oom();
                 },
             }
@@ -383,10 +392,7 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
 }
 
 fn copyBeforeValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    if (from.equal(to)) return;
-    if (from.indirect != null and to.indirect != null) {
-        // Nothing to do here.
-    } else {
+    if (from.direct == .stack and from.indirect == null and to.indirect != null) {
         storeBeforeValue(c, f, to);
     }
 }
@@ -409,18 +415,10 @@ fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Addr
     }
 }
 
-fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
-    loadDirect(c, f, from.direct);
-    if (from.indirect) |indirect| {
-        switch (indirect.repr) {
-            .i32 => {
-                emitEnum(f, wasm.Opcode.i32_load);
-                emitLebU32(f, 0); // align
-                emitLebU32(f, indirect.offset);
-            },
-            else => panic("Can't load {}", .{indirect.repr}),
-        }
-    }
+fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    if (from.direct == .stack and from.indirect == null and to.indirect != null)
+        panic("Can't copy from stack to heap", .{});
+    copyAfterValue(c, f, from, to);
 }
 
 fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
@@ -432,6 +430,20 @@ fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
         },
         .stack => {},
         .nowhere => panic("Can't load from nowhere", .{}),
+    }
+}
+
+fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
+    loadDirect(c, f, from.direct);
+    if (from.indirect) |indirect| {
+        switch (indirect.repr) {
+            .i32 => {
+                emitEnum(f, wasm.Opcode.i32_load);
+                emitLebU32(f, 0); // align
+                emitLebU32(f, indirect.offset);
+            },
+            else => panic("Can't load {}", .{indirect.repr}),
+        }
     }
 }
 
@@ -447,6 +459,7 @@ fn storeBeforeValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
 fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
     _ = c;
     if (to.indirect) |indirect| {
+        // Assumes stack is: loadDirect(from), value
         switch (indirect.repr) {
             .i32 => {
                 emitEnum(f, wasm.Opcode.i32_store);
@@ -456,6 +469,7 @@ fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
             else => panic("Can't store {}", .{indirect.repr}),
         }
     } else {
+        // Assumes stack is: value
         switch (to.direct) {
             .closure, .arg, .@"return", .local, .shadow => {
                 emitEnum(f, wasm.Opcode.local_set);
