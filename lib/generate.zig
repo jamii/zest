@@ -346,6 +346,7 @@ fn generateExpr(
                     }
                     c.hint_stack.append(output.*) catch oom();
                 },
+                // TODO If input is const, don't need to copy to output - just set address to input.
                 .end => _ = c.address_stack.pop(),
             }
         },
