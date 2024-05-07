@@ -327,17 +327,16 @@ fn generateExpr(
             }
         },
         .local_let => |local| {
-            switch (direction) {
-                .begin => {
-                    const output = c.local_address.getPtr(local);
-                    switch (wasmRepr(tir_f.local_data.get(local).repr.one)) {
-                        .primitive => {},
-                        .heap => output.* = shadowPush(c, f, tir_f.local_data.get(local).repr.one),
-                    }
-                    c.hint_stack.append(output.*) catch oom();
+            switch (wasmRepr(tir_f.local_data.get(local).repr.one)) {
+                .primitive => switch (direction) {
+                    .begin => c.hint_stack.append(c.local_address.get(local)) catch oom(),
+                    .end => _ = c.address_stack.pop(),
                 },
-                // TODO If input is const, don't need to copy to output - just set address to input.
-                .end => _ = c.address_stack.pop(),
+                .heap => switch (direction) {
+                    .begin => c.hint_stack.append(null) catch oom(),
+                    // TODO If input address is mut, we should maybe copy here rather than spill later?
+                    .end => c.local_address.getPtr(local).* = c.address_stack.pop(),
+                },
             }
         },
         .object_get => |object_get| {
