@@ -106,7 +106,6 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             defer emitByteCount(c, start);
 
             const uses_shadow = f.shadow_offset_max > 0;
-            std.debug.print("shadow {} {}\n", .{ f.shadow_offset_next, f.shadow_offset_max });
 
             // Locals
             const local_count =
@@ -251,7 +250,6 @@ fn generateExpr(
     repr: ?Repr,
     direction: enum { begin, end },
 ) error{GenerateError}!void {
-    //std.debug.print("{} {}\n", .{ expr_data, direction });
     switch (expr_data) {
         .i32 => |i| {
             const output = wir.Address{
@@ -395,14 +393,12 @@ fn generateExpr(
                     };
                     const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
-                    std.debug.print("closure {} arg {}\n", .{ closure, arg });
                     loadOrAddress(c, f, closure);
                     loadOrAddress(c, f, arg);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
                         .heap => loadOrAddress(c, f, hint),
                     }
-                    std.debug.print("called\n", .{});
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
                     copyAfterValue(c, f, output, hint);
@@ -445,7 +441,7 @@ fn generateExpr(
         },
 
         else => {
-            std.debug.print("TODO generate {}\n", .{expr_data});
+            //std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
         },
     }
@@ -494,7 +490,6 @@ fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Addr
 }
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    std.debug.print("copy {} {}\n", .{ from, to });
     if (from.indirect != null and to.indirect != null) {
         copyAfterValue(c, f, from, to);
     } else {
@@ -622,7 +617,6 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
 }
 
 fn wasmLocal(f: *const wir.FunData, address: wir.AddressDirect) u32 {
-    std.debug.print("local {} {} {}\n", .{ f.return_arg_count, f.local_data.count(), address });
     return switch (address) {
         .closure => 0,
         .arg => 1,

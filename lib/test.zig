@@ -98,6 +98,12 @@ pub fn main() !void {
             compiler = Compiler.init(allocator, source);
             const actual_strict = std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n");
 
+            std.debug.print(
+                \\--- wat ---
+                \\ {s}
+                \\
+            , .{read_wat(allocator)});
+
             const correct_lax = std.mem.eql(u8, expected_lax, actual_lax);
             const correct_strict = std.mem.eql(u8, expected_strict, actual_strict);
             if (!correct_lax or !correct_strict) {
@@ -122,11 +128,6 @@ pub fn main() !void {
                         \\{s}
                         \\
                     , .{ expected_strict, actual_strict });
-                std.debug.print(
-                    \\--- wat ---
-                    \\ {s}
-                    \\
-                , .{read_wat(allocator)});
                 failures += 1;
                 std.debug.print("\n", .{});
             }
