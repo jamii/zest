@@ -383,11 +383,11 @@ fn generateExpr(
                     };
                     const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
-                    loadOrAddress(c, f, closure);
-                    loadOrAddress(c, f, arg);
+                    loadAbi(c, f, closure);
+                    loadAbi(c, f, arg);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
-                        .heap => loadOrAddress(c, f, hint),
+                        .heap => loadAbi(c, f, hint),
                     }
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
@@ -424,7 +424,7 @@ fn generateExpr(
                 .end => {
                     _ = c.address_stack.pop();
                     if (output.indirect != null) {
-                        loadOrAddress(c, f, output);
+                        loadAbi(c, f, output);
                     }
                 },
             }
@@ -543,7 +543,7 @@ fn getShuffler(f: *wir.FunData, typ: wasm.Valtype) wir.Local {
     return shuffler.*.?;
 }
 
-fn loadOrAddress(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
+fn loadAbi(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     if (address.indirect != null and address.indirect.?.repr.sizeOf() == 0) {
         emitEnum(f, wasm.Opcode.i32_const);
         emitLebU32(f, 0);
