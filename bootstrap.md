@@ -48,7 +48,7 @@ Name already bound: a
 
 1
 
-TODO generate
+1
 ```
 
 ```
@@ -56,7 +56,7 @@ TODO generate
 
 2
 
-TODO generate
+2
 ```
 
 ```
@@ -64,7 +64,7 @@ TODO generate
 
 3
 
-TODO generate
+3
 ```
 
 ```

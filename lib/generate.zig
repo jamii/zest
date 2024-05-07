@@ -214,10 +214,10 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     // TODO Uncomment asserts once todo is gone.
     assert(c.block_stack.items.len == 0);
     //defer assert(c.block_stack.items.len == 0);
-    assert(c.input_stack.items.len == 0);
-    //defer assert(c.input_stack.items.len == 0);
-    assert(c.output_stack.items.len == 0);
-    //defer assert(c.output_stack.items.len == 0);
+    assert(c.address_stack.items.len == 0);
+    //defer assert(c.address_stack.items.len == 0);
+    assert(c.hint_stack.items.len == 0);
+    //defer assert(c.hint_stack.items.len == 0);
 
     for (tir_f.expr_data.items(), tir_f.expr_repr.items(), 0..) |expr_data, repr, expr_id| {
         if (expr_data == .begin) {
@@ -247,32 +247,35 @@ fn generateExpr(
     //std.debug.print("{} {}\n", .{ expr_data, direction });
     switch (expr_data) {
         .i32 => |i| {
-            _ = c.output_stack.pop();
-            emitEnum(f, wasm.Opcode.i32_const);
-            emitLebI32(f, i);
-            c.input_stack.append(.{
+            const output = wir.Address{
                 .direct = .stack,
                 .indirect = addressIndirect(repr.?),
-            }) catch oom();
+            };
+            const hint = c.hint_stack.pop() orelse output;
+            copyBeforeValue(c, f, output, hint);
+            emitEnum(f, wasm.Opcode.i32_const);
+            emitLebI32(f, i);
+            copyAfterValue(c, f, output, hint);
+            c.address_stack.append(output) catch oom();
         },
-        .closure => {
-            _ = c.output_stack.pop();
-            c.input_stack.append(.{
-                .direct = .closure,
-                .indirect = addressIndirect(repr.?),
-            }) catch oom();
-        },
-        .arg => {
-            _ = c.output_stack.pop();
-            c.input_stack.append(.{
-                .direct = .arg,
-                .indirect = addressIndirect(repr.?),
-            }) catch oom();
-        },
-        .local_get => |local| {
-            _ = c.output_stack.pop();
-            c.input_stack.append(c.local_address.get(local)) catch oom();
-        },
+        //.closure => {
+        //    _ = c.hint_stack.pop();
+        //    c.address_stack.append(.{
+        //        .direct = .closure,
+        //        .indirect = addressIndirect(repr.?),
+        //    }) catch oom();
+        //},
+        //.arg => {
+        //    _ = c.hint_stack.pop();
+        //    c.address_stack.append(.{
+        //        .direct = .arg,
+        //        .indirect = addressIndirect(repr.?),
+        //    }) catch oom();
+        //},
+        //.local_get => |local| {
+        //    _ = c.hint_stack.pop();
+        //    c.address_stack.append(c.local_address.get(local)) catch oom();
+        //},
 
         .begin => unreachable,
 
@@ -280,68 +283,60 @@ fn generateExpr(
             const struct_repr = repr.?.@"struct";
             switch (direction) {
                 .begin => {
-                    const output = c.output_stack.pop() orelse shadowPush(c, f, repr.?);
+                    const hint = c.hint_stack.pop() orelse shadowPush(c, f, repr.?);
+                    c.hint_stack.append(hint) catch oom();
                     var i: usize = struct_repr.reprs.len;
                     while (i > 0) : (i -= 1) {
                         const value_repr = struct_repr.reprs[i - 1];
                         const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                        const value_output = wir.Address{
-                            .direct = output.direct,
+                        const value_hint = wir.Address{
+                            .direct = hint.direct,
                             .indirect = .{
-                                .offset = output.indirect.?.offset + offset,
+                                .offset = hint.indirect.?.offset + offset,
                                 .repr = value_repr,
                             },
                         };
-                        c.output_stack.append(value_output) catch oom();
+                        c.hint_stack.append(value_hint) catch oom();
                     }
-                    c.sideways_stack.append(output) catch oom();
                 },
                 .end => {
-                    const output = c.sideways_stack.pop();
-                    var i: usize = struct_repr.reprs.len;
-                    while (i > 0) : (i -= 1) {
-                        const value_repr = struct_repr.reprs[i - 1];
-                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                        const value_output = wir.Address{
-                            .direct = output.direct,
-                            .indirect = .{
-                                .offset = output.indirect.?.offset + offset,
-                                .repr = value_repr,
-                            },
-                        };
-                        const value_input = c.input_stack.pop();
-                        copy(c, f, value_input, value_output);
+                    const hint = c.hint_stack.pop().?;
+                    for (0..struct_repr.reprs.len) |_| {
+                        _ = c.address_stack.pop();
                     }
-                    c.input_stack.append(output) catch oom();
+                    c.address_stack.append(hint) catch oom();
                 },
             }
         },
         .object_get => |object_get| {
             switch (direction) {
-                .begin => c.output_stack.append(null) catch oom(),
+                .begin => {
+                    c.hint_stack.append(null) catch oom();
+                },
                 .end => {
-                    const input = c.input_stack.pop();
+                    const input = c.address_stack.pop();
                     const input_repr = input.indirect.?.repr.@"struct";
                     const i = input_repr.get(object_get.key).?;
                     const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
-                    c.input_stack.append(.{
+                    const output = wir.Address{
                         .direct = input.direct,
                         .indirect = .{
                             .offset = input.indirect.?.offset + offset,
                             .repr = input_repr.reprs[i],
                         },
-                    }) catch oom();
+                    };
+                    const hint = c.hint_stack.pop() orelse output;
+                    // Don't need copyBeforeValue because output is indirect.
+                    copyAfterValue(c, f, output, hint);
+                    c.address_stack.append(hint) catch oom();
                 },
             }
         },
         .drop => {
             const output = wir.Address{ .direct = .nowhere };
             switch (direction) {
-                .begin => c.output_stack.append(output) catch oom(),
-                .end => {
-                    const input = c.input_stack.pop();
-                    copy(c, f, input, output);
-                },
+                .begin => c.hint_stack.append(output) catch oom(),
+                .end => _ = c.address_stack.pop(),
             }
         },
         .block => {
@@ -361,13 +356,8 @@ fn generateExpr(
                 },
             };
             switch (direction) {
-                .begin => {
-                    c.output_stack.append(output) catch oom();
-                },
-                .end => {
-                    const input = c.input_stack.pop();
-                    copy(c, f, input, output);
-                },
+                .begin => c.hint_stack.append(output) catch oom(),
+                .end => _ = c.address_stack.pop(),
             }
         },
 
@@ -392,7 +382,16 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
     };
 }
 
-fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+fn copyBeforeValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    if (from.equal(to)) return;
+    if (from.indirect != null and to.indirect != null) {
+        // Nothing to do here.
+    } else {
+        storeBeforeValue(c, f, to);
+    }
+}
+
+fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
     if (from.equal(to)) return;
     if (from.indirect != null and to.indirect != null) {
         std.debug.print("copy {} {}\n", .{ from, to });
@@ -405,8 +404,6 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
         emitEnum(f, wasm.Opcode.misc_prefix);
         emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
     } else {
-        //std.debug.print("load/store {} {}\n", .{ from, to });
-        storeBeforeValue(c, f, to);
         load(c, f, from);
         storeAfterValue(c, f, to);
     }

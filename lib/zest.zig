@@ -208,9 +208,8 @@ pub const Compiler = struct {
     begin_end: List(tir.Expr, tir.Expr),
     local_address: List(tir.Local, wir.Address),
     block_stack: ArrayList(wir.Block),
-    input_stack: ArrayList(wir.Address),
-    output_stack: ArrayList(?wir.Address), // null if we don't care
-    sideways_stack: ArrayList(wir.Address),
+    address_stack: ArrayList(wir.Address),
+    hint_stack: ArrayList(?wir.Address), // null if we don't care
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -247,9 +246,8 @@ pub const Compiler = struct {
             .begin_end = fieldType(Compiler, .begin_end).init(allocator),
             .local_address = fieldType(Compiler, .local_address).init(allocator),
             .block_stack = fieldType(Compiler, .block_stack).init(allocator),
-            .input_stack = fieldType(Compiler, .input_stack).init(allocator),
-            .output_stack = fieldType(Compiler, .output_stack).init(allocator),
-            .sideways_stack = fieldType(Compiler, .sideways_stack).init(allocator),
+            .address_stack = fieldType(Compiler, .address_stack).init(allocator),
+            .hint_stack = fieldType(Compiler, .hint_stack).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
