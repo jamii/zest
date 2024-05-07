@@ -256,7 +256,7 @@ fn generateExpr(
             emitEnum(f, wasm.Opcode.i32_const);
             emitLebI32(f, i);
             copyAfterValue(c, f, output, hint);
-            c.address_stack.append(output) catch oom();
+            c.address_stack.append(hint) catch oom();
         },
         //.closure => {
         //    _ = c.hint_stack.pop();
@@ -280,6 +280,7 @@ fn generateExpr(
         },
 
         .begin => unreachable,
+        .nop => {},
 
         .struct_init => {
             const struct_repr = repr.?.@"struct";
@@ -310,6 +311,22 @@ fn generateExpr(
                 },
             }
         },
+        .fun_init => {
+            switch (direction) {
+                .begin => {
+                    var hint = c.hint_stack.pop();
+                    if (hint != null) {
+                        hint.?.indirect.?.repr = .{ .@"struct" = repr.?.fun.closure };
+                    }
+                    c.hint_stack.append(hint) catch oom();
+                },
+                .end => {
+                    var output = c.address_stack.pop();
+                    output.indirect.?.repr = repr.?;
+                    c.address_stack.append(output) catch oom();
+                },
+            }
+        },
         .local_let => |local| {
             const output = c.local_address.get(local);
             switch (direction) {
@@ -337,6 +354,40 @@ fn generateExpr(
                     const hint = c.hint_stack.pop() orelse output;
                     // Don't need copyBeforeValue because output is indirect.
                     copy(c, f, output, hint);
+                    c.address_stack.append(hint) catch oom();
+                },
+            }
+        },
+        .call => |fun| {
+            switch (direction) {
+                .begin => {
+                    const output = switch (wasmRepr(repr.?)) {
+                        .primitive => wir.Address{ .direct = .stack },
+                        .heap => shadowPush(c, f, repr.?),
+                    };
+                    const hint = c.hint_stack.pop() orelse output;
+                    c.hint_stack.append(hint) catch oom();
+                    c.hint_stack.append(null) catch oom(); // arg
+                    c.hint_stack.append(null) catch oom(); // closure
+                    copyBeforeValue(c, f, output, hint);
+                },
+                .end => {
+                    const hint = c.hint_stack.pop().?;
+                    const output = switch (wasmRepr(repr.?)) {
+                        .primitive => wir.Address{ .direct = .stack },
+                        .heap => hint,
+                    };
+                    const arg = c.address_stack.pop();
+                    const closure = c.address_stack.pop();
+                    loadOrAddress(c, f, closure);
+                    loadOrAddress(c, f, arg);
+                    switch (wasmRepr(repr.?)) {
+                        .primitive => {},
+                        .heap => loadOrAddress(c, f, hint),
+                    }
+                    emitEnum(f, wasm.Opcode.call);
+                    emitLebU32(f, @intCast(fun.id));
+                    copyAfterValue(c, f, output, hint);
                     c.address_stack.append(hint) catch oom();
                 },
             }
@@ -480,6 +531,15 @@ fn storeAfterValue(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
                 emitEnum(f, wasm.Opcode.drop);
             },
         }
+    }
+}
+
+fn loadOrAddress(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
+    loadDirect(c, f, address.direct);
+    if (address.indirect) |indirect| {
+        emitEnum(f, wasm.Opcode.i32_const);
+        emitLebU32(f, indirect.offset);
+        emitEnum(f, wasm.Opcode.i32_add);
     }
 }
 

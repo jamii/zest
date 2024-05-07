@@ -130,7 +130,7 @@ a.x
 
 1
 
-TODO generate
+1
 ```
 
 ```
@@ -151,7 +151,7 @@ a()
 
 1
 
-TODO generate
+1
 ```
 
 ```
