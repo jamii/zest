@@ -21,6 +21,14 @@ pub const AddressDirect = union(enum) {
     shadow,
     stack,
     nowhere,
+    i32: i32,
+
+    pub fn isValue(address: AddressDirect) bool {
+        return switch (address) {
+            .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => false,
+            .i32 => true,
+        };
+    }
 };
 
 pub const AddressIndirect = struct {
@@ -35,6 +43,10 @@ pub const Address = struct {
     pub fn equal(self: Address, other: Address) bool {
         // TODO May need to think about this, especially if repr.equal changes.
         return deepEqual(self, other);
+    }
+
+    pub fn isValue(address: Address) bool {
+        return address.direct.isValue() and address.indirect == null;
     }
 };
 

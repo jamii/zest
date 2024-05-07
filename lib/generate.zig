@@ -239,13 +239,8 @@ fn generateExpr(
 ) error{GenerateError}!void {
     switch (expr_data) {
         .i32 => |i| {
-            const output = wir.Address{
-                .direct = .stack,
-                .indirect = addressIndirect(repr.?),
-            };
+            const output = wir.Address{ .direct = .{ .i32 = i } };
             const hint = c.hint_stack.pop() orelse output;
-            emitEnum(f, wasm.Opcode.i32_const);
-            emitLebI32(f, i);
             copy(c, f, output, hint);
             c.address_stack.append(hint) catch oom();
         },
@@ -325,8 +320,16 @@ fn generateExpr(
         .local_let => |local| {
             switch (wasmRepr(tir_f.local_data.get(local).repr.one)) {
                 .primitive => switch (direction) {
-                    .begin => c.hint_stack.append(c.local_address.get(local)) catch oom(),
-                    .end => _ = c.address_stack.pop(),
+                    .begin => c.hint_stack.append(null) catch oom(),
+                    .end => {
+                        const input = c.address_stack.pop();
+                        if (input.isValue()) {
+                            c.local_address.getPtr(local).* = input;
+                        } else {
+                            load(c, f, input);
+                            store(c, f, c.local_address.get(local));
+                        }
+                    },
                 },
                 .heap => switch (direction) {
                     .begin => c.hint_stack.append(null) catch oom(),
@@ -448,9 +451,11 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
 }
 
 fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
+    // Nop
     if (from.equal(to))
         return;
 
+    // Copy
     if (from.indirect != null and to.indirect != null) {
         const repr = from.indirect.?.repr;
         assert(repr.equal(to.indirect.?.repr));
@@ -465,9 +470,25 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
         return;
     }
 
+    // Drop
     if (to.direct == .nowhere) {
         if (from.direct == .stack) {
             emitEnum(f, wasm.Opcode.drop);
+        }
+        return;
+    }
+
+    // Constant to heap - avoid shuffle.
+    if (from.isValue() and to.indirect != null) {
+        switch (to.indirect.?.repr) {
+            .i32 => {
+                loadDirect(c, f, to.direct);
+                load(c, f, from);
+                emitEnum(f, wasm.Opcode.i32_store);
+                emitLebU32(f, 0); // align
+                emitLebU32(f, to.indirect.?.offset);
+            },
+            else => panic("Can't store {}", .{to.indirect.?.repr}),
         }
         return;
     }
@@ -483,6 +504,10 @@ fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
             emitLebU32(f, wasmLocal(c, f, from));
         },
         .stack => {},
+        .i32 => |i| {
+            emitEnum(f, wasm.Opcode.i32_const);
+            emitLebI32(f, i);
+        },
         .nowhere => panic("Can't load from nowhere", .{}),
     }
 }
@@ -527,6 +552,7 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
             .nowhere => {
                 emitEnum(f, wasm.Opcode.drop);
             },
+            .i32 => panic("Can't store to {}", .{to}),
         }
     }
 }
@@ -591,7 +617,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u3
         .@"return" => 2,
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .nowhere => panic("Not a local: {}", .{address}),
+        .stack, .nowhere, .i32 => panic("Not a local: {}", .{address}),
     };
 }
 
