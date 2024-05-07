@@ -258,20 +258,24 @@ fn generateExpr(
             copyAfterValue(c, f, output, hint);
             c.address_stack.append(hint) catch oom();
         },
-        //.closure => {
-        //    _ = c.hint_stack.pop();
-        //    c.address_stack.append(.{
-        //        .direct = .closure,
-        //        .indirect = addressIndirect(repr.?),
-        //    }) catch oom();
-        //},
-        //.arg => {
-        //    _ = c.hint_stack.pop();
-        //    c.address_stack.append(.{
-        //        .direct = .arg,
-        //        .indirect = addressIndirect(repr.?),
-        //    }) catch oom();
-        //},
+        .closure => {
+            const output = wir.Address{
+                .direct = .closure,
+                .indirect = addressIndirect(repr.?),
+            };
+            const hint = c.hint_stack.pop() orelse output;
+            copy(c, f, output, hint);
+            c.address_stack.append(hint) catch oom();
+        },
+        .arg => {
+            const output = wir.Address{
+                .direct = .arg,
+                .indirect = addressIndirect(repr.?),
+            };
+            const hint = c.hint_stack.pop() orelse output;
+            copy(c, f, output, hint);
+            c.address_stack.append(hint) catch oom();
+        },
         .local_get => |local| {
             const output = c.local_address.get(local);
             const hint = c.hint_stack.pop() orelse output;
@@ -422,7 +426,7 @@ fn generateExpr(
         },
 
         else => {
-            //std.debug.print("TODO generate {}\n", .{expr_data});
+            std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
         },
     }
@@ -460,6 +464,8 @@ fn copyAfterValue(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Addr
         emitLebU32(f, @intCast(repr.sizeOf()));
         emitEnum(f, wasm.Opcode.misc_prefix);
         emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+        emitLebU32(f, 0); // memory from
+        emitLebU32(f, 0); // memory to
     } else {
         load(c, f, from);
         storeAfterValue(c, f, to);
