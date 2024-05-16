@@ -193,28 +193,10 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
         }
     }
 
-    // Map tir locals to wasm locals or shadow stack.
+    // Prepare to track addresses for tir locals.
     assert(c.local_address.count() == 0);
     defer c.local_address.data.shrinkRetainingCapacity(0);
-    for (tir_f.local_data.items()) |local_data| {
-        const repr = local_data.repr.one;
-        switch (wasmRepr(repr)) {
-            .primitive => {
-                const local = f.local_data.append(.{ .type = wasmAbi(repr) });
-                _ = c.local_address.append(.{ .direct = .{ .local = local } });
-            },
-            .heap => {
-                _ = c.local_address.append(.{
-                    .direct = .shadow,
-                    .indirect = .{
-                        // We'll set offset when we hit local_let.
-                        .offset = 0,
-                        .repr = repr,
-                    },
-                });
-            },
-        }
-    }
+    c.local_address.appendNTimes(.{ .direct = .nowhere }, tir_f.local_data.count());
 
     // TODO Uncomment asserts once todo is gone.
     assert(c.block_stack.items.len == 0);
@@ -265,7 +247,9 @@ fn generateExpr(
         },
         .local_get => |local| {
             _ = c.hint_stack.pop();
-            c.address_stack.append(c.local_address.get(local)) catch oom();
+            const address = c.local_address.get(local);
+            assert(address.direct != .nowhere);
+            c.address_stack.append(address) catch oom();
         },
 
         .begin => unreachable,
@@ -333,12 +317,7 @@ fn generateExpr(
                 .begin => c.hint_stack.append(null) catch oom(),
                 .end => {
                     const input = c.address_stack.pop();
-                    const local_address = c.local_address.getPtr(local);
-                    if (input.isValue() or local_address.*.direct == .shadow) {
-                        local_address.* = input;
-                    } else {
-                        copy(c, f, input, local_address.*);
-                    }
+                    c.local_address.getPtr(local).* = input;
                 },
             }
         },
