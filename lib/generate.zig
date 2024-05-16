@@ -113,26 +113,30 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             }
 
             // Frame push
-            // TODO Can avoid the global_set here is this is a leaf function.
             if (f.shadow_offset_max > 0) {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
                 emitEnum(c, wasm.Opcode.i32_const);
                 emitLebU32(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_sub);
-                emitEnum(c, wasm.Opcode.local_tee);
-                emitLebU32(c, wasmLocal(c, &f, .shadow));
-                emitEnum(c, wasm.Opcode.global_set);
-                emitLebU32(c, global_shadow);
+                if (f.is_leaf) {
+                    // Don't need to set global_shadow in leaf functions.
+                    emitEnum(c, wasm.Opcode.local_set);
+                    emitLebU32(c, wasmLocal(c, &f, .shadow));
+                } else {
+                    emitEnum(c, wasm.Opcode.local_tee);
+                    emitLebU32(c, wasmLocal(c, &f, .shadow));
+                    emitEnum(c, wasm.Opcode.global_set);
+                    emitLebU32(c, global_shadow);
+                }
             }
 
             c.wasm.appendSlice(f.wasm.items) catch oom();
 
             // Frame pop
-            // TODO Can drop entirely if this is a leaf function.
-            if (f.shadow_offset_max > 0) {
-                emitEnum(c, wasm.Opcode.global_get);
-                emitLebU32(c, global_shadow);
+            if (f.shadow_offset_max > 0 and !f.is_leaf) {
+                emitEnum(c, wasm.Opcode.local_get);
+                emitLebU32(c, wasmLocal(c, &f, .shadow));
                 emitEnum(c, wasm.Opcode.i32_const);
                 emitLebU32(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_add);
@@ -368,6 +372,7 @@ fn generateExpr(
             }
         },
         .call => |fun| {
+            f.is_leaf = false;
             switch (direction) {
                 .begin => {
                     c.hint_stack.append(null) catch oom(); // arg

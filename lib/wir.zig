@@ -89,6 +89,8 @@ pub const FunData = struct {
     shadow_offset_next: usize,
     shadow_offset_max: usize,
 
+    is_leaf: bool,
+
     pub fn init(
         allocator: Allocator,
         fun_type: FunType,
@@ -104,6 +106,8 @@ pub const FunData = struct {
 
             .shadow_offset_max = 0,
             .shadow_offset_next = 0,
+
+            .is_leaf = true,
         };
     }
 };
