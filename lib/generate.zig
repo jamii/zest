@@ -160,10 +160,9 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
     arg_types.append(wasmAbi(tir_f.key.arg_repr)) catch oom();
     switch (wasmRepr(tir_f.return_repr.one)) {
-        .primitive => {},
+        .primitive => return_types.append(wasmAbi(tir_f.return_repr.one)) catch oom(),
         .heap => arg_types.append(.i32) catch oom(),
     }
-    return_types.append(wasmAbi(tir_f.return_repr.one)) catch oom();
     const fun_type_data = wir.FunTypeData{
         .arg_types = arg_types.toOwnedSlice() catch oom(),
         .return_types = return_types.toOwnedSlice() catch oom(),
@@ -417,9 +416,6 @@ fn generateExpr(
                 .end => {
                     const input = c.address_stack.pop();
                     copy(c, f, input, output);
-                    if (output.indirect != null) {
-                        loadPtr(c, f, output);
-                    }
                 },
             }
         },
