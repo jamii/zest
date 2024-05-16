@@ -148,6 +148,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                 c.scope.closure_until_len = c.scope.bindings.items.len;
                 defer c.scope.closure_until_len = prev_closure_until_len;
 
+                const scope_saved = c.scope.save();
+                defer c.scope.restore(scope_saved);
+
                 break :dir_fun try desugarFun(c, fun.params, fun.body);
             };
 
