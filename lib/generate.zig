@@ -316,7 +316,8 @@ fn generateExpr(
             switch (direction) {
                 .begin => c.hint_stack.append(null) catch oom(),
                 .end => {
-                    const input = c.address_stack.pop();
+                    const input = stackToLocal(c, f, c.address_stack.pop(), tir_f.local_data.get(local).repr.one);
+                    // TODO If input fits in a local, might want to load eagerly rather than at use site, which might be eg in a loop.
                     c.local_address.getPtr(local).* = input;
                 },
             }
@@ -345,6 +346,12 @@ fn generateExpr(
                         // Only one direct address that can handle structs.
                         assert(input.direct == .@"struct");
                         const i = input.direct.@"struct".repr.get(object_get.key).?;
+                        var j: usize = input.direct.@"struct".values.len - 1;
+                        while (j > i) : (j -= 1) {
+                            const ignored = input.direct.@"struct".values[j];
+                            if (ignored.direct == .stack)
+                                emitEnum(f, wasm.Opcode.drop);
+                        }
                         const output = input.direct.@"struct".values[i];
                         c.address_stack.append(output) catch oom();
                     }
@@ -364,6 +371,7 @@ fn generateExpr(
                         .primitive => wir.Address{ .direct = .stack },
                         .heap => shadowPush(c, f, repr.?),
                     };
+                    // TODO This would need stackToLocal if it were possible for arg to have .direct=.stack
                     const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
                     loadPtr(c, f, closure);
@@ -480,11 +488,15 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
                 emitLebU32(f, to.indirect.?.offset);
             },
             .@"struct" => |@"struct"| {
-                for (@"struct".repr.reprs, @"struct".values, 0..) |repr, value_from, i| {
+                var i: usize = @"struct".repr.reprs.len;
+                while (i > 0) : (i -= 1) {
+                    const repr = @"struct".repr.reprs[i - 1];
+                    const value_from = @"struct".values[i - 1];
+                    const offset = @"struct".repr.offsetOf(i - 1);
                     copy(c, f, value_from, .{
                         .direct = to.direct,
                         .indirect = .{
-                            .offset = to.indirect.?.offset + @as(u32, @intCast(@"struct".repr.offsetOf(i))),
+                            .offset = to.indirect.?.offset + @as(u32, @intCast(offset)),
                             .repr = repr,
                         },
                     });
@@ -597,6 +609,41 @@ fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
         emitEnum(f, wasm.Opcode.i32_const);
         emitLebU32(f, address.indirect.?.offset);
         emitEnum(f, wasm.Opcode.i32_add);
+    }
+}
+
+fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, repr: Repr) wir.Address {
+    switch (address.direct) {
+        .stack => {
+            const local = f.local_data.append(.{ .type = wasmAbi(repr) });
+            emitEnum(f, wasm.Opcode.local_set);
+            emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
+            return .{
+                .direct = .{ .local = local },
+                .indirect = address.indirect,
+            };
+        },
+        .@"struct" => |@"struct"| {
+            const values = c.allocator.alloc(wir.Address, @"struct".values.len) catch oom();
+            var i: usize = @"struct".values.len;
+            while (i > 0) : (i -= 1) {
+                values[i - 1] = stackToLocal(c, f, @"struct".values[i - 1], @"struct".repr.reprs[i - 1]);
+            }
+            return .{
+                .direct = .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } },
+                .indirect = address.indirect,
+            };
+        },
+        .fun => |fun| {
+            const closure = c.box(stackToLocal(c, f, fun.closure.*, .{ .@"struct" = fun.repr.closure }));
+            return .{
+                .direct = .{ .fun = .{ .repr = fun.repr, .closure = closure } },
+                .indirect = address.indirect,
+            };
+        },
+        .closure, .arg, .@"return", .local, .shadow, .nowhere, .i32 => {
+            return address;
+        },
     }
 }
 
