@@ -386,11 +386,11 @@ fn generateExpr(
                     };
                     const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
-                    loadAbi(c, f, closure);
-                    loadAbi(c, f, arg);
+                    loadPtr(c, f, closure);
+                    loadPtr(c, f, arg);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
-                        .heap => loadAbi(c, f, output),
+                        .heap => loadPtr(c, f, output),
                     }
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
@@ -430,7 +430,7 @@ fn generateExpr(
                     const input = c.address_stack.pop();
                     copy(c, f, input, output);
                     if (output.indirect != null) {
-                        loadAbi(c, f, output);
+                        loadPtr(c, f, output);
                     }
                 },
             }
@@ -469,8 +469,8 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
     if (from.indirect != null and to.indirect != null) {
         const repr = from.indirect.?.repr;
         assert(repr.equal(to.indirect.?.repr));
-        loadDirect(c, f, to.direct);
-        loadDirect(c, f, from.direct);
+        loadPtr(c, f, to);
+        loadPtr(c, f, from);
         emitEnum(f, wasm.Opcode.i32_const);
         emitLebU32(f, @intCast(repr.sizeOf()));
         emitEnum(f, wasm.Opcode.misc_prefix);
@@ -488,7 +488,7 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
         return;
     }
 
-    // Constant to heap - avoid shuffle.
+    // Constant to heap.
     if (from.isValue() and to.indirect != null) {
         switch (from.direct) {
             .i32 => {
@@ -590,7 +590,7 @@ fn getShuffler(f: *wir.FunData, typ: wasm.Valtype) wir.Local {
     return shuffler.*.?;
 }
 
-fn loadAbi(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
+fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     if (address.indirect != null and address.indirect.?.repr.sizeOf() == 0) {
         emitEnum(f, wasm.Opcode.i32_const);
         emitLebU32(f, 0);
@@ -605,17 +605,17 @@ fn loadAbi(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
             .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => unreachable,
         });
         copy(c, f, address, tmp);
-        loadAbi(c, f, tmp);
+        loadPtr(c, f, tmp);
         return;
     }
 
+    assert(address.indirect != null);
+
     loadDirect(c, f, address.direct);
-    if (address.indirect) |indirect| {
-        if (indirect.offset > 0) {
-            emitEnum(f, wasm.Opcode.i32_const);
-            emitLebU32(f, indirect.offset);
-            emitEnum(f, wasm.Opcode.i32_add);
-        }
+    if (address.indirect.?.offset > 0) {
+        emitEnum(f, wasm.Opcode.i32_const);
+        emitLebU32(f, address.indirect.?.offset);
+        emitEnum(f, wasm.Opcode.i32_add);
     }
 }
 
