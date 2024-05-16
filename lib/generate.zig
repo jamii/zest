@@ -344,23 +344,16 @@ fn generateExpr(
             }
         },
         .local_let => |local| {
-            switch (wasmRepr(tir_f.local_data.get(local).repr.one)) {
-                .primitive => switch (direction) {
-                    .begin => c.hint_stack.append(null) catch oom(),
-                    .end => {
-                        const input = c.address_stack.pop();
-                        if (input.isValue()) {
-                            c.local_address.getPtr(local).* = input;
-                        } else {
-                            load(c, f, input);
-                            store(c, f, c.local_address.get(local));
-                        }
-                    },
-                },
-                .heap => switch (direction) {
-                    .begin => c.hint_stack.append(null) catch oom(),
-                    // TODO If input address is mut, we should maybe copy here rather than spill later?
-                    .end => c.local_address.getPtr(local).* = c.address_stack.pop(),
+            switch (direction) {
+                .begin => c.hint_stack.append(null) catch oom(),
+                .end => {
+                    const input = c.address_stack.pop();
+                    const local_address = c.local_address.getPtr(local);
+                    if (input.isValue() or local_address.*.direct == .shadow) {
+                        local_address.* = input;
+                    } else {
+                        copy(c, f, input, local_address.*);
+                    }
                 },
             }
         },
