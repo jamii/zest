@@ -206,7 +206,7 @@ pub const Compiler = struct {
     fun_type_data: List(wir.FunType, wir.FunTypeData),
     begin_stack: ArrayList(tir.Expr),
     begin_end: List(tir.Expr, tir.Expr),
-    local_address: List(tir.Local, wir.Address),
+    local_address: List(tir.Local, ?wir.Address),
     block_stack: ArrayList(wir.Block),
     address_stack: ArrayList(wir.Address),
     hint_stack: ArrayList(?wir.Address), // null if we don't care

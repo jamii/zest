@@ -22,7 +22,6 @@ pub const AddressDirect = union(enum) {
     local: Local,
     shadow,
     stack,
-    nowhere,
     i32: i32,
     @"struct": struct {
         repr: ReprStruct,
@@ -35,7 +34,7 @@ pub const AddressDirect = union(enum) {
 
     pub fn isValue(address: AddressDirect) bool {
         return switch (address) {
-            .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => false,
+            .closure, .arg, .@"return", .local, .shadow, .stack => false,
             .i32, .@"struct", .fun => true,
         };
     }

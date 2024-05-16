@@ -195,7 +195,7 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     // Prepare to track addresses for tir locals.
     assert(c.local_address.count() == 0);
     defer c.local_address.data.shrinkRetainingCapacity(0);
-    c.local_address.appendNTimes(.{ .direct = .nowhere }, tir_f.local_data.count());
+    c.local_address.appendNTimes(null, tir_f.local_data.count());
 
     // TODO Uncomment asserts once todo is gone.
     assert(c.block_stack.items.len == 0);
@@ -246,8 +246,7 @@ fn generateExpr(
         },
         .local_get => |local| {
             _ = c.hint_stack.pop();
-            const address = c.local_address.get(local);
-            assert(address.direct != .nowhere);
+            const address = c.local_address.get(local).?;
             c.address_stack.append(address) catch oom();
         },
 
@@ -386,12 +385,12 @@ fn generateExpr(
             }
         },
         .drop => {
-            const output = wir.Address{ .direct = .nowhere };
             switch (direction) {
-                .begin => c.hint_stack.append(output) catch oom(),
+                .begin => c.hint_stack.append(null) catch oom(),
                 .end => {
                     const input = c.address_stack.pop();
-                    copy(c, f, input, output);
+                    if (input.direct == .stack)
+                        emitEnum(f, wasm.Opcode.drop);
                 },
             }
         },
@@ -465,14 +464,6 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
         return;
     }
 
-    // Drop
-    if (to.direct == .nowhere) {
-        if (from.direct == .stack) {
-            emitEnum(f, wasm.Opcode.drop);
-        }
-        return;
-    }
-
     // Constant to heap.
     if (from.isValue() and to.indirect != null) {
         switch (from.direct) {
@@ -503,7 +494,7 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
                 closure_to.indirect.?.repr = .{ .@"struct" = closure_to.indirect.?.repr.fun.closure };
                 copy(c, f, fun.closure.*, closure_to);
             },
-            .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => unreachable,
+            .closure, .arg, .@"return", .local, .shadow, .stack => unreachable,
         }
         return;
     }
@@ -524,7 +515,7 @@ fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
             emitEnum(f, wasm.Opcode.i32_const);
             emitLebI32(f, i);
         },
-        .@"struct", .fun, .nowhere => panic("Can't load from {}", .{from}),
+        .@"struct", .fun => panic("Can't load from {}", .{from}),
     }
 }
 
@@ -565,9 +556,6 @@ fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
                 emitLebU32(f, wasmLocal(c, f, to.direct));
             },
             .stack => {},
-            .nowhere => {
-                emitEnum(f, wasm.Opcode.drop);
-            },
             .i32, .@"struct", .fun => panic("Can't store to {}", .{to}),
         }
     }
@@ -591,7 +579,7 @@ fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
             .i32 => .i32,
             .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
             .fun => |fun| .{ .fun = fun.repr },
-            .closure, .arg, .@"return", .local, .shadow, .stack, .nowhere => unreachable,
+            .closure, .arg, .@"return", .local, .shadow, .stack => unreachable,
         });
         copy(c, f, address, tmp);
         loadPtr(c, f, tmp);
@@ -637,7 +625,7 @@ fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, repr: Repr)
                 .indirect = address.indirect,
             };
         },
-        .closure, .arg, .@"return", .local, .shadow, .nowhere, .i32 => {
+        .closure, .arg, .@"return", .local, .shadow, .i32 => {
             return address;
         },
     }
@@ -680,7 +668,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u3
         .@"return" => 2,
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .nowhere, .i32, .@"struct", .fun => panic("Not a local: {}", .{address}),
+        .stack, .i32, .@"struct", .fun => panic("Not a local: {}", .{address}),
     };
 }
 
