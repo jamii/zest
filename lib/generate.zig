@@ -121,6 +121,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitEnum(c, wasm.Opcode.i32_sub);
                 if (f.is_leaf) {
                     // Don't need to set global_shadow in leaf functions.
+                    // TODO Could be more aggressive and not set global_shadow in non-leaf functions if all their callees don't use shadow.
                     emitEnum(c, wasm.Opcode.local_set);
                     emitLebU32(c, wasmLocal(c, &f, .shadow));
                 } else {
@@ -467,6 +468,7 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
 
     // Copy
     if (from.indirect != null and to.indirect != null) {
+        // TODO If repr.sizeOf() is in [1, 2, 4, 8] do a load and store instead.
         const repr = from.indirect.?.repr;
         assert(repr.equal(to.indirect.?.repr));
         loadPtr(c, f, to);
