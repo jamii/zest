@@ -239,34 +239,26 @@ fn generateExpr(
 ) error{GenerateError}!void {
     switch (expr_data) {
         .i32 => |i| {
-            const output = wir.Address{ .direct = .{ .i32 = i } };
-            const hint = c.hint_stack.pop() orelse output;
-            copy(c, f, output, hint);
-            c.address_stack.append(hint) catch oom();
+            _ = c.hint_stack.pop();
+            c.address_stack.append(.{ .direct = .{ .i32 = i } }) catch oom();
         },
         .closure => {
-            const output = wir.Address{
+            _ = c.hint_stack.pop();
+            c.address_stack.append(.{
                 .direct = .closure,
                 .indirect = addressIndirect(repr.?),
-            };
-            const hint = c.hint_stack.pop() orelse output;
-            copy(c, f, output, hint);
-            c.address_stack.append(hint) catch oom();
+            }) catch oom();
         },
         .arg => {
-            const output = wir.Address{
+            _ = c.hint_stack.pop();
+            c.address_stack.append(.{
                 .direct = .arg,
                 .indirect = addressIndirect(repr.?),
-            };
-            const hint = c.hint_stack.pop() orelse output;
-            copy(c, f, output, hint);
-            c.address_stack.append(hint) catch oom();
+            }) catch oom();
         },
         .local_get => |local| {
-            const output = c.local_address.get(local);
-            const hint = c.hint_stack.pop() orelse output;
-            copy(c, f, output, hint);
-            c.address_stack.append(hint) catch oom();
+            _ = c.hint_stack.pop();
+            c.address_stack.append(c.local_address.get(local)) catch oom();
         },
 
         .begin => unreachable,
@@ -276,45 +268,31 @@ fn generateExpr(
             const struct_repr = repr.?.@"struct";
             switch (direction) {
                 .begin => {
-                    if (c.hint_stack.pop()) |hint| {
-                        c.hint_stack.append(hint) catch oom();
-                        var i: usize = struct_repr.reprs.len;
-                        while (i > 0) : (i -= 1) {
-                            const value_repr = struct_repr.reprs[i - 1];
-                            const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                            const value_hint = wir.Address{
-                                .direct = hint.direct,
-                                .indirect = .{
-                                    .offset = hint.indirect.?.offset + offset,
-                                    .repr = value_repr,
-                                },
-                            };
-                            c.hint_stack.append(value_hint) catch oom();
-                        }
-                    } else {
-                        for (0..struct_repr.reprs.len) |_| {
-                            c.hint_stack.append(null) catch oom();
-                        }
-                        c.hint_stack.append(null) catch oom();
+                    const hint_maybe = c.hint_stack.pop();
+                    var i: usize = struct_repr.reprs.len;
+                    while (i > 0) : (i -= 1) {
+                        const value_repr = struct_repr.reprs[i - 1];
+                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
+                        const value_hint = if (hint_maybe) |hint| wir.Address{
+                            .direct = hint.direct,
+                            .indirect = .{
+                                .offset = hint.indirect.?.offset + offset,
+                                .repr = value_repr,
+                            },
+                        } else null;
+                        c.hint_stack.append(value_hint) catch oom();
                     }
                 },
                 .end => {
-                    if (c.hint_stack.pop()) |hint| {
-                        for (0..struct_repr.reprs.len) |_| {
-                            _ = c.address_stack.pop();
-                        }
-                        c.address_stack.append(hint) catch oom();
-                    } else {
-                        const values = c.allocator.alloc(wir.Address, struct_repr.reprs.len) catch oom();
-                        var i: usize = struct_repr.reprs.len;
-                        while (i > 0) : (i -= 1) {
-                            values[i - 1] = c.address_stack.pop();
-                        }
-                        c.address_stack.append(.{ .direct = .{ .@"struct" = .{
-                            .repr = struct_repr,
-                            .values = values,
-                        } } }) catch oom();
+                    const values = c.allocator.alloc(wir.Address, struct_repr.reprs.len) catch oom();
+                    var i: usize = struct_repr.reprs.len;
+                    while (i > 0) : (i -= 1) {
+                        values[i - 1] = c.address_stack.pop();
                     }
+                    c.address_stack.append(.{ .direct = .{ .@"struct" = .{
+                        .repr = struct_repr,
+                        .values = values,
+                    } } }) catch oom();
                 },
             }
         },
@@ -360,30 +338,29 @@ fn generateExpr(
         .object_get => |object_get| {
             switch (direction) {
                 .begin => {
+                    _ = c.hint_stack.pop();
                     c.hint_stack.append(null) catch oom();
                 },
                 .end => {
                     const input = c.address_stack.pop();
-                    if (input.direct == .@"struct") {
-                        const i = input.direct.@"struct".repr.get(object_get.key).?;
-                        const output = input.direct.@"struct".values[i];
-                        const hint = c.hint_stack.pop() orelse output;
-                        copy(c, f, output, hint);
-                        c.address_stack.append(hint) catch oom();
-                    } else {
-                        const input_repr = input.indirect.?.repr.@"struct";
+                    if (input.indirect) |indirect| {
+                        const input_repr = indirect.repr.@"struct";
                         const i = input_repr.get(object_get.key).?;
                         const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
                         const output = wir.Address{
                             .direct = input.direct,
                             .indirect = .{
-                                .offset = input.indirect.?.offset + offset,
+                                .offset = indirect.offset + offset,
                                 .repr = input_repr.reprs[i],
                             },
                         };
-                        const hint = c.hint_stack.pop() orelse output;
-                        copy(c, f, output, hint);
-                        c.address_stack.append(hint) catch oom();
+                        c.address_stack.append(output) catch oom();
+                    } else {
+                        // Only one direct address that can handle structs.
+                        assert(input.direct == .@"struct");
+                        const i = input.direct.@"struct".repr.get(object_get.key).?;
+                        const output = input.direct.@"struct".values[i];
+                        c.address_stack.append(output) catch oom();
                     }
                 },
             }
@@ -391,20 +368,14 @@ fn generateExpr(
         .call => |fun| {
             switch (direction) {
                 .begin => {
-                    const output = switch (wasmRepr(repr.?)) {
-                        .primitive => wir.Address{ .direct = .stack },
-                        .heap => shadowPush(c, f, repr.?),
-                    };
-                    const hint = c.hint_stack.pop() orelse output;
-                    c.hint_stack.append(hint) catch oom();
                     c.hint_stack.append(null) catch oom(); // arg
                     c.hint_stack.append(null) catch oom(); // closure
                 },
                 .end => {
-                    const hint = c.hint_stack.pop().?;
-                    const output = switch (wasmRepr(repr.?)) {
+                    const output = c.hint_stack.pop() orelse
+                        switch (wasmRepr(repr.?)) {
                         .primitive => wir.Address{ .direct = .stack },
-                        .heap => hint,
+                        .heap => shadowPush(c, f, repr.?),
                     };
                     const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
@@ -412,12 +383,11 @@ fn generateExpr(
                     loadAbi(c, f, arg);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
-                        .heap => loadAbi(c, f, hint),
+                        .heap => loadAbi(c, f, output),
                     }
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
-                    copy(c, f, output, hint);
-                    c.address_stack.append(hint) catch oom();
+                    c.address_stack.append(output) catch oom();
                 },
             }
         },
@@ -425,7 +395,10 @@ fn generateExpr(
             const output = wir.Address{ .direct = .nowhere };
             switch (direction) {
                 .begin => c.hint_stack.append(output) catch oom(),
-                .end => _ = c.address_stack.pop(),
+                .end => {
+                    const input = c.address_stack.pop();
+                    copy(c, f, input, output);
+                },
             }
         },
         .block => {
@@ -447,14 +420,14 @@ fn generateExpr(
             switch (direction) {
                 .begin => c.hint_stack.append(output) catch oom(),
                 .end => {
-                    _ = c.address_stack.pop();
+                    const input = c.address_stack.pop();
+                    copy(c, f, input, output);
                     if (output.indirect != null) {
                         loadAbi(c, f, output);
                     }
                 },
             }
         },
-
         else => {
             //std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
