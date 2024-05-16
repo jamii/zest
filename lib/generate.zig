@@ -113,6 +113,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             }
 
             // Frame push
+            // TODO Can avoid the global_set here is this is a leaf function.
             if (f.shadow_offset_max > 0) {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
@@ -128,6 +129,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             c.wasm.appendSlice(f.wasm.items) catch oom();
 
             // Frame pop
+            // TODO Can drop entirely if this is a leaf function.
             if (f.shadow_offset_max > 0) {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
@@ -439,8 +441,11 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
     _ = c;
     const offset = f.shadow_offset_next;
     f.shadow_offset_next += repr.sizeOf();
+    if (f.shadow_offset_next > 0 and f.shadow_offset_max == 0) {
+        assert(f.local_shadow == null);
+        f.local_shadow = f.local_data.append(.{ .type = .i32 });
+    }
     f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
-    f.local_shadow = f.local_shadow orelse f.local_data.append(.{ .type = .i32 });
     return .{
         .direct = .shadow,
         .indirect = .{

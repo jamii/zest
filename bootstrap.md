@@ -261,3 +261,13 @@ Not an object: 1
 
 Not an object: i32
 ```
+
+```
+f = () 1
+a = [x: f()]
+a.x
+
+1
+
+1
+```
