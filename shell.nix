@@ -28,6 +28,7 @@ pkgs.mkShell rec {
     nativeBuildInputs = [
         zig
         pkgs.wabt
+        pkgs.honggfuzz
     ];
     buildInputs = [
     ];
