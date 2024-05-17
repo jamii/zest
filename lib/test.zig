@@ -8,7 +8,7 @@ const zest = @import("../lib/zest.zig");
 const Compiler = zest.Compiler;
 const oom = zest.oom;
 
-fn wasmFileName(allocator: Allocator) []const u8 {
+fn wasmFilename(allocator: Allocator) []const u8 {
     return std.fmt.allocPrint(
         allocator,
         "test.{}.wasm",
@@ -32,18 +32,18 @@ pub fn evalStrict(
     try zest.compileLax(compiler);
     try zest.compileStrict(compiler);
 
-    const wasm_file_name = wasmFileName(allocator);
+    const wasm_filename = wasmFilename(allocator);
 
-    const file = std.fs.cwd().createFile(wasm_file_name, .{ .truncate = true }) catch |err|
-        panic("Error opening {s}: {}", .{ wasm_file_name, err });
+    const file = std.fs.cwd().createFile(wasm_filename, .{ .truncate = true }) catch |err|
+        panic("Error opening {s}: {}", .{ wasm_filename, err });
     defer file.close();
 
     file.writeAll(compiler.wasm.items) catch |err|
-        panic("Error writing {s}: {}", .{ wasm_file_name, err });
+        panic("Error writing {s}: {}", .{ wasm_filename, err });
 
     if (std.ChildProcess.run(.{
         .allocator = allocator,
-        .argv = &.{ "deno", "run", "--allow-read", "test.js", wasm_file_name },
+        .argv = &.{ "deno", "run", "--allow-read", "test.js", wasm_filename },
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
         return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
@@ -55,7 +55,7 @@ pub fn evalStrict(
 fn read_wat(allocator: Allocator) []const u8 {
     if (std.ChildProcess.run(.{
         .allocator = allocator,
-        .argv = &.{ "wasm2wat", "--no-check", "-f", wasmFileName(allocator) },
+        .argv = &.{ "wasm2wat", "--no-check", "-f", wasmFilename(allocator) },
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
         return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
@@ -73,10 +73,16 @@ pub fn main() !void {
     args = args[1..];
 
     var rewrite = false;
+    var seed_corpus = false;
+    var test_index: usize = 0;
     var failures: usize = 0;
 
     if (std.mem.eql(u8, args[0], "--rewrite")) {
         rewrite = true;
+        args = args[1..];
+    }
+    if (std.mem.eql(u8, args[0], "--seed-corpus")) {
+        seed_corpus = true;
         args = args[1..];
     }
 
@@ -101,6 +107,22 @@ pub fn main() !void {
             const expected_lax = std.mem.trim(u8, parts.next() orelse "", "\n");
             const expected_strict = std.mem.trim(u8, parts.next() orelse "", "\n");
             assert(parts.next() == null);
+
+            if (seed_corpus) {
+                const corpus_filename = std.fmt.allocPrint(
+                    allocator,
+                    "./honggfuzz-corpus/{}.zest",
+                    .{test_index},
+                ) catch oom();
+
+                const corpus_file = std.fs.cwd().createFile(
+                    corpus_filename,
+                    .{ .truncate = true },
+                ) catch unreachable;
+                defer corpus_file.close();
+
+                corpus_file.writeAll(source) catch unreachable;
+            }
 
             var compiler = Compiler.init(allocator, source);
             const actual_lax = std.mem.trim(u8, evalLax(allocator, &compiler) catch zest.formatError(&compiler), "\n");
@@ -150,6 +172,8 @@ pub fn main() !void {
                 \\{s}
                 \\```
             , .{ source, actual_lax, actual_strict });
+
+            test_index += 1;
         }
 
         if (rewrite) {
