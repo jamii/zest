@@ -193,6 +193,10 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
 
                 try desugarExpr(c, f, statement);
             }
+            if (block.len == 0) {
+                _ = f.expr_data.append(.begin);
+                defer _ = f.expr_data.append(.{ .struct_init = 0 });
+            }
         },
         else => return fail(c, expr, .todo),
     }
