@@ -10,7 +10,7 @@ const oom = zest.oom;
 const evalLax = @import("../lib/test.zig").evalLax;
 const evalStrict = @import("../lib/test.zig").evalStrict;
 
-export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) void {
+export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) c_int {
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     defer arena.deinit();
 
@@ -31,4 +31,6 @@ export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) void {
             \\--- strict ---
             \\{s}
         , .{ actual_lax, actual_strict });
+
+    return 0;
 }
