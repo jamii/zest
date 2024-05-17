@@ -8,7 +8,7 @@ const zest = @import("../lib/zest.zig");
 const Compiler = zest.Compiler;
 const oom = zest.oom;
 
-fn evalLax(
+pub fn evalLax(
     allocator: Allocator,
     compiler: *Compiler,
 ) ![]const u8 {
@@ -17,7 +17,7 @@ fn evalLax(
     return std.fmt.allocPrint(allocator, "{}", .{value});
 }
 
-fn evalStrict(
+pub fn evalStrict(
     allocator: Allocator,
     compiler: *Compiler,
 ) ![]const u8 {

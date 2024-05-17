@@ -2,6 +2,6 @@
 
 set -ex
 
-zig build-lib ../lib/fuzz.zig -OReleaseSafe -fPIE -fno-stack-check
+zig build-lib ../lib/fuzz.zig -OReleaseSafe -fPIE -fno-stack-check -lc
 hfuzz-clang libfuzz.a.o -o fuzz
 honggfuzz -i corpus --linux_perf_bts_edge -P -- ./fuzz
