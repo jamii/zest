@@ -1,4 +1,4 @@
-const wasmCode = Deno.readFileSync("./test.wasm");
+const wasmCode = Deno.readFileSync(Deno.args[0] ?? "./test.wasm");
 const wasmModule = new WebAssembly.Module(wasmCode);
 
 let memory = undefined;

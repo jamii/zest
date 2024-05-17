@@ -8,6 +8,14 @@ const zest = @import("../lib/zest.zig");
 const Compiler = zest.Compiler;
 const oom = zest.oom;
 
+fn wasmFileName(allocator: Allocator) []const u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "test.{}.wasm",
+        .{std.Thread.getCurrentId()},
+    ) catch oom();
+}
+
 pub fn evalLax(
     allocator: Allocator,
     compiler: *Compiler,
@@ -24,16 +32,18 @@ pub fn evalStrict(
     try zest.compileLax(compiler);
     try zest.compileStrict(compiler);
 
-    const file = std.fs.cwd().createFile("test.wasm", .{ .truncate = true }) catch |err|
-        panic("Error opening test.wasm: {}", .{err});
+    const wasm_file_name = wasmFileName(allocator);
+
+    const file = std.fs.cwd().createFile(wasm_file_name, .{ .truncate = true }) catch |err|
+        panic("Error opening {s}: {}", .{ wasm_file_name, err });
     defer file.close();
 
     file.writeAll(compiler.wasm.items) catch |err|
-        panic("Error writing test.wasm: {}", .{err});
+        panic("Error writing {s}: {}", .{ wasm_file_name, err });
 
     if (std.ChildProcess.run(.{
         .allocator = allocator,
-        .argv = &.{ "deno", "run", "--allow-read", "test.js" },
+        .argv = &.{ "deno", "run", "--allow-read", "test.js", wasm_file_name },
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
         return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
@@ -45,7 +55,7 @@ pub fn evalStrict(
 fn read_wat(allocator: Allocator) []const u8 {
     if (std.ChildProcess.run(.{
         .allocator = allocator,
-        .argv = &.{ "wasm2wat", "--no-check", "-f", "test.wasm" },
+        .argv = &.{ "wasm2wat", "--no-check", "-f", wasmFileName(allocator) },
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
         return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
