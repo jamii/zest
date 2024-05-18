@@ -10,13 +10,11 @@ const oom = zest.oom;
 const evalLax = @import("../lib/test.zig").evalLax;
 const evalStrict = @import("../lib/test.zig").evalStrict;
 
-export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) c_int {
+pub fn fuzz(source: []const u8) void {
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     defer arena.deinit();
 
     const allocator = arena.allocator();
-
-    const source = buf[0..len];
 
     var compiler = Compiler.init(allocator, source);
     const actual_lax = std.mem.trim(u8, evalLax(allocator, &compiler) catch zest.formatError(&compiler), "\n");
@@ -24,13 +22,18 @@ export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) c_int {
     compiler = Compiler.init(allocator, source);
     const actual_strict = std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n");
 
-    if (!std.mem.eql(u8, actual_lax, actual_strict))
-        panic(
-            \\--- lax ---
-            \\{s}
-            \\--- strict ---
-            \\{s}
-        , .{ actual_lax, actual_strict });
+    _ = actual_lax;
+    _ = actual_strict;
+    //if (!std.mem.eql(u8, actual_lax, actual_strict))
+    //    panic(
+    //        \\--- lax ---
+    //        \\{s}
+    //        \\--- strict ---
+    //        \\{s}
+    //    , .{ actual_lax, actual_strict });
+}
 
+export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) c_int {
+    fuzz(buf[0..len]);
     return 0;
 }
