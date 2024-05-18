@@ -126,7 +126,6 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                 .@"return" => {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index) {
-                        assert(c.value_stack.items.len == 1);
                         return c.value_stack.pop();
                     }
                     c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
