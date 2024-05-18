@@ -74,7 +74,6 @@ pub fn main() !void {
 
     var rewrite = false;
     var seed_corpus = false;
-    var test_index: usize = 0;
     var failures: usize = 0;
 
     if (std.mem.eql(u8, args[0], "--rewrite")) {
@@ -112,7 +111,7 @@ pub fn main() !void {
                 const corpus_filename = std.fmt.allocPrint(
                     allocator,
                     "./honggfuzz-corpus/{}.zest",
-                    .{test_index},
+                    .{std.hash.Wyhash.hash(42, source)},
                 ) catch oom();
 
                 const corpus_file = std.fs.cwd().createFile(
@@ -172,8 +171,6 @@ pub fn main() !void {
                 \\{s}
                 \\```
             , .{ source, actual_lax, actual_strict });
-
-            test_index += 1;
         }
 
         if (rewrite) {
