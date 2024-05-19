@@ -165,6 +165,7 @@ pub fn FlatLattice(comptime T: type) type {
 
 pub const Stage = enum {
     source,
+    tokens,
     sir,
     dir,
     tir,
@@ -271,6 +272,13 @@ pub const Compiler = struct {
                 try writer.print("{s}\n", .{c.source});
                 try writer.print("---\n", .{});
             },
+            .tokens => {
+                try writer.print("--- TOKENS ---\n", .{});
+                for (c.token_data.items(), c.token_to_source.items()) |token_data, source_range| {
+                    try writer.print("{} {any}\n", .{ token_data, source_range });
+                }
+                try writer.print("---\n", .{});
+            },
             .dir => {
                 try writer.print("--- DIR ---\n", .{});
                 try writer.print("main = f{}\n", .{c.dir_fun_main.?.id});
@@ -307,7 +315,7 @@ pub const Compiler = struct {
                 try writer.print("--- TIR ---\n", .{});
                 try writer.print("main = f{}\n", .{c.tir_fun_main.?.id});
                 for (c.tir_fun_data.items(), 0..) |f, fun_id| {
-                    try writer.print("f{} = (closure, arg)\n", .{fun_id});
+                    try writer.print("f{} = (closure, arg) {}\n", .{ fun_id, f.return_repr.one });
                     var indent: usize = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
@@ -428,6 +436,7 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
 
     try tokenize(c);
     assert(c.token_data.count() == c.token_to_source.count());
+    c.print(.tokens, std.io.getStdErr().writer()) catch unreachable;
 
     try parse(c);
     assert(c.token_next.id == c.token_data.count());

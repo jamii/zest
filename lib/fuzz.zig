@@ -9,6 +9,7 @@ const Compiler = zest.Compiler;
 const oom = zest.oom;
 const evalLax = @import("../lib/test.zig").evalLax;
 const evalStrict = @import("../lib/test.zig").evalStrict;
+const readWat = @import("../lib/test.zig").readWat;
 
 pub fn fuzz(source: []const u8) void {
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -24,13 +25,19 @@ pub fn fuzz(source: []const u8) void {
 
     // Currently can only print i32 from strict - anything else will print 'undefined'.
     if (std.fmt.parseInt(i32, actual_strict, 10)) |_| {
-        if (!std.mem.eql(u8, actual_lax, actual_strict))
+        if (!std.mem.eql(u8, actual_lax, actual_strict)) {
+            std.debug.print(
+                \\--- wat ---
+                \\ {s}
+                \\
+            , .{readWat(allocator)});
             panic(
                 \\--- lax ---
                 \\{s}
                 \\--- strict ---
                 \\{s}
             , .{ actual_lax, actual_strict });
+        }
     } else |_| {}
 }
 

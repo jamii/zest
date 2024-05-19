@@ -160,7 +160,7 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
     arg_types.append(wasmAbi(tir_f.key.arg_repr)) catch oom();
     switch (wasmRepr(tir_f.return_repr.one)) {
-        .primitive => return_types.append(wasmAbi(tir_f.return_repr.one)) catch oom(),
+        .primitive => |valtype| return_types.append(valtype) catch oom(),
         .heap => arg_types.append(.i32) catch oom(),
     }
     const fun_type_data = wir.FunTypeData{
@@ -314,7 +314,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => c.hint_stack.append(null) catch oom(),
                 .end => {
-                    const input = stackToLocal(c, f, c.address_stack.pop(), tir_f.local_data.get(local).repr.one);
+                    const input = stackToLocal(c, f, c.address_stack.pop());
                     // TODO If input fits in a local, might want to load eagerly rather than at use site, which might be eg in a loop.
                     c.local_address.getPtr(local).* = input;
                 },
@@ -366,11 +366,10 @@ fn generateExpr(
                 .end => {
                     const output = c.hint_stack.pop() orelse
                         switch (wasmRepr(repr.?)) {
-                        .primitive => wir.Address{ .direct = .stack },
+                        .primitive => |valtype| wir.Address{ .direct = .{ .stack = valtype } },
                         .heap => shadowPush(c, f, repr.?),
                     };
-                    // TODO This would need stackToLocal if it were possible for arg to have .direct=.stack
-                    const arg = c.address_stack.pop();
+                    const arg = stackToLocal(c, f, c.address_stack.pop());
                     const closure = c.address_stack.pop();
                     loadPtr(c, f, closure);
                     loadPtr(c, f, arg);
@@ -399,8 +398,8 @@ fn generateExpr(
         },
         .@"return" => {
             const output: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
-                .primitive => .{
-                    .direct = .stack,
+                .primitive => |valtype| .{
+                    .direct = .{ .stack = valtype },
                 },
                 .heap => .{
                     .direct = .@"return",
@@ -596,10 +595,10 @@ fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     }
 }
 
-fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, repr: Repr) wir.Address {
+fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address {
     switch (address.direct) {
-        .stack => {
-            const local = f.local_data.append(.{ .type = wasmAbi(repr) });
+        .stack => |valtype| {
+            const local = f.local_data.append(.{ .type = valtype });
             emitEnum(f, wasm.Opcode.local_set);
             emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
             return .{
@@ -611,7 +610,7 @@ fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, repr: Repr)
             const values = c.allocator.alloc(wir.Address, @"struct".values.len) catch oom();
             var i: usize = @"struct".values.len;
             while (i > 0) : (i -= 1) {
-                values[i - 1] = stackToLocal(c, f, @"struct".values[i - 1], @"struct".repr.reprs[i - 1]);
+                values[i - 1] = stackToLocal(c, f, @"struct".values[i - 1]);
             }
             return .{
                 .direct = .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } },
@@ -619,7 +618,7 @@ fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, repr: Repr)
             };
         },
         .fun => |fun| {
-            const closure = c.box(stackToLocal(c, f, fun.closure.*, .{ .@"struct" = fun.repr.closure }));
+            const closure = c.box(stackToLocal(c, f, fun.closure.*));
             return .{
                 .direct = .{ .fun = .{ .repr = fun.repr, .closure = closure } },
                 .indirect = address.indirect,
@@ -641,14 +640,14 @@ fn addressIndirect(repr: Repr) ?wir.AddressIndirect {
     };
 }
 
-const WasmRepr = enum {
-    primitive,
+const WasmRepr = union(enum) {
+    primitive: wasm.Valtype,
     heap,
 };
 
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
-        .i32 => .primitive,
+        .i32 => .{ .primitive = wasmAbi(repr) },
         .string, .@"struct", .@"union", .fun, .only, .repr => .heap,
     };
 }

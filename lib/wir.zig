@@ -21,7 +21,7 @@ pub const AddressDirect = union(enum) {
     @"return",
     local: Local,
     shadow,
-    stack,
+    stack: wasm.Valtype,
     i32: i32,
     @"struct": struct {
         repr: ReprStruct,

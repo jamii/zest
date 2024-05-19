@@ -52,7 +52,7 @@ pub fn evalStrict(
     }
 }
 
-fn read_wat(allocator: Allocator) []const u8 {
+pub fn readWat(allocator: Allocator) []const u8 {
     if (std.ChildProcess.run(.{
         .allocator = allocator,
         .argv = &.{ "wasm2wat", "--no-check", "-f", wasmFilename(allocator) },
@@ -133,7 +133,7 @@ pub fn main() !void {
                 \\--- wat ---
                 \\ {s}
                 \\
-            , .{read_wat(allocator)});
+            , .{readWat(allocator)});
 
             const correct_lax = std.mem.eql(u8, expected_lax, actual_lax);
             const correct_strict = std.mem.eql(u8, expected_strict, actual_strict);
