@@ -22,15 +22,16 @@ pub fn fuzz(source: []const u8) void {
     compiler = Compiler.init(allocator, source);
     const actual_strict = std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n");
 
-    _ = actual_lax;
-    _ = actual_strict;
-    //if (!std.mem.eql(u8, actual_lax, actual_strict))
-    //    panic(
-    //        \\--- lax ---
-    //        \\{s}
-    //        \\--- strict ---
-    //        \\{s}
-    //    , .{ actual_lax, actual_strict });
+    // Currently can only print i32 from strict - anything else will print 'undefined'.
+    if (std.fmt.parseInt(i32, actual_strict, 10)) |_| {
+        if (!std.mem.eql(u8, actual_lax, actual_strict))
+            panic(
+                \\--- lax ---
+                \\{s}
+                \\--- strict ---
+                \\{s}
+            , .{ actual_lax, actual_strict });
+    } else |_| {}
 }
 
 export fn LLVMFuzzerTestOneInput(buf: [*]const u8, len: usize) c_int {
