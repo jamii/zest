@@ -34,7 +34,9 @@ pub const ExprData = union(enum) {
         fun: Fun,
     },
     local_let: Local,
-    assert_object,
+    assert_object: struct {
+        count: usize,
+    },
     object_get,
     call,
     drop,

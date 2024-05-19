@@ -33,6 +33,12 @@ fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarErr
 }
 
 fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue, pattern: sir.Object) error{DesugarError}!void {
+    {
+        _ = f.expr_data.append(.begin);
+        defer _ = f.expr_data.append(.{ .assert_object = .{ .count = pattern.keys.len } });
+
+        push(c, f, object, false);
+    }
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
         const local = f.local_data.append(.{});
         {
@@ -62,15 +68,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
                 .value = value,
             });
         },
-        .object => |object| {
-            {
-                _ = f.expr_data.append(.begin);
-                defer _ = f.expr_data.append(.assert_object);
-
-                push(c, f, value, false);
-            }
-            try desugarObjectPattern(c, f, value, object);
-        },
+        .object => |object| try desugarObjectPattern(c, f, value, object),
         else => return fail(c, pattern, .invalid_pattern),
     }
 }

@@ -303,6 +303,7 @@ pub const Compiler = struct {
                                 .local_get, .local_let => |local| try writer.print(" l{}", .{local.id}),
                                 .struct_init => |count| try writer.print(" count={}", .{count}),
                                 .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
+                                .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
                                 inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ tag),
                             }
                             try writer.print("\n", .{});
@@ -398,6 +399,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
                 return switch (err.data) {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
+                    .wrong_number_of_keys => |data| format(c, "Expected {} keys, found {} keys", .{ data.expected, data.actual }),
                     .not_an_object => |data| format(c, "Not an object: {}", .{data}),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
@@ -410,6 +412,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 return switch (err.data) {
                     .value_not_staged => |data| format(c, "Value not staged: {}", .{data}),
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
+                    .wrong_number_of_keys => |data| format(c, "Expected {} keys, found {} keys", .{ data.expected, data.actual }),
                     .not_an_object => |data| format(c, "Not an object: {}", .{data}),
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),

@@ -223,7 +223,13 @@ pub fn evalExpr(
         },
         .assert_object => {
             switch (input.value) {
-                .@"struct" => {},
+                .@"struct" => |@"struct"| {
+                    if (@"struct".values.len != data.count)
+                        return fail(c, .{ .wrong_number_of_keys = .{
+                            .expected = data.count,
+                            .actual = @"struct".values.len,
+                        } });
+                },
                 .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
                 .@"union" => return fail(c, .todo),
             }
@@ -263,6 +269,10 @@ pub const EvalErrorData = union(enum) {
     key_not_found: struct {
         object: Value,
         key: Value,
+    },
+    wrong_number_of_keys: struct {
+        expected: usize,
+        actual: usize,
     },
     not_an_object: Value,
     not_a_fun: Value,

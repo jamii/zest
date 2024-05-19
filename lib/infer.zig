@@ -206,7 +206,13 @@ fn inferExpr(
         .assert_object => {
             switch (input.value) {
                 .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
-                .@"struct" => {},
+                .@"struct" => |@"struct"| {
+                    if (@"struct".keys.len != data.count)
+                        return fail(c, .{ .wrong_number_of_keys = .{
+                            .expected = data.count,
+                            .actual = @"struct".keys.len,
+                        } });
+                },
                 .@"union" => return fail(c, .todo),
             }
             pushExpr(c, f, .drop, null);
@@ -302,6 +308,10 @@ pub const InferErrorData = union(enum) {
     type_error: struct {
         expected: Repr,
         found: Repr,
+    },
+    wrong_number_of_keys: struct {
+        expected: usize,
+        actual: usize,
     },
     not_an_object: Repr,
     key_not_found: struct {
