@@ -158,10 +158,10 @@ fn inferExpr(
             pushExpr(c, f, .{ .i32 = data }, .i32);
             return .i32;
         },
-        .string => {
-            pushExpr(c, f, .{ .string = data }, .string);
-            return .string;
-        },
+        //.string => {
+        //    pushExpr(c, f, .{ .string = data }, .string);
+        //    return .string;
+        //},
         .struct_init => {
             const repr = Repr{ .@"struct" = .{
                 .keys = input.keys,
