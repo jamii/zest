@@ -687,7 +687,8 @@ fn emitBytes(c: anytype, bs: []const u8) void {
     c.wasm.appendSlice(bs) catch oom();
 }
 
-fn emitLebU32(c: anytype, i: u32) void {
+/// Don't use this directly.
+fn emitLeb(c: anytype, i: anytype) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
@@ -698,6 +699,10 @@ fn emitLebU32(c: anytype, i: u32) void {
         c.wasm.append(encoded_chunk) catch oom();
         if (is_last_chunk) break;
     }
+}
+
+fn emitLebU32(c: anytype, i: u32) void {
+    emitLeb(c, i);
 }
 
 fn emitLebI32(c: anytype, i: i32) void {
@@ -705,16 +710,7 @@ fn emitLebI32(c: anytype, i: i32) void {
 }
 
 fn emitLebU64(c: anytype, i: u64) void {
-    // https://webassembly.github.io/spec/core/binary/values.html#integers
-    var n = i;
-    while (true) {
-        const is_last_chunk = n == 0;
-        const chunk = @as(u8, @truncate(n & 0b0111_1111));
-        n = n >> 7;
-        const encoded_chunk = if (is_last_chunk) chunk else chunk | 0b1000_0000;
-        c.wasm.append(encoded_chunk) catch oom();
-        if (is_last_chunk) break;
-    }
+    emitLeb(c, i);
 }
 
 fn emitLebI64(c: anytype, i: i64) void {
