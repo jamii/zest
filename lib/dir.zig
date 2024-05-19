@@ -146,13 +146,13 @@ pub const FunData = struct {
 
 pub const Scope = struct {
     closure_until_len: usize,
-    staged_until_len: usize,
+    staged_until_len: ?usize,
     bindings: ArrayList(Binding),
 
     pub fn init(allocator: Allocator) Scope {
         return .{
             .closure_until_len = 0,
-            .staged_until_len = 0,
+            .staged_until_len = null,
             .bindings = fieldType(Scope, .bindings).init(allocator),
         };
     }
@@ -180,7 +180,7 @@ pub const Scope = struct {
                         .{ .closure = binding.name }
                     else
                         binding.value,
-                    .is_staged = i - 1 < self.staged_until_len,
+                    .is_staged = i - 1 < (self.staged_until_len orelse 0),
                 };
             }
         }

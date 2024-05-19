@@ -203,18 +203,24 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
 }
 
 fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
-    const prev_staged_until_len = c.scope.staged_until_len;
-    c.scope.staged_until_len = c.scope.bindings.items.len;
-    defer c.scope.staged_until_len = prev_staged_until_len;
+    const already_staged = c.scope.staged_until_len != null;
+    if (!already_staged) {
+        _ = f.expr_data.append(.stage);
+        c.scope.staged_until_len = c.scope.bindings.items.len;
+    }
+    defer if (!already_staged) {
+        c.scope.staged_until_len = null;
+    };
 
-    _ = f.expr_data.append(.stage);
     try desugarExpr(c, f, expr);
 }
 
 fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
-    _ = c;
+    const already_staged = c.scope.staged_until_len != null;
+    if (!already_staged) {
+        _ = f.expr_data.append(.stage);
+    }
 
-    _ = f.expr_data.append(.stage);
     _ = f.expr_data.append(.{ .string = string });
 }
 
