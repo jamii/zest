@@ -42,7 +42,6 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
         const local = f.local_data.append(.{});
         {
-            // TODO Using local_let here forces stack allocation in generate for nested patterns.
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(.{ .local_let = local });
 
