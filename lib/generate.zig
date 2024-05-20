@@ -314,8 +314,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => c.hint_stack.append(null) catch oom(),
                 .end => {
-                    const input = stackToLocal(c, f, c.address_stack.pop());
-                    // TODO If input fits in a local, might want to load eagerly rather than at use site, which might be eg in a loop.
+                    const input = toLocal(c, f, c.address_stack.pop());
                     c.local_address.getPtr(local).* = input;
                 },
             }
@@ -611,7 +610,7 @@ fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     }
 }
 
-fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address {
+fn toLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address {
     switch (address.direct) {
         .stack => |valtype| {
             const local = f.local_data.append(.{ .type = valtype });
@@ -622,11 +621,14 @@ fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address
                 .indirect = address.indirect,
             };
         },
+        .local, .i32 => {
+            return address;
+        },
         .@"struct" => |@"struct"| {
             const values = c.allocator.alloc(wir.Address, @"struct".values.len) catch oom();
             var i: usize = @"struct".values.len;
             while (i > 0) : (i -= 1) {
-                values[i - 1] = stackToLocal(c, f, @"struct".values[i - 1]);
+                values[i - 1] = toLocal(c, f, @"struct".values[i - 1]);
             }
             return .{
                 .direct = .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } },
@@ -634,14 +636,26 @@ fn stackToLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address
             };
         },
         .fun => |fun| {
-            const closure = c.box(stackToLocal(c, f, fun.closure.*));
+            const closure = c.box(toLocal(c, f, fun.closure.*));
             return .{
                 .direct = .{ .fun = .{ .repr = fun.repr, .closure = closure } },
                 .indirect = address.indirect,
             };
         },
-        .closure, .arg, .@"return", .local, .shadow, .i32 => {
-            return address;
+        .closure, .arg, .@"return", .shadow => {
+            switch (wasmRepr(address.indirect.?.repr)) {
+                // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
+                .primitive => |valtype| {
+                    const local = f.local_data.append(.{ .type = valtype });
+                    const output = wir.Address{
+                        .direct = .{ .local = local },
+                        .indirect = null,
+                    };
+                    copy(c, f, address, output);
+                    return output;
+                },
+                .heap => return address,
+            }
         },
     }
 }
