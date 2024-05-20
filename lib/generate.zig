@@ -369,10 +369,10 @@ fn generateExpr(
                         .primitive => |valtype| wir.Address{ .direct = .{ .stack = valtype } },
                         .heap => shadowPush(c, f, repr.?),
                     };
-                    const arg = stackToLocal(c, f, c.address_stack.pop());
+                    const arg = c.address_stack.pop();
                     const closure = c.address_stack.pop();
-                    loadPtr(c, f, closure);
                     loadPtr(c, f, arg);
+                    loadPtr(c, f, closure);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
                         .heap => loadPtr(c, f, output),
@@ -662,8 +662,8 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
 
 fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u32 {
     return switch (address) {
-        .closure => 0,
-        .arg => 1,
+        .arg => 0,
+        .closure => 1,
         .@"return" => 2,
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),

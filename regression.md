@@ -17,3 +17,23 @@ Expected 1 keys, found 2 keys
 
 Expected 1 keys, found 2 keys
 ```
+
+
+```
+f = (x) x
+f(f(5))
+
+5
+
+5
+```
+
+```
+f = (x) x
+a = 5
+f(a)
+
+5
+
+5
+```
