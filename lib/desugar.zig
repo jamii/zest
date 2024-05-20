@@ -20,15 +20,15 @@ pub fn desugar(c: *Compiler) error{DesugarError}!void {
 
 fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarError}!dir.Fun {
     var f = dir.FunData.init(c.allocator);
-    try desugarObjectPattern(c, &f, .arg, params);
-
+    try desugarObjectPattern(c, &f, params);
+    f.pattern_local_count = f.local_data.count();
+    f.pattern_expr_count = f.expr_data.count();
     {
         _ = f.expr_data.append(.begin);
         defer _ = f.expr_data.append(.@"return");
 
         try desugarExpr(c, &f, body);
     }
-
     return c.dir_fun_data.append(f);
 }
 

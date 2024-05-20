@@ -130,8 +130,10 @@ pub const FunData = struct {
     closure_keys_index: Map([]const u8, void),
     closure_keys: ArrayList([]const u8),
 
+    pattern_local_count: usize,
     local_data: List(Local, LocalData),
 
+    pattern_expr_count: usize,
     expr_data: List(Expr, ExprData),
 
     pub fn init(allocator: Allocator) FunData {
@@ -139,8 +141,10 @@ pub const FunData = struct {
             .closure_keys_index = fieldType(FunData, .closure_keys_index).init(allocator),
             .closure_keys = fieldType(FunData, .closure_keys).init(allocator),
 
+            .pattern_local_count = 0,
             .local_data = fieldType(FunData, .local_data).init(allocator),
 
+            .pattern_expr_count = 0,
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
         };
     }
