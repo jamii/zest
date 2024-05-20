@@ -498,9 +498,15 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
         return;
     }
 
+    // Local to heap.
+    if (from.direct == .local and to.indirect != null) {
+        store(c, f, .{ .local = from.direct.local }, to);
+        return;
+    }
+
     // Otherwise copy via stack.
     load(c, f, from);
-    store(c, f, to);
+    store(c, f, .stack, to);
 }
 
 fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
@@ -532,16 +538,26 @@ fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
     }
 }
 
-fn store(c: *Compiler, f: *wir.FunData, to: wir.Address) void {
+const StoreFrom = union(enum) {
+    stack,
+    local: wir.Local,
+};
+
+fn store(c: *Compiler, f: *wir.FunData, from: StoreFrom, to: wir.Address) void {
     if (to.indirect) |indirect| {
         switch (indirect.repr) {
             .i32 => {
-                const shuffler = getShuffler(f, .i32);
-                emitEnum(f, wasm.Opcode.local_set);
-                emitLebU32(f, wasmLocal(c, f, .{ .local = shuffler }));
+                if (from == .stack) {
+                    const shuffler = getShuffler(f, .i32);
+                    emitEnum(f, wasm.Opcode.local_set);
+                    emitLebU32(f, wasmLocal(c, f, .{ .local = shuffler }));
+                }
                 loadDirect(c, f, to.direct);
                 emitEnum(f, wasm.Opcode.local_get);
-                emitLebU32(f, wasmLocal(c, f, .{ .local = shuffler }));
+                emitLebU32(f, wasmLocal(c, f, .{ .local = switch (from) {
+                    .stack => getShuffler(f, .i32),
+                    .local => |local| local,
+                } }));
                 emitEnum(f, wasm.Opcode.i32_store);
                 emitLebU32(f, 0); // align
                 emitLebU32(f, indirect.offset);
