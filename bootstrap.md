@@ -3,7 +3,7 @@
 
 []
 
-[]
+undefined
 ```
 
 ```
@@ -128,7 +128,7 @@ a.x
 
 1
 
-Cannot unstage value: string
+TODO infer: dir.ExprData{ .string = { 120 } }
 ```
 
 ```
@@ -149,7 +149,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[id: 0, closure: struct['k': string]]
+TODO infer: dir.ExprData{ .string = { 120 } }
 ```
 
 ```
