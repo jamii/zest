@@ -13,7 +13,9 @@ const Value = zest.Value;
 
 pub const Local = struct { id: usize };
 
-pub const LocalData = struct {};
+pub const LocalData = struct {
+    is_mutable: bool,
+};
 
 pub const Expr = struct { id: usize };
 
@@ -38,6 +40,7 @@ pub const ExprData = union(enum) {
         count: usize,
     },
     object_get,
+    ref_get,
     call,
     drop,
     block,
@@ -46,7 +49,7 @@ pub const ExprData = union(enum) {
     pub fn isEnd(expr_data: ExprData) bool {
         return switch (expr_data) {
             .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage => false,
-            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .call, .drop, .block, .@"return" => true,
+            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .ref_get, .call, .drop, .block, .@"return" => true,
         };
     }
 };
@@ -80,6 +83,10 @@ pub fn ExprInput(comptime T: type) type {
             value: T,
         },
         object_get: struct {
+            object: T,
+            key: Value,
+        },
+        ref_get: struct {
             object: T,
             key: Value,
         },
@@ -117,6 +124,7 @@ pub fn ExprOutput(comptime T: type) type {
         local_let,
         assert_object,
         object_get: T,
+        ref_get: T,
         call: T,
         drop,
         block: T,

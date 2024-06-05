@@ -13,7 +13,6 @@ pub const ExprData = union(enum) {
     object: Object,
     name: []const u8,
     builtin: Builtin,
-    mut: Expr,
     let_or_set: struct {
         path: Expr,
         value: Expr,

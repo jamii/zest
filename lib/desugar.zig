@@ -20,9 +20,11 @@ pub fn desugar(c: *Compiler) error{DesugarError}!void {
 
 fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarError}!dir.Fun {
     var f = dir.FunData.init(c.allocator);
+
     try desugarObjectPattern(c, &f, .arg, params);
     f.pattern_local_count = f.local_data.count();
     f.pattern_expr_count = f.expr_data.count();
+
     {
         _ = f.expr_data.append(.begin);
         defer _ = f.expr_data.append(.@"return");
@@ -40,7 +42,9 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue
         push(c, f, object, false);
     }
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
-        const local = f.local_data.append(.{});
+        const local = f.local_data.append(.{
+            .is_mutable = false,
+        });
         {
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(.{ .local_let = local });
@@ -109,11 +113,12 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
         },
         .let_or_set => |let_or_set| {
             switch (c.sir_expr_data.get(let_or_set.path)) {
-                .mut => return fail(c, expr, .todo),
                 .name => |name| {
                     if (c.scope.lookup(name)) |_|
                         return fail(c, expr, .{ .name_already_bound = .{ .name = name } });
-                    const local = f.local_data.append(.{});
+                    const local = f.local_data.append(.{
+                        .is_mutable = false,
+                    });
                     {
                         _ = f.expr_data.append(.begin);
                         defer _ = f.expr_data.append(.{ .local_let = local });
@@ -128,6 +133,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                         .name = name,
                         .value = .{ .local = local },
                     });
+                },
+                .ref_to => |ref_to| {
+                    try desugarPath(c, f, ref_to);
                 },
                 else => return fail(c, let_or_set.path, .invalid_let_path),
             }
@@ -199,6 +207,33 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
     }
 }
 
+fn desugarPath(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
+    const expr_data = c.sir_expr_data.get(expr);
+    switch (expr_data) {
+        .name => |name| {
+            const binding = c.scope.lookup(name) orelse
+                return fail(c, expr, .{ .name_not_bound = .{ .name = name } });
+            switch (binding.value) {
+                .closure => return fail(c, expr, .{ .todo_may_not_close_over_ref = .{ .name = name } }),
+                .arg => panic("Shouldn't be able to bind to arg directly", .{}),
+                .local => |local| {
+                    if (!f.local_data.get(local).is_mutable)
+                        return fail(c, expr, .{ .may_not_mutate_immutable_binding = .{ .name = name } });
+                },
+            }
+            push(c, f, binding.value, binding.is_staged);
+        },
+        .get => |get| {
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.ref_get);
+
+            try desugarPath(c, f, get.object);
+            try desugarKey(c, f, get.key);
+        },
+        else => return fail(c, expr, .invalid_path),
+    }
+}
+
 fn stageExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
     const already_staged = c.scope.staged_until_len != null;
     if (!already_staged) {
@@ -256,6 +291,13 @@ pub const DesugarErrorData = union(enum) {
     name_already_bound: struct {
         name: []const u8,
     },
+    todo_may_not_close_over_ref: struct {
+        name: []const u8,
+    },
+    may_not_mutate_immutable_binding: struct {
+        name: []const u8,
+    },
     invalid_let_path,
+    invalid_path,
     todo,
 };
