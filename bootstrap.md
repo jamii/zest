@@ -435,7 +435,7 @@ a = mut [x: 1, y: 2]
 a@ = 3
 a
 
-3
+Expected struct['x': i32, 'y': i32], found i32
 
 Expected struct['x': i32, 'y': i32], found i32
 ```
@@ -445,7 +445,7 @@ a = mut [x: 1, y: 2]
 a.x@ = a
 a.x.x
 
-1
+Expected i32, found struct['x': i32, 'y': i32]
 
-Expected struct['x': i32, 'y': i32], found i32
+Expected i32, found struct['x': i32, 'y': i32]
 ```

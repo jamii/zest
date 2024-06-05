@@ -253,6 +253,12 @@ pub fn evalExpr(
             return value;
         },
         .ref_set => {
+            const input_repr = input.value.reprOf();
+            if (!input.ref.ref.repr.equal(input_repr))
+                return fail(c, .{ .type_error = .{
+                    .expected = input.ref.ref.repr.*,
+                    .found = input_repr,
+                } });
             input.ref.ref.value.* = input.value.copy(c.allocator);
             return;
         },
@@ -295,6 +301,10 @@ fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
 }
 
 pub const EvalErrorData = union(enum) {
+    type_error: struct {
+        expected: Repr,
+        found: Repr,
+    },
     key_not_found: struct {
         object: Value,
         key: Value,

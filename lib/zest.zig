@@ -406,6 +406,7 @@ pub fn formatError(c: *Compiler) []const u8 {
             .eval => |err| {
                 const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
                 return switch (err.data) {
+                    .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .wrong_number_of_keys => |data| format(c, "Expected {} keys, found {} keys", .{ data.expected, data.actual }),
                     .not_an_object => |data| format(c, "Not an object: {}", .{data}),
