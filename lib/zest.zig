@@ -337,8 +337,11 @@ pub const Compiler = struct {
                                 .local_get, .local_let => |local| try writer.print(" l{}", .{local.id}),
                                 .fun_init => try writer.print(" f{}", .{repr.?.fun.fun.id}),
                                 .object_get => |object_get| try writer.print(" key={}", .{object_get.key}),
+                                .ref_init => {},
+                                .ref_get => |ref_get| try writer.print(" key={}", .{ref_get.key}),
+                                .ref_set => {},
                                 .call => |fun| try writer.print(" f{}", .{fun.id}),
-                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ tag),
+                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                             }
                             if (repr != null) {
                                 try writer.print(" /{}", .{repr.?});
