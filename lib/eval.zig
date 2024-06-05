@@ -150,7 +150,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .stage, .unstage, .begin => return,
-        .fun_init, .local_let, .assert_object, .object_get, .ref_get, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .object_get, .ref_init, .ref_get, .ref_set, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;

@@ -16,6 +16,7 @@ pub const ExprData = union(enum) {
     let_or_set: struct {
         path: Expr,
         value: Expr,
+        mut: bool,
     },
     get: struct {
         object: Expr,

@@ -113,6 +113,7 @@ pub const TokenData = enum {
     @"if",
     @"else",
     @"while",
+    mut,
     @"@",
     @"(",
     @")",
@@ -389,6 +390,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.sir_expr_data.get(err.expr);
                 return switch (err.data) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
+                    .mut_on_assign => format(c, "Meaningless to write `mut` here", .{}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
                     .name_already_bound => |data| format(c, "Name already bound: {s}", .{data.name}),
                     .todo_may_not_close_over_ref => |data| format(c, "TODO may not close over mutable binding: {s}", .{data.name}),

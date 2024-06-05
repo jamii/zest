@@ -116,29 +116,43 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                 .name => |name| {
                     if (c.scope.lookup(name)) |_|
                         return fail(c, expr, .{ .name_already_bound = .{ .name = name } });
-                    const local = f.local_data.append(.{
-                        .is_mutable = false,
-                    });
-                    {
-                        _ = f.expr_data.append(.begin);
-                        defer _ = f.expr_data.append(.{ .local_let = local });
 
+                    const local = f.local_data.append(.{
+                        .is_mutable = let_or_set.mut,
+                    });
+
+                    _ = f.expr_data.append(.begin);
+                    defer _ = f.expr_data.append(.{ .local_let = local });
+
+                    {
+                        if (let_or_set.mut)
+                            _ = f.expr_data.append(.begin);
+                        defer if (let_or_set.mut) {
+                            _ = f.expr_data.append(.ref_init);
+                        };
                         try desugarExpr(c, f, let_or_set.value);
                     }
-                    {
-                        _ = f.expr_data.append(.begin);
-                        defer _ = f.expr_data.append(.{ .struct_init = 0 });
-                    }
+
                     c.scope.push(.{
                         .name = name,
                         .value = .{ .local = local },
                     });
                 },
                 .ref_to => |ref_to| {
+                    if (let_or_set.mut)
+                        return fail(c, expr, .mut_on_assign);
+
+                    _ = f.expr_data.append(.begin);
+                    defer _ = f.expr_data.append(.ref_set);
+
                     try desugarPath(c, f, ref_to);
+                    try desugarExpr(c, f, let_or_set.value);
                 },
                 else => return fail(c, let_or_set.path, .invalid_let_path),
             }
+
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.{ .struct_init = 0 });
         },
         .get => |get| {
             _ = f.expr_data.append(.begin);
@@ -285,6 +299,7 @@ fn fail(c: *Compiler, expr: sir.Expr, data: DesugarErrorData) error{DesugarError
 
 pub const DesugarErrorData = union(enum) {
     invalid_pattern,
+    mut_on_assign,
     name_not_bound: struct {
         name: []const u8,
     },

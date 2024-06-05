@@ -40,7 +40,9 @@ pub const ExprData = union(enum) {
         count: usize,
     },
     object_get,
+    ref_init,
     ref_get,
+    ref_set,
     call,
     drop,
     block,
@@ -49,7 +51,7 @@ pub const ExprData = union(enum) {
     pub fn isEnd(expr_data: ExprData) bool {
         return switch (expr_data) {
             .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage => false,
-            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .ref_get, .call, .drop, .block, .@"return" => true,
+            .struct_init, .fun_init, .local_let, .assert_object, .object_get, .ref_init, .ref_get, .ref_set, .call, .drop, .block, .@"return" => true,
         };
     }
 };
@@ -86,9 +88,16 @@ pub fn ExprInput(comptime T: type) type {
             object: T,
             key: Value,
         },
+        ref_init: struct {
+            value: T,
+        },
         ref_get: struct {
-            object: T,
+            ref: T,
             key: Value,
+        },
+        ref_set: struct {
+            ref: T,
+            value: T,
         },
         call: struct {
             fun: T,
@@ -124,7 +133,9 @@ pub fn ExprOutput(comptime T: type) type {
         local_let,
         assert_object,
         object_get: T,
+        ref_init: T,
         ref_get: T,
+        ref_set: T,
         call: T,
         drop,
         block: T,
