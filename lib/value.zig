@@ -56,6 +56,14 @@ pub const Value = union(enum) {
         };
     }
 
+    pub fn getMut(self: *Value, key: Value) ?*Value {
+        return switch (self.*) {
+            .i32, .string, .fun, .only, .ref, .repr => null,
+            .@"struct" => |*@"struct"| @"struct".getMut(key),
+            .@"union" => panic("TODO", .{}),
+        };
+    }
+
     pub fn format(self: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = fmt;
         _ = options;
@@ -89,6 +97,10 @@ pub const ValueStruct = struct {
 
     pub fn get(self: ValueStruct, key: Value) ?Value {
         return if (self.repr.get(key)) |i| self.values[i] else null;
+    }
+
+    pub fn getMut(self: *ValueStruct, key: Value) ?*Value {
+        return if (self.repr.get(key)) |i| &self.values[i] else null;
     }
 
     // TODO init function that sorts

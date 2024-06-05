@@ -150,7 +150,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .stage, .unstage, .begin => return,
-        .fun_init, .local_let, .assert_object, .object_get, .ref_init, .ref_get, .ref_set, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -243,6 +243,30 @@ pub fn evalExpr(
         .object_get => {
             const value = input.object.get(input.key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
+            return value;
+        },
+        .ref_init => {
+            const value = Value{ .ref = .{
+                .repr = c.box(input.value.reprOf()),
+                .value = c.box(input.value),
+            } };
+            return value;
+        },
+        .ref_set => {
+            input.ref.ref.value.* = input.value;
+            return;
+        },
+        .ref_get => {
+            const value_ptr = input.ref.ref.value.getMut(input.key) orelse
+                return fail(c, .{ .key_not_found = .{ .object = input.ref.ref.value.*, .key = input.key } });
+            const value = Value{ .ref = .{
+                .repr = c.box(value_ptr.reprOf()),
+                .value = value_ptr,
+            } };
+            return value;
+        },
+        .ref_deref => {
+            const value = input.ref.ref.value.*;
             return value;
         },
         .drop => return,
