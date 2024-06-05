@@ -89,6 +89,44 @@ pub const Value = union(enum) {
             else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }
+
+    pub fn copy(self: Value, allocator: Allocator) Value {
+        return switch (self) {
+            .i32 => self,
+            .string => |string| .{
+                .string = allocator.dupe(u8, string) catch oom(),
+            },
+            .@"struct" => |@"struct"| .{ .@"struct" = .{
+                .repr = @"struct".repr,
+                .values = Value.copySlice(@"struct".values, allocator),
+            } },
+            .@"union" => panic("TODO", .{}),
+            .only => |only| .{
+                .only = Value.copyBox(only, allocator),
+            },
+            .fun => |fun| .{ .fun = .{
+                .repr = fun.repr,
+                .closure = Value.copySlice(fun.closure, allocator),
+            } },
+            .ref => |ref| .{ .ref = .{
+                .repr = ref.repr,
+                .value = Value.copyBox(ref.value, allocator),
+            } },
+            .repr => self,
+        };
+    }
+
+    pub fn copyBox(self: *Value, allocator: Allocator) *Value {
+        const box = allocator.create(Value) catch oom();
+        box.* = self.*.copy(allocator);
+        return box;
+    }
+
+    pub fn copySlice(self: []Value, allocator: Allocator) []Value {
+        const values = allocator.alloc(Value, self.len) catch oom();
+        for (values, self) |*value, old_value| value.* = old_value.copy(allocator);
+        return values;
+    }
 };
 
 pub const ValueStruct = struct {

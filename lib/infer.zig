@@ -230,10 +230,11 @@ fn inferExpr(
         },
         .ref_init => {
             const repr = Repr{ .ref = c.box(input.value) };
+            pushExpr(c, f, .ref_init, repr);
             return repr;
         },
         .ref_get => {
-            const repr = try reprObjectGet(c, input.ref.ref.*, input.key);
+            const repr = Repr{ .ref = c.box(try reprObjectGet(c, input.ref.ref.*, input.key)) };
             pushExpr(c, f, .{ .ref_get = .{ .key = input.key } }, repr);
             return repr;
         },
@@ -243,10 +244,12 @@ fn inferExpr(
                     .expected = input.ref.ref.*,
                     .found = input.value,
                 } });
+            pushExpr(c, f, .ref_set, null);
             return;
         },
         .ref_deref => {
             const repr = input.ref.ref.*;
+            pushExpr(c, f, .ref_deref, null);
             return repr;
         },
         .drop => {

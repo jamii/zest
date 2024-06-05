@@ -248,12 +248,12 @@ pub fn evalExpr(
         .ref_init => {
             const value = Value{ .ref = .{
                 .repr = c.box(input.value.reprOf()),
-                .value = c.box(input.value),
+                .value = c.box(input.value.copy(c.allocator)),
             } };
             return value;
         },
         .ref_set => {
-            input.ref.ref.value.* = input.value;
+            input.ref.ref.value.* = input.value.copy(c.allocator);
             return;
         },
         .ref_get => {
@@ -266,7 +266,7 @@ pub fn evalExpr(
             return value;
         },
         .ref_deref => {
-            const value = input.ref.ref.value.*;
+            const value = input.ref.ref.value.copy(c.allocator);
             return value;
         },
         .drop => return,
