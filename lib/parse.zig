@@ -126,6 +126,7 @@ fn parseExprTight(c: *Compiler) error{ParseError}!sir.Expr {
             .@"(" => head = try parseCall(c, head),
             .@"[" => head = try parseMake(c, head),
             .@"/" => head = try parseCallSlash(c, head),
+            .@"@" => head = try parseRefTo(c, head),
             else => break,
         }
     }
@@ -183,6 +184,11 @@ fn parseCallSlash(c: *Compiler, arg: sir.Expr) error{ParseError}!sir.Expr {
             .values = values.toOwnedSlice() catch oom(),
         },
     } });
+}
+
+fn parseRefTo(c: *Compiler, head: sir.Expr) error{ParseError}!sir.Expr {
+    try expect(c, .@"@");
+    return c.sir_expr_data.append(.{ .ref_to = head });
 }
 
 const ExprAtomOptions = struct {

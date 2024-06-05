@@ -44,6 +44,7 @@ pub const ExprData = union(enum) {
         args: Object,
     },
     block: []Expr,
+    ref_to: Expr,
 };
 
 pub const Object = struct {
