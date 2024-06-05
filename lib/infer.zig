@@ -204,7 +204,11 @@ fn inferExpr(
             return;
         },
         .assert_object => {
-            switch (input.value) {
+            var repr = input.value;
+            while (repr == .ref) {
+                repr = repr.ref.*;
+            }
+            switch (repr) {
                 .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
                 .@"struct" => |@"struct"| {
                     if (@"struct".keys.len != data.count)
@@ -214,12 +218,17 @@ fn inferExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
+                .ref => unreachable,
             }
             pushExpr(c, f, .drop, null);
             return;
         },
         .object_get => {
-            const repr = switch (input.object) {
+            var object = input.object;
+            while (object == .ref) {
+                object = object.ref.*;
+            }
+            const repr = switch (object) {
                 .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.object }),
                 .@"struct" => |@"struct"| repr: {
                     const ix = @"struct".get(input.key) orelse
@@ -227,6 +236,7 @@ fn inferExpr(
                     break :repr @"struct".reprs[ix];
                 },
                 .@"union" => return fail(c, .todo),
+                .ref => unreachable,
             };
             pushExpr(c, f, .{ .object_get = .{ .key = input.key } }, repr);
             return repr;

@@ -20,6 +20,7 @@ pub const Value = union(enum) {
     @"union": ValueUnion,
     fun: ValueFun,
     only: *Value,
+    ref: ValueRef,
     repr: Repr,
 
     pub fn reprOf(value: Value) Repr {
@@ -30,6 +31,7 @@ pub const Value = union(enum) {
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
             .only => |only| return .{ .only = only },
             .fun => |fun| return .{ .fun = fun.repr },
+            .ref => |ref| return .{ .ref = ref.repr },
             .repr => return .repr,
         }
     }
@@ -48,7 +50,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .i32, .string, .repr, .fun, .only => null,
+            .i32, .string, .fun, .only, .ref, .repr => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => panic("TODO", .{}),
         };
@@ -108,4 +110,9 @@ pub const ValueFun = struct {
             .values = fun.closure,
         };
     }
+};
+
+pub const ValueRef = struct {
+    repr: *Repr,
+    value: *Value,
 };

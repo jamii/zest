@@ -222,7 +222,11 @@ pub fn evalExpr(
             return;
         },
         .assert_object => {
-            switch (input.value) {
+            var value = input.value;
+            while (value == .ref) {
+                value = value.ref.value.*;
+            }
+            switch (value) {
                 .@"struct" => |@"struct"| {
                     if (@"struct".values.len != data.count)
                         return fail(c, .{ .wrong_number_of_keys = .{
@@ -232,6 +236,7 @@ pub fn evalExpr(
                 },
                 .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
                 .@"union" => return fail(c, .todo),
+                .ref => unreachable,
             }
             return;
         },

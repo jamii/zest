@@ -14,6 +14,7 @@ pub const Repr = union(enum) {
     @"union": ReprUnion,
     fun: ReprFun,
     only: *Value,
+    ref: *Repr,
     repr,
 
     pub fn emptyStruct() Repr {
@@ -51,6 +52,7 @@ pub const Repr = union(enum) {
             .@"union" => |@"union"| @"union".sizeOf(),
             .fun => |fun| fun.sizeOf(),
             .only => 0,
+            .ref => 4,
             .repr => panic("TODO {}", .{self}),
         };
     }
@@ -66,7 +68,7 @@ pub const Repr = union(enum) {
                 .{ .fun = .{ .repr = fun, .closure = closure.values } }
             else
                 null,
-            .i32, .string, .@"union", .repr => null,
+            .i32, .string, .@"union", .ref, .repr => null,
         };
     }
 

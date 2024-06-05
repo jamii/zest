@@ -677,14 +677,14 @@ const WasmRepr = union(enum) {
 
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
-        .i32 => .{ .primitive = wasmAbi(repr) },
+        .i32, .ref => .{ .primitive = wasmAbi(repr) },
         .string, .@"struct", .@"union", .fun, .only, .repr => .heap,
     };
 }
 
 fn wasmAbi(repr: Repr) wasm.Valtype {
     return switch (repr) {
-        .i32 => .i32,
+        .i32, .ref => .i32,
         // Pointer to heap.
         .string, .@"struct", .@"union", .fun, .only, .repr => .i32,
     };
