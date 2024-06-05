@@ -224,21 +224,29 @@ fn inferExpr(
             return;
         },
         .object_get => {
-            var object = input.object;
-            while (object == .ref) {
-                object = object.ref.*;
-            }
-            const repr = switch (object) {
-                .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.object }),
-                .@"struct" => |@"struct"| repr: {
-                    const ix = @"struct".get(input.key) orelse
-                        return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
-                    break :repr @"struct".reprs[ix];
-                },
-                .@"union" => return fail(c, .todo),
-                .ref => unreachable,
-            };
+            const repr = try reprObjectGet(c, input.object, input.key);
             pushExpr(c, f, .{ .object_get = .{ .key = input.key } }, repr);
+            return repr;
+        },
+        .ref_init => {
+            const repr = Repr{ .ref = c.box(input.value) };
+            return repr;
+        },
+        .ref_get => {
+            const repr = try reprObjectGet(c, input.ref.ref.*, input.key);
+            pushExpr(c, f, .{ .ref_get = .{ .key = input.key } }, repr);
+            return repr;
+        },
+        .ref_set => {
+            if (!input.ref.ref.equal(input.value))
+                return fail(c, .{ .type_error = .{
+                    .expected = input.ref.ref.*,
+                    .found = input.value,
+                } });
+            return;
+        },
+        .ref_deref => {
+            const repr = input.ref.ref.*;
             return repr;
         },
         .drop => {
@@ -292,6 +300,19 @@ fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr 
         .many => |expected_repr| {
             return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
         },
+    }
+}
+
+fn reprObjectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!Repr {
+    switch (object) {
+        .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = object }),
+        .@"struct" => |@"struct"| {
+            const ix = @"struct".get(key) orelse
+                return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
+            return @"struct".reprs[ix];
+        },
+        .@"union" => return fail(c, .todo),
+        .ref => unreachable, // always passes through ref_deref first
     }
 }
 
