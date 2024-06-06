@@ -9,13 +9,12 @@ const zest = @import("./zest.zig");
 const fieldType = zest.fieldType;
 const deepEqual = zest.deepEqual;
 const List = zest.List;
-const Value = zest.Value;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprFun = zest.ReprFun;
 const tir = zest.tir;
 
-pub const AddressDirect = union(enum) {
+pub const Walue = union(enum) {
     closure,
     arg,
     @"return",
@@ -25,38 +24,24 @@ pub const AddressDirect = union(enum) {
     i32: i32,
     @"struct": struct {
         repr: ReprStruct,
-        values: []Address,
+        values: []Walue,
     },
     fun: struct {
         repr: ReprFun,
-        closure: *Address,
+        closure: *Walue,
     },
-    ref: *Address, // !address.ref.isValue()
+    value_at: struct {
+        ptr: *Walue,
+        repr: Repr,
+    },
+    add: struct {
+        walue: *Walue,
+        offset: u32,
+    },
 
-    pub fn isValue(address: AddressDirect) bool {
-        return switch (address) {
-            .closure, .arg, .@"return", .local, .shadow, .stack => false,
-            .i32, .@"struct", .fun, .ref => true,
-        };
-    }
-};
-
-pub const AddressIndirect = struct {
-    offset: u32,
-    repr: Repr,
-};
-
-pub const Address = struct {
-    direct: AddressDirect,
-    indirect: ?AddressIndirect = null,
-
-    pub fn equal(self: Address, other: Address) bool {
-        // TODO May need to think about this, especially if repr.equal changes.
+    pub fn equal(self: Walue, other: Walue) bool {
+        // TODO May have to think about this
         return deepEqual(self, other);
-    }
-
-    pub fn isValue(address: Address) bool {
-        return address.direct.isValue() and address.indirect == null;
     }
 };
 

@@ -193,15 +193,15 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     }
 
     // Prepare to track addresses for tir locals.
-    assert(c.local_address.count() == 0);
-    defer c.local_address.data.shrinkRetainingCapacity(0);
-    c.local_address.appendNTimes(null, tir_f.local_data.count());
+    assert(c.local_walue.count() == 0);
+    defer c.local_walue.data.shrinkRetainingCapacity(0);
+    c.local_walue.appendNTimes(null, tir_f.local_data.count());
 
     // TODO Uncomment asserts once todo is gone.
     assert(c.block_stack.items.len == 0);
     //defer assert(c.block_stack.items.len == 0);
-    assert(c.address_stack.items.len == 0);
-    //defer assert(c.address_stack.items.len == 0);
+    assert(c.walue_stack.items.len == 0);
+    //defer assert(c.walue_stack.items.len == 0);
     assert(c.hint_stack.items.len == 0);
     //defer assert(c.hint_stack.items.len == 0);
 
@@ -228,26 +228,26 @@ fn generateExpr(
     switch (expr_data) {
         .i32 => |i| {
             _ = c.hint_stack.pop();
-            c.address_stack.append(.{ .direct = .{ .i32 = i } }) catch oom();
+            c.walue_stack.append(.{ .i32 = i }) catch oom();
         },
         .closure => {
             _ = c.hint_stack.pop();
-            c.address_stack.append(.{
-                .direct = .closure,
-                .indirect = addressIndirect(repr.?),
-            }) catch oom();
+            c.walue_stack.append(.{ .value_at = .{
+                .ptr = c.box(wir.Walue{ .closure = {} }),
+                .repr = repr.?,
+            } }) catch oom();
         },
         .arg => {
             _ = c.hint_stack.pop();
-            c.address_stack.append(.{
-                .direct = .arg,
-                .indirect = addressIndirect(repr.?),
-            }) catch oom();
+            c.walue_stack.append(.{ .value_at = .{
+                .ptr = c.box(wir.Walue{ .arg = {} }),
+                .repr = repr.?,
+            } }) catch oom();
         },
         .local_get => |local| {
             _ = c.hint_stack.pop();
-            const address = c.local_address.get(local).?;
-            c.address_stack.append(address) catch oom();
+            const walue = c.local_walue.get(local).?;
+            c.walue_stack.append(walue) catch oom();
         },
 
         .begin => unreachable,
@@ -260,62 +260,55 @@ fn generateExpr(
                     const hint_maybe = c.hint_stack.pop();
                     var i: usize = struct_repr.reprs.len;
                     while (i > 0) : (i -= 1) {
-                        const value_repr = struct_repr.reprs[i - 1];
                         const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                        const value_hint = if (hint_maybe) |hint| wir.Address{
-                            .direct = hint.direct,
-                            .indirect = .{
-                                .offset = hint.indirect.?.offset + offset,
-                                .repr = value_repr,
-                            },
-                        } else null;
+                        const value_hint = if (hint_maybe) |hint|
+                            wir.Walue{ .add = .{
+                                .walue = c.box(hint),
+                                .offset = offset,
+                            } }
+                        else
+                            null;
                         c.hint_stack.append(value_hint) catch oom();
                     }
                 },
                 .end => {
-                    const values = c.allocator.alloc(wir.Address, struct_repr.reprs.len) catch oom();
+                    const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
                     var i: usize = struct_repr.reprs.len;
                     while (i > 0) : (i -= 1) {
-                        values[i - 1] = c.address_stack.pop();
+                        values[i - 1] = c.walue_stack.pop();
                     }
-                    c.address_stack.append(.{ .direct = .{ .@"struct" = .{
+                    c.walue_stack.append(.{ .@"struct" = .{
                         .repr = struct_repr,
                         .values = values,
-                    } } }) catch oom();
+                    } }) catch oom();
                 },
             }
         },
         .fun_init => {
             switch (direction) {
-                .begin => {
-                    var hint = c.hint_stack.pop();
-                    if (hint != null) {
-                        hint.?.indirect.?.repr = .{ .@"struct" = repr.?.fun.closure };
-                    }
-                    c.hint_stack.append(hint) catch oom();
-                },
+                .begin => {},
                 .end => {
-                    var output = c.address_stack.pop();
-                    if (output.direct == .@"struct") {
-                        c.address_stack.append(.{ .direct = .{
-                            .fun = .{
+                    const output = c.walue_stack.pop();
+                    c.walue_stack.append(
+                        if (output == .@"struct")
+                            .{ .fun = .{
                                 .repr = repr.?.fun,
                                 .closure = c.box(output),
-                            },
-                        } }) catch oom();
-                    } else {
-                        output.indirect.?.repr = repr.?;
-                        c.address_stack.append(output) catch oom();
-                    }
+                            } }
+                        else
+                            output,
+                    ) catch oom();
                 },
             }
         },
         .local_let => |local| {
             switch (direction) {
-                .begin => c.hint_stack.append(null) catch oom(),
+                .begin => {
+                    c.hint_stack.append(null) catch oom();
+                },
                 .end => {
-                    const input = toLocal(c, f, c.address_stack.pop(), .eager);
-                    c.local_address.getPtr(local).* = input;
+                    const input = spillStack(c, f, c.walue_stack.pop());
+                    c.local_walue.getPtr(local).* = input;
                 },
             }
         },
@@ -326,31 +319,31 @@ fn generateExpr(
                     c.hint_stack.append(null) catch oom();
                 },
                 .end => {
-                    const input = c.address_stack.pop();
-                    if (input.indirect) |indirect| {
-                        const input_repr = indirect.repr.@"struct";
-                        const i = input_repr.get(object_get.key).?;
-                        const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
-                        const output = wir.Address{
-                            .direct = input.direct,
-                            .indirect = .{
-                                .offset = indirect.offset + offset,
+                    const input = c.walue_stack.pop();
+                    switch (input) {
+                        .value_at => |value_at| {
+                            const input_repr = value_at.repr.@"struct";
+                            const i = input_repr.get(object_get.key).?;
+                            const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
+                            const output = wir.Walue{ .value_at = .{
+                                .ptr = c.box(wir.Walue{ .add = .{
+                                    .walue = value_at.ptr,
+                                    .offset = offset,
+                                } }),
                                 .repr = input_repr.reprs[i],
-                            },
-                        };
-                        c.address_stack.append(output) catch oom();
-                    } else {
-                        // Only one direct address that can handle structs.
-                        assert(input.direct == .@"struct");
-                        const i = input.direct.@"struct".repr.get(object_get.key).?;
-                        var j: usize = input.direct.@"struct".values.len - 1;
-                        while (j > i) : (j -= 1) {
-                            const ignored = input.direct.@"struct".values[j];
-                            if (ignored.direct == .stack)
-                                emitEnum(f, wasm.Opcode.drop);
-                        }
-                        const output = input.direct.@"struct".values[i];
-                        c.address_stack.append(output) catch oom();
+                            } };
+                            c.walue_stack.append(output) catch oom();
+                        },
+                        .@"struct" => |@"struct"| {
+                            const i = @"struct".repr.get(object_get.key).?;
+                            var j: usize = @"struct".values.len - 1;
+                            while (j > i) : (j -= 1) {
+                                dropStack(c, f, @"struct".values[j]);
+                            }
+                            const output = @"struct".values[i];
+                            c.walue_stack.append(output) catch oom();
+                        },
+                        else => panic("Can't represent struct with {}", .{input}),
                     }
                 },
             }
@@ -365,33 +358,24 @@ fn generateExpr(
                 },
                 .end => {
                     const output = c.hint_stack.pop().?;
-                    const input = c.address_stack.pop();
-                    copy(c, f, input, output);
-                    c.address_stack.append(.{ .direct = .{ .ref = c.box(output) } }) catch oom();
+                    const input = c.walue_stack.pop();
+                    copyValuePtr(c, f, input, output);
+                    c.walue_stack.append(output) catch oom();
                 },
             }
         },
         .ref_deref => {
-            // either a literal ref
-            //   just remove the ref? might have to indirect
-            // or just the address of a ref
             switch (direction) {
                 .begin => {
                     _ = c.hint_stack.pop();
                     c.hint_stack.append(null) catch oom();
                 },
                 .end => {
-                    const input = c.address_stack.pop();
-                    if (input.direct == .ref) {
-                        // We know the actual value of the pointer.
-                        assert(input.indirect == null);
-                        c.address_stack.append(input.direct.ref.*) catch oom();
-                    } else {
-                        // We have to load the pointer.
-                        const stack = wir.Address{ .direct = .{ .stack = .i32 } };
-                        copy(c, f, input, stack);
-                        c.address_stack.append(.{ .direct = .{ .ref = c.box(stack) } }) catch oom();
-                    }
+                    const input = c.walue_stack.pop();
+                    c.walue_stack.append(.{ .value_at = .{
+                        .ptr = c.box(input),
+                        .repr = repr.?,
+                    } }) catch oom();
                 },
             }
         },
@@ -403,32 +387,40 @@ fn generateExpr(
                     c.hint_stack.append(null) catch oom(); // closure
                 },
                 .end => {
-                    const output = c.hint_stack.pop() orelse
-                        switch (wasmRepr(repr.?)) {
-                        .primitive => |valtype| wir.Address{ .direct = .{ .stack = valtype } },
-                        .heap => shadowPush(c, f, repr.?),
+                    const output = if (c.hint_stack.pop()) |hint|
+                        wir.Walue{ .value_at = .{
+                            .ptr = c.box(hint),
+                            .repr = repr.?,
+                        } }
+                    else switch (wasmRepr(repr.?)) {
+                        .primitive => |valtype| wir.Walue{ .stack = valtype },
+                        .heap => wir.Walue{ .value_at = .{
+                            .ptr = c.box(shadowPush(c, f, repr.?)),
+                            .repr = repr.?,
+                        } },
                     };
-                    const arg = c.address_stack.pop();
-                    const closure = c.address_stack.pop();
-                    loadPtr(c, f, arg);
-                    loadPtr(c, f, closure);
+                    const arg = c.walue_stack.pop();
+                    const closure = c.walue_stack.pop();
+                    loadPtrTo(c, f, arg);
+                    loadPtrTo(c, f, closure);
                     switch (wasmRepr(repr.?)) {
                         .primitive => {},
-                        .heap => loadPtr(c, f, output),
+                        .heap => loadPtrTo(c, f, output),
                     }
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
-                    c.address_stack.append(output) catch oom();
+                    c.walue_stack.append(output) catch oom();
                 },
             }
         },
         .drop => {
             switch (direction) {
-                .begin => c.hint_stack.append(null) catch oom(),
+                .begin => {
+                    c.hint_stack.append(null) catch oom();
+                },
                 .end => {
-                    const input = c.address_stack.pop();
-                    if (input.direct == .stack)
-                        emitEnum(f, wasm.Opcode.drop);
+                    const input = c.walue_stack.pop();
+                    dropStack(c, f, input);
                 },
             }
         },
@@ -436,23 +428,24 @@ fn generateExpr(
             // TODO stack reset
         },
         .@"return" => {
-            const output: wir.Address = switch (wasmRepr(tir_f.return_repr.one)) {
-                .primitive => |valtype| .{
-                    .direct = .{ .stack = valtype },
-                },
-                .heap => .{
-                    .direct = .@"return",
-                    .indirect = .{
-                        .offset = 0,
-                        .repr = tir_f.return_repr.one,
+            switch (wasmRepr(tir_f.return_repr.one)) {
+                .primitive => switch (direction) {
+                    .begin => {
+                        c.hint_stack.append(null) catch oom();
+                    },
+                    .end => {
+                        const input = c.walue_stack.pop();
+                        load(c, f, input);
                     },
                 },
-            };
-            switch (direction) {
-                .begin => c.hint_stack.append(output) catch oom(),
-                .end => {
-                    const input = c.address_stack.pop();
-                    copy(c, f, input, output);
+                .heap => switch (direction) {
+                    .begin => {
+                        c.hint_stack.append(.@"return") catch oom();
+                    },
+                    .end => {
+                        const input = c.walue_stack.pop();
+                        copyValuePtr(c, f, input, .@"return");
+                    },
                 },
             }
         },
@@ -463,165 +456,169 @@ fn generateExpr(
     }
 }
 
-fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Address {
-    _ = c;
+fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {
     const offset = f.shadow_offset_next;
     f.shadow_offset_next += repr.sizeOf();
-    if (f.shadow_offset_next > 0 and f.shadow_offset_max == 0) {
-        assert(f.local_shadow == null);
+    if (f.shadow_offset_next > 0 and f.local_shadow == null)
         f.local_shadow = f.local_data.append(.{ .type = .i32 });
-    }
     f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
+    return .{ .add = .{
+        .walue = c.box(wir.Walue{ .shadow = {} }),
+        .offset = @intCast(offset),
+    } };
+}
+
+fn asAdd(c: *Compiler, walue: wir.Walue) std.meta.FieldType(wir.Walue, .add) {
+    var remaining = walue;
+    var offset: u32 = 0;
+    while (remaining == .add) {
+        offset += remaining.add.offset;
+        remaining = remaining.add.walue.*;
+    }
     return .{
-        .direct = .shadow,
-        .indirect = .{
-            .offset = @intCast(offset),
-            .repr = repr,
-        },
+        .walue = c.box(remaining),
+        .offset = offset,
     };
 }
 
-fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void {
-    // Nop
-    if (from.equal(to))
+fn copyPtrPtr(c: *Compiler, f: *wir.FunData, from_ptr: wir.Walue, to_ptr: wir.Walue, byte_count: usize) void {
+    if (from_ptr.equal(to_ptr))
         return;
 
-    // Copy
-    if (from.indirect != null and to.indirect != null) {
-        // TODO If repr.sizeOf() is in [1, 2, 4, 8] do a load and store instead.
-        const repr = from.indirect.?.repr;
-        assert(repr.equal(to.indirect.?.repr));
-        loadPtr(c, f, to);
-        loadPtr(c, f, from);
-        emitEnum(f, wasm.Opcode.i32_const);
-        emitLebU32(f, @intCast(repr.sizeOf()));
-        emitEnum(f, wasm.Opcode.misc_prefix);
-        emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
-        emitLebU32(f, 0); // memory from
-        emitLebU32(f, 0); // memory to
-        return;
-    }
-
-    // Constant to heap.
-    if (from.isValue() and to.indirect != null) {
-        switch (from.direct) {
-            .i32, .ref => {
-                loadDirect(c, f, to.direct);
-                load(c, f, from);
-                emitEnum(f, wasm.Opcode.i32_store);
-                emitLebU32(f, 0); // align
-                emitLebU32(f, to.indirect.?.offset);
-            },
-            .@"struct" => |@"struct"| {
-                var i: usize = @"struct".repr.reprs.len;
-                while (i > 0) : (i -= 1) {
-                    const repr = @"struct".repr.reprs[i - 1];
-                    const value_from = @"struct".values[i - 1];
-                    const offset = @"struct".repr.offsetOf(i - 1);
-                    copy(c, f, value_from, .{
-                        .direct = to.direct,
-                        .indirect = .{
-                            .offset = to.indirect.?.offset + @as(u32, @intCast(offset)),
-                            .repr = repr,
-                        },
-                    });
-                }
-            },
-            .fun => |fun| {
-                var closure_to = to;
-                closure_to.indirect.?.repr = .{ .@"struct" = closure_to.indirect.?.repr.fun.closure };
-                copy(c, f, fun.closure.*, closure_to);
-            },
-            .closure, .arg, .@"return", .local, .shadow, .stack => unreachable,
-        }
-        return;
-    }
-
-    // Local to heap.
-    if (from.direct == .local and to.indirect != null) {
-        store(c, f, .{ .local = from.direct.local }, to);
-        return;
-    }
-
-    if (from.direct == .stack and from.indirect == null and
-        to.direct == .stack and to.indirect == null)
-    {
-        // Nothing to do
-        return;
-    }
-
-    // Otherwise copy via stack.
-    load(c, f, from);
-    store(c, f, .stack, to);
+    // TODO If byte_count is in [1, 2, 4, 8] do a load and store instead.
+    load(c, f, to_ptr);
+    load(c, f, from_ptr);
+    emitEnum(f, wasm.Opcode.i32_const);
+    emitLebU32(f, @intCast(byte_count));
+    emitEnum(f, wasm.Opcode.misc_prefix);
+    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+    emitLebU32(f, 0); // memory from
+    emitLebU32(f, 0); // memory to
 }
 
-fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
-    switch (from) {
+fn copyValuePtr(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue) void {
+    switch (from_value) {
+        .closure, .arg, .@"return", .local, .shadow, .stack => {
+            var from_local = from_value;
+            switch (from_local) {
+                .local => |local| {
+                    const valtype = f.local_data.get(local).type;
+                    if (valtype != .i32)
+                        panic("TODO store {}", .{valtype});
+                },
+                .stack => |valtype| {
+                    if (valtype != .i32)
+                        panic("TODO store {}", .{valtype});
+                    from_local = .{ .local = getShuffler(f, .i32) };
+                    emitEnum(f, wasm.Opcode.local_set);
+                    emitLebU32(f, wasmLocal(c, f, from_local));
+                },
+                else => {},
+            }
+            const to_add = asAdd(c, to_ptr);
+            load(c, f, to_add.walue.*);
+            load(c, f, from_local);
+            emitEnum(f, wasm.Opcode.i32_store);
+            emitLebU32(f, 0); // align
+            emitLebU32(f, to_add.offset);
+        },
+        .i32 => {
+            const to_add = asAdd(c, to_ptr);
+            load(c, f, to_add.walue.*);
+            load(c, f, from_value);
+            emitEnum(f, wasm.Opcode.i32_store);
+            emitLebU32(f, 0); // align
+            emitLebU32(f, to_add.offset);
+        },
+        .@"struct" => |@"struct"| {
+            var i: usize = @"struct".repr.reprs.len;
+            while (i > 0) : (i -= 1) {
+                const value_from = @"struct".values[i - 1];
+                const offset = @"struct".repr.offsetOf(i - 1);
+                copyValuePtr(c, f, value_from, .{ .add = .{
+                    .walue = c.box(to_ptr),
+                    .offset = @intCast(offset),
+                } });
+            }
+        },
+        .fun => |fun| {
+            copyValuePtr(c, f, fun.closure.*, to_ptr);
+        },
+        .value_at => |value_at| {
+            copyPtrPtr(c, f, value_at.ptr.*, to_ptr, value_at.repr.sizeOf());
+        },
+        .add => panic("Unimplemented", .{}),
+    }
+}
+
+fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
+    switch (from_value) {
         .closure, .arg, .@"return", .local, .shadow => {
             emitEnum(f, wasm.Opcode.local_get);
-            emitLebU32(f, wasmLocal(c, f, from));
+            emitLebU32(f, wasmLocal(c, f, from_value));
         },
         .stack => {},
         .i32 => |i| {
             emitEnum(f, wasm.Opcode.i32_const);
             emitLebI32(f, i);
         },
-        .ref => |ref| {
-            loadPtr(c, f, ref.*);
+        .@"struct", .fun => panic("Can't load from {}", .{from_value}),
+        .value_at => |value_at| {
+            const from_add = asAdd(c, value_at.ptr.*);
+            load(c, f, from_add.walue.*);
+            switch (value_at.repr) {
+                .i32 => {
+                    emitEnum(f, wasm.Opcode.i32_load);
+                    emitLebU32(f, 0); // align
+                    emitLebU32(f, from_add.offset);
+                },
+                else => panic("Can't load repr {}", .{value_at.repr}),
+            }
         },
-        .@"struct", .fun => panic("Can't load from {}", .{from}),
+        .add => |add| {
+            const from_add = asAdd(c, from_value);
+            load(c, f, from_add.walue.*);
+            emitEnum(f, wasm.Opcode.i32_const);
+            emitLebU32(f, add.offset);
+            emitEnum(f, wasm.Opcode.i32_add);
+        },
     }
 }
 
-fn load(c: *Compiler, f: *wir.FunData, from: wir.Address) void {
-    loadDirect(c, f, from.direct);
-    if (from.indirect) |indirect| {
-        switch (indirect.repr) {
-            .i32 => {
-                emitEnum(f, wasm.Opcode.i32_load);
-                emitLebU32(f, 0); // align
-                emitLebU32(f, indirect.offset);
-            },
-            else => panic("Can't load repr {}", .{indirect.repr}),
-        }
-    }
-}
-
-const StoreFrom = union(enum) {
-    stack,
-    local: wir.Local,
-};
-
-fn store(c: *Compiler, f: *wir.FunData, from: StoreFrom, to: wir.Address) void {
-    if (to.indirect) |indirect| {
-        switch (indirect.repr) {
-            .i32 => {
-                if (from == .stack) {
-                    const shuffler = getShuffler(f, .i32);
-                    emitEnum(f, wasm.Opcode.local_set);
-                    emitLebU32(f, wasmLocal(c, f, .{ .local = shuffler }));
-                }
-                loadDirect(c, f, to.direct);
-                emitEnum(f, wasm.Opcode.local_get);
-                emitLebU32(f, wasmLocal(c, f, .{ .local = switch (from) {
-                    .stack => getShuffler(f, .i32),
-                    .local => |local| local,
-                } }));
-                emitEnum(f, wasm.Opcode.i32_store);
-                emitLebU32(f, 0); // align
-                emitLebU32(f, indirect.offset);
-            },
-            else => panic("Can't store repr {}", .{indirect.repr}),
-        }
-    } else {
-        switch (to.direct) {
-            .closure, .arg, .@"return", .local, .shadow => {
-                emitEnum(f, wasm.Opcode.local_set);
-                emitLebU32(f, wasmLocal(c, f, to.direct));
-            },
-            .stack => {},
-            .i32, .@"struct", .fun, .ref => panic("Can't store to {}", .{to}),
-        }
+fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
+    switch (from_value) {
+        .closure, .arg, .@"return", .local, .shadow => {
+            panic("Can't point to local: {}", .{from_value});
+        },
+        .stack, .i32, .@"struct", .fun => {
+            const repr: Repr = switch (from_value) {
+                .stack => |valtype| switch (valtype) {
+                    .i32 => .i32,
+                    else => panic("TODO", .{}),
+                },
+                .i32 => .i32,
+                .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
+                .fun => |fun| .{ .fun = fun.repr },
+                .closure, .arg, .@"return", .local, .shadow, .value_at, .add => unreachable,
+            };
+            if (repr.sizeOf() == 0) {
+                emitEnum(f, wasm.Opcode.i32_const);
+                emitLebU32(f, 0);
+            } else {
+                const tmp = shadowPush(c, f, repr);
+                copyValuePtr(c, f, from_value, tmp);
+                load(c, f, tmp);
+            }
+        },
+        .value_at => |value_at| {
+            if (value_at.repr.sizeOf() == 0) {
+                emitEnum(f, wasm.Opcode.i32_const);
+                emitLebU32(f, 0);
+            } else {
+                load(c, f, value_at.ptr.*);
+            }
+        },
+        .add => panic("Unimplemented", .{}),
     }
 }
 
@@ -631,100 +628,74 @@ fn getShuffler(f: *wir.FunData, typ: wasm.Valtype) wir.Local {
     return shuffler.*.?;
 }
 
-fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
-    if (address.indirect != null and address.indirect.?.repr.sizeOf() == 0) {
-        emitEnum(f, wasm.Opcode.i32_const);
-        emitLebU32(f, 0);
-        return;
-    }
-
-    if (address.isValue()) {
-        const tmp = shadowPush(c, f, switch (address.direct) {
-            .i32 => .i32,
-            .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
-            .fun => |fun| .{ .fun = fun.repr },
-            .ref => .i32,
-            .closure, .arg, .@"return", .local, .shadow, .stack => unreachable,
-        });
-        copy(c, f, address, tmp);
-        loadPtr(c, f, tmp);
-        return;
-    }
-
-    assert(address.indirect != null);
-
-    loadDirect(c, f, address.direct);
-    if (address.indirect.?.offset > 0) {
-        emitEnum(f, wasm.Opcode.i32_const);
-        emitLebU32(f, address.indirect.?.offset);
-        emitEnum(f, wasm.Opcode.i32_add);
+fn dropStack(c: *Compiler, f: *wir.FunData, address: wir.Walue) void {
+    switch (address) {
+        .closure, .arg, .@"return", .local, .shadow, .i32 => {},
+        .stack => {
+            emitEnum(f, wasm.Opcode.drop);
+        },
+        .@"struct" => |@"struct"| {
+            for (@"struct".values) |value|
+                dropStack(c, f, value);
+        },
+        .fun => |fun| {
+            dropStack(c, f, fun.closure.*);
+        },
+        .value_at => |value_at| {
+            dropStack(c, f, value_at.ptr.*);
+        },
+        .add => |add| {
+            dropStack(c, f, add.walue.*);
+        },
     }
 }
 
-fn toLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, mode: enum { eager, lazy }) wir.Address {
-    switch (address.direct) {
+fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
+    switch (walue) {
+        .closure, .arg, .@"return", .local, .shadow, .i32 => {
+            return walue;
+        },
         .stack => |valtype| {
             const local = f.local_data.append(.{ .type = valtype });
             emitEnum(f, wasm.Opcode.local_set);
             emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
-            return .{
-                .direct = .{ .local = local },
-                .indirect = address.indirect,
-            };
-        },
-        .local, .i32 => {
-            return address;
+            return .{ .local = local };
         },
         .@"struct" => |@"struct"| {
-            const values = c.allocator.alloc(wir.Address, @"struct".values.len) catch oom();
+            const values = c.allocator.alloc(wir.Walue, @"struct".values.len) catch oom();
             var i: usize = @"struct".values.len;
             while (i > 0) : (i -= 1) {
-                values[i - 1] = toLocal(c, f, @"struct".values[i - 1], mode);
+                values[i - 1] = spillStack(c, f, @"struct".values[i - 1]);
             }
-            return .{
-                .direct = .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } },
-                .indirect = address.indirect,
-            };
+            return .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } };
         },
         .fun => |fun| {
-            const closure = c.box(toLocal(c, f, fun.closure.*, mode));
-            return .{
-                .direct = .{ .fun = .{ .repr = fun.repr, .closure = closure } },
-                .indirect = address.indirect,
-            };
+            const closure = c.box(spillStack(c, f, fun.closure.*));
+            return .{ .fun = .{ .repr = fun.repr, .closure = closure } };
         },
-        .ref => |ref| {
-            // Don't eagerly load inside ref - that's not how mutable variables work :)
-            return .{
-                .direct = .{ .ref = c.box(toLocal(c, f, ref.*, .lazy)) },
-                .indirect = address.indirect,
-            };
-        },
-        .closure, .arg, .@"return", .shadow => {
-            const wasm_repr = wasmRepr(address.indirect.?.repr);
-            if (wasm_repr == .primitive and mode == .eager) {
-                // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
-                const local = f.local_data.append(.{ .type = wasm_repr.primitive });
-                const output = wir.Address{
-                    .direct = .{ .local = local },
-                    .indirect = null,
-                };
-                copy(c, f, address, output);
-                return output;
+        .value_at => |value_at| {
+            switch (wasmRepr(value_at.repr)) {
+                .heap => {
+                    return walue;
+                },
+                .primitive => |valtype| {
+                    // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
+                    const local = f.local_data.append(.{ .type = valtype });
+                    const output = wir.Walue{ .local = local };
+                    load(c, f, walue);
+                    emitEnum(f, wasm.Opcode.local_set);
+                    emitLebU32(f, wasmLocal(c, f, output));
+                    return output;
+                },
             }
-            return address;
+        },
+        .add => |add| {
+            return .{ .add = .{
+                .walue = c.box(spillStack(c, f, add.walue.*)),
+                .offset = add.offset,
+            } };
         },
     }
-}
-
-fn addressIndirect(repr: Repr) ?wir.AddressIndirect {
-    return switch (wasmRepr(repr)) {
-        .primitive => null,
-        .heap => .{
-            .offset = 0,
-            .repr = repr,
-        },
-    };
 }
 
 const WasmRepr = union(enum) {
@@ -747,14 +718,14 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
     };
 }
 
-fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u32 {
-    return switch (address) {
+fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
+    return switch (walue) {
         .arg => 0,
         .closure => 1,
         .@"return" => 2,
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .i32, .@"struct", .fun, .ref => panic("Not a local: {}", .{address}),
+        .stack, .i32, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
     };
 }
 

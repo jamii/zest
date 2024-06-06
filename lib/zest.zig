@@ -208,10 +208,10 @@ pub const Compiler = struct {
     fun_type_data: List(wir.FunType, wir.FunTypeData),
     begin_stack: ArrayList(tir.Expr),
     begin_end: List(tir.Expr, tir.Expr),
-    local_address: List(tir.Local, ?wir.Address),
+    local_walue: List(tir.Local, ?wir.Walue),
     block_stack: ArrayList(wir.Block),
-    address_stack: ArrayList(wir.Address),
-    hint_stack: ArrayList(?wir.Address), // null if we don't care
+    walue_stack: ArrayList(wir.Walue),
+    hint_stack: ArrayList(?wir.Walue), // pointer to result location, null if we don't care
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -246,9 +246,9 @@ pub const Compiler = struct {
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
             .begin_stack = fieldType(Compiler, .begin_stack).init(allocator),
             .begin_end = fieldType(Compiler, .begin_end).init(allocator),
-            .local_address = fieldType(Compiler, .local_address).init(allocator),
+            .local_walue = fieldType(Compiler, .local_walue).init(allocator),
             .block_stack = fieldType(Compiler, .block_stack).init(allocator),
-            .address_stack = fieldType(Compiler, .address_stack).init(allocator),
+            .walue_stack = fieldType(Compiler, .walue_stack).init(allocator),
             .hint_stack = fieldType(Compiler, .hint_stack).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 

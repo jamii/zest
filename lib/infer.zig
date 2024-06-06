@@ -249,7 +249,7 @@ fn inferExpr(
         },
         .ref_deref => {
             const repr = input.ref.ref.*;
-            pushExpr(c, f, .ref_deref, null);
+            pushExpr(c, f, .ref_deref, repr);
             return repr;
         },
         .drop => {
