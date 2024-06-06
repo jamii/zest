@@ -146,6 +146,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                     defer _ = f.expr_data.append(.ref_set);
 
                     try desugarPath(c, f, ref_to);
+                    _ = f.expr_data.append(.ref_set_middle);
                     try desugarExpr(c, f, let_or_set.value);
                 },
                 else => return fail(c, let_or_set.path, .invalid_let_path),

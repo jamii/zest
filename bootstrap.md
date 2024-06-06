@@ -422,7 +422,7 @@ a.x
 ```
 
 ```
-a = mut [x: 1, y: 2]
+a = mut [x: 1, y: 2, z: 3]
 a.y@ = 3
 a.y
 
@@ -432,8 +432,8 @@ a.y
 ```
 
 ```
-a = mut [x: 1, y: 2]
-a@ = [x: a.y, y: a.x]
+a = mut [x: 1, y: 2, z: 3]
+a@ = [x: a.y, y: a.x, z: a.z]
 a.x
 
 2
@@ -442,14 +442,25 @@ a.x
 ```
 
 ```
-a = mut [x: 1, y: 2]
-a@ = [x: a.y, y: a.x]
+a = mut [x: 1, y: 2, z: 3]
+a@ = [x: a.y, y: a.x, z: a.z]
 a.y
 
 1
 
 1
 ```
+
+```
+a = mut [x: 1, y: 2, z: 3]
+a@ = [x: a.y, y: a.x, z: a.z]
+a.z
+
+3
+
+3
+```
+
 
 ```
 a = mut [x: 1, y: 2]
@@ -469,4 +480,26 @@ a.x.x
 Expected i32, found struct['x': i32, 'y': i32]
 
 Expected i32, found struct['x': i32, 'y': i32]
+```
+
+```
+a = mut 1
+b = a
+a@ = 2
+b
+
+1
+
+1
+```
+
+```
+a = mut [1]
+b = a
+a@ = [2]
+b.0
+
+1
+
+1
 ```

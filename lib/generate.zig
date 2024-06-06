@@ -307,7 +307,21 @@ fn generateExpr(
                     c.hint_stack.append(null) catch oom();
                 },
                 .end => {
-                    const input = spillStack(c, f, c.walue_stack.pop());
+                    var input = spillStack(c, f, c.walue_stack.pop());
+                    if (input == .value_at) {
+                        switch (wasmRepr(input.value_at.repr)) {
+                            .heap => {},
+                            .primitive => |valtype| {
+                                // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
+                                const wir_local = f.local_data.append(.{ .type = valtype });
+                                const output = wir.Walue{ .local = wir_local };
+                                load(c, f, input);
+                                emitEnum(f, wasm.Opcode.local_set);
+                                emitLebU32(f, wasmLocal(c, f, output));
+                                input = output;
+                            },
+                        }
+                    }
                     c.local_walue.getPtr(local).* = input;
                 },
             }
@@ -353,6 +367,39 @@ fn generateExpr(
                     const input = c.walue_stack.pop();
                     copyValuePtr(c, f, input, output);
                     c.walue_stack.append(output) catch oom();
+                },
+            }
+        },
+        .ref_get => |ref_get| {
+            switch (direction) {
+                .begin => {
+                    _ = c.hint_stack.pop();
+                    c.hint_stack.append(null) catch oom();
+                },
+                .end => {
+                    const input = c.walue_stack.pop();
+                    c.walue_stack.append(.{ .add = .{
+                        .walue = c.box(input),
+                        .offset = ref_get.offset,
+                    } }) catch oom();
+                },
+            }
+        },
+        .ref_set_middle => {
+            const ref = c.walue_stack.pop();
+            c.hint_stack.append(ref) catch oom(); // for end
+            c.hint_stack.append(ref) catch oom(); // for value
+        },
+        .ref_set => {
+            switch (direction) {
+                .begin => {
+                    c.hint_stack.append(null) catch oom(); // for ref
+                    // hint for value is set by ref_set_middle
+                },
+                .end => {
+                    const ref = c.hint_stack.pop().?;
+                    const value = c.walue_stack.pop();
+                    copyValuePtr(c, f, value, ref);
                 },
             }
         },
@@ -652,20 +699,10 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
             return walue;
         },
         .value_at => |value_at| {
-            switch (wasmRepr(value_at.repr)) {
-                .heap => {
-                    return walue;
-                },
-                .primitive => |valtype| {
-                    // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
-                    const local = f.local_data.append(.{ .type = valtype });
-                    const output = wir.Walue{ .local = local };
-                    load(c, f, walue);
-                    emitEnum(f, wasm.Opcode.local_set);
-                    emitLebU32(f, wasmLocal(c, f, output));
-                    return output;
-                },
-            }
+            return .{ .value_at = .{
+                .ptr = c.box(spillStack(c, f, value_at.ptr.*)),
+                .repr = value_at.repr,
+            } };
         },
         .add => |add| {
             return .{ .add = .{

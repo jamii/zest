@@ -26,6 +26,7 @@ pub const ExprData = union(enum) {
     closure,
     arg,
     local_get: Local,
+    ref_set_middle,
 
     begin,
     nop,
@@ -51,7 +52,7 @@ pub const ExprData = union(enum) {
 
     pub fn isEnd(expr_data: ExprData) bool {
         return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get, .begin => false,
+            .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin => false,
             .nop, .struct_init, .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .drop, .block, .@"return" => true,
         };
     }
@@ -65,6 +66,7 @@ pub fn ExprInput(comptime T: type) type {
         closure,
         arg,
         local_get,
+        ref_set_middle,
 
         begin,
         nop,
@@ -92,6 +94,7 @@ pub fn ExprOutput(comptime T: type) type {
         closure: T,
         arg: T,
         local_get: T,
+        ref_set_middle,
 
         begin,
         nop,

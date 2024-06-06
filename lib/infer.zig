@@ -118,7 +118,7 @@ fn popExprInput(
     data: std.meta.TagPayload(dir.ExprData, expr_tag),
 ) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
     switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage => return,
+        .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin, .stage, .unstage => return,
         .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .assert_object, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
             var input: Input = undefined;
@@ -238,6 +238,10 @@ fn inferExpr(
             const repr = Repr{ .ref = c.box(get.repr) };
             pushExpr(c, f, .{ .ref_get = .{ .index = get.index, .offset = get.offset } }, repr);
             return repr;
+        },
+        .ref_set_middle => {
+            pushExpr(c, f, .ref_set_middle, null);
+            return;
         },
         .ref_set => {
             if (!input.ref.ref.equal(input.value))
