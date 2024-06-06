@@ -224,9 +224,9 @@ fn inferExpr(
             return;
         },
         .object_get => {
-            const repr = try reprObjectGet(c, input.object, input.key);
-            pushExpr(c, f, .{ .object_get = .{ .key = input.key } }, repr);
-            return repr;
+            const get = try objectGet(c, input.object, input.key);
+            pushExpr(c, f, .{ .object_get = .{ .index = get.index, .offset = get.offset } }, get.repr);
+            return get.repr;
         },
         .ref_init => {
             const repr = Repr{ .ref = c.box(input.value) };
@@ -234,8 +234,9 @@ fn inferExpr(
             return repr;
         },
         .ref_get => {
-            const repr = Repr{ .ref = c.box(try reprObjectGet(c, input.ref.ref.*, input.key)) };
-            pushExpr(c, f, .{ .ref_get = .{ .key = input.key } }, repr);
+            const get = try objectGet(c, input.ref.ref.*, input.key);
+            const repr = Repr{ .ref = c.box(get.repr) };
+            pushExpr(c, f, .{ .ref_get = .{ .index = get.index, .offset = get.offset } }, repr);
             return repr;
         },
         .ref_set => {
@@ -306,13 +307,17 @@ fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr 
     }
 }
 
-fn reprObjectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!Repr {
+fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {
     switch (object) {
         .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = object }),
         .@"struct" => |@"struct"| {
             const ix = @"struct".get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
-            return @"struct".reprs[ix];
+            return .{
+                .index = ix,
+                .repr = @"struct".reprs[ix],
+                .offset = @intCast(@"struct".offsetOf(ix)),
+            };
         },
         .@"union" => return fail(c, .todo),
         .ref => unreachable, // always passes through ref_deref first

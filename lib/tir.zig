@@ -34,11 +34,13 @@ pub const ExprData = union(enum) {
     fun_init,
     local_let: Local,
     object_get: struct {
-        key: Value,
+        index: usize,
+        offset: u32,
     },
     ref_init,
     ref_get: struct {
-        key: Value,
+        index: usize,
+        offset: u32,
     },
     ref_set,
     ref_deref,

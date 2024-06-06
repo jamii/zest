@@ -275,7 +275,7 @@ fn generateExpr(
                     const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
                     var i: usize = struct_repr.reprs.len;
                     while (i > 0) : (i -= 1) {
-                        values[i - 1] = c.walue_stack.pop();
+                        values[i - 1] = spillStack(c, f, c.walue_stack.pop());
                     }
                     c.walue_stack.append(.{ .@"struct" = .{
                         .repr = struct_repr,
@@ -322,25 +322,17 @@ fn generateExpr(
                     const input = c.walue_stack.pop();
                     switch (input) {
                         .value_at => |value_at| {
-                            const input_repr = value_at.repr.@"struct";
-                            const i = input_repr.get(object_get.key).?;
-                            const offset = @as(u32, @intCast(input_repr.offsetOf(i)));
                             const output = wir.Walue{ .value_at = .{
                                 .ptr = c.box(wir.Walue{ .add = .{
                                     .walue = value_at.ptr,
-                                    .offset = offset,
+                                    .offset = object_get.offset,
                                 } }),
-                                .repr = input_repr.reprs[i],
+                                .repr = repr.?,
                             } };
                             c.walue_stack.append(output) catch oom();
                         },
                         .@"struct" => |@"struct"| {
-                            const i = @"struct".repr.get(object_get.key).?;
-                            var j: usize = @"struct".values.len - 1;
-                            while (j > i) : (j -= 1) {
-                                dropStack(c, f, @"struct".values[j]);
-                            }
-                            const output = @"struct".values[i];
+                            const output = @"struct".values[object_get.index];
                             c.walue_stack.append(output) catch oom();
                         },
                         else => panic("Can't represent struct with {}", .{input}),
@@ -531,11 +523,9 @@ fn copyValuePtr(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wi
             emitLebU32(f, to_add.offset);
         },
         .@"struct" => |@"struct"| {
-            var i: usize = @"struct".repr.reprs.len;
-            while (i > 0) : (i -= 1) {
-                const value_from = @"struct".values[i - 1];
-                const offset = @"struct".repr.offsetOf(i - 1);
-                copyValuePtr(c, f, value_from, .{ .add = .{
+            for (@"struct".values, 0..) |value, i| {
+                const offset = @"struct".repr.offsetOf(i);
+                copyValuePtr(c, f, value, .{ .add = .{
                     .walue = c.box(to_ptr),
                     .offset = @intCast(offset),
                 } });
@@ -634,12 +624,8 @@ fn dropStack(c: *Compiler, f: *wir.FunData, address: wir.Walue) void {
         .stack => {
             emitEnum(f, wasm.Opcode.drop);
         },
-        .@"struct" => |@"struct"| {
-            for (@"struct".values) |value|
-                dropStack(c, f, value);
-        },
-        .fun => |fun| {
-            dropStack(c, f, fun.closure.*);
+        .@"struct", .fun => {
+            // Not allowed to contain .stack
         },
         .value_at => |value_at| {
             dropStack(c, f, value_at.ptr.*);
@@ -661,17 +647,9 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
             emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
             return .{ .local = local };
         },
-        .@"struct" => |@"struct"| {
-            const values = c.allocator.alloc(wir.Walue, @"struct".values.len) catch oom();
-            var i: usize = @"struct".values.len;
-            while (i > 0) : (i -= 1) {
-                values[i - 1] = spillStack(c, f, @"struct".values[i - 1]);
-            }
-            return .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } };
-        },
-        .fun => |fun| {
-            const closure = c.box(spillStack(c, f, fun.closure.*));
-            return .{ .fun = .{ .repr = fun.repr, .closure = closure } };
+        .@"struct", .fun => {
+            // Not allowed to contain .stack
+            return walue;
         },
         .value_at => |value_at| {
             switch (wasmRepr(value_at.repr)) {

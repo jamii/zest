@@ -24,11 +24,11 @@ pub const Walue = union(enum) {
     i32: i32,
     @"struct": struct {
         repr: ReprStruct,
-        values: []Walue,
+        values: []Walue, // may not contain .stack
     },
     fun: struct {
         repr: ReprFun,
-        closure: *Walue,
+        closure: *Walue, // may not contain .stack
     },
     value_at: struct {
         ptr: *Walue,
