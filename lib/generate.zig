@@ -365,7 +365,7 @@ fn generateExpr(
                 .end => {
                     const output = c.hint_stack.pop().?;
                     const input = c.walue_stack.pop();
-                    copyValuePtr(c, f, input, output);
+                    store(c, f, input, output);
                     c.walue_stack.append(output) catch oom();
                 },
             }
@@ -399,7 +399,7 @@ fn generateExpr(
                 .end => {
                     const ref = c.hint_stack.pop().?;
                     const value = c.walue_stack.pop();
-                    copyValuePtr(c, f, value, ref);
+                    store(c, f, value, ref);
                 },
             }
         },
@@ -483,7 +483,7 @@ fn generateExpr(
                     },
                     .end => {
                         const input = c.walue_stack.pop();
-                        copyValuePtr(c, f, input, .@"return");
+                        store(c, f, input, .@"return");
                     },
                 },
             }
@@ -520,71 +520,76 @@ fn asAdd(c: *Compiler, walue: wir.Walue) std.meta.FieldType(wir.Walue, .add) {
     };
 }
 
-fn copyPtrPtr(c: *Compiler, f: *wir.FunData, from_ptr: wir.Walue, to_ptr: wir.Walue, byte_count: usize) void {
-    if (from_ptr.equal(to_ptr))
-        return;
-
-    // TODO If byte_count is in [1, 2, 4, 8] do a load and store instead.
-    load(c, f, to_ptr);
-    load(c, f, from_ptr);
-    emitEnum(f, wasm.Opcode.i32_const);
-    emitLebU32(f, @intCast(byte_count));
-    emitEnum(f, wasm.Opcode.misc_prefix);
-    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
-    emitLebU32(f, 0); // memory from
-    emitLebU32(f, 0); // memory to
-}
-
-fn copyValuePtr(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue) void {
+fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue) void {
     switch (from_value) {
         .closure, .arg, .@"return", .local, .shadow, .stack => {
             var from_local = from_value;
-            switch (from_local) {
-                .local => |local| {
-                    const valtype = f.local_data.get(local).type;
-                    if (valtype != .i32)
-                        panic("TODO store {}", .{valtype});
-                },
-                .stack => |valtype| {
-                    if (valtype != .i32)
-                        panic("TODO store {}", .{valtype});
-                    from_local = .{ .local = getShuffler(f, .i32) };
+            const valtype = switch (from_local) {
+                .closure, .arg, .@"return", .shadow => .i32,
+                .local => |local| f.local_data.get(local).type,
+                .stack => |valtype| valtype: {
+                    from_local = .{ .local = getShuffler(f, valtype) };
                     emitEnum(f, wasm.Opcode.local_set);
                     emitLebU32(f, wasmLocal(c, f, from_local));
+                    break :valtype valtype;
                 },
-                else => {},
-            }
-            const to_add = asAdd(c, to_ptr);
-            load(c, f, to_add.walue.*);
-            load(c, f, from_local);
-            emitEnum(f, wasm.Opcode.i32_store);
-            emitLebU32(f, 0); // align
-            emitLebU32(f, to_add.offset);
+                else => unreachable,
+            };
+            storePrimitive(c, f, from_local, to_ptr, valtype);
         },
         .i32 => {
-            const to_add = asAdd(c, to_ptr);
-            load(c, f, to_add.walue.*);
-            load(c, f, from_value);
-            emitEnum(f, wasm.Opcode.i32_store);
-            emitLebU32(f, 0); // align
-            emitLebU32(f, to_add.offset);
+            storePrimitive(c, f, from_value, to_ptr, .i32);
         },
         .@"struct" => |@"struct"| {
             for (@"struct".values, 0..) |value, i| {
                 const offset = @"struct".repr.offsetOf(i);
-                copyValuePtr(c, f, value, .{ .add = .{
+                store(c, f, value, .{ .add = .{
                     .walue = c.box(to_ptr),
                     .offset = @intCast(offset),
                 } });
             }
         },
         .fun => |fun| {
-            copyValuePtr(c, f, fun.closure.*, to_ptr);
+            store(c, f, fun.closure.*, to_ptr);
         },
         .value_at => |value_at| {
-            copyPtrPtr(c, f, value_at.ptr.*, to_ptr, value_at.repr.sizeOf());
+            const from_ptr = value_at.ptr.*;
+
+            if (from_ptr.equal(to_ptr))
+                return;
+
+            const byte_count = value_at.repr.sizeOf();
+            switch (byte_count) {
+                4 => {
+                    storePrimitive(c, f, .{ .value_at = .{ .ptr = c.box(from_ptr), .repr = .i32 } }, to_ptr, .i32);
+                },
+                else => {
+                    load(c, f, to_ptr);
+                    load(c, f, from_ptr);
+                    emitEnum(f, wasm.Opcode.i32_const);
+                    emitLebU32(f, @intCast(byte_count));
+                    emitEnum(f, wasm.Opcode.misc_prefix);
+                    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+                    emitLebU32(f, 0); // memory from
+                    emitLebU32(f, 0); // memory to
+                },
+            }
         },
         .add => panic("Unimplemented", .{}),
+    }
+}
+
+fn storePrimitive(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue, valtype: wasm.Valtype) void {
+    const to_add = asAdd(c, to_ptr);
+    load(c, f, to_add.walue.*);
+    load(c, f, from_value);
+    switch (valtype) {
+        .i32 => {
+            emitEnum(f, wasm.Opcode.i32_store);
+            emitLebU32(f, 0); // align
+            emitLebU32(f, to_add.offset);
+        },
+        else => panic("Unimplemented", .{}),
     }
 }
 
@@ -643,7 +648,7 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
                 emitLebU32(f, 0);
             } else {
                 const tmp = shadowPush(c, f, repr);
-                copyValuePtr(c, f, from_value, tmp);
+                store(c, f, from_value, tmp);
                 load(c, f, tmp);
             }
         },
