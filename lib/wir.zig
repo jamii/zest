@@ -31,11 +31,12 @@ pub const AddressDirect = union(enum) {
         repr: ReprFun,
         closure: *Address,
     },
+    ref: *Address, // !address.ref.isValue()
 
     pub fn isValue(address: AddressDirect) bool {
         return switch (address) {
             .closure, .arg, .@"return", .local, .shadow, .stack => false,
-            .i32, .@"struct", .fun => true,
+            .i32, .@"struct", .fun, .ref => true,
         };
     }
 };

@@ -314,7 +314,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => c.hint_stack.append(null) catch oom(),
                 .end => {
-                    const input = toLocal(c, f, c.address_stack.pop());
+                    const input = toLocal(c, f, c.address_stack.pop(), .eager);
                     c.local_address.getPtr(local).* = input;
                 },
             }
@@ -351,6 +351,46 @@ fn generateExpr(
                         }
                         const output = input.direct.@"struct".values[i];
                         c.address_stack.append(output) catch oom();
+                    }
+                },
+            }
+        },
+        .ref_init => {
+            switch (direction) {
+                .begin => {
+                    _ = c.hint_stack.pop();
+                    const output = shadowPush(c, f, repr.?.ref.*);
+                    c.hint_stack.append(output) catch oom(); // for end
+                    c.hint_stack.append(output) catch oom(); // for child
+                },
+                .end => {
+                    const output = c.hint_stack.pop().?;
+                    const input = c.address_stack.pop();
+                    copy(c, f, input, output);
+                    c.address_stack.append(.{ .direct = .{ .ref = c.box(output) } }) catch oom();
+                },
+            }
+        },
+        .ref_deref => {
+            // either a literal ref
+            //   just remove the ref? might have to indirect
+            // or just the address of a ref
+            switch (direction) {
+                .begin => {
+                    _ = c.hint_stack.pop();
+                    c.hint_stack.append(null) catch oom();
+                },
+                .end => {
+                    const input = c.address_stack.pop();
+                    if (input.direct == .ref) {
+                        // We know the actual value of the pointer.
+                        assert(input.indirect == null);
+                        c.address_stack.append(input.direct.ref.*) catch oom();
+                    } else {
+                        // We have to load the pointer.
+                        const stack = wir.Address{ .direct = .{ .stack = .i32 } };
+                        copy(c, f, input, stack);
+                        c.address_stack.append(.{ .direct = .{ .ref = c.box(stack) } }) catch oom();
                     }
                 },
             }
@@ -465,7 +505,7 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
     // Constant to heap.
     if (from.isValue() and to.indirect != null) {
         switch (from.direct) {
-            .i32 => {
+            .i32, .ref => {
                 loadDirect(c, f, to.direct);
                 load(c, f, from);
                 emitEnum(f, wasm.Opcode.i32_store);
@@ -503,6 +543,13 @@ fn copy(c: *Compiler, f: *wir.FunData, from: wir.Address, to: wir.Address) void 
         return;
     }
 
+    if (from.direct == .stack and from.indirect == null and
+        to.direct == .stack and to.indirect == null)
+    {
+        // Nothing to do
+        return;
+    }
+
     // Otherwise copy via stack.
     load(c, f, from);
     store(c, f, .stack, to);
@@ -518,6 +565,9 @@ fn loadDirect(c: *Compiler, f: *wir.FunData, from: wir.AddressDirect) void {
         .i32 => |i| {
             emitEnum(f, wasm.Opcode.i32_const);
             emitLebI32(f, i);
+        },
+        .ref => |ref| {
+            loadPtr(c, f, ref.*);
         },
         .@"struct", .fun => panic("Can't load from {}", .{from}),
     }
@@ -570,7 +620,7 @@ fn store(c: *Compiler, f: *wir.FunData, from: StoreFrom, to: wir.Address) void {
                 emitLebU32(f, wasmLocal(c, f, to.direct));
             },
             .stack => {},
-            .i32, .@"struct", .fun => panic("Can't store to {}", .{to}),
+            .i32, .@"struct", .fun, .ref => panic("Can't store to {}", .{to}),
         }
     }
 }
@@ -593,6 +643,7 @@ fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
             .i32 => .i32,
             .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
             .fun => |fun| .{ .fun = fun.repr },
+            .ref => .i32,
             .closure, .arg, .@"return", .local, .shadow, .stack => unreachable,
         });
         copy(c, f, address, tmp);
@@ -610,7 +661,7 @@ fn loadPtr(c: *Compiler, f: *wir.FunData, address: wir.Address) void {
     }
 }
 
-fn toLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address {
+fn toLocal(c: *Compiler, f: *wir.FunData, address: wir.Address, mode: enum { eager, lazy }) wir.Address {
     switch (address.direct) {
         .stack => |valtype| {
             const local = f.local_data.append(.{ .type = valtype });
@@ -628,7 +679,7 @@ fn toLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address {
             const values = c.allocator.alloc(wir.Address, @"struct".values.len) catch oom();
             var i: usize = @"struct".values.len;
             while (i > 0) : (i -= 1) {
-                values[i - 1] = toLocal(c, f, @"struct".values[i - 1]);
+                values[i - 1] = toLocal(c, f, @"struct".values[i - 1], mode);
             }
             return .{
                 .direct = .{ .@"struct" = .{ .repr = @"struct".repr, .values = values } },
@@ -636,26 +687,32 @@ fn toLocal(c: *Compiler, f: *wir.FunData, address: wir.Address) wir.Address {
             };
         },
         .fun => |fun| {
-            const closure = c.box(toLocal(c, f, fun.closure.*));
+            const closure = c.box(toLocal(c, f, fun.closure.*, mode));
             return .{
                 .direct = .{ .fun = .{ .repr = fun.repr, .closure = closure } },
                 .indirect = address.indirect,
             };
         },
+        .ref => |ref| {
+            // Don't eagerly load inside ref - that's not how mutable variables work :)
+            return .{
+                .direct = .{ .ref = c.box(toLocal(c, f, ref.*, .lazy)) },
+                .indirect = address.indirect,
+            };
+        },
         .closure, .arg, .@"return", .shadow => {
-            switch (wasmRepr(address.indirect.?.repr)) {
+            const wasm_repr = wasmRepr(address.indirect.?.repr);
+            if (wasm_repr == .primitive and mode == .eager) {
                 // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
-                .primitive => |valtype| {
-                    const local = f.local_data.append(.{ .type = valtype });
-                    const output = wir.Address{
-                        .direct = .{ .local = local },
-                        .indirect = null,
-                    };
-                    copy(c, f, address, output);
-                    return output;
-                },
-                .heap => return address,
+                const local = f.local_data.append(.{ .type = wasm_repr.primitive });
+                const output = wir.Address{
+                    .direct = .{ .local = local },
+                    .indirect = null,
+                };
+                copy(c, f, address, output);
+                return output;
             }
+            return address;
         },
     }
 }
@@ -697,7 +754,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, address: wir.AddressDirect) u3
         .@"return" => 2,
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .i32, .@"struct", .fun => panic("Not a local: {}", .{address}),
+        .stack, .i32, .@"struct", .fun, .ref => panic("Not a local: {}", .{address}),
     };
 }
 
