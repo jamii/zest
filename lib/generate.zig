@@ -121,7 +121,6 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitEnum(c, wasm.Opcode.i32_sub);
                 if (f.is_leaf) {
                     // Don't need to set global_shadow in leaf functions.
-                    // TODO Could be more aggressive and not set global_shadow in non-leaf functions if all their callees don't use shadow.
                     emitEnum(c, wasm.Opcode.local_set);
                     emitLebU32(c, wasmLocal(c, &f, .shadow));
                 } else {
