@@ -637,7 +637,10 @@ fn spillAlias(c: *Compiler, f: *wir.FunData, alias_add: std.meta.FieldType(wir.W
             assert(walue_add.walue.* != .value_at);
             if (walue_add.walue.equal(alias_add.walue.*)) {
                 const walue_byte_count = value_at.repr.sizeOf();
-                if (!(walue_add.offset + walue_byte_count <= alias_add.offset) and !(alias_add.offset + alias_byte_count <= walue_add.offset)) {
+                if (walue_byte_count > 0 and
+                    !(walue_add.offset + walue_byte_count <= alias_add.offset) and
+                    !(alias_add.offset + alias_byte_count <= walue_add.offset))
+                {
                     const tmp = shadowPush(c, f, value_at.repr);
                     store(c, f, walue.*, tmp);
                     value_at.ptr.* = tmp;
