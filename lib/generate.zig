@@ -567,6 +567,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
 
             const byte_count = value_at.repr.sizeOf();
             switch (byte_count) {
+                0 => {},
                 4 => {
                     storePrimitive(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .i32 } }, to_ptr, .i32);
                 },
