@@ -41,7 +41,7 @@ pub fn evalStrict(
     file.writeAll(compiler.wasm.items) catch |err|
         panic("Error writing {s}: {}", .{ wasm_filename, err });
 
-    if (std.ChildProcess.run(.{
+    if (std.process.Child.run(.{
         .allocator = allocator,
         .argv = &.{ "deno", "run", "--allow-read", "test.js", wasm_filename },
         .max_output_bytes = std.math.maxInt(usize),
@@ -53,7 +53,7 @@ pub fn evalStrict(
 }
 
 pub fn readWat(allocator: Allocator) []const u8 {
-    if (std.ChildProcess.run(.{
+    if (std.process.Child.run(.{
         .allocator = allocator,
         .argv = &.{ "wasm2wat", "--no-check", "-f", wasmFilename(allocator) },
         .max_output_bytes = std.math.maxInt(usize),

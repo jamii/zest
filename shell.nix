@@ -6,8 +6,8 @@ zig = pkgs.stdenv.mkDerivation {
     name = "zig";
     src = fetchTarball (
         if (pkgs.system == "x86_64-linux") then {
-            url = "https://ziglang.org/download/0.12.0/zig-linux-x86_64-0.12.0.tar.xz";
-            sha256 = "11p6plvcmhgsx7k2zbs766v6iih0qg8njwb8n29kqlhgq0csivvf";
+            url = "https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz";
+            sha256 = "01cvjk26ipz54q7dpp4669akh11aimw5zjq1chx3fh63aq2b02s2";
         } else
         throw ("Unknown system " ++ pkgs.system)
     );
