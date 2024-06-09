@@ -540,17 +540,19 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             storePrimitive(c, f, from_value, to_ptr, .i32);
         },
         .@"struct" => |@"struct"| {
+            {
+                var i: usize = @"struct".values.len;
+                while (i > 0) : (i -= 1) {
+                    c.alias_stack.append(&@"struct".values[i - 1]) catch oom();
+                }
+            }
             for (@"struct".values, 0..) |value, i| {
                 const offset = @"struct".repr.offsetOf(i);
                 const to_field_ptr = wir.Walue{ .add = .{
                     .walue = c.box(to_ptr),
                     .offset = @intCast(offset),
                 } };
-                const to_field_add = asAdd(c, to_field_ptr);
-                const to_field_byte_count = @"struct".repr.reprs[i].sizeOf();
-                for (@"struct".values[i + 1 ..]) |*later_value| {
-                    spillAlias(c, f, to_field_add, to_field_byte_count, later_value);
-                }
+                _ = c.alias_stack.pop();
                 store(c, f, value, to_field_ptr);
             }
         },
@@ -608,6 +610,8 @@ fn spillAliases(c: *Compiler, f: *wir.FunData, alias_ptr: wir.Walue, alias_byte_
     const alias_add = asAdd(c, alias_ptr);
     // TODO Handle ptr to ptr
     assert(alias_add.walue.* != .value_at);
+    for (c.alias_stack.items) |walue|
+        spillAlias(c, f, alias_add, alias_byte_count, walue);
     for (c.walue_stack.items) |*walue|
         spillAlias(c, f, alias_add, alias_byte_count, walue);
     for (c.local_walue.data.items) |*walue_opt| {
