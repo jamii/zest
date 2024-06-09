@@ -542,10 +542,16 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
         .@"struct" => |@"struct"| {
             for (@"struct".values, 0..) |value, i| {
                 const offset = @"struct".repr.offsetOf(i);
-                store(c, f, value, .{ .add = .{
+                const to_field_ptr = wir.Walue{ .add = .{
                     .walue = c.box(to_ptr),
                     .offset = @intCast(offset),
-                } });
+                } };
+                const to_field_add = asAdd(c, to_field_ptr);
+                const to_field_byte_count = @"struct".repr.reprs[i].sizeOf();
+                for (@"struct".values[i + 1 ..]) |*later_value| {
+                    spillAlias(c, f, to_field_add, to_field_byte_count, later_value);
+                }
+                store(c, f, value, to_field_ptr);
             }
         },
         .fun => |fun| {
@@ -560,9 +566,10 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             const byte_count = value_at.repr.sizeOf();
             switch (byte_count) {
                 4 => {
-                    storePrimitive(c, f, .{ .value_at = .{ .ptr = c.box(from_ptr), .repr = .i32 } }, to_ptr, .i32);
+                    storePrimitive(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .i32 } }, to_ptr, .i32);
                 },
                 else => {
+                    spillAliases(c, f, to_ptr, byte_count);
                     load(c, f, to_ptr);
                     load(c, f, from_ptr);
                     emitEnum(f, wasm.Opcode.i32_const);
@@ -579,6 +586,11 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
 }
 
 fn storePrimitive(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue, valtype: wasm.Valtype) void {
+    const byte_count = switch (valtype) {
+        .i32 => 4,
+        else => panic("Unimplemented", .{}),
+    };
+    spillAliases(c, f, to_ptr, byte_count);
     const to_add = asAdd(c, to_ptr);
     load(c, f, to_add.walue.*);
     load(c, f, from_value);
@@ -589,6 +601,46 @@ fn storePrimitive(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: 
             emitLebU32(f, to_add.offset);
         },
         else => panic("Unimplemented", .{}),
+    }
+}
+
+fn spillAliases(c: *Compiler, f: *wir.FunData, alias_ptr: wir.Walue, alias_byte_count: usize) void {
+    const alias_add = asAdd(c, alias_ptr);
+    // TODO Handle ptr to ptr
+    assert(alias_add.walue.* != .value_at);
+    for (c.walue_stack.items) |*walue|
+        spillAlias(c, f, alias_add, alias_byte_count, walue);
+    for (c.local_walue.data.items) |*walue_opt| {
+        if (walue_opt.*) |*walue| {
+            spillAlias(c, f, alias_add, alias_byte_count, walue);
+        }
+    }
+}
+
+fn spillAlias(c: *Compiler, f: *wir.FunData, alias_add: std.meta.FieldType(wir.Walue, .add), alias_byte_count: usize, walue: *wir.Walue) void {
+    switch (walue.*) {
+        .@"struct" => |@"struct"| {
+            for (@"struct".values) |*value| {
+                spillAlias(c, f, alias_add, alias_byte_count, value);
+            }
+        },
+        .fun => |fun| {
+            spillAlias(c, f, alias_add, alias_byte_count, fun.closure);
+        },
+        .value_at => |*value_at| {
+            const walue_add = asAdd(c, value_at.ptr.*);
+            // TODO Handle ptr to ptr
+            assert(walue_add.walue.* != .value_at);
+            if (walue_add.walue.equal(alias_add.walue.*)) {
+                const walue_byte_count = value_at.repr.sizeOf();
+                if (!(walue_add.offset + walue_byte_count <= alias_add.offset) and !(alias_add.offset + alias_byte_count <= walue_add.offset)) {
+                    const tmp = shadowPush(c, f, value_at.repr);
+                    store(c, f, walue.*, tmp);
+                    value_at.ptr.* = tmp;
+                }
+            }
+        },
+        else => {},
     }
 }
 
