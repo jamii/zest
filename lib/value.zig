@@ -86,6 +86,12 @@ pub const Value = union(enum) {
                 }
                 try writer.writeAll("]");
             },
+            .fun => |fun| {
+                try writer.print("{}{}", .{ self.reprOf(), Value{ .@"struct" = .{ .repr = fun.repr.closure, .values = fun.closure } } });
+            },
+            .ref => |ref| {
+                try writer.print("{}[{}]", .{ self.reprOf(), ref.value.* });
+            },
             else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }

@@ -290,10 +290,10 @@ fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool
             stageString(c, f, name);
         },
         .local => |local| {
-            const need_deref = !allow_mut and f.local_data.get(local).is_mutable;
-            if (need_deref)
+            const deref = !is_staged and !allow_mut and f.local_data.get(local).is_mutable;
+            if (deref)
                 _ = f.expr_data.append(.begin);
-            defer if (need_deref) {
+            defer if (deref) {
                 _ = f.expr_data.append(.ref_deref);
             };
             _ = f.expr_data.append(.{ .local_get = local });

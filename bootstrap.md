@@ -523,3 +523,12 @@ p.1.0
 
 1
 ```
+
+```
+f = mut (x) 101
+[{f}: 1]
+
+[ref[fun[id: 0, closure: struct[]]][fun[id: 0, closure: struct[]][]]: 1]
+
+Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
+```
