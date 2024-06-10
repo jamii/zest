@@ -53,10 +53,7 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue
         });
         {
             _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(.{ .local_let = .{
-                .local = local,
-                .mut = false,
-            } });
+            defer _ = f.expr_data.append(.{ .local_let = local });
 
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(.object_get);
@@ -73,8 +70,12 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
+            const local = f.local_data.append(.{
+                .is_mutable = name.mut,
+            });
+
             _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(.drop);
+            defer _ = f.expr_data.append(.{ .local_let = local });
 
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(if (name.mut) .assert_is_ref else .assert_has_no_ref);
@@ -85,7 +86,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
                 return fail(c, pattern, .{ .name_already_bound = .{ .name = name.name } });
             c.scope.push(.{
                 .name = name.name,
-                .value = value,
+                .value = .{ .local = local },
             });
         },
         .object => |object| try desugarObjectPattern(c, f, value, object),
@@ -148,10 +149,12 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                     });
 
                     _ = f.expr_data.append(.begin);
-                    defer _ = f.expr_data.append(.{ .local_let = .{
-                        .local = local,
-                        .mut = name.mut,
-                    } });
+                    defer _ = f.expr_data.append(.{ .local_let = local });
+
+                    if (name.mut) _ = f.expr_data.append(.begin);
+                    defer if (name.mut) {
+                        _ = f.expr_data.append(.ref_init);
+                    };
 
                     _ = f.expr_data.append(.begin);
                     defer _ = f.expr_data.append(.assert_has_no_ref);

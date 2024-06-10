@@ -149,7 +149,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .stage, .unstage, .begin => return,
-        .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -217,13 +217,7 @@ pub fn evalExpr(
             return value;
         },
         .local_let => {
-            var value = input.value;
-            if (data.mut)
-                value = Value{ .ref = .{
-                    .repr = c.box(value.reprOf()),
-                    .value = c.box(value.copy(c.allocator)),
-                } };
-            c.local_stack.items[c.local_stack.items.len - 1 - data.local.id] = value;
+            c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
             return;
         },
         .assert_object => {
@@ -253,6 +247,13 @@ pub fn evalExpr(
         .object_get => {
             const value = input.object.get(input.key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
+            return value;
+        },
+        .ref_init => {
+            const value = Value{ .ref = .{
+                .repr = c.box(input.value.reprOf()),
+                .value = c.box(input.value.copy(c.allocator)),
+            } };
             return value;
         },
         .ref_set_middle => {},

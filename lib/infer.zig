@@ -119,7 +119,7 @@ fn popExprInput(
 ) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin, .stage, .unstage => return,
-        .fun_init, .local_let, .object_get, .ref_get, .ref_set, .ref_deref, .assert_object, .assert_is_ref, .assert_has_no_ref, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .assert_object, .assert_is_ref, .assert_has_no_ref, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -198,16 +198,15 @@ fn inferExpr(
             return repr;
         },
         .local_let => {
-            var value = input.value;
-            if (data.mut)
-                value = .{ .ref = c.box(input.value) };
-            const local = tir.Local{ .id = data.local.id };
-            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, value);
-            pushExpr(c, f, .{ .local_let = .{
-                .local = .{ .id = data.local.id },
-                .mut = data.mut,
-            } }, null);
+            const local = tir.Local{ .id = data.id };
+            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
+            pushExpr(c, f, .{ .local_let = local }, null);
             return;
+        },
+        .ref_init => {
+            const repr = Repr{ .ref = c.box(input.value) };
+            pushExpr(c, f, .ref_init, repr);
+            return repr;
         },
         .assert_object => {
             switch (input.value) {
