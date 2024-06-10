@@ -155,7 +155,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .stage, .unstage, .begin => return,
-        .fun_init, .local_let, .assert_object, .object_get, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -235,11 +235,7 @@ pub fn evalExpr(
             return;
         },
         .assert_object => {
-            var value = input.value;
-            while (value == .ref) {
-                value = value.ref.value.*;
-            }
-            switch (value) {
+            switch (input.value) {
                 .@"struct" => |@"struct"| {
                     if (@"struct".values.len != data.count)
                         return fail(c, .{ .wrong_number_of_keys = .{
@@ -247,10 +243,19 @@ pub fn evalExpr(
                             .actual = @"struct".values.len,
                         } });
                 },
-                .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
                 .@"union" => return fail(c, .todo),
-                .ref => unreachable,
+                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = input.value }),
             }
+            return;
+        },
+        .assert_is_ref => {
+            if (input.value != .ref)
+                return fail(c, .{ .expected_is_ref = input.value });
+            return;
+        },
+        .assert_has_no_ref => {
+            if (input.value.reprOf().hasRef())
+                return fail(c, .{ .expected_has_no_ref = input.value });
             return;
         },
         .object_get => {
@@ -320,7 +325,9 @@ pub const EvalErrorData = union(enum) {
         expected: usize,
         actual: usize,
     },
-    not_an_object: Value,
+    expected_object: Value,
+    expected_is_ref: Value,
+    expected_has_no_ref: Value,
     not_a_fun: Value,
     cannot_stage_expr,
     cannot_unstage_value: Repr,

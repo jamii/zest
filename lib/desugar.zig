@@ -67,8 +67,11 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
-            if (name.mut)
-                return fail(c, pattern, .meaningless_mut);
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(if (name.mut) .assert_is_ref else .assert_has_no_ref);
+
+            push(c, f, value, false, false);
+
             if (c.scope.lookup(name.name)) |_|
                 return fail(c, pattern, .{ .name_already_bound = .{ .name = name.name } });
             c.scope.push(.{

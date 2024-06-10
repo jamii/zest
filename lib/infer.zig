@@ -119,7 +119,7 @@ fn popExprInput(
 ) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin, .stage, .unstage => return,
-        .fun_init, .local_let, .object_get, .ref_get, .ref_set, .ref_deref, .assert_object, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .object_get, .ref_get, .ref_set, .ref_deref, .assert_object, .assert_is_ref, .assert_has_no_ref, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -212,12 +212,7 @@ fn inferExpr(
             return;
         },
         .assert_object => {
-            var repr = input.value;
-            while (repr == .ref) {
-                repr = repr.ref.*;
-            }
-            switch (repr) {
-                .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = input.value }),
+            switch (input.value) {
                 .@"struct" => |@"struct"| {
                     if (@"struct".keys.len != data.count)
                         return fail(c, .{ .wrong_number_of_keys = .{
@@ -226,8 +221,20 @@ fn inferExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .ref => unreachable,
+                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = input.value }),
             }
+            pushExpr(c, f, .drop, null);
+            return;
+        },
+        .assert_is_ref => {
+            if (input.value != .ref)
+                return fail(c, .{ .expected_is_ref = input.value });
+            pushExpr(c, f, .drop, null);
+            return;
+        },
+        .assert_has_no_ref => {
+            if (input.value.hasRef())
+                return fail(c, .{ .expected_has_no_ref = input.value });
             pushExpr(c, f, .drop, null);
             return;
         },
@@ -318,7 +325,7 @@ fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr 
 
 fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {
     switch (object) {
-        .i32, .string, .repr, .fun, .only => return fail(c, .{ .not_an_object = object }),
+        .i32, .string, .repr, .fun, .only => return fail(c, .{ .expected_object = object }),
         .@"struct" => |@"struct"| {
             const ix = @"struct".get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
@@ -361,7 +368,9 @@ pub const InferErrorData = union(enum) {
         expected: usize,
         actual: usize,
     },
-    not_an_object: Repr,
+    expected_object: Repr,
+    expected_is_ref: Repr,
+    expected_has_no_ref: Repr,
     key_not_found: struct {
         object: Repr,
         key: Value,

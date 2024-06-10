@@ -265,9 +265,9 @@ a([x: 1])
 a = ([:x]) x
 a(1)
 
-Not an object: 1
+Expected an object, found: 1
 
-Not an object: i32
+Expected an object, found: i32
 ```
 
 ```
@@ -568,6 +568,27 @@ b = [a@]
 Cannot bind mutable reference
 
 Cannot bind mutable reference
+```
+
+```
+f = (x) x
+a mut = 1
+f(a@)
+
+Expected a value containing no mutable references, found: ref[i32][1]
+
+Expected a value containing no mutable references, found: ref[i32]
+```
+
+
+```
+f = (x mut) x
+a mut = 1
+f(a)
+
+Expected a mutable reference, found: 1
+
+Expected a mutable reference, found: i32
 ```
 
 ```
