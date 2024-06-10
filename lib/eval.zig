@@ -124,12 +124,17 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     continue :fun;
                 },
                 .@"return" => {
-                    _ = popFun(c);
-                    if (c.dir_frame_stack.items.len < start_frame_index) {
-                        return c.value_stack.pop();
+                    if (c.dir_frame_stack.items.len <= start_frame_index) {
+                        const result = c.value_stack.pop();
+                        if (result.reprOf().hasRef())
+                            return fail(c, .cannot_return_ref);
+                        _ = popFun(c);
+                        return result;
+                    } else {
+                        _ = popFun(c);
+                        c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
+                        continue :fun;
                     }
-                    c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
-                    continue :fun;
                 },
                 .begin, .stage, .unstage => {},
                 inline else => |data, expr_tag| {
@@ -150,7 +155,7 @@ fn popExprInput(
 ) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .stage, .unstage, .begin => return,
-        .fun_init, .local_let, .assert_object, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .assert_object, .object_get, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -218,7 +223,15 @@ pub fn evalExpr(
             return value;
         },
         .local_let => {
-            c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
+            var value = input.value;
+            if (value.reprOf().hasRef())
+                return fail(c, .cannot_bind_ref);
+            if (data.mut)
+                value = Value{ .ref = .{
+                    .repr = c.box(value.reprOf()),
+                    .value = c.box(value.copy(c.allocator)),
+                } };
+            c.local_stack.items[c.local_stack.items.len - 1 - data.local.id] = value;
             return;
         },
         .assert_object => {
@@ -243,13 +256,6 @@ pub fn evalExpr(
         .object_get => {
             const value = input.object.get(input.key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
-            return value;
-        },
-        .ref_init => {
-            const value = Value{ .ref = .{
-                .repr = c.box(input.value.reprOf()),
-                .value = c.box(input.value.copy(c.allocator)),
-            } };
             return value;
         },
         .ref_set_middle => {},
@@ -318,5 +324,8 @@ pub const EvalErrorData = union(enum) {
     not_a_fun: Value,
     cannot_stage_expr,
     cannot_unstage_value: Repr,
+    cannot_return_ref,
+    cannot_bind_ref,
+    cannot_store_ref,
     todo,
 };

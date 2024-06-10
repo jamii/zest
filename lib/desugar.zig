@@ -47,7 +47,10 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue
         });
         {
             _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(.{ .local_let = local });
+            defer _ = f.expr_data.append(.{ .local_let = .{
+                .local = local,
+                .mut = false,
+            } });
 
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(.object_get);
@@ -111,6 +114,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                 return fail(c, expr, .{ .name_not_bound = .{ .name = name } });
             push(c, f, binding.value, binding.is_staged, false);
         },
+        .ref_to => |ref_to| {
+            try desugarPath(c, f, ref_to);
+        },
         .let_or_set => |let_or_set| {
             switch (c.sir_expr_data.get(let_or_set.path)) {
                 .name => |name| {
@@ -122,16 +128,11 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                     });
 
                     _ = f.expr_data.append(.begin);
-                    defer _ = f.expr_data.append(.{ .local_let = local });
-
-                    {
-                        if (let_or_set.mut)
-                            _ = f.expr_data.append(.begin);
-                        defer if (let_or_set.mut) {
-                            _ = f.expr_data.append(.ref_init);
-                        };
-                        try desugarExpr(c, f, let_or_set.value);
-                    }
+                    defer _ = f.expr_data.append(.{ .local_let = .{
+                        .local = local,
+                        .mut = let_or_set.mut,
+                    } });
+                    try desugarExpr(c, f, let_or_set.value);
 
                     c.scope.push(.{
                         .name = name,

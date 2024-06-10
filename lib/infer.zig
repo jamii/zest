@@ -119,7 +119,7 @@ fn popExprInput(
 ) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
     switch (expr_tag) {
         .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin, .stage, .unstage => return,
-        .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .assert_object, .drop, .block, .@"return", .call => {
+        .fun_init, .local_let, .object_get, .ref_get, .ref_set, .ref_deref, .assert_object, .drop, .block, .@"return", .call => {
             const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
             var input: Input = undefined;
             const fields = @typeInfo(Input).Struct.fields;
@@ -192,15 +192,23 @@ fn inferExpr(
         },
         .local_get => {
             const local = tir.Local{ .id = data.id };
-            // Shouldn't be able to reach get before set.
+            // Shouldn't be able to reach get before let.
             const repr = f.local_data.get(local).repr.one;
             pushExpr(c, f, .{ .local_get = local }, repr);
             return repr;
         },
         .local_let => {
-            const local = tir.Local{ .id = data.id };
-            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
-            pushExpr(c, f, .{ .local_let = local }, null);
+            var value = input.value;
+            if (value.hasRef())
+                return fail(c, .cannot_bind_ref);
+            if (data.mut)
+                value = .{ .ref = c.box(input.value) };
+            const local = tir.Local{ .id = data.local.id };
+            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, value);
+            pushExpr(c, f, .{ .local_let = .{
+                .local = .{ .id = data.local.id },
+                .mut = data.mut,
+            } }, null);
             return;
         },
         .assert_object => {
@@ -227,11 +235,6 @@ fn inferExpr(
             const get = try objectGet(c, input.object, input.key);
             pushExpr(c, f, .{ .object_get = .{ .index = get.index, .offset = get.offset } }, get.repr);
             return get.repr;
-        },
-        .ref_init => {
-            const repr = Repr{ .ref = c.box(input.value) };
-            pushExpr(c, f, .ref_init, repr);
-            return repr;
         },
         .ref_get => {
             const get = try objectGet(c, input.ref.ref.*, input.key);
@@ -270,6 +273,8 @@ fn inferExpr(
             return;
         },
         .@"return" => {
+            if (input.value.hasRef())
+                return fail(c, .cannot_return_ref);
             _ = try reprUnion(c, &f.return_repr, input.value);
             pushExpr(c, f, .@"return", null);
             return;
@@ -362,5 +367,8 @@ pub const InferErrorData = union(enum) {
         key: Value,
     },
     not_a_fun: Repr,
+    cannot_return_ref,
+    cannot_bind_ref,
+    cannot_store_ref,
     todo,
 };

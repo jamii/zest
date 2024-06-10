@@ -528,7 +528,54 @@ p.1.0
 f = mut (x) 101
 [{f}: 1]
 
-[ref[fun[id: 0, closure: struct[]]][fun[id: 0, closure: struct[]][]]: 1]
+Cannot return mutable reference
 
 Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
+```
+
+```
+a = mut 1
+a@
+
+Cannot return mutable reference
+
+Cannot return mutable reference
+```
+
+```
+a = mut 1
+[a@]
+
+Cannot return mutable reference
+
+Cannot return mutable reference
+```
+
+
+```
+a = mut 1
+b = a@
+
+Cannot bind mutable reference
+
+Cannot bind mutable reference
+```
+
+```
+a = mut 1
+b = [a@]
+
+Cannot bind mutable reference
+
+Cannot bind mutable reference
+```
+
+```
+f = (x) x
+a = mut 1
+f(a@)
+
+1
+
+1
 ```

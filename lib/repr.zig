@@ -106,6 +106,36 @@ pub const Repr = union(enum) {
             else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }
+
+    pub fn hasRef(self: Repr) bool {
+        return switch (self) {
+            .i32, .string => {
+                return false;
+            },
+            .@"struct" => |@"struct"| {
+                for (@"struct".keys) |key| {
+                    if (key.reprOf().hasRef()) return true;
+                }
+                for (@"struct".reprs) |repr| {
+                    if (repr.hasRef()) return true;
+                }
+                return false;
+            },
+            .@"union" => panic("TODO {}", .{self}),
+            .fun => |fun| {
+                return (Repr{ .@"struct" = fun.closure }).hasRef();
+            },
+            .only => |only| {
+                return only.reprOf().hasRef();
+            },
+            .ref => {
+                return true;
+            },
+            .repr => {
+                return false;
+            },
+        };
+    }
 };
 
 pub const ReprStruct = struct {
