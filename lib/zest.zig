@@ -396,13 +396,13 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.sir_expr_data.get(err.expr);
                 return switch (err.data) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
-                    .mut_on_assign => format(c, "Meaningless to write `mut` here", .{}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
                     .name_already_bound => |data| format(c, "Name already bound: {s}", .{data.name}),
                     .todo_may_not_close_over_ref => |data| format(c, "TODO may not close over mutable binding: {s}", .{data.name}),
                     .may_not_mutate_immutable_binding => |data| format(c, "May not mututate immutable binding: {s}", .{data.name}),
                     .invalid_path => format(c, "Invalid path: {}", .{expr_data}),
                     .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
+                    .meaningless_mut => format(c, "Meaningless to write `mut` here", .{}),
                     .todo => format(c, "TODO desugar: {}", .{expr_data}),
                 };
             },

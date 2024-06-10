@@ -373,7 +373,7 @@ f([y: 1])
 
 
 ```
-a = mut 1
+a mut = 1
 a
 
 1
@@ -382,7 +382,7 @@ a
 ```
 
 ```
-a = mut 1
+a mut = 1
 a@ = 2
 a
 
@@ -392,7 +392,7 @@ a
 ```
 
 ```
-a = mut [x: 1, y: 2]
+a mut = [x: 1, y: 2]
 a.x@ = 3
 a.x
 
@@ -402,7 +402,7 @@ a.x
 ```
 
 ```
-a = mut [x: 1, y: 2]
+a mut = [x: 1, y: 2]
 a.x@ = 3
 a.y
 
@@ -412,7 +412,7 @@ a.y
 ```
 
 ```
-a = mut [x: 1, y: 2]
+a mut = [x: 1, y: 2]
 a.y@ = 3
 a.x
 
@@ -422,7 +422,7 @@ a.x
 ```
 
 ```
-a = mut [x: 1, y: 2, z: 3]
+a mut = [x: 1, y: 2, z: 3]
 a.y@ = 3
 a.y
 
@@ -432,7 +432,7 @@ a.y
 ```
 
 ```
-a = mut [x: 1, y: 2, z: 3]
+a mut = [x: 1, y: 2, z: 3]
 a@ = [x: a.y, y: a.x, z: a.z]
 a.x
 
@@ -442,7 +442,7 @@ a.x
 ```
 
 ```
-a = mut [x: 1, y: 2, z: 3]
+a mut = [x: 1, y: 2, z: 3]
 a@ = [x: a.y, y: a.x, z: a.z]
 a.y
 
@@ -452,7 +452,7 @@ a.y
 ```
 
 ```
-a = mut [x: 1, y: 2, z: 3]
+a mut = [x: 1, y: 2, z: 3]
 a@ = [x: a.y, y: a.x, z: a.z]
 a.z
 
@@ -463,7 +463,7 @@ a.z
 
 
 ```
-a = mut [x: 1, y: 2]
+a mut = [x: 1, y: 2]
 a@ = 3
 a
 
@@ -473,7 +473,7 @@ Expected struct['x': i32, 'y': i32], found i32
 ```
 
 ```
-a = mut [x: 1, y: 2]
+a mut = [x: 1, y: 2]
 a.x@ = a
 a.x.x
 
@@ -483,7 +483,7 @@ Expected i32, found struct['x': i32, 'y': i32]
 ```
 
 ```
-a = mut 1
+a mut = 1
 b = a
 a@ = 2
 b
@@ -494,7 +494,7 @@ b
 ```
 
 ```
-a = mut [1]
+a mut = [1]
 b = a
 a@ = [2]
 b.0
@@ -505,7 +505,7 @@ b.0
 ```
 
 ```
-p = mut [[0,1],[2,3]]
+p mut = [[0,1],[2,3]]
 p@ = [[p.0.0, p.1.0], [p.0.1, p.1.1]]
 p.0.1
 
@@ -515,7 +515,7 @@ p.0.1
 ```
 
 ```
-p = mut [[0,1],[2,3]]
+p mut = [[0,1],[2,3]]
 p@ = [[p.0.0, p.1.0], [p.0.1, p.1.1]]
 p.1.0
 
@@ -525,7 +525,7 @@ p.1.0
 ```
 
 ```
-f = mut (x) 101
+f mut = (x) 101
 [{f}: 1]
 
 Cannot return mutable reference
@@ -534,7 +534,7 @@ Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
 ```
 
 ```
-a = mut 1
+a mut = 1
 a@
 
 Cannot return mutable reference
@@ -543,7 +543,7 @@ Cannot return mutable reference
 ```
 
 ```
-a = mut 1
+a mut = 1
 [a@]
 
 Cannot return mutable reference
@@ -553,7 +553,7 @@ Cannot return mutable reference
 
 
 ```
-a = mut 1
+a mut = 1
 b = a@
 
 Cannot bind mutable reference
@@ -562,7 +562,7 @@ Cannot bind mutable reference
 ```
 
 ```
-a = mut 1
+a mut = 1
 b = [a@]
 
 Cannot bind mutable reference
@@ -571,8 +571,8 @@ Cannot bind mutable reference
 ```
 
 ```
-f = (x) x
-a = mut 1
+f = (x mut) x
+a mut = 1
 f(a@)
 
 1

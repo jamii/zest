@@ -11,12 +11,15 @@ pub const ExprData = union(enum) {
     f32: f32,
     string: []const u8,
     object: Object,
-    name: []const u8,
+    name: struct {
+        name: []const u8,
+        mut: bool,
+    },
+    mut: Expr,
     builtin: Builtin,
     let_or_set: struct {
         path: Expr,
         value: Expr,
-        mut: bool,
     },
     get: struct {
         object: Expr,

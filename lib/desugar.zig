@@ -67,10 +67,12 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
-            if (c.scope.lookup(name)) |_|
-                return fail(c, pattern, .{ .name_already_bound = .{ .name = name } });
+            if (name.mut)
+                return fail(c, pattern, .meaningless_mut);
+            if (c.scope.lookup(name.name)) |_|
+                return fail(c, pattern, .{ .name_already_bound = .{ .name = name.name } });
             c.scope.push(.{
-                .name = name,
+                .name = name.name,
                 .value = value,
             });
         },
@@ -82,7 +84,11 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
 fn desugarKey(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError}!void {
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
-        .name => |name| stageString(c, f, name),
+        .name => |name| {
+            if (name.mut)
+                return fail(c, expr, .meaningless_mut);
+            stageString(c, f, name.name);
+        },
         else => try stageExpr(c, f, expr),
     }
 }
@@ -110,8 +116,10 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             try desugarObject(c, f, object);
         },
         .name => |name| {
-            const binding = c.scope.lookup(name) orelse
-                return fail(c, expr, .{ .name_not_bound = .{ .name = name } });
+            if (name.mut)
+                return fail(c, expr, .meaningless_mut);
+            const binding = c.scope.lookup(name.name) orelse
+                return fail(c, expr, .{ .name_not_bound = .{ .name = name.name } });
             push(c, f, binding.value, binding.is_staged, false);
         },
         .ref_to => |ref_to| {
@@ -120,29 +128,26 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
         .let_or_set => |let_or_set| {
             switch (c.sir_expr_data.get(let_or_set.path)) {
                 .name => |name| {
-                    if (c.scope.lookup(name)) |_|
-                        return fail(c, expr, .{ .name_already_bound = .{ .name = name } });
+                    if (c.scope.lookup(name.name)) |_|
+                        return fail(c, expr, .{ .name_already_bound = .{ .name = name.name } });
 
                     const local = f.local_data.append(.{
-                        .is_mutable = let_or_set.mut,
+                        .is_mutable = name.mut,
                     });
 
                     _ = f.expr_data.append(.begin);
                     defer _ = f.expr_data.append(.{ .local_let = .{
                         .local = local,
-                        .mut = let_or_set.mut,
+                        .mut = name.mut,
                     } });
                     try desugarExpr(c, f, let_or_set.value);
 
                     c.scope.push(.{
-                        .name = name,
+                        .name = name.name,
                         .value = .{ .local = local },
                     });
                 },
                 .ref_to => |ref_to| {
-                    if (let_or_set.mut)
-                        return fail(c, expr, .mut_on_assign);
-
                     _ = f.expr_data.append(.begin);
                     defer _ = f.expr_data.append(.ref_set);
 
@@ -227,14 +232,17 @@ fn desugarPath(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
     const expr_data = c.sir_expr_data.get(expr);
     switch (expr_data) {
         .name => |name| {
-            const binding = c.scope.lookup(name) orelse
-                return fail(c, expr, .{ .name_not_bound = .{ .name = name } });
+            if (name.mut)
+                return fail(c, expr, .meaningless_mut);
+
+            const binding = c.scope.lookup(name.name) orelse
+                return fail(c, expr, .{ .name_not_bound = .{ .name = name.name } });
             switch (binding.value) {
-                .closure => return fail(c, expr, .{ .todo_may_not_close_over_ref = .{ .name = name } }),
+                .closure => return fail(c, expr, .{ .todo_may_not_close_over_ref = .{ .name = name.name } }),
                 .arg => panic("Shouldn't be able to bind to arg directly", .{}),
                 .local => |local| {
                     if (!f.local_data.get(local).is_mutable)
-                        return fail(c, expr, .{ .may_not_mutate_immutable_binding = .{ .name = name } });
+                        return fail(c, expr, .{ .may_not_mutate_immutable_binding = .{ .name = name.name } });
                 },
             }
             push(c, f, binding.value, binding.is_staged, true);
@@ -309,7 +317,6 @@ fn fail(c: *Compiler, expr: sir.Expr, data: DesugarErrorData) error{DesugarError
 
 pub const DesugarErrorData = union(enum) {
     invalid_pattern,
-    mut_on_assign,
     name_not_bound: struct {
         name: []const u8,
     },
@@ -324,5 +331,6 @@ pub const DesugarErrorData = union(enum) {
     },
     invalid_let_path,
     invalid_path,
+    meaningless_mut,
     todo,
 };

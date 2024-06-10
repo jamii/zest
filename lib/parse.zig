@@ -28,12 +28,10 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!sir.Expr {
             try expectSpace(c);
             try expect(c, .@"=");
             try expectSpace(c);
-            const mut = takeIf(c, .mut);
             const value = try parseExpr(c);
             exprs.append(c.sir_expr_data.append(.{ .let_or_set = .{
                 .path = expr,
                 .value = value,
-                .mut = mut,
             } })) catch oom();
         } else {
             exprs.append(expr) catch oom();
@@ -217,7 +215,8 @@ fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.E
 fn parseName(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .name);
     const name = lastTokenText(c);
-    return c.sir_expr_data.append(.{ .name = name });
+    const mut = takeIf(c, .mut);
+    return c.sir_expr_data.append(.{ .name = .{ .name = name, .mut = mut } });
 }
 
 fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.Expr {
@@ -297,8 +296,8 @@ fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!sir.
             ix = null;
             try expect(c, .name);
             const name = lastTokenText(c);
-            keys.append(c.sir_expr_data.append(.{ .name = name })) catch oom();
-            values.append(c.sir_expr_data.append(.{ .name = name })) catch oom();
+            keys.append(c.sir_expr_data.append(.{ .name = .{ .name = name, .mut = false } })) catch oom();
+            values.append(c.sir_expr_data.append(.{ .name = .{ .name = name, .mut = false } })) catch oom();
         } else {
             const expr = try parseExpr(c);
             if (takeIf(c, .@":")) {
