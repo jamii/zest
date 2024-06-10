@@ -528,7 +528,7 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-Cannot return mutable reference
+Expected a value containing no mutable references, found: [ref[fun[id: 0, closure: struct[]]][fun[id: 0, closure: struct[]][]]: 1]
 
 Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
 ```
@@ -537,18 +537,18 @@ Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
 a mut = 1
 a@
 
-Cannot return mutable reference
+Expected a value containing no mutable references, found: ref[i32][1]
 
-Cannot return mutable reference
+Expected a value containing no mutable references, found: ref[i32]
 ```
 
 ```
 a mut = 1
 [a@]
 
-Cannot return mutable reference
+Expected a value containing no mutable references, found: [ref[i32][1]]
 
-Cannot return mutable reference
+Expected a value containing no mutable references, found: struct[ref[i32]]
 ```
 
 
@@ -556,18 +556,18 @@ Cannot return mutable reference
 a mut = 1
 b = a@
 
-Cannot bind mutable reference
+Expected a value containing no mutable references, found: ref[i32][1]
 
-Cannot bind mutable reference
+Expected a value containing no mutable references, found: ref[i32]
 ```
 
 ```
 a mut = 1
 b = [a@]
 
-Cannot bind mutable reference
+Expected a value containing no mutable references, found: [ref[i32][1]]
 
-Cannot bind mutable reference
+Expected a value containing no mutable references, found: struct[ref[i32]]
 ```
 
 ```

@@ -418,9 +418,6 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
                     .cannot_unstage_value => |data| format(c, "Cannot unstage value: {}", .{data}),
-                    .cannot_return_ref => format(c, "Cannot return mutable reference", .{}),
-                    .cannot_bind_ref => format(c, "Cannot bind mutable reference", .{}),
-                    .cannot_store_ref => format(c, "Cannot store mutable reference", .{}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },
@@ -435,9 +432,6 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .expected_has_no_ref => |data| format(c, "Expected a value containing no mutable references, found: {}", .{data}),
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
-                    .cannot_return_ref => format(c, "Cannot return mutable reference", .{}),
-                    .cannot_bind_ref => format(c, "Cannot bind mutable reference", .{}),
-                    .cannot_store_ref => format(c, "Cannot store mutable reference", .{}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

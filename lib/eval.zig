@@ -124,17 +124,11 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     continue :fun;
                 },
                 .@"return" => {
-                    if (c.dir_frame_stack.items.len <= start_frame_index) {
-                        const result = c.value_stack.pop();
-                        if (result.reprOf().hasRef())
-                            return fail(c, .cannot_return_ref);
-                        _ = popFun(c);
-                        return result;
-                    } else {
-                        _ = popFun(c);
-                        c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
-                        continue :fun;
-                    }
+                    _ = popFun(c);
+                    if (c.dir_frame_stack.items.len < start_frame_index)
+                        return c.value_stack.pop();
+                    c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
+                    continue :fun;
                 },
                 .begin, .stage, .unstage => {},
                 inline else => |data, expr_tag| {
@@ -224,8 +218,6 @@ pub fn evalExpr(
         },
         .local_let => {
             var value = input.value;
-            if (value.reprOf().hasRef())
-                return fail(c, .cannot_bind_ref);
             if (data.mut)
                 value = Value{ .ref = .{
                     .repr = c.box(value.reprOf()),
@@ -246,17 +238,17 @@ pub fn evalExpr(
                 .@"union" => return fail(c, .todo),
                 .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = input.value }),
             }
-            return;
+            return input.value;
         },
         .assert_is_ref => {
             if (input.value != .ref)
                 return fail(c, .{ .expected_is_ref = input.value });
-            return;
+            return input.value;
         },
         .assert_has_no_ref => {
             if (input.value.reprOf().hasRef())
                 return fail(c, .{ .expected_has_no_ref = input.value });
-            return;
+            return input.value;
         },
         .object_get => {
             const value = input.object.get(input.key) orelse
@@ -331,8 +323,5 @@ pub const EvalErrorData = union(enum) {
     not_a_fun: Value,
     cannot_stage_expr,
     cannot_unstage_value: Repr,
-    cannot_return_ref,
-    cannot_bind_ref,
-    cannot_store_ref,
     todo,
 };

@@ -199,8 +199,6 @@ fn inferExpr(
         },
         .local_let => {
             var value = input.value;
-            if (value.hasRef())
-                return fail(c, .cannot_bind_ref);
             if (data.mut)
                 value = .{ .ref = c.box(input.value) };
             const local = tir.Local{ .id = data.local.id };
@@ -223,20 +221,20 @@ fn inferExpr(
                 .@"union" => return fail(c, .todo),
                 .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = input.value }),
             }
-            pushExpr(c, f, .drop, null);
-            return;
+            pushExpr(c, f, .nop, null);
+            return input.value;
         },
         .assert_is_ref => {
             if (input.value != .ref)
                 return fail(c, .{ .expected_is_ref = input.value });
-            pushExpr(c, f, .drop, null);
-            return;
+            pushExpr(c, f, .nop, null);
+            return input.value;
         },
         .assert_has_no_ref => {
             if (input.value.hasRef())
                 return fail(c, .{ .expected_has_no_ref = input.value });
-            pushExpr(c, f, .drop, null);
-            return;
+            pushExpr(c, f, .nop, null);
+            return input.value;
         },
         .object_get => {
             const get = try objectGet(c, input.object, input.key);
@@ -280,8 +278,6 @@ fn inferExpr(
             return;
         },
         .@"return" => {
-            if (input.value.hasRef())
-                return fail(c, .cannot_return_ref);
             _ = try reprUnion(c, &f.return_repr, input.value);
             pushExpr(c, f, .@"return", null);
             return;
@@ -376,8 +372,5 @@ pub const InferErrorData = union(enum) {
         key: Value,
     },
     not_a_fun: Repr,
-    cannot_return_ref,
-    cannot_bind_ref,
-    cannot_store_ref,
     todo,
 };

@@ -29,6 +29,9 @@ fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarErr
         _ = f.expr_data.append(.begin);
         defer _ = f.expr_data.append(.@"return");
 
+        _ = f.expr_data.append(.begin);
+        defer _ = f.expr_data.append(.assert_has_no_ref);
+
         try desugarExpr(c, &f, body);
     }
     return c.dir_fun_data.append(f);
@@ -36,6 +39,9 @@ fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarErr
 
 fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue, pattern: sir.Object) error{DesugarError}!void {
     {
+        _ = f.expr_data.append(.begin);
+        defer _ = f.expr_data.append(.drop);
+
         _ = f.expr_data.append(.begin);
         defer _ = f.expr_data.append(.{ .assert_object = .{ .count = pattern.keys.len } });
 
@@ -68,9 +74,12 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, patte
     switch (expr_data) {
         .name => |name| {
             _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.drop);
+
+            _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(if (name.mut) .assert_is_ref else .assert_has_no_ref);
 
-            push(c, f, value, false, false);
+            push(c, f, value, false, name.mut);
 
             if (c.scope.lookup(name.name)) |_|
                 return fail(c, pattern, .{ .name_already_bound = .{ .name = name.name } });
@@ -143,6 +152,10 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                         .local = local,
                         .mut = name.mut,
                     } });
+
+                    _ = f.expr_data.append(.begin);
+                    defer _ = f.expr_data.append(.assert_has_no_ref);
+
                     try desugarExpr(c, f, let_or_set.value);
 
                     c.scope.push(.{
