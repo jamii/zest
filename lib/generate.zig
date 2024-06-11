@@ -536,7 +536,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             };
             storePrimitive(c, f, from_local, to_ptr, valtype);
         },
-        .i32 => {
+        .i32, .add => {
             storePrimitive(c, f, from_value, to_ptr, .i32);
         },
         .@"struct" => |@"struct"| {
@@ -584,7 +584,6 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
                 },
             }
         },
-        .add => panic("Unimplemented", .{}),
     }
 }
 
@@ -668,7 +667,7 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             const from_add = asAdd(c, value_at.ptr.*);
             load(c, f, from_add.walue.*);
             switch (value_at.repr) {
-                .i32 => {
+                .i32, .ref => {
                     emitEnum(f, wasm.Opcode.i32_load);
                     emitLebU32(f, 0); // align
                     emitLebU32(f, from_add.offset);
@@ -679,9 +678,11 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
         .add => |add| {
             const from_add = asAdd(c, from_value);
             load(c, f, from_add.walue.*);
-            emitEnum(f, wasm.Opcode.i32_const);
-            emitLebU32(f, add.offset);
-            emitEnum(f, wasm.Opcode.i32_add);
+            if (add.offset != 0) {
+                emitEnum(f, wasm.Opcode.i32_const);
+                emitLebU32(f, add.offset);
+                emitEnum(f, wasm.Opcode.i32_add);
+            }
         },
     }
 }
