@@ -34,12 +34,16 @@ pub fn evalStrict(
 
     const wasm_filename = wasmFilename(allocator);
 
-    const file = std.fs.cwd().createFile(wasm_filename, .{ .truncate = true }) catch |err|
-        panic("Error opening {s}: {}", .{ wasm_filename, err });
-    defer file.close();
+    {
+        const file = std.fs.cwd().createFile(wasm_filename, .{ .truncate = true }) catch |err|
+            panic("Error opening {s}: {}", .{ wasm_filename, err });
+        defer file.close();
 
-    file.writeAll(compiler.wasm.items) catch |err|
-        panic("Error writing {s}: {}", .{ wasm_filename, err });
+        file.writeAll(compiler.wasm.items) catch |err|
+            panic("Error writing {s}: {}", .{ wasm_filename, err });
+
+        std.os.linux.sync();
+    }
 
     if (std.process.Child.run(.{
         .allocator = allocator,

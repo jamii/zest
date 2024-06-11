@@ -614,7 +614,7 @@ fn spillAliases(c: *Compiler, f: *wir.FunData, alias_ptr: wir.Walue, alias_byte_
         spillAlias(c, f, alias_add, alias_byte_count, walue);
     for (c.walue_stack.items) |*walue|
         spillAlias(c, f, alias_add, alias_byte_count, walue);
-    for (c.local_walue.data.items) |*walue_opt| {
+    for (c.local_walue.items()) |*walue_opt| {
         if (walue_opt.*) |*walue| {
             spillAlias(c, f, alias_add, alias_byte_count, walue);
         }
