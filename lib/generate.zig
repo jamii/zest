@@ -641,9 +641,20 @@ fn spillAlias(c: *Compiler, f: *wir.FunData, alias_add: std.meta.FieldType(wir.W
                     !(walue_add.offset + walue_byte_count <= alias_add.offset) and
                     !(alias_add.offset + alias_byte_count <= walue_add.offset))
                 {
-                    const tmp = shadowPush(c, f, value_at.repr);
-                    store(c, f, walue.*, tmp);
-                    value_at.ptr.* = tmp;
+                    switch (wasmRepr(value_at.repr)) {
+                        .primitive => |valtype| {
+                            const local = f.local_data.append(.{ .type = valtype });
+                            load(c, f, walue.*);
+                            emitEnum(f, wasm.Opcode.local_set);
+                            emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
+                            walue.* = .{ .local = local };
+                        },
+                        .heap => {
+                            const tmp = shadowPush(c, f, value_at.repr);
+                            store(c, f, walue.*, tmp);
+                            value_at.ptr.* = tmp;
+                        },
+                    }
                 }
             }
         },
