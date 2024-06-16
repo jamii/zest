@@ -239,16 +239,16 @@ pub const Scope = struct {
 
 pub const Binding = struct {
     name: []const u8,
-    value: AbstractValue,
+    value: Walue,
 };
 
 pub const BindingInfo = struct {
     name: []const u8,
-    value: AbstractValue,
+    value: Walue,
     is_staged: bool,
 };
 
-pub const AbstractValue = union(enum) {
+pub const Walue = union(enum) {
     arg,
     closure: []const u8,
     local: Local,

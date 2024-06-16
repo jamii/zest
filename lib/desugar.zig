@@ -37,7 +37,7 @@ fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarErr
     return c.dir_fun_data.append(f);
 }
 
-fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue, pattern: sir.Object) error{DesugarError}!void {
+fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.Walue, pattern: sir.Object) error{DesugarError}!void {
     {
         _ = f.expr_data.append(.begin);
         defer _ = f.expr_data.append(.drop);
@@ -66,7 +66,7 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.AbstractValue
     }
 }
 
-fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, pattern: sir.Expr) error{DesugarError}!void {
+fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.Walue, pattern: sir.Expr) error{DesugarError}!void {
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
@@ -299,7 +299,7 @@ fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
     _ = f.expr_data.append(.{ .string = string });
 }
 
-fn push(c: *Compiler, f: *dir.FunData, value: dir.AbstractValue, is_staged: bool, allow_mut: bool) void {
+fn push(c: *Compiler, f: *dir.FunData, value: dir.Walue, is_staged: bool, allow_mut: bool) void {
     if (is_staged)
         _ = f.expr_data.append(.unstage);
 
