@@ -29,7 +29,7 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!sir.Expr {
             try expect(c, .@"=");
             try expectSpace(c);
             const value = try parseExpr(c);
-            exprs.append(c.sir_expr_data.append(.{ .let_or_set = .{
+            exprs.append(c.sir_expr_data.append(.{ .let = .{
                 .path = expr,
                 .value = value,
             } })) catch oom();

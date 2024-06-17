@@ -150,16 +150,16 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
         .object => |object| {
             try desugarObject(c, f, object);
         },
-        .let_or_set => |let_or_set| {
+        .let => |let| {
             // TODO Might be worth special-casing .name to avoid the extra local.
             const local = f.local_data.append(.{ .is_mutable = false });
             {
                 _ = f.expr_data.append(.begin);
                 defer _ = f.expr_data.append(.{ .local_let = local });
 
-                try desugarExpr(c, f, let_or_set.value);
+                try desugarExpr(c, f, let.value);
             }
-            try desugarPattern(c, f, .{ .local = local }, let_or_set.path, .let);
+            try desugarPattern(c, f, .{ .local = local }, let.path, .let);
 
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(.{ .struct_init = 0 });
