@@ -59,62 +59,6 @@ pub const ExprData = union(enum) {
     }
 };
 
-pub fn ExprInput(comptime T: type) type {
-    return union(std.meta.Tag(ExprData)) {
-        i32,
-        f32,
-        string,
-        closure,
-        arg,
-        local_get,
-        ref_set_middle,
-
-        begin,
-        nop,
-
-        struct_init: []T,
-        fun_init: T,
-        local_let: T,
-        object_get: T,
-        ref_init: T,
-        ref_get: T,
-        ref_set: [2]T,
-        ref_deref: T,
-        call: [2]T,
-        drop: T,
-        block: T,
-        @"return": T,
-    };
-}
-
-pub fn ExprOutput(comptime T: type) type {
-    return union(std.meta.Tag(ExprData)) {
-        i32: T,
-        f32: T,
-        string: T,
-        closure: T,
-        arg: T,
-        local_get: T,
-        ref_set_middle,
-
-        begin,
-        nop,
-
-        struct_init: T,
-        fun_init: T,
-        local_let,
-        object_get: T,
-        ref_init: T,
-        ref_get: T,
-        ref_set,
-        ref_deref: T,
-        call: T,
-        drop,
-        block: T,
-        @"return",
-    };
-}
-
 pub const FunKey = struct {
     fun: dir.Fun,
     closure_repr: Repr,
