@@ -410,10 +410,8 @@ fn generateExpr(
                 },
                 .end => {
                     const input = c.walue_stack.pop();
-                    c.walue_stack.append(.{ .value_at = .{
-                        .ptr = c.box(input),
-                        .repr = repr.?,
-                    } }) catch oom();
+                    const output = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
+                    c.walue_stack.append(output) catch oom();
                 },
             }
         },
@@ -714,14 +712,8 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
                 .fun => |fun| .{ .fun = fun.repr },
                 .closure, .arg, .@"return", .local, .shadow, .value_at, .add => unreachable,
             };
-            if (repr.sizeOf() == 0) {
-                emitEnum(f, wasm.Opcode.i32_const);
-                emitLebU32(f, 0);
-            } else {
-                const tmp = shadowPush(c, f, repr);
-                store(c, f, from_value, tmp);
-                load(c, f, tmp);
-            }
+            const ptr = copyToShadow(c, f, from_value, repr);
+            load(c, f, ptr);
         },
         .value_at => |value_at| {
             if (value_at.repr.sizeOf() == 0) {
@@ -732,6 +724,29 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             }
         },
         .add => panic("Unimplemented", .{}),
+    }
+}
+
+fn copy(c: *Compiler, f: *wir.FunData, value_at: std.meta.FieldType(wir.Walue, .value_at)) wir.Walue {
+    switch (wasmRepr(value_at.repr)) {
+        .primitive => |valtype| {
+            load(c, f, .{ .value_at = value_at });
+            return .{ .stack = valtype };
+        },
+        .heap => {
+            const ptr = copyToShadow(c, f, .{ .value_at = value_at }, value_at.repr);
+            return .{ .value_at = .{ .ptr = c.box(ptr), .repr = value_at.repr } };
+        },
+    }
+}
+
+fn copyToShadow(c: *Compiler, f: *wir.FunData, value: wir.Walue, repr: Repr) wir.Walue {
+    if (repr.sizeOf() == 0) {
+        return .{ .i32 = 0 };
+    } else {
+        const tmp = shadowPush(c, f, repr);
+        store(c, f, value, tmp);
+        return tmp;
     }
 }
 
