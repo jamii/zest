@@ -52,6 +52,7 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.Walue, patter
     for (pattern.keys, pattern.values) |key_expr, value_expr| {
         const local = f.local_data.append(.{
             .is_mutable = false,
+            .is_tmp = true,
         });
         {
             _ = f.expr_data.append(.begin);
@@ -77,6 +78,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.Walue, pattern: sir.
 
             const local = f.local_data.append(.{
                 .is_mutable = name.mut,
+                .is_tmp = false,
             });
 
             c.scope.push(.{
@@ -152,7 +154,10 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
         },
         .let => |let| {
             // TODO Might be worth special-casing .name to avoid the extra local.
-            const local = f.local_data.append(.{ .is_mutable = false });
+            const local = f.local_data.append(.{
+                .is_mutable = false,
+                .is_tmp = true,
+            });
             {
                 _ = f.expr_data.append(.begin);
                 defer _ = f.expr_data.append(.{ .local_let = local });

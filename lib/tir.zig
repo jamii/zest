@@ -15,6 +15,7 @@ pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
     repr: FlatLattice(Repr),
+    is_tmp: bool,
 };
 
 pub const Expr = struct { id: usize };

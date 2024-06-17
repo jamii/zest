@@ -15,6 +15,7 @@ pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
     is_mutable: bool,
+    is_tmp: bool,
 };
 
 pub const Expr = struct { id: usize };

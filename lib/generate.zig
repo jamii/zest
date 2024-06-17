@@ -324,9 +324,11 @@ fn generateExpr(
                         },
                         // If we later pass this struct/fun to a function call then we need to be able to point to it, so pessimistically store it on the stack.
                         .@"struct", .fun => {
-                            const input_repr = walueRepr(c, f, input);
-                            const ptr = copyToShadow(c, f, input, input_repr);
-                            input = .{ .value_at = .{ .ptr = c.box(ptr), .repr = input_repr } };
+                            if (!tir_f.local_data.get(local).is_tmp) {
+                                const input_repr = walueRepr(c, f, input);
+                                const ptr = copyToShadow(c, f, input, input_repr);
+                                input = .{ .value_at = .{ .ptr = c.box(ptr), .repr = input_repr } };
+                            }
                         },
                         else => {},
                     }
