@@ -307,19 +307,28 @@ fn generateExpr(
                 },
                 .end => {
                     var input = spillStack(c, f, c.walue_stack.pop());
-                    if (input == .value_at) {
-                        switch (wasmRepr(input.value_at.repr)) {
-                            .heap => {},
-                            .primitive => |valtype| {
-                                // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
-                                const wir_local = f.local_data.append(.{ .type = valtype });
-                                const tmp = wir.Walue{ .local = wir_local };
-                                load(c, f, input);
-                                emitEnum(f, wasm.Opcode.local_set);
-                                emitLebU32(f, wasmLocal(c, f, tmp));
-                                input = tmp;
-                            },
-                        }
+                    switch (input) {
+                        .value_at => |value_at| {
+                            switch (wasmRepr(value_at.repr)) {
+                                .heap => {},
+                                .primitive => |valtype| {
+                                    // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
+                                    const wir_local = f.local_data.append(.{ .type = valtype });
+                                    const tmp = wir.Walue{ .local = wir_local };
+                                    load(c, f, input);
+                                    emitEnum(f, wasm.Opcode.local_set);
+                                    emitLebU32(f, wasmLocal(c, f, tmp));
+                                    input = tmp;
+                                },
+                            }
+                        },
+                        // If we later pass this struct/fun to a function call then we need to be able to point to it, so pessimistically store it on the stack.
+                        .@"struct", .fun => {
+                            const input_repr = walueRepr(c, f, input);
+                            const ptr = copyToShadow(c, f, input, input_repr);
+                            input = .{ .value_at = .{ .ptr = c.box(ptr), .repr = input_repr } };
+                        },
+                        else => {},
                     }
                     c.local_walue.getPtr(local).* = input;
                 },
@@ -640,16 +649,7 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             panic("Can't point to local: {}", .{from_value});
         },
         .stack, .i32, .@"struct", .fun => {
-            const repr: Repr = switch (from_value) {
-                .stack => |valtype| switch (valtype) {
-                    .i32 => .i32,
-                    else => panic("TODO", .{}),
-                },
-                .i32 => .i32,
-                .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
-                .fun => |fun| .{ .fun = fun.repr },
-                .closure, .arg, .@"return", .local, .shadow, .value_at, .add => unreachable,
-            };
+            const repr = walueRepr(c, f, from_value);
             const ptr = copyToShadow(c, f, from_value, repr);
             load(c, f, ptr);
         },
@@ -770,6 +770,25 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
         .stack, .i32, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
+    };
+}
+
+fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
+    _ = c;
+    return switch (walue) {
+        .closure, .arg, .@"return", .shadow, .i32, .add => .i32,
+        .stack => |valtype| valtypeRepr(valtype),
+        .local => |local| valtypeRepr(f.local_data.get(local).type),
+        .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
+        .fun => |fun| .{ .fun = fun.repr },
+        .value_at => |value_at| value_at.repr,
+    };
+}
+
+fn valtypeRepr(valtype: wasm.Valtype) Repr {
+    return switch (valtype) {
+        .i32 => .i32,
+        else => panic("TODO", .{}),
     };
 }
 
