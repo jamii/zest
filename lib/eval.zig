@@ -51,14 +51,15 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
         switch (expr_data) {
-            .call => |call| {
-                const input = popExprInput(c, .call, call);
-                if (input.fun != .fun)
-                    return fail(c, .{ .not_a_fun = input.fun });
+            .call => {
+                const args = c.value_stack.pop();
+                const fun = c.value_stack.pop();
+                if (fun != .fun)
+                    return fail(c, .{ .not_a_fun = fun });
                 pushFun(c, .{
-                    .fun = input.fun.fun.repr.fun,
-                    .closure = .{ .@"struct" = input.fun.fun.getClosure() },
-                    .arg = input.args,
+                    .fun = fun.fun.repr.fun,
+                    .closure = .{ .@"struct" = fun.fun.getClosure() },
+                    .arg = args,
                 });
                 const return_value = try eval(c);
                 c.value_stack.append(return_value) catch oom();
@@ -86,10 +87,8 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                 return fail(c, .cannot_stage_expr);
             },
             .begin, .stage => {},
-            inline else => |data, expr_tag| {
-                const input = popExprInput(c, expr_tag, data);
-                const output = try evalExpr(c, expr_tag, data, input);
-                pushExprOutput(c, expr_tag, output);
+            else => {
+                try evalExpr(c, expr_data);
             },
         }
 
@@ -112,14 +111,15 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
             switch (expr_data) {
-                .call => |call| {
-                    const input = popExprInput(c, .call, call);
-                    if (input.fun != .fun)
-                        return fail(c, .{ .not_a_fun = input.fun });
+                .call => {
+                    const args = c.value_stack.pop();
+                    const fun = c.value_stack.pop();
+                    if (fun != .fun)
+                        return fail(c, .{ .not_a_fun = fun });
                     pushFun(c, .{
-                        .fun = input.fun.fun.repr.fun,
-                        .closure = .{ .@"struct" = input.fun.fun.getClosure() },
-                        .arg = input.args,
+                        .fun = fun.fun.repr.fun,
+                        .closure = .{ .@"struct" = fun.fun.getClosure() },
+                        .arg = args,
                     });
                     continue :fun;
                 },
@@ -131,10 +131,8 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     continue :fun;
                 },
                 .begin, .stage, .unstage => {},
-                inline else => |data, expr_tag| {
-                    const input = popExprInput(c, expr_tag, data);
-                    const output = try evalExpr(c, expr_tag, data, input);
-                    pushExprOutput(c, expr_tag, output);
+                else => {
+                    try evalExpr(c, expr_data);
                 },
             }
             frame.expr.id += 1;
@@ -142,163 +140,136 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
     }
 }
 
-fn popExprInput(
-    c: *Compiler,
-    comptime expr_tag: std.meta.Tag(dir.ExprData),
-    data: std.meta.TagPayload(dir.ExprData, expr_tag),
-) std.meta.TagPayload(dir.ExprInput(Value), expr_tag) {
-    switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .stage, .unstage, .begin => return,
-        .nop, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .drop, .block, .@"return", .call => {
-            const Input = std.meta.TagPayload(dir.ExprInput(Value), expr_tag);
-            var input: Input = undefined;
-            const fields = @typeInfo(Input).Struct.fields;
-            comptime var i: usize = fields.len;
-            inline while (i > 0) : (i -= 1) {
-                const field = fields[i - 1];
-                @field(input, field.name) = c.value_stack.pop();
-            }
-            return input;
-        },
-        .struct_init => {
-            const keys = c.allocator.alloc(Value, data) catch oom();
-            const values = c.allocator.alloc(Value, data) catch oom();
-            for (0..data) |i| {
-                values[data - 1 - i] = c.value_stack.pop();
-                keys[data - 1 - i] = c.value_stack.pop();
-            }
-            return .{ .keys = keys, .values = values };
-        },
-    }
-}
-
 pub fn evalExpr(
     c: *Compiler,
-    comptime expr_tag: std.meta.Tag(dir.ExprData),
-    data: std.meta.TagPayload(dir.ExprData, expr_tag),
-    input: std.meta.TagPayload(dir.ExprInput(Value), expr_tag),
-) error{EvalError}!std.meta.TagPayload(dir.ExprOutput(Value), expr_tag) {
-    switch (expr_tag) {
-        .i32 => return .{ .i32 = data },
-        .string => return .{ .string = data },
-        .nop => {
-            return input.value;
+    expr_data: dir.ExprData,
+) error{EvalError}!void {
+    switch (expr_data) {
+        .i32 => |i| {
+            c.value_stack.append(.{ .i32 = i }) catch oom();
         },
-        .struct_init => {
-            const reprs = c.allocator.alloc(Repr, data) catch oom();
-            for (input.values, reprs) |value, *repr| {
-                repr.* = value.reprOf();
+        .string => |string| {
+            c.value_stack.append(.{ .string = string }) catch oom();
+        },
+        .nop => {},
+        .struct_init => |count| {
+            const reprs = c.allocator.alloc(Repr, count) catch oom();
+            const keys = c.allocator.alloc(Value, count) catch oom();
+            const values = c.allocator.alloc(Value, count) catch oom();
+            for (0..count) |i| {
+                const ix = count - 1 - i;
+                values[ix] = c.value_stack.pop();
+                keys[ix] = c.value_stack.pop();
+                reprs[ix] = values[ix].reprOf();
             }
             // TODO sort
-            return .{ .@"struct" = .{
+            c.value_stack.append(.{ .@"struct" = .{
                 .repr = .{
-                    .keys = input.keys,
+                    .keys = keys,
                     .reprs = reprs,
                 },
-                .values = input.values,
-            } };
+                .values = values,
+            } }) catch oom();
         },
-        .fun_init => {
-            return .{ .fun = .{
+        .fun_init => |fun_init| {
+            const closure = c.value_stack.pop();
+            c.value_stack.append(.{ .fun = .{
                 .repr = .{
-                    .fun = data.fun,
-                    .closure = input.closure.@"struct".repr,
+                    .fun = fun_init.fun,
+                    .closure = closure.@"struct".repr,
                 },
-                .closure = input.closure.@"struct".values,
-            } };
+                .closure = closure.@"struct".values,
+            } }) catch oom();
         },
         .arg => {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            return frame.arg;
+            c.value_stack.append(frame.arg) catch oom();
         },
         .closure => {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            return frame.closure;
+            c.value_stack.append(frame.closure) catch oom();
         },
-        .local_get => {
-            const value = c.local_stack.items[c.local_stack.items.len - 1 - data.id];
-            return value;
+        .local_get => |local| {
+            const value = c.local_stack.items[c.local_stack.items.len - 1 - local.id];
+            c.value_stack.append(value) catch oom();
         },
-        .local_let => {
-            c.local_stack.items[c.local_stack.items.len - 1 - data.id] = input.value;
-            return;
+        .local_let => |local| {
+            const value = c.value_stack.pop();
+            c.local_stack.items[c.local_stack.items.len - 1 - local.id] = value;
         },
-        .assert_object => {
-            switch (input.value) {
+        .assert_object => |assert_object| {
+            const value = c.value_stack.pop();
+            switch (value) {
                 .@"struct" => |@"struct"| {
-                    if (@"struct".values.len != data.count)
+                    if (@"struct".values.len != assert_object.count)
                         return fail(c, .{ .wrong_number_of_keys = .{
-                            .expected = data.count,
+                            .expected = assert_object.count,
                             .actual = @"struct".values.len,
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = input.value }),
+                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
             }
-            return input.value;
+            c.value_stack.append(value) catch oom();
         },
         .assert_is_ref => {
-            if (input.value != .ref)
-                return fail(c, .{ .expected_is_ref = input.value });
-            return input.value;
+            const value = c.value_stack.pop();
+            if (value != .ref)
+                return fail(c, .{ .expected_is_ref = value });
+            c.value_stack.append(value) catch oom();
         },
         .assert_has_no_ref => {
-            if (input.value.reprOf().hasRef())
-                return fail(c, .{ .expected_has_no_ref = input.value });
-            return input.value;
+            const value = c.value_stack.pop();
+            if (value.reprOf().hasRef())
+                return fail(c, .{ .expected_has_no_ref = value });
+            c.value_stack.append(value) catch oom();
         },
         .object_get => {
-            const value = input.object.get(input.key) orelse
-                return fail(c, .{ .key_not_found = .{ .object = input.object, .key = input.key } });
-            return value;
+            const key = c.value_stack.pop();
+            const object = c.value_stack.pop();
+            const value = object.get(key) orelse
+                return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
+            c.value_stack.append(value) catch oom();
         },
         .ref_init => {
-            const value = Value{ .ref = .{
-                .repr = c.box(input.value.reprOf()),
-                .value = c.box(input.value.copy(c.allocator)),
-            } };
-            return value;
+            const value = c.value_stack.pop();
+            c.value_stack.append(.{ .ref = .{
+                .repr = c.box(value.reprOf()),
+                .value = c.box(value.copy(c.allocator)),
+            } }) catch oom();
         },
         .ref_set_middle => {},
         .ref_set => {
-            const input_repr = input.value.reprOf();
-            if (!input.ref.ref.repr.equal(input_repr))
+            const value = c.value_stack.pop();
+            const ref = c.value_stack.pop();
+            const input_repr = value.reprOf();
+            if (!ref.ref.repr.equal(input_repr))
                 return fail(c, .{ .type_error = .{
-                    .expected = input.ref.ref.repr.*,
+                    .expected = ref.ref.repr.*,
                     .found = input_repr,
                 } });
-            input.ref.ref.value.* = input.value.copy(c.allocator);
-            return;
+            ref.ref.value.* = value.copy(c.allocator);
         },
         .ref_get => {
-            const value_ptr = input.ref.ref.value.getMut(input.key) orelse
-                return fail(c, .{ .key_not_found = .{ .object = input.ref.ref.value.*, .key = input.key } });
-            const value = Value{ .ref = .{
+            const key = c.value_stack.pop();
+            const ref = c.value_stack.pop();
+            const value_ptr = ref.ref.value.getMut(key) orelse
+                return fail(c, .{ .key_not_found = .{ .object = ref.ref.value.*, .key = key } });
+            c.value_stack.append(.{ .ref = .{
                 .repr = c.box(value_ptr.reprOf()),
                 .value = value_ptr,
-            } };
-            return value;
+            } }) catch oom();
         },
         .ref_deref => {
-            const value = input.ref.ref.value.copy(c.allocator);
-            return value;
+            const ref = c.value_stack.pop();
+            c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
-        .drop => return,
-        .block => return input.value,
-        .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_tag}),
+        .drop => {
+            _ = c.value_stack.pop();
+        },
+        .block => {},
+        .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_data}),
         else => return fail(c, .todo),
-    }
-}
-
-fn pushExprOutput(
-    c: *Compiler,
-    comptime expr_tag: std.meta.Tag(dir.ExprData),
-    output: std.meta.TagPayload(dir.ExprOutput(Value), expr_tag),
-) void {
-    switch (@TypeOf(output)) {
-        void => return,
-        Value => c.value_stack.append(output) catch oom(),
-        else => @compileError(@typeName(@TypeOf(output))),
     }
 }
 
