@@ -151,10 +151,9 @@ pub fn evalExpr(
         .string => |string| {
             c.value_stack.append(.{ .string = string }) catch oom();
         },
-        .nop => {},
         .struct_init => |count| {
-            const reprs = c.allocator.alloc(Repr, count) catch oom();
             const keys = c.allocator.alloc(Value, count) catch oom();
+            const reprs = c.allocator.alloc(Repr, count) catch oom();
             const values = c.allocator.alloc(Value, count) catch oom();
             for (0..count) |i| {
                 const ix = count - 1 - i;
@@ -269,6 +268,7 @@ pub fn evalExpr(
         },
         .block => {},
         .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_data}),
+        .nop => {},
         else => return fail(c, .todo),
     }
 }

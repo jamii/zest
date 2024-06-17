@@ -71,25 +71,25 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
     while (frame.expr.id <= dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
         const expr_data = dir_f.expr_data.get(frame.expr);
         switch (expr_data) {
-            .call => |call| {
-                const input = try popExprInput(c, .call, call);
-                if (input.fun != .fun)
-                    return fail(c, .{ .not_a_fun = input.fun });
+            .call => {
+                const args = c.repr_stack.pop();
+                const fun = c.repr_stack.pop();
+                if (fun != .fun)
+                    return fail(c, .{ .not_a_fun = fun });
                 const key = tir.FunKey{
-                    .fun = input.fun.fun.fun,
-                    .closure_repr = .{ .@"struct" = input.fun.fun.closure },
-                    .arg_repr = input.args,
+                    .fun = fun.fun.fun,
+                    .closure_repr = .{ .@"struct" = fun.fun.closure },
+                    .arg_repr = args,
                 };
-                if (c.tir_fun_by_key.get(key)) |fun| {
+                if (c.tir_fun_by_key.get(key)) |tir_fun| {
                     // TODO once we have recursive functions, seeing a .zero here indicates that type inference is cyclic
-                    const return_repr = c.tir_fun_data.get(fun).return_repr.one;
-                    _ = pushExpr(c, f, .{ .call = fun }, return_repr);
-                    pushExprOutput(c, .call, return_repr);
+                    const return_repr = c.tir_fun_data.get(tir_fun).return_repr.one;
+                    _ = pushExpr(c, f, .{ .call = tir_fun }, return_repr);
                 } else {
                     // Put inputs back on stack and switch to the called function.
                     // When we return to this expr we'll hit the cached tir_fun.
-                    c.repr_stack.append(input.fun) catch oom();
-                    c.repr_stack.append(input.args) catch oom();
+                    c.repr_stack.append(fun) catch oom();
+                    c.repr_stack.append(args) catch oom();
                     _ = pushFun(c, key);
                     return .call;
                 }
@@ -107,204 +107,155 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 frame.expr = eval_frame.expr;
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
             },
-            inline else => |data, expr_tag| {
-                const input = try popExprInput(c, expr_tag, data);
-                const output = try inferExpr(c, f, expr_tag, data, input);
-                pushExprOutput(c, expr_tag, output);
+            else => {
+                try inferExpr(c, f, expr_data);
             },
         }
     }
     return .@"return";
 }
 
-fn popExprInput(
-    c: *Compiler,
-    comptime expr_tag: std.meta.Tag(dir.ExprData),
-    data: std.meta.TagPayload(dir.ExprData, expr_tag),
-) error{InferError}!std.meta.TagPayload(dir.ExprInput(Repr), expr_tag) {
-    switch (expr_tag) {
-        .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin, .stage, .unstage => return,
-        .nop, .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .assert_object, .assert_is_ref, .assert_has_no_ref, .drop, .block, .@"return", .call => {
-            const Input = std.meta.TagPayload(dir.ExprInput(Repr), expr_tag);
-            var input: Input = undefined;
-            const fields = @typeInfo(Input).Struct.fields;
-            comptime var i: usize = fields.len;
-            inline while (i > 0) : (i -= 1) {
-                const field = fields[i - 1];
-                @field(input, field.name) = switch (field.type) {
-                    Repr => c.repr_stack.pop(),
-                    Value => try popValue(c),
-                    else => @compileError(@typeName(field.type)),
-                };
-            }
-            return input;
-        },
-        .struct_init => {
-            const keys = c.allocator.alloc(Value, data) catch oom();
-            const reprs = c.allocator.alloc(Repr, data) catch oom();
-            for (0..data) |i| {
-                reprs[data - 1 - i] = c.repr_stack.pop();
-                keys[data - 1 - i] = try popValue(c);
-            }
-            return .{ .keys = keys, .values = reprs };
-        },
-    }
-}
-
 fn inferExpr(
     c: *Compiler,
     f: *tir.FunData,
-    comptime expr_tag: std.meta.Tag(dir.ExprData),
-    data: std.meta.TagPayload(dir.ExprData, expr_tag),
-    input: std.meta.TagPayload(dir.ExprInput(Repr), expr_tag),
-) error{InferError}!std.meta.TagPayload(dir.ExprOutput(Repr), expr_tag) {
-    switch (expr_tag) {
-        .i32 => {
-            pushExpr(c, f, .{ .i32 = data }, .i32);
-            return .i32;
+    expr_data: dir.ExprData,
+) error{InferError}!void {
+    switch (expr_data) {
+        .i32 => |i| {
+            pushExpr(c, f, .{ .i32 = i }, .i32);
         },
         //.string => {
         //    pushExpr(c, f, .{ .string = data }, .string);
         //    return .string;
         //},
-        .nop => {
-            const repr = input.value;
-            pushExpr(c, f, .nop, repr);
-            return repr;
-        },
-        .struct_init => {
+        .struct_init => |count| {
+            const keys = c.allocator.alloc(Value, count) catch oom();
+            const reprs = c.allocator.alloc(Repr, count) catch oom();
+            for (0..count) |i| {
+                const ix = count - 1 - i;
+                reprs[ix] = c.repr_stack.pop();
+                keys[ix] = try popValue(c);
+            }
             const repr = Repr{ .@"struct" = .{
-                .keys = input.keys,
-                .reprs = input.values,
+                .keys = keys,
+                .reprs = reprs,
             } };
             pushExpr(c, f, .struct_init, repr);
-            return repr;
         },
-        .fun_init => {
+        .fun_init => |fun_init| {
+            const closure = c.repr_stack.pop();
             const repr = Repr{ .fun = .{
-                .fun = data.fun,
-                .closure = input.closure.@"struct",
+                .fun = fun_init.fun,
+                .closure = closure.@"struct",
             } };
             pushExpr(c, f, .fun_init, repr);
-            return repr;
         },
         .arg => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
             const repr = frame.key.arg_repr;
             pushExpr(c, f, .arg, repr);
-            return repr;
         },
         .closure => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
             const repr = frame.key.closure_repr;
             pushExpr(c, f, .closure, repr);
-            return repr;
         },
-        .local_get => {
-            const local = tir.Local{ .id = data.id };
+        .local_get => |dir_local| {
+            const local = tir.Local{ .id = dir_local.id };
             // Shouldn't be able to reach get before let.
             const repr = f.local_data.get(local).repr.one;
             pushExpr(c, f, .{ .local_get = local }, repr);
-            return repr;
         },
-        .local_let => {
-            const local = tir.Local{ .id = data.id };
-            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, input.value);
+        .local_let => |dir_local| {
+            const value = c.repr_stack.pop();
+            const local = tir.Local{ .id = dir_local.id };
+            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, value);
             pushExpr(c, f, .{ .local_let = local }, null);
-            return;
         },
         .ref_init => {
-            const repr = Repr{ .ref = c.box(input.value) };
+            const value = c.repr_stack.pop();
+            const repr = Repr{ .ref = c.box(value) };
             pushExpr(c, f, .ref_init, repr);
-            return repr;
         },
-        .assert_object => {
-            switch (input.value) {
+        .assert_object => |assert_object| {
+            const value = c.repr_stack.pop();
+            switch (value) {
                 .@"struct" => |@"struct"| {
-                    if (@"struct".keys.len != data.count)
+                    if (@"struct".keys.len != assert_object.count)
                         return fail(c, .{ .wrong_number_of_keys = .{
-                            .expected = data.count,
+                            .expected = assert_object.count,
                             .actual = @"struct".keys.len,
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = input.value }),
+                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
             }
-            pushExpr(c, f, .nop, null);
-            return input.value;
+            pushExpr(c, f, .nop, value);
         },
         .assert_is_ref => {
-            if (input.value != .ref)
-                return fail(c, .{ .expected_is_ref = input.value });
-            pushExpr(c, f, .nop, null);
-            return input.value;
+            const value = c.repr_stack.pop();
+            if (value != .ref)
+                return fail(c, .{ .expected_is_ref = value });
+            pushExpr(c, f, .nop, value);
         },
         .assert_has_no_ref => {
-            if (input.value.hasRef())
-                return fail(c, .{ .expected_has_no_ref = input.value });
-            pushExpr(c, f, .nop, null);
-            return input.value;
+            const value = c.repr_stack.pop();
+            if (value.hasRef())
+                return fail(c, .{ .expected_has_no_ref = value });
+            pushExpr(c, f, .nop, value);
         },
         .object_get => {
-            const get = try objectGet(c, input.object, input.key);
+            const key = try popValue(c);
+            const object = c.repr_stack.pop();
+            const get = try objectGet(c, object, key);
             pushExpr(c, f, .{ .object_get = .{ .index = get.index, .offset = get.offset } }, get.repr);
-            return get.repr;
         },
         .ref_get => {
-            const get = try objectGet(c, input.ref.ref.*, input.key);
+            const key = try popValue(c);
+            const ref = c.repr_stack.pop();
+            const get = try objectGet(c, ref.ref.*, key);
             const repr = Repr{ .ref = c.box(get.repr) };
             pushExpr(c, f, .{ .ref_get = .{ .index = get.index, .offset = get.offset } }, repr);
-            return repr;
         },
         .ref_set_middle => {
             pushExpr(c, f, .ref_set_middle, null);
-            return;
         },
         .ref_set => {
-            if (!input.ref.ref.equal(input.value))
+            const value = c.repr_stack.pop();
+            const ref = c.repr_stack.pop();
+            if (!ref.ref.equal(value))
                 return fail(c, .{ .type_error = .{
-                    .expected = input.ref.ref.*,
-                    .found = input.value,
+                    .expected = ref.ref.*,
+                    .found = value,
                 } });
             pushExpr(c, f, .ref_set, null);
-            return;
         },
         .ref_deref => {
-            const repr = input.ref.ref.*;
+            const ref = c.repr_stack.pop();
+            const repr = ref.ref.*;
             pushExpr(c, f, .ref_deref, repr);
-            return repr;
         },
         .drop => {
+            _ = c.repr_stack.pop();
             pushExpr(c, f, .drop, null);
-            return;
         },
         .block => {
-            pushExpr(c, f, .block, input.value);
-            return input.value;
+            const value = c.repr_stack.pop();
+            pushExpr(c, f, .block, value);
         },
         .begin => {
             pushExpr(c, f, .begin, null);
-            return;
         },
         .@"return" => {
-            _ = try reprUnion(c, &f.return_repr, input.value);
+            const value = c.repr_stack.pop();
+            _ = try reprUnion(c, &f.return_repr, value);
             pushExpr(c, f, .@"return", null);
-            return;
         },
         .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
+        .nop => {
+            pushExpr(c, f, .nop, null);
+        },
         else => return fail(c, .todo),
-    }
-}
-
-fn pushExprOutput(
-    c: *Compiler,
-    comptime expr_tag: std.meta.Tag(dir.ExprData),
-    output: std.meta.TagPayload(dir.ExprOutput(Repr), expr_tag),
-) void {
-    switch (@TypeOf(output)) {
-        void => return,
-        Repr => c.repr_stack.append(output) catch oom(),
-        else => @compileError(@typeName(@TypeOf(output))),
     }
 }
 
@@ -352,9 +303,9 @@ fn popValue(c: *Compiler) error{InferError}!Value {
 }
 
 fn pushExpr(c: *Compiler, f: *tir.FunData, expr: tir.ExprData, repr: ?Repr) void {
-    _ = c;
     _ = f.expr_data.append(expr);
     _ = f.expr_repr.append(repr);
+    if (repr != null) c.repr_stack.append(repr.?) catch oom();
 }
 
 fn fail(c: *Compiler, data: InferErrorData) error{InferError} {
