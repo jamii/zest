@@ -434,15 +434,11 @@ fn generateExpr(
                     c.hint_stack.append(null) catch oom(); // closure
                 },
                 .end => {
-                    const output = if (c.hint_stack.pop()) |hint|
-                        wir.Walue{ .value_at = .{
-                            .ptr = c.box(hint),
-                            .repr = repr.?,
-                        } }
-                    else switch (wasmRepr(repr.?)) {
+                    const hint = c.hint_stack.pop();
+                    const output = switch (wasmRepr(repr.?)) {
                         .primitive => |valtype| wir.Walue{ .stack = valtype },
                         .heap => wir.Walue{ .value_at = .{
-                            .ptr = c.box(shadowPush(c, f, repr.?)),
+                            .ptr = c.box(hint orelse shadowPush(c, f, repr.?)),
                             .repr = repr.?,
                         } },
                     };
