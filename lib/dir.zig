@@ -32,6 +32,7 @@ pub const ExprData = union(enum) {
     stage,
     unstage,
 
+    nop,
     struct_init: usize,
     fun_init: struct {
         fun: Fun,
@@ -55,7 +56,7 @@ pub const ExprData = union(enum) {
     pub fn isEnd(expr_data: ExprData) bool {
         return switch (expr_data) {
             .i32, .f32, .string, .arg, .closure, .local_get, .ref_set_middle, .begin, .stage, .unstage => false,
-            .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .drop, .block, .@"return" => true,
+            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .drop, .block, .@"return" => true,
         };
     }
 };
@@ -76,6 +77,9 @@ pub fn ExprInput(comptime T: type) type {
         stage,
         unstage,
 
+        nop: struct {
+            value: T,
+        },
         struct_init: struct {
             keys: []Value,
             values: []T,
@@ -143,6 +147,7 @@ pub fn ExprOutput(comptime T: type) type {
         stage: T,
         unstage: T,
 
+        nop: T,
         struct_init: T,
         fun_init: T,
         local_let,
@@ -223,6 +228,7 @@ pub const Scope = struct {
                         .{ .closure = binding.name }
                     else
                         binding.value,
+                    .mut = binding.mut,
                     .is_staged = i - 1 < (self.staged_until_len orelse 0),
                 };
             }
@@ -240,11 +246,13 @@ pub const Scope = struct {
 pub const Binding = struct {
     name: []const u8,
     value: Walue,
+    mut: bool,
 };
 
 pub const BindingInfo = struct {
     name: []const u8,
     value: Walue,
+    mut: bool,
     is_staged: bool,
 };
 
