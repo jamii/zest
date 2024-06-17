@@ -21,7 +21,7 @@ pub fn desugar(c: *Compiler) error{DesugarError}!void {
 fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarError}!dir.Fun {
     var f = dir.FunData.init(c.allocator);
 
-    try desugarObjectPattern(c, &f, .arg, params);
+    try desugarObjectPattern(c, &f, .arg, params, .args);
     f.pattern_local_count = f.local_data.count();
     f.pattern_expr_count = f.expr_data.count();
 
@@ -37,7 +37,9 @@ fn desugarFun(c: *Compiler, params: sir.Object, body: sir.Expr) error{DesugarErr
     return c.dir_fun_data.append(f);
 }
 
-fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.Walue, pattern: sir.Object) error{DesugarError}!void {
+const PatternContext = enum { args, let };
+
+fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.Walue, pattern: sir.Object, context: PatternContext) error{DesugarError}!void {
     {
         _ = f.expr_data.append(.begin);
         defer _ = f.expr_data.append(.drop);
@@ -62,35 +64,51 @@ fn desugarObjectPattern(c: *Compiler, f: *dir.FunData, object: dir.Walue, patter
             try desugarKey(c, f, key_expr);
         }
 
-        try desugarPattern(c, f, .{ .local = local }, value_expr);
+        try desugarPattern(c, f, .{ .local = local }, value_expr, context);
     }
 }
 
-fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.Walue, pattern: sir.Expr) error{DesugarError}!void {
+fn desugarPattern(c: *Compiler, f: *dir.FunData, value: dir.Walue, pattern: sir.Expr, context: PatternContext) error{DesugarError}!void {
     const expr_data = c.sir_expr_data.get(pattern);
     switch (expr_data) {
         .name => |name| {
+            if (c.scope.lookup(name.name)) |_|
+                return fail(c, pattern, .{ .name_already_bound = .{ .name = name.name } });
+
             const local = f.local_data.append(.{
                 .is_mutable = name.mut,
             });
 
-            _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(.{ .local_let = local });
-
-            _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(if (name.mut) .assert_is_ref else .assert_has_no_ref);
-
-            desugarWalue(c, f, value, false);
-
-            if (c.scope.lookup(name.name)) |_|
-                return fail(c, pattern, .{ .name_already_bound = .{ .name = name.name } });
             c.scope.push(.{
                 .name = name.name,
                 .value = .{ .local = local },
                 .mut = name.mut,
             });
+
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.{ .local_let = local });
+
+            // TODO The need for context here indicates that maybe we should treat mut uniformly and add a ref keyword for args.
+
+            if (context == .let and name.mut) _ = f.expr_data.append(.begin);
+            defer if (context == .let and name.mut) {
+                _ = f.expr_data.append(.ref_init);
+            };
+
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref else .assert_has_no_ref);
+
+            desugarWalue(c, f, value, false);
         },
-        .object => |object| try desugarObjectPattern(c, f, value, object),
+        .object => |object| try desugarObjectPattern(c, f, value, object, context),
+        .ref_to => {
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.ref_set);
+
+            try desugarPath(c, f, pattern);
+            _ = f.expr_data.append(.ref_set_middle);
+            desugarWalue(c, f, value, false);
+        },
         else => return fail(c, pattern, .invalid_pattern),
     }
 }
@@ -133,44 +151,15 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             try desugarObject(c, f, object);
         },
         .let_or_set => |let_or_set| {
-            switch (c.sir_expr_data.get(let_or_set.path)) {
-                .name => |name| {
-                    if (c.scope.lookup(name.name)) |_|
-                        return fail(c, expr, .{ .name_already_bound = .{ .name = name.name } });
+            // TODO Might be worth special-casing .name to avoid the extra local.
+            const local = f.local_data.append(.{ .is_mutable = false });
+            {
+                _ = f.expr_data.append(.begin);
+                defer _ = f.expr_data.append(.{ .local_let = local });
 
-                    const local = f.local_data.append(.{
-                        .is_mutable = name.mut,
-                    });
-
-                    _ = f.expr_data.append(.begin);
-                    defer _ = f.expr_data.append(.{ .local_let = local });
-
-                    if (name.mut) _ = f.expr_data.append(.begin);
-                    defer if (name.mut) {
-                        _ = f.expr_data.append(.ref_init);
-                    };
-
-                    _ = f.expr_data.append(.begin);
-                    defer _ = f.expr_data.append(.assert_has_no_ref);
-
-                    try desugarExpr(c, f, let_or_set.value);
-
-                    c.scope.push(.{
-                        .name = name.name,
-                        .value = .{ .local = local },
-                        .mut = name.mut,
-                    });
-                },
-                .ref_to => {
-                    _ = f.expr_data.append(.begin);
-                    defer _ = f.expr_data.append(.ref_set);
-
-                    try desugarPath(c, f, let_or_set.path);
-                    _ = f.expr_data.append(.ref_set_middle);
-                    try desugarExpr(c, f, let_or_set.value);
-                },
-                else => return fail(c, let_or_set.path, .invalid_let_path),
+                try desugarExpr(c, f, let_or_set.value);
             }
+            try desugarPattern(c, f, .{ .local = local }, let_or_set.path, .let);
 
             _ = f.expr_data.append(.begin);
             defer _ = f.expr_data.append(.{ .struct_init = 0 });
