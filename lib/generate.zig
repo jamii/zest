@@ -258,7 +258,7 @@ fn generateExpr(
                 .begin => {
                     _ = c.hint_stack.pop();
                     for (0..struct_repr.reprs.len) |_| {
-                        c.hint_stack.append(null) catch oom();
+                        c.hint_stack.append(.anywhere) catch oom();
                     }
                     // TODO not safe to pass hint without alias analysis.
                     //const hint_maybe = c.hint_stack.pop();
@@ -308,7 +308,7 @@ fn generateExpr(
         .local_let => |local| {
             switch (direction) {
                 .begin => {
-                    c.hint_stack.append(null) catch oom();
+                    c.hint_stack.append(.anywhere) catch oom();
                 },
                 .end => {
                     var input = spillStack(c, f, c.walue_stack.pop());
@@ -345,7 +345,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => {
                     _ = c.hint_stack.pop();
-                    c.hint_stack.append(null) catch oom();
+                    c.hint_stack.append(.anywhere) catch oom();
                 },
                 .end => {
                     const input = c.walue_stack.pop();
@@ -374,11 +374,11 @@ fn generateExpr(
                 .begin => {
                     _ = c.hint_stack.pop();
                     const output = shadowPush(c, f, repr.?.ref.*);
-                    c.hint_stack.append(output) catch oom(); // for end
-                    c.hint_stack.append(output) catch oom(); // for child
+                    c.hint_stack.append(.{ .value_at = c.box(output) }) catch oom(); // for end
+                    c.hint_stack.append(.{ .value_at = c.box(output) }) catch oom(); // for child
                 },
                 .end => {
-                    const output = c.hint_stack.pop().?;
+                    const output = c.hint_stack.pop().value_at.*;
                     const input = c.walue_stack.pop();
                     store(c, f, input, output);
                     c.walue_stack.append(output) catch oom();
@@ -389,7 +389,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => {
                     _ = c.hint_stack.pop();
-                    c.hint_stack.append(null) catch oom();
+                    c.hint_stack.append(.anywhere) catch oom();
                 },
                 .end => {
                     const input = c.walue_stack.pop();
@@ -402,17 +402,17 @@ fn generateExpr(
         },
         .ref_set_middle => {
             const ref = c.walue_stack.pop();
-            c.hint_stack.append(ref) catch oom(); // for end
-            c.hint_stack.append(ref) catch oom(); // for value
+            c.hint_stack.append(.{ .value_at = c.box(ref) }) catch oom(); // for end
+            c.hint_stack.append(.{ .value_at = c.box(ref) }) catch oom(); // for value
         },
         .ref_set => {
             switch (direction) {
                 .begin => {
-                    c.hint_stack.append(null) catch oom(); // for ref
+                    c.hint_stack.append(.anywhere) catch oom(); // for ref
                     // hint for value is set by ref_set_middle
                 },
                 .end => {
-                    const ref = c.hint_stack.pop().?;
+                    const ref = c.hint_stack.pop().value_at.*;
                     const value = c.walue_stack.pop();
                     store(c, f, value, ref);
                 },
@@ -421,14 +421,14 @@ fn generateExpr(
         .ref_deref => {
             switch (direction) {
                 .begin => {
-                    c.hint_stack.append(null) catch oom();
+                    c.hint_stack.append(.anywhere) catch oom();
                 },
                 .end => {
-                    const hint_maybe = c.hint_stack.pop();
+                    const hint = c.hint_stack.pop();
                     const input = c.walue_stack.pop();
-                    if (hint_maybe) |hint| {
-                        store(c, f, .{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } }, hint);
-                        c.walue_stack.append(.{ .value_at = .{ .ptr = c.box(hint), .repr = repr.? } }) catch oom();
+                    if (hint == .value_at) {
+                        store(c, f, .{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } }, hint.value_at.*);
+                        c.walue_stack.append(.{ .value_at = .{ .ptr = c.box(hint.value_at.*), .repr = repr.? } }) catch oom();
                     } else {
                         const output = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
                         c.walue_stack.append(output) catch oom();
@@ -440,15 +440,15 @@ fn generateExpr(
             f.is_leaf = false;
             switch (direction) {
                 .begin => {
-                    c.hint_stack.append(null) catch oom(); // arg
-                    c.hint_stack.append(null) catch oom(); // closure
+                    c.hint_stack.append(.anywhere) catch oom(); // arg
+                    c.hint_stack.append(.anywhere) catch oom(); // closure
                 },
                 .end => {
                     const hint = c.hint_stack.pop();
                     const output = switch (wasmRepr(repr.?)) {
                         .primitive => |valtype| wir.Walue{ .stack = valtype },
                         .heap => wir.Walue{ .value_at = .{
-                            .ptr = c.box(hint orelse shadowPush(c, f, repr.?)),
+                            .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, repr.?)),
                             .repr = repr.?,
                         } },
                     };
@@ -469,7 +469,7 @@ fn generateExpr(
         .drop => {
             switch (direction) {
                 .begin => {
-                    c.hint_stack.append(null) catch oom();
+                    c.hint_stack.append(.nowhere) catch oom();
                 },
                 .end => {
                     const input = c.walue_stack.pop();
@@ -484,7 +484,7 @@ fn generateExpr(
             switch (wasmRepr(tir_f.return_repr.one)) {
                 .primitive => switch (direction) {
                     .begin => {
-                        c.hint_stack.append(null) catch oom();
+                        c.hint_stack.append(.anywhere) catch oom();
                     },
                     .end => {
                         const input = c.walue_stack.pop();

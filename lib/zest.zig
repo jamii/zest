@@ -211,7 +211,7 @@ pub const Compiler = struct {
     local_walue: List(tir.Local, ?wir.Walue),
     block_stack: ArrayList(wir.Block),
     walue_stack: ArrayList(wir.Walue),
-    hint_stack: ArrayList(?wir.Walue), // pointer to result location, null if we don't care
+    hint_stack: ArrayList(wir.Hint),
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
