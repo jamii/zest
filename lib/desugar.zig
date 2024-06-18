@@ -229,6 +229,15 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                 defer _ = f.expr_data.append(.{ .struct_init = 0 });
             }
         },
+        .@"if" => |@"if"| {
+            _ = f.expr_data.append(.begin);
+            try desugarExpr(c, f, @"if".cond);
+            _ = f.expr_data.append(.then);
+            try desugarExpr(c, f, @"if".then);
+            _ = f.expr_data.append(.@"else");
+            try desugarExpr(c, f, @"if".@"else");
+            _ = f.expr_data.append(.@"if");
+        },
         else => return fail(c, expr, .todo),
     }
 }

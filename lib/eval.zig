@@ -267,9 +267,41 @@ pub fn evalExpr(
             _ = c.value_stack.pop();
         },
         .block => {},
+        .then => {
+            const cond = c.value_stack.pop();
+            c.value_stack.append(cond) catch oom();
+            if (cond != .i32)
+                return fail(c, .{ .not_a_bool = cond });
+            if (cond.i32 == 0)
+                skip(c, .@"else");
+        },
+        .@"else" => {
+            skip(c, .@"if");
+        },
+        .@"if" => {},
         .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_data}),
         .nop => {},
         else => return fail(c, .todo),
+    }
+}
+
+fn skip(c: *Compiler, to: std.meta.Tag(dir.ExprData)) void {
+    const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+    const f = c.dir_fun_data.get(frame.fun);
+    var depth: usize = 0;
+    while (true) {
+        frame.expr.id += 1;
+        const expr_data = f.expr_data.get(frame.expr);
+        if (expr_data == .begin) {
+            depth += 1;
+        } else if (expr_data.isEnd()) {
+            depth -= 1;
+        }
+        if (depth == 0) {
+            frame.expr.id += 1;
+            assert(std.meta.activeTag(f.expr_data.get(frame.expr)) == to);
+            break;
+        }
     }
 }
 
@@ -296,6 +328,7 @@ pub const EvalErrorData = union(enum) {
     expected_is_ref: Value,
     expected_has_no_ref: Value,
     not_a_fun: Value,
+    not_a_bool: Value,
     cannot_stage_expr,
     cannot_unstage_value: Repr,
     todo,

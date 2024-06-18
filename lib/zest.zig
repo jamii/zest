@@ -306,7 +306,7 @@ pub const Compiler = struct {
                                 .struct_init => |count| try writer.print(" count={}", .{count}),
                                 .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
                                 .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
-                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ tag),
+                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                             }
                             try writer.print("\n", .{});
                         }
@@ -414,6 +414,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .expected_is_ref => |data| format(c, "Expected a mutable reference, found: {}", .{data}),
                     .expected_has_no_ref => |data| format(c, "Expected a value containing no mutable references, found: {}", .{data}),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
+                    .not_a_bool => |data| format(c, "Not a 'boolean': {}", .{data}),
                     .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
                     .cannot_unstage_value => |data| format(c, "Cannot unstage value: {}", .{data}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
@@ -430,6 +431,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .expected_has_no_ref => |data| format(c, "Expected a value containing no mutable references, found: {}", .{data}),
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
+                    .not_a_bool => |data| format(c, "Not a 'boolean': {}", .{data}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

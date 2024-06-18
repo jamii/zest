@@ -243,18 +243,34 @@ fn inferExpr(
             const value = c.repr_stack.pop();
             pushExpr(c, f, .block, value);
         },
-        .begin => {
-            pushExpr(c, f, .begin, null);
+        .@"if" => {
+            const @"else" = c.repr_stack.pop();
+            const then = c.repr_stack.pop();
+            const cond = c.repr_stack.pop();
+            if (cond != .i32)
+                return fail(c, .{ .not_a_bool = cond });
+            if (!then.equal(@"else"))
+                return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
+            pushExpr(c, f, .@"if", then);
+        },
+        .then => {
+            pushExpr(c, f, .then, null);
+        },
+        .@"else" => {
+            pushExpr(c, f, .@"else", null);
         },
         .@"return" => {
             const value = c.repr_stack.pop();
             _ = try reprUnion(c, &f.return_repr, value);
             pushExpr(c, f, .@"return", null);
         },
-        .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
+        .begin => {
+            pushExpr(c, f, .begin, null);
+        },
         .nop => {
             pushExpr(c, f, .nop, null);
         },
+        .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
         else => return fail(c, .todo),
     }
 }
@@ -332,5 +348,6 @@ pub const InferErrorData = union(enum) {
         key: Value,
     },
     not_a_fun: Repr,
+    not_a_bool: Repr,
     todo,
 };
