@@ -256,19 +256,24 @@ fn generateExpr(
             const struct_repr = repr.?.@"struct";
             switch (direction) {
                 .begin => {
-                    const hint_maybe = c.hint_stack.pop();
-                    var i: usize = struct_repr.reprs.len;
-                    while (i > 0) : (i -= 1) {
-                        const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                        const value_hint = if (hint_maybe) |hint|
-                            wir.Walue{ .add = .{
-                                .walue = c.box(hint),
-                                .offset = offset,
-                            } }
-                        else
-                            null;
-                        c.hint_stack.append(value_hint) catch oom();
+                    _ = c.hint_stack.pop();
+                    for (0..struct_repr.reprs.len) |_| {
+                        c.hint_stack.append(null) catch oom();
                     }
+                    // TODO not safe to pass hint without alias analysis.
+                    //const hint_maybe = c.hint_stack.pop();
+                    //var i: usize = struct_repr.reprs.len;
+                    //while (i > 0) : (i -= 1) {
+                    //    const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
+                    //    const value_hint = if (hint_maybe) |hint|
+                    //        wir.Walue{ .add = .{
+                    //            .walue = c.box(hint),
+                    //            .offset = offset,
+                    //        } }
+                    //    else
+                    //        null;
+                    //    c.hint_stack.append(value_hint) catch oom();
+                    //}
                 },
                 .end => {
                     const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
@@ -416,13 +421,18 @@ fn generateExpr(
         .ref_deref => {
             switch (direction) {
                 .begin => {
-                    _ = c.hint_stack.pop();
                     c.hint_stack.append(null) catch oom();
                 },
                 .end => {
+                    const hint_maybe = c.hint_stack.pop();
                     const input = c.walue_stack.pop();
-                    const output = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
-                    c.walue_stack.append(output) catch oom();
+                    if (hint_maybe) |hint| {
+                        store(c, f, .{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } }, hint);
+                        c.walue_stack.append(.{ .value_at = .{ .ptr = c.box(hint), .repr = repr.? } }) catch oom();
+                    } else {
+                        const output = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
+                        c.walue_stack.append(output) catch oom();
+                    }
                 },
             }
         },
