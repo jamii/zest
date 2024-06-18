@@ -212,7 +212,6 @@ pub const Compiler = struct {
     block_stack: ArrayList(wir.Block),
     walue_stack: ArrayList(wir.Walue),
     hint_stack: ArrayList(?wir.Walue), // pointer to result location, null if we don't care
-    alias_stack: ArrayList(*wir.Walue),
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -251,7 +250,6 @@ pub const Compiler = struct {
             .block_stack = fieldType(Compiler, .block_stack).init(allocator),
             .walue_stack = fieldType(Compiler, .walue_stack).init(allocator),
             .hint_stack = fieldType(Compiler, .hint_stack).init(allocator),
-            .alias_stack = fieldType(Compiler, .alias_stack).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,

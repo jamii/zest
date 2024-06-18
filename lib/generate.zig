@@ -555,19 +555,12 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             storePrimitive(c, f, from_value, to_ptr, .i32);
         },
         .@"struct" => |@"struct"| {
-            {
-                var i: usize = @"struct".values.len;
-                while (i > 0) : (i -= 1) {
-                    c.alias_stack.append(&@"struct".values[i - 1]) catch oom();
-                }
-            }
             for (@"struct".values, 0..) |value, i| {
                 const offset = @"struct".repr.offsetOf(i);
                 const to_field_ptr = wir.Walue{ .add = .{
                     .walue = c.box(to_ptr),
                     .offset = @intCast(offset),
                 } };
-                _ = c.alias_stack.pop();
                 store(c, f, value, to_field_ptr);
             }
         },
