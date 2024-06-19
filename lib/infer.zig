@@ -232,13 +232,11 @@ fn inferExpr(
             const repr = ref.ref.*;
             pushExpr(c, f, .ref_deref, repr);
         },
-        .drop => {
-            _ = c.repr_stack.pop();
-            pushExpr(c, f, .drop, null);
-        },
-        .block => {
-            const value = c.repr_stack.pop();
-            pushExpr(c, f, .block, value);
+        .block => |count| {
+            const repr = c.repr_stack.pop();
+            for (0..count - 1) |_|
+                _ = c.repr_stack.pop();
+            pushExpr(c, f, .{ .block = count }, repr);
         },
         .@"if" => {
             const @"else" = c.repr_stack.pop();

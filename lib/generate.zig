@@ -206,7 +206,7 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     //defer assert(c.block_stack.items.len == 0);
 
     while (c.tir_expr_next.id + 1 < tir_f.expr_data.count()) {
-        _ = try genExprNext(c, f, tir_f, .nowhere);
+        _ = try genExprNextOrNull(c, f, tir_f, .nowhere);
     }
 }
 
@@ -216,6 +216,15 @@ fn genExprNext(
     tir_f: tir.FunData,
     hint: wir.Hint,
 ) error{GenerateError}!wir.Walue {
+    return (try genExprNextOrNull(c, f, tir_f, hint)).?;
+}
+
+fn genExprNextOrNull(
+    c: *Compiler,
+    f: *wir.FunData,
+    tir_f: tir.FunData,
+    hint: wir.Hint,
+) error{GenerateError}!?wir.Walue {
     const expr = c.begin_end.get(c.tir_expr_next);
     c.tir_expr_next.id += 1;
 
@@ -244,7 +253,7 @@ fn genExprNext(
             },
         }
     } else {
-        return wir.Walue.emptyStruct();
+        return null;
     }
 }
 
@@ -397,19 +406,13 @@ fn genExpr(
             emitLebU32(f, @intCast(fun.id));
             return output;
         },
-        .drop => {
-            // TODO shouldn't nest multiple exprs inside drop
-            var value = wir.Walue.emptyStruct();
-            while (tir_f.expr_data.get(c.begin_end.get(c.tir_expr_next)) != .begin) {
-                value = try genExprNext(c, f, tir_f, .nowhere);
-            }
-            return null;
-        },
-        .block => {
+        .block => |count| {
             // TODO reset shadow
-            var value = wir.Walue.emptyStruct();
+            var value: ?wir.Walue = null;
+            var remaining = count;
             while (tir_f.expr_data.get(c.begin_end.get(c.tir_expr_next)) != .begin) {
-                value = try genExprNext(c, f, tir_f, hint);
+                value = try genExprNextOrNull(c, f, tir_f, if (remaining == 1) hint else .nowhere);
+                if (value != null) remaining -= 1;
             }
             return value;
         },

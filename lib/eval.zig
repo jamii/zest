@@ -262,10 +262,12 @@ pub fn evalExpr(
             const ref = c.value_stack.pop();
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
-        .drop => {
-            _ = c.value_stack.pop();
+        .block => |count| {
+            const value = c.value_stack.pop();
+            for (0..count - 1) |_|
+                _ = c.value_stack.pop();
+            c.value_stack.append(value) catch oom();
         },
-        .block => {},
         .then => {
             const cond = c.value_stack.pop();
             c.value_stack.append(cond) catch oom();

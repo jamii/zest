@@ -211,21 +211,15 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             const scope_saved = c.scope.save();
             defer c.scope.restore(scope_saved);
 
-            _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(.block);
-
-            for (block, 0..) |statement, i| {
-                if (i < block.len - 1)
-                    _ = f.expr_data.append(.begin);
-                defer if (i < block.len - 1) {
-                    _ = f.expr_data.append(.drop);
-                };
-
-                try desugarExpr(c, f, statement);
-            }
             if (block.len == 0) {
                 _ = f.expr_data.append(.begin);
                 defer _ = f.expr_data.append(.{ .struct_init = 0 });
+            } else {
+                _ = f.expr_data.append(.begin);
+                defer _ = f.expr_data.append(.{ .block = block.len });
+
+                for (block) |statement|
+                    try desugarExpr(c, f, statement);
             }
         },
         .@"if" => |@"if"| {

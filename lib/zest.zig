@@ -301,7 +301,7 @@ pub const Compiler = struct {
                                 .string => |s| try writer.print(" {s}", .{s}),
                                 .local_get => |local| try writer.print(" l{}", .{local.id}),
                                 .local_let => |local| try writer.print(" l{}", .{local.id}),
-                                .struct_init => |count| try writer.print(" count={}", .{count}),
+                                .struct_init, .block => |count| try writer.print(" count={}", .{count}),
                                 .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
                                 .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
                                 inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
@@ -340,6 +340,7 @@ pub const Compiler = struct {
                                 .ref_get => |ref_get| try writer.print(" index={} offset={}", .{ ref_get.index, ref_get.offset }),
                                 .ref_set => {},
                                 .call => |fun| try writer.print(" f{}", .{fun.id}),
+                                .block => |count| try writer.print(" count={}", .{count}),
                                 inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                             }
                             if (repr != null) {
