@@ -441,7 +441,7 @@ fn generateExpr(
                     const input = c.walue_stack.pop();
                     const output = wir.Walue{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } };
                     switch (hint) {
-                        .nowhere, .value_at => {
+                        .nowhere, .value_at, .stack => {
                             push(c, f, hint, output);
                         },
                         .anywhere => {
@@ -519,6 +519,64 @@ fn generateExpr(
                 },
             }
         },
+        .then => {
+            const cond = c.walue_stack.pop();
+            assert(cond == .stack);
+
+            const hint = c.hint_stack.pop();
+            emitEnum(f, wasm.Opcode.@"if");
+            switch (hint) {
+                .nowhere, .value_at, .stack => {
+                    c.hint_stack.append(hint) catch oom();
+                    c.hint_stack.append(hint) catch oom();
+                    c.hint_stack.append(hint) catch oom();
+                    emitByte(f, wasm.block_empty);
+                },
+                .anywhere => {
+                    // Need to pick a specific hint so that both branches end up the same.
+                    switch (wasmRepr(repr.?)) {
+                        .primitive => |valtype| {
+                            c.hint_stack.append(.stack) catch oom();
+                            c.hint_stack.append(.stack) catch oom();
+                            c.hint_stack.append(.stack) catch oom();
+                            emitEnum(f, valtype);
+                        },
+                        .heap => {
+                            const output_ptr = shadowPush(c, f, repr.?);
+                            c.hint_stack.append(.{ .value_at = c.box(output_ptr) }) catch oom();
+                            c.hint_stack.append(.{ .value_at = c.box(output_ptr) }) catch oom();
+                            c.hint_stack.append(.{ .value_at = c.box(output_ptr) }) catch oom();
+                            emitByte(f, wasm.block_empty);
+                        },
+                    }
+                },
+            }
+        },
+        .@"else" => {
+            const hint = c.hint_stack.pop();
+            const value_then = c.walue_stack.pop();
+            if (hint == .nowhere) dropStack(c, f, value_then);
+            emitEnum(f, wasm.Opcode.@"else");
+            c.hint_stack.append(hint) catch oom();
+            c.walue_stack.append(value_then) catch oom();
+        },
+        .@"if" => {
+            switch (direction) {
+                .begin => {
+                    c.hint_stack.append(.stack) catch oom();
+                },
+                .end => {
+                    const hint = c.hint_stack.pop();
+                    const value_else = c.walue_stack.pop();
+                    if (hint == .nowhere) dropStack(c, f, value_else);
+                    emitEnum(f, wasm.Opcode.end);
+                    // Both branches got the same hint, so both should have produced the same walue
+                    const value_then = c.walue_stack.pop();
+                    assert(value_else.equal(value_then));
+                    c.walue_stack.append(value_then) catch oom();
+                },
+            }
+        },
         else => {
             //std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
@@ -534,6 +592,10 @@ fn copyToHint(c: *Compiler, f: *wir.FunData, walue: wir.Walue, hint: wir.Hint) w
     switch (hint) {
         .nowhere, .anywhere => {
             return walue;
+        },
+        .stack => {
+            load(c, f, walue);
+            return .{ .stack = wasmRepr(walueRepr(c, f, walue)).primitive };
         },
         .value_at => |ptr| {
             store(c, f, walue, ptr.*);

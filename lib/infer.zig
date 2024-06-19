@@ -254,10 +254,12 @@ fn inferExpr(
             pushExpr(c, f, .@"if", then);
         },
         .then => {
-            pushExpr(c, f, .then, null);
+            const repr = c.repr_stack.pop();
+            pushExpr(c, f, .then, repr);
         },
         .@"else" => {
-            pushExpr(c, f, .@"else", null);
+            const repr = c.repr_stack.pop();
+            pushExpr(c, f, .@"else", repr);
         },
         .@"return" => {
             const value = c.repr_stack.pop();
