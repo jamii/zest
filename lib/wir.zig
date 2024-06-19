@@ -48,8 +48,6 @@ pub const Walue = union(enum) {
 pub const Hint = union(enum) {
     nowhere,
     anywhere,
-    stack,
-    local: Local,
     value_at: *Walue,
 };
 

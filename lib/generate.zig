@@ -441,7 +441,7 @@ fn generateExpr(
                     const input = c.walue_stack.pop();
                     const output = wir.Walue{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } };
                     switch (hint) {
-                        .nowhere, .stack, .local, .value_at => {
+                        .nowhere, .value_at => {
                             push(c, f, hint, output);
                         },
                         .anywhere => {
@@ -534,18 +534,6 @@ fn copyToHint(c: *Compiler, f: *wir.FunData, walue: wir.Walue, hint: wir.Hint) w
     switch (hint) {
         .nowhere, .anywhere => {
             return walue;
-        },
-        .stack => {
-            load(c, f, walue);
-            return .{ .stack = wasmRepr(walueRepr(c, f, walue)).primitive };
-        },
-        .local => |local| {
-            if (walue != .local or walue.local.id != local.id) {
-                load(c, f, walue);
-                emitEnum(c, wasm.Opcode.local_set);
-                emitLebU32(c, wasmLocal(c, f, .{ .local = local }));
-            }
-            return .{ .local = local };
         },
         .value_at => |ptr| {
             store(c, f, walue, ptr.*);
