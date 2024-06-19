@@ -211,8 +211,6 @@ pub const Compiler = struct {
     begin_end: List(tir.Expr, tir.Expr),
     local_walue: List(tir.Local, ?wir.Walue),
     block_stack: ArrayList(wir.Block),
-    walue_stack: ArrayList(wir.Walue),
-    hint_stack: ArrayList(wir.Hint),
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -250,8 +248,6 @@ pub const Compiler = struct {
             .begin_end = fieldType(Compiler, .begin_end).init(allocator),
             .local_walue = fieldType(Compiler, .local_walue).init(allocator),
             .block_stack = fieldType(Compiler, .block_stack).init(allocator),
-            .walue_stack = fieldType(Compiler, .walue_stack).init(allocator),
-            .hint_stack = fieldType(Compiler, .hint_stack).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
