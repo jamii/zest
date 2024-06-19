@@ -226,27 +226,33 @@ fn generateExpr(
 ) error{GenerateError}!void {
     switch (expr_data) {
         .i32 => |i| {
-            _ = c.hint_stack.pop();
-            c.walue_stack.append(.{ .i32 = i }) catch oom();
+            const hint = c.hint_stack.pop();
+            push(c, f, hint, .{
+                .i32 = i,
+            });
         },
         .closure => {
-            _ = c.hint_stack.pop();
-            c.walue_stack.append(.{ .value_at = .{
-                .ptr = c.box(wir.Walue{ .closure = {} }),
-                .repr = repr.?,
-            } }) catch oom();
+            const hint = c.hint_stack.pop();
+            push(c, f, hint, .{
+                .value_at = .{
+                    .ptr = c.box(wir.Walue{ .closure = {} }),
+                    .repr = repr.?,
+                },
+            });
         },
         .arg => {
-            _ = c.hint_stack.pop();
-            c.walue_stack.append(.{ .value_at = .{
-                .ptr = c.box(wir.Walue{ .arg = {} }),
-                .repr = repr.?,
-            } }) catch oom();
+            const hint = c.hint_stack.pop();
+            push(c, f, hint, .{
+                .value_at = .{
+                    .ptr = c.box(wir.Walue{ .arg = {} }),
+                    .repr = repr.?,
+                },
+            });
         },
         .local_get => |local| {
-            _ = c.hint_stack.pop();
+            const hint = c.hint_stack.pop();
             const walue = c.local_walue.get(local).?;
-            c.walue_stack.append(walue) catch oom();
+            push(c, f, hint, walue);
         },
 
         .begin => unreachable,
@@ -256,7 +262,6 @@ fn generateExpr(
             const struct_repr = repr.?.@"struct";
             switch (direction) {
                 .begin => {
-                    _ = c.hint_stack.pop();
                     for (0..struct_repr.reprs.len) |_| {
                         c.hint_stack.append(.anywhere) catch oom();
                     }
@@ -276,32 +281,38 @@ fn generateExpr(
                     //}
                 },
                 .end => {
+                    const hint = c.hint_stack.pop();
                     const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
                     var i: usize = struct_repr.reprs.len;
                     while (i > 0) : (i -= 1) {
                         values[i - 1] = spillStack(c, f, c.walue_stack.pop());
                     }
-                    c.walue_stack.append(.{ .@"struct" = .{
-                        .repr = struct_repr,
-                        .values = values,
-                    } }) catch oom();
+                    push(c, f, hint, .{
+                        .@"struct" = .{
+                            .repr = struct_repr,
+                            .values = values,
+                        },
+                    });
                 },
             }
         },
         .fun_init => {
             switch (direction) {
-                .begin => {},
+                .begin => {
+                    const hint = c.hint_stack.pop();
+                    c.hint_stack.append(hint) catch oom();
+                    c.hint_stack.append(hint) catch oom();
+                },
                 .end => {
+                    const hint = c.hint_stack.pop();
                     const output = c.walue_stack.pop();
-                    c.walue_stack.append(
-                        if (output == .@"struct")
-                            .{ .fun = .{
-                                .repr = repr.?.fun,
-                                .closure = c.box(output),
-                            } }
-                        else
-                            output,
-                    ) catch oom();
+                    push(c, f, hint, if (output == .@"struct")
+                        .{ .fun = .{
+                            .repr = repr.?.fun,
+                            .closure = c.box(output),
+                        } }
+                    else
+                        output);
                 },
             }
         },
@@ -344,10 +355,10 @@ fn generateExpr(
         .object_get => |object_get| {
             switch (direction) {
                 .begin => {
-                    _ = c.hint_stack.pop();
                     c.hint_stack.append(.anywhere) catch oom();
                 },
                 .end => {
+                    const hint = c.hint_stack.pop();
                     const input = c.walue_stack.pop();
                     switch (input) {
                         .value_at => |value_at| {
@@ -358,11 +369,11 @@ fn generateExpr(
                                 } }),
                                 .repr = repr.?,
                             } };
-                            c.walue_stack.append(output) catch oom();
+                            push(c, f, hint, output);
                         },
                         .@"struct" => |@"struct"| {
                             const output = @"struct".values[object_get.index];
-                            c.walue_stack.append(output) catch oom();
+                            push(c, f, hint, output);
                         },
                         else => panic("Can't represent struct with {}", .{input}),
                     }
@@ -372,31 +383,33 @@ fn generateExpr(
         .ref_init => {
             switch (direction) {
                 .begin => {
-                    _ = c.hint_stack.pop();
                     const output = shadowPush(c, f, repr.?.ref.*);
                     c.hint_stack.append(.{ .value_at = c.box(output) }) catch oom(); // for end
                     c.hint_stack.append(.{ .value_at = c.box(output) }) catch oom(); // for child
                 },
                 .end => {
                     const output = c.hint_stack.pop().value_at.*;
+                    const hint = c.hint_stack.pop();
                     const input = c.walue_stack.pop();
                     store(c, f, input, output);
-                    c.walue_stack.append(output) catch oom();
+                    push(c, f, hint, output);
                 },
             }
         },
         .ref_get => |ref_get| {
             switch (direction) {
                 .begin => {
-                    _ = c.hint_stack.pop();
                     c.hint_stack.append(.anywhere) catch oom();
                 },
                 .end => {
+                    const hint = c.hint_stack.pop();
                     const input = c.walue_stack.pop();
-                    c.walue_stack.append(.{ .add = .{
-                        .walue = c.box(input),
-                        .offset = ref_get.offset,
-                    } }) catch oom();
+                    push(c, f, hint, .{
+                        .add = .{
+                            .walue = c.box(input),
+                            .offset = ref_get.offset,
+                        },
+                    });
                 },
             }
         },
@@ -426,12 +439,16 @@ fn generateExpr(
                 .end => {
                     const hint = c.hint_stack.pop();
                     const input = c.walue_stack.pop();
-                    if (hint == .value_at) {
-                        store(c, f, .{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } }, hint.value_at.*);
-                        c.walue_stack.append(.{ .value_at = .{ .ptr = c.box(hint.value_at.*), .repr = repr.? } }) catch oom();
-                    } else {
-                        const output = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
-                        c.walue_stack.append(output) catch oom();
+                    const output = wir.Walue{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } };
+                    switch (hint) {
+                        .nowhere, .stack, .local, .value_at => {
+                            push(c, f, hint, output);
+                        },
+                        .anywhere => {
+                            // Must make a copy to avoid passing around an aliased walue
+                            const output_copy = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
+                            c.walue_stack.append(output_copy) catch oom();
+                        },
                     }
                 },
             }
@@ -462,7 +479,7 @@ fn generateExpr(
                     }
                     emitEnum(f, wasm.Opcode.call);
                     emitLebU32(f, @intCast(fun.id));
-                    c.walue_stack.append(output) catch oom();
+                    push(c, f, hint, output);
                 },
             }
         },
@@ -493,7 +510,7 @@ fn generateExpr(
                 },
                 .heap => switch (direction) {
                     .begin => {
-                        c.hint_stack.append(.@"return") catch oom();
+                        c.hint_stack.append(.{ .value_at = c.box(wir.Walue{ .@"return" = {} }) }) catch oom();
                     },
                     .end => {
                         const input = c.walue_stack.pop();
@@ -505,6 +522,34 @@ fn generateExpr(
         else => {
             //std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
+        },
+    }
+}
+
+fn push(c: *Compiler, f: *wir.FunData, hint: wir.Hint, walue: wir.Walue) void {
+    c.walue_stack.append(copyToHint(c, f, walue, hint)) catch oom();
+}
+
+fn copyToHint(c: *Compiler, f: *wir.FunData, walue: wir.Walue, hint: wir.Hint) wir.Walue {
+    switch (hint) {
+        .nowhere, .anywhere => {
+            return walue;
+        },
+        .stack => {
+            load(c, f, walue);
+            return .{ .stack = wasmRepr(walueRepr(c, f, walue)).primitive };
+        },
+        .local => |local| {
+            if (walue != .local or walue.local.id != local.id) {
+                load(c, f, walue);
+                emitEnum(c, wasm.Opcode.local_set);
+                emitLebU32(c, wasmLocal(c, f, .{ .local = local }));
+            }
+            return .{ .local = local };
+        },
+        .value_at => |ptr| {
+            store(c, f, walue, ptr.*);
+            return .{ .value_at = .{ .ptr = ptr, .repr = walueRepr(c, f, walue) } };
         },
     }
 }

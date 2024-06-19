@@ -51,7 +51,6 @@ pub const Hint = union(enum) {
     stack,
     local: Local,
     value_at: *Walue,
-    @"return",
 };
 
 pub const FunType = struct { id: usize };
