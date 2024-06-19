@@ -414,7 +414,7 @@ fn genExpr(
                 value = try genExprNextOrNull(c, f, tir_f, if (remaining == 1) hint else .nowhere);
                 if (value != null) remaining -= 1;
             }
-            return value;
+            return value orelse wir.Walue.emptyStruct();
         },
         .@"if" => {
             _ = try genExprNext(c, f, tir_f, .stack);
@@ -463,7 +463,7 @@ fn genExpr(
                 .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
             };
             _ = try genExprNext(c, f, tir_f, result_hint);
-            return wir.Walue.emptyStruct();
+            return null;
         },
         .nop => {
             const value = try genExprNext(c, f, tir_f, hint);

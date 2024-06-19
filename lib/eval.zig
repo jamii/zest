@@ -263,10 +263,14 @@ pub fn evalExpr(
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
         .block => |count| {
-            const value = c.value_stack.pop();
-            for (0..count - 1) |_|
-                _ = c.value_stack.pop();
-            c.value_stack.append(value) catch oom();
+            if (count == 0) {
+                c.value_stack.append(Value.emptyStruct()) catch oom();
+            } else {
+                const value = c.value_stack.pop();
+                for (0..count - 1) |_|
+                    _ = c.value_stack.pop();
+                c.value_stack.append(value) catch oom();
+            }
         },
         .then => {
             const cond = c.value_stack.pop();

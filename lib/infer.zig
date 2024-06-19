@@ -233,10 +233,14 @@ fn inferExpr(
             pushExpr(c, f, .ref_deref, repr);
         },
         .block => |count| {
-            const repr = c.repr_stack.pop();
-            for (0..count - 1) |_|
-                _ = c.repr_stack.pop();
-            pushExpr(c, f, .{ .block = count }, repr);
+            if (count == 0) {
+                pushExpr(c, f, .{ .block = count }, Repr.emptyStruct());
+            } else {
+                const repr = c.repr_stack.pop();
+                for (0..count - 1) |_|
+                    _ = c.repr_stack.pop();
+                pushExpr(c, f, .{ .block = count }, repr);
+            }
         },
         .@"if" => {
             const @"else" = c.repr_stack.pop();

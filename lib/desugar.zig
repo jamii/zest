@@ -168,9 +168,6 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
         },
         .let => |let| {
             try desugarPattern(c, f, .{ .expr = let.value }, let.path, .let);
-
-            _ = f.expr_data.append(.begin);
-            defer _ = f.expr_data.append(.{ .struct_init = 0 });
         },
         .fun => |fun| {
             const dir_fun = dir_fun: {
@@ -211,16 +208,17 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             const scope_saved = c.scope.save();
             defer c.scope.restore(scope_saved);
 
-            if (block.len == 0) {
-                _ = f.expr_data.append(.begin);
-                defer _ = f.expr_data.append(.{ .struct_init = 0 });
-            } else {
-                _ = f.expr_data.append(.begin);
-                defer _ = f.expr_data.append(.{ .block = block.len });
+            var count: usize = 0;
 
-                for (block) |statement|
-                    try desugarExpr(c, f, statement);
+            _ = f.expr_data.append(.begin);
+
+            for (block) |statement| {
+                if (c.sir_expr_data.get(statement) != .let)
+                    count += 1;
+                try desugarExpr(c, f, statement);
             }
+
+            _ = f.expr_data.append(.{ .block = count });
         },
         .@"if" => |@"if"| {
             _ = f.expr_data.append(.begin);
