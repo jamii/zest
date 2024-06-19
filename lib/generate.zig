@@ -222,8 +222,6 @@ fn genExprNext(
     const expr_data = tir_f.expr_data.get(expr);
     const repr = tir_f.expr_repr.get(expr);
 
-    std.debug.print("hit {} {}\n", .{ c.tir_expr_next.id - 1, expr_data });
-
     const result_maybe = try genExpr(c, f, tir_f, hint, expr_data, repr);
     if (expr_data.isEnd())
         skip(c, f, tir_f, .begin);
@@ -231,8 +229,7 @@ fn genExprNext(
     if (result_maybe) |result| {
         switch (hint) {
             .nowhere => {
-                // TODO dropStack
-                return result;
+                return dropStack(c, f, result);
             },
             .anywhere => {
                 return result;
@@ -406,7 +403,6 @@ fn genExpr(
             while (tir_f.expr_data.get(c.begin_end.get(c.tir_expr_next)) != .begin) {
                 value = try genExprNext(c, f, tir_f, .nowhere);
             }
-            dropStack(c, f, value);
             return null;
         },
         .block => {
@@ -447,17 +443,11 @@ fn genExpr(
 
             skip(c, f, tir_f, .then);
             const then = try genExprNext(c, f, tir_f, branch_hint);
-            //if (hint == .nowhere) {
-            //    then = dropStack(then); // TODO move this into copyToHint. in dropStack, replace .stack with constant
-            //}
 
             emitEnum(f, wasm.Opcode.@"else");
 
             skip(c, f, tir_f, .@"else");
             const @"else" = try genExprNext(c, f, tir_f, branch_hint);
-            // (hint == .nowhere) {
-            //    @"else" = dropStack(@"else");
-            //}
 
             emitEnum(f, wasm.Opcode.end);
 
@@ -498,7 +488,6 @@ fn skip(
     c.tir_expr_next.id += 1;
 
     const expr_data = tir_f.expr_data.get(expr);
-    std.debug.print("skip {} {}\n", .{ c.tir_expr_next.id - 1, expr_data });
     assert(std.meta.activeTag(expr_data) == expr_tag);
 }
 
@@ -688,20 +677,27 @@ fn getShuffler(f: *wir.FunData, typ: wasm.Valtype) wir.Local {
     return shuffler.*.?;
 }
 
-fn dropStack(c: *Compiler, f: *wir.FunData, address: wir.Walue) void {
-    switch (address) {
-        .closure, .arg, .@"return", .local, .shadow, .i32 => {},
-        .stack => {
+fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
+    switch (walue) {
+        .closure, .arg, .@"return", .local, .shadow, .i32, .@"struct", .fun => return walue,
+        .stack => |valtype| {
             emitEnum(f, wasm.Opcode.drop);
-        },
-        .@"struct", .fun => {
-            // Not allowed to contain .stack
+            return switch (valtype) {
+                .i32 => .{ .i32 = 0 },
+                else => panic("TODO {}", .{valtype}),
+            };
         },
         .value_at => |value_at| {
-            dropStack(c, f, value_at.ptr.*);
+            return .{ .value_at = .{
+                .ptr = c.box(dropStack(c, f, value_at.ptr.*)),
+                .repr = value_at.repr,
+            } };
         },
         .add => |add| {
-            dropStack(c, f, add.walue.*);
+            return .{ .add = .{
+                .walue = c.box(dropStack(c, f, add.walue.*)),
+                .offset = add.offset,
+            } };
         },
     }
 }
