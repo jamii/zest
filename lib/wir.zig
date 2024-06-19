@@ -43,6 +43,10 @@ pub const Walue = union(enum) {
         // TODO May have to think about this
         return deepEqual(self, other);
     }
+
+    pub fn emptyStruct() Walue {
+        return .{ .@"struct" = .{ .repr = Repr.emptyStruct().@"struct", .values = &.{} } };
+    }
 };
 
 pub const Hint = union(enum) {

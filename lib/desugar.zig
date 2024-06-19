@@ -123,7 +123,6 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, pattern: s
             defer _ = f.expr_data.append(.ref_set);
 
             try desugarPath(c, f, pattern);
-            _ = f.expr_data.append(.ref_set_middle);
             try desugarPatternInput(c, f, input);
         },
         else => return fail(c, pattern, .invalid_pattern),

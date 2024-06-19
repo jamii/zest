@@ -237,7 +237,6 @@ pub fn evalExpr(
                 .value = c.box(value.copy(c.allocator)),
             } }) catch oom();
         },
-        .ref_set_middle => {},
         .ref_set => {
             const value = c.value_stack.pop();
             const ref = c.value_stack.pop();

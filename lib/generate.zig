@@ -18,7 +18,7 @@ const stack_top = 1 * wasm.page_size;
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
     for (0..c.tir_fun_data.count()) |tir_fun_id| {
-        try generateFun(c, .{ .id = tir_fun_id });
+        try genFun(c, .{ .id = tir_fun_id });
     }
 
     emitBytes(c, &wasm.magic);
@@ -150,7 +150,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
     }
 }
 
-fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
+fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     const tir_f = c.tir_fun_data.get(fun);
 
     // Get fun_type.
@@ -172,6 +172,7 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
         c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
     }
 
+    // Make wir_fun.
     _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?));
     const f = c.wir_fun_data.getPtr(fun);
 
@@ -182,12 +183,15 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     defer c.begin_end.data.shrinkRetainingCapacity(0);
     c.begin_end.appendNTimes(.{ .id = 0 }, tir_f.expr_data.count());
     for (tir_f.expr_data.items(), 0..) |expr_data, expr_id| {
+        const expr = tir.Expr{ .id = expr_id };
         if (expr_data == .begin) {
             c.begin_stack.append(.{ .id = expr_id }) catch oom();
-        }
-        if (expr_data.isEnd()) {
+        } else if (expr_data.isEnd()) {
             const begin = c.begin_stack.pop();
-            c.begin_end.getPtr(begin).* = .{ .id = expr_id };
+            c.begin_end.getPtr(begin).* = expr;
+            c.begin_end.getPtr(expr).* = begin;
+        } else {
+            c.begin_end.getPtr(expr).* = expr;
         }
     }
 
@@ -196,402 +200,306 @@ fn generateFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     defer c.local_walue.data.shrinkRetainingCapacity(0);
     c.local_walue.appendNTimes(null, tir_f.local_data.count());
 
-    // TODO Uncomment asserts once todo is gone.
+    c.tir_expr_next.id = 0;
     assert(c.block_stack.items.len == 0);
+    // TODO Uncomment asserts once todo is gone.
     //defer assert(c.block_stack.items.len == 0);
-    assert(c.walue_stack.items.len == 0);
-    //defer assert(c.walue_stack.items.len == 0);
-    assert(c.hint_stack.items.len == 0);
-    //defer assert(c.hint_stack.items.len == 0);
 
-    for (tir_f.expr_data.items(), tir_f.expr_repr.items(), 0..) |expr_data, repr, expr_id| {
-        if (expr_data == .begin) {
-            const end_expr = c.begin_end.get(.{ .id = expr_id });
-            const end_expr_data = tir_f.expr_data.get(end_expr);
-            const end_repr = tir_f.expr_repr.get(end_expr);
-            try generateExpr(c, f, tir_f, end_expr_data, end_repr, .begin);
-        } else {
-            try generateExpr(c, f, tir_f, expr_data, repr, .end);
-        }
+    while (c.tir_expr_next.id + 1 < tir_f.expr_data.count()) {
+        _ = try genExprNext(c, f, tir_f, .nowhere);
     }
 }
 
-fn generateExpr(
+fn genExprNext(
     c: *Compiler,
     f: *wir.FunData,
     tir_f: tir.FunData,
+    hint: wir.Hint,
+) error{GenerateError}!wir.Walue {
+    const expr = c.begin_end.get(c.tir_expr_next);
+    c.tir_expr_next.id += 1;
+
+    const expr_data = tir_f.expr_data.get(expr);
+    const repr = tir_f.expr_repr.get(expr);
+
+    std.debug.print("hit {} {}\n", .{ c.tir_expr_next.id - 1, expr_data });
+
+    const result_maybe = try genExpr(c, f, tir_f, hint, expr_data, repr);
+    if (expr_data.isEnd())
+        skip(c, f, tir_f, .begin);
+
+    if (result_maybe) |result| {
+        switch (hint) {
+            .nowhere => {
+                // TODO dropStack
+                return result;
+            },
+            .anywhere => {
+                return result;
+            },
+            .stack => {
+                load(c, f, result);
+                return .{ .stack = wasmRepr(walueRepr(c, f, result)).primitive };
+            },
+            .value_at => |ptr| {
+                store(c, f, result, ptr.*);
+                return .{ .value_at = .{ .ptr = ptr, .repr = walueRepr(c, f, result) } };
+            },
+        }
+    } else {
+        return wir.Walue.emptyStruct();
+    }
+}
+
+fn genExpr(
+    c: *Compiler,
+    f: *wir.FunData,
+    tir_f: tir.FunData,
+    hint: wir.Hint,
     expr_data: tir.ExprData,
     repr: ?Repr,
-    direction: enum { begin, end },
-) error{GenerateError}!void {
+) error{GenerateError}!?wir.Walue {
     switch (expr_data) {
         .i32 => |i| {
-            const hint = c.hint_stack.pop();
-            push(c, f, hint, .{
-                .i32 = i,
-            });
+            return .{ .i32 = i };
         },
         .closure => {
-            const hint = c.hint_stack.pop();
-            push(c, f, hint, .{
-                .value_at = .{
-                    .ptr = c.box(wir.Walue{ .closure = {} }),
-                    .repr = repr.?,
-                },
-            });
+            return .{ .value_at = .{
+                .ptr = c.box(wir.Walue{ .closure = {} }),
+                .repr = repr.?,
+            } };
         },
         .arg => {
-            const hint = c.hint_stack.pop();
-            push(c, f, hint, .{
-                .value_at = .{
-                    .ptr = c.box(wir.Walue{ .arg = {} }),
-                    .repr = repr.?,
-                },
-            });
+            return .{ .value_at = .{
+                .ptr = c.box(wir.Walue{ .arg = {} }),
+                .repr = repr.?,
+            } };
         },
         .local_get => |local| {
-            const hint = c.hint_stack.pop();
-            const walue = c.local_walue.get(local).?;
-            push(c, f, hint, walue);
+            return c.local_walue.get(local).?;
         },
-
-        .begin => unreachable,
-        .nop => {},
-
         .struct_init => {
             const struct_repr = repr.?.@"struct";
-            switch (direction) {
-                .begin => {
-                    for (0..struct_repr.reprs.len) |_| {
-                        c.hint_stack.append(.anywhere) catch oom();
-                    }
-                    // TODO not safe to pass hint without alias analysis.
-                    //const hint_maybe = c.hint_stack.pop();
-                    //var i: usize = struct_repr.reprs.len;
-                    //while (i > 0) : (i -= 1) {
-                    //    const offset = @as(u32, @intCast(struct_repr.offsetOf(i - 1)));
-                    //    const value_hint = if (hint_maybe) |hint|
-                    //        wir.Walue{ .add = .{
-                    //            .walue = c.box(hint),
-                    //            .offset = offset,
-                    //        } }
-                    //    else
-                    //        null;
-                    //    c.hint_stack.append(value_hint) catch oom();
-                    //}
-                },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
-                    var i: usize = struct_repr.reprs.len;
-                    while (i > 0) : (i -= 1) {
-                        values[i - 1] = spillStack(c, f, c.walue_stack.pop());
-                    }
-                    push(c, f, hint, .{
-                        .@"struct" = .{
-                            .repr = struct_repr,
-                            .values = values,
-                        },
-                    });
-                },
+            const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
+            for (values) |*value| {
+                // TODO Can pass hint if we do alias analysis.
+                value.* = spillStack(c, f, try genExprNext(c, f, tir_f, .anywhere));
             }
+            return .{ .@"struct" = .{
+                .repr = struct_repr,
+                .values = values,
+            } };
         },
         .fun_init => {
-            switch (direction) {
-                .begin => {
-                    const hint = c.hint_stack.pop();
-                    c.hint_stack.appendNTimes(hint, 2) catch oom();
-                },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const output = c.walue_stack.pop();
-                    push(c, f, hint, if (output == .@"struct")
-                        .{ .fun = .{
-                            .repr = repr.?.fun,
-                            .closure = c.box(output),
-                        } }
-                    else
-                        output);
-                },
-            }
+            // TODO Should we change the repr in hint.value_at?
+            const closure = try genExprNext(c, f, tir_f, hint);
+            return if (closure == .@"struct")
+                .{ .fun = .{
+                    .repr = repr.?.fun,
+                    .closure = c.box(closure),
+                } }
+            else
+                closure;
         },
         .local_let => |local| {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.anywhere) catch oom();
-                },
-                .end => {
-                    var input = spillStack(c, f, c.walue_stack.pop());
-                    switch (input) {
-                        .value_at => |value_at| {
-                            switch (wasmRepr(value_at.repr)) {
-                                .heap => {},
-                                .primitive => |valtype| {
-                                    // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
-                                    const wir_local = f.local_data.append(.{ .type = valtype });
-                                    const tmp = wir.Walue{ .local = wir_local };
-                                    load(c, f, input);
-                                    emitEnum(f, wasm.Opcode.local_set);
-                                    emitLebU32(f, wasmLocal(c, f, tmp));
-                                    input = tmp;
-                                },
-                            }
+            var value = spillStack(c, f, try genExprNext(c, f, tir_f, .anywhere));
+            switch (value) {
+                .value_at => |value_at| {
+                    switch (wasmRepr(value_at.repr)) {
+                        .heap => {},
+                        .primitive => |valtype| {
+                            // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
+                            const wir_local = f.local_data.append(.{ .type = valtype });
+                            const tmp = wir.Walue{ .local = wir_local };
+                            load(c, f, value);
+                            emitEnum(f, wasm.Opcode.local_set);
+                            emitLebU32(f, wasmLocal(c, f, tmp));
+                            value = tmp;
                         },
-                        // If we later pass this struct/fun to a function call then we need to be able to point to it, so pessimistically store it on the stack.
-                        .@"struct", .fun => {
-                            if (!tir_f.local_data.get(local).is_tmp) {
-                                const input_repr = walueRepr(c, f, input);
-                                const ptr = copyToShadow(c, f, input, input_repr);
-                                input = .{ .value_at = .{ .ptr = c.box(ptr), .repr = input_repr } };
-                            }
-                        },
-                        else => {},
                     }
-                    c.local_walue.getPtr(local).* = input;
                 },
+                .@"struct", .fun => {
+                    // If we later pass this struct/fun to a function call then we need to be able to point to it, so pessimistically store it on the stack.
+                    if (!tir_f.local_data.get(local).is_tmp) {
+                        const value_repr = walueRepr(c, f, value);
+                        const ptr = copyToShadow(c, f, value, value_repr);
+                        value = .{ .value_at = .{ .ptr = c.box(ptr), .repr = value_repr } };
+                    }
+                },
+                else => {},
             }
+            c.local_walue.getPtr(local).* = value;
+            return null;
         },
         .object_get => |object_get| {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.anywhere) catch oom();
+            const object = try genExprNext(c, f, tir_f, .anywhere);
+            switch (object) {
+                .value_at => |value_at| {
+                    return .{ .value_at = .{
+                        .ptr = c.box(wir.Walue{ .add = .{
+                            .walue = value_at.ptr,
+                            .offset = object_get.offset,
+                        } }),
+                        .repr = repr.?,
+                    } };
                 },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const input = c.walue_stack.pop();
-                    switch (input) {
-                        .value_at => |value_at| {
-                            const output = wir.Walue{ .value_at = .{
-                                .ptr = c.box(wir.Walue{ .add = .{
-                                    .walue = value_at.ptr,
-                                    .offset = object_get.offset,
-                                } }),
-                                .repr = repr.?,
-                            } };
-                            push(c, f, hint, output);
-                        },
-                        .@"struct" => |@"struct"| {
-                            const output = @"struct".values[object_get.index];
-                            push(c, f, hint, output);
-                        },
-                        else => panic("Can't represent struct with {}", .{input}),
-                    }
+                .@"struct" => |@"struct"| {
+                    return @"struct".values[object_get.index];
                 },
+                else => panic("Can't represent struct with {}", .{object}),
             }
         },
         .ref_init => {
-            switch (direction) {
-                .begin => {
-                    const output = shadowPush(c, f, repr.?.ref.*);
-                    c.hint_stack.appendNTimes(.{ .value_at = c.box(output) }, 2) catch oom();
-                },
-                .end => {
-                    const output = c.hint_stack.pop().value_at.*;
-                    const hint = c.hint_stack.pop();
-                    const input = c.walue_stack.pop();
-                    store(c, f, input, output);
-                    push(c, f, hint, output);
-                },
-            }
+            const ref = shadowPush(c, f, repr.?.ref.*);
+            _ = try genExprNext(c, f, tir_f, .{ .value_at = c.box(ref) });
+            return ref;
         },
         .ref_get => |ref_get| {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.anywhere) catch oom();
-                },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const input = c.walue_stack.pop();
-                    push(c, f, hint, .{
-                        .add = .{
-                            .walue = c.box(input),
-                            .offset = ref_get.offset,
-                        },
-                    });
-                },
-            }
-        },
-        .ref_set_middle => {
-            const ref = c.walue_stack.pop();
-            c.hint_stack.appendNTimes(.{ .value_at = c.box(ref) }, 2) catch oom();
+            const ref = try genExprNext(c, f, tir_f, .anywhere);
+            return .{ .add = .{
+                .walue = c.box(ref),
+                .offset = ref_get.offset,
+            } };
         },
         .ref_set => {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.anywhere) catch oom(); // for ref
-                    // hint for value is set by ref_set_middle
-                },
-                .end => {
-                    const ref = c.hint_stack.pop().value_at.*;
-                    const value = c.walue_stack.pop();
-                    store(c, f, value, ref);
-                },
-            }
+            const ref = try genExprNext(c, f, tir_f, .anywhere);
+            _ = try genExprNext(c, f, tir_f, .{ .value_at = c.box(ref) });
+            return null;
         },
         .ref_deref => {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.anywhere) catch oom();
+            const ref = try genExprNext(c, f, tir_f, .anywhere);
+            const value = wir.Walue{ .value_at = .{ .ptr = c.box(ref), .repr = repr.? } };
+            switch (hint) {
+                .nowhere, .stack, .value_at => {
+                    return value;
                 },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const input = c.walue_stack.pop();
-                    const output = wir.Walue{ .value_at = .{ .ptr = c.box(input), .repr = repr.? } };
-                    switch (hint) {
-                        .nowhere, .value_at, .stack => {
-                            push(c, f, hint, output);
-                        },
-                        .anywhere => {
-                            // Must make a copy to avoid passing around an aliased walue
-                            const output_copy = copy(c, f, .{ .ptr = c.box(input), .repr = repr.? });
-                            c.walue_stack.append(output_copy) catch oom();
-                        },
-                    }
+                .anywhere => {
+                    // Must make a copy to avoid passing around an aliased walue
+                    return copy(c, f, value.value_at);
                 },
             }
         },
         .call => |fun| {
             f.is_leaf = false;
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.appendNTimes(.anywhere, 2) catch oom();
-                },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const output = switch (wasmRepr(repr.?)) {
-                        .primitive => |valtype| wir.Walue{ .stack = valtype },
-                        .heap => wir.Walue{ .value_at = .{
-                            .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, repr.?)),
-                            .repr = repr.?,
-                        } },
-                    };
-                    const arg = c.walue_stack.pop();
-                    const closure = c.walue_stack.pop();
-                    loadPtrTo(c, f, arg);
-                    loadPtrTo(c, f, closure);
-                    switch (wasmRepr(repr.?)) {
-                        .primitive => {},
-                        .heap => loadPtrTo(c, f, output),
-                    }
-                    emitEnum(f, wasm.Opcode.call);
-                    emitLebU32(f, @intCast(fun.id));
-                    push(c, f, hint, output);
-                },
+            const closure = try genExprNext(c, f, tir_f, .anywhere);
+            const arg = try genExprNext(c, f, tir_f, .anywhere);
+            const output = switch (wasmRepr(repr.?)) {
+                .primitive => |valtype| wir.Walue{ .stack = valtype },
+                .heap => wir.Walue{ .value_at = .{
+                    .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, repr.?)),
+                    .repr = repr.?,
+                } },
+            };
+            loadPtrTo(c, f, arg);
+            loadPtrTo(c, f, closure);
+            switch (wasmRepr(repr.?)) {
+                .primitive => {},
+                .heap => loadPtrTo(c, f, output),
             }
+            emitEnum(f, wasm.Opcode.call);
+            emitLebU32(f, @intCast(fun.id));
+            return output;
         },
         .drop => {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.nowhere) catch oom();
-                },
-                .end => {
-                    const input = c.walue_stack.pop();
-                    dropStack(c, f, input);
-                },
+            // TODO shouldn't nest multiple exprs inside drop
+            var value = wir.Walue.emptyStruct();
+            while (tir_f.expr_data.get(c.begin_end.get(c.tir_expr_next)) != .begin) {
+                value = try genExprNext(c, f, tir_f, .nowhere);
             }
+            dropStack(c, f, value);
+            return null;
         },
         .block => {
-            // TODO stack reset
-        },
-        .@"return" => {
-            switch (wasmRepr(tir_f.return_repr.one)) {
-                .primitive => switch (direction) {
-                    .begin => {
-                        c.hint_stack.append(.anywhere) catch oom();
-                    },
-                    .end => {
-                        const input = c.walue_stack.pop();
-                        load(c, f, input);
-                    },
-                },
-                .heap => switch (direction) {
-                    .begin => {
-                        c.hint_stack.append(.{ .value_at = c.box(wir.Walue{ .@"return" = {} }) }) catch oom();
-                    },
-                    .end => {
-                        const input = c.walue_stack.pop();
-                        store(c, f, input, .@"return");
-                    },
-                },
+            // TODO reset shadow
+            var value = wir.Walue.emptyStruct();
+            while (tir_f.expr_data.get(c.begin_end.get(c.tir_expr_next)) != .begin) {
+                value = try genExprNext(c, f, tir_f, hint);
             }
+            return value;
         },
-        .then => {
-            const cond = c.walue_stack.pop();
-            assert(cond == .stack);
+        .@"if" => {
+            _ = try genExprNext(c, f, tir_f, .stack);
 
-            const hint = c.hint_stack.pop();
             emitEnum(f, wasm.Opcode.@"if");
-            switch (hint) {
-                .nowhere, .value_at, .stack => {
-                    c.hint_stack.appendNTimes(hint, 3) catch oom();
+            var branch_hint = hint;
+            switch (branch_hint) {
+                .nowhere, .value_at => {
                     emitByte(f, wasm.block_empty);
+                },
+                .stack => {
+                    emitEnum(f, wasmRepr(repr.?).primitive);
                 },
                 .anywhere => {
                     // Need to pick a specific hint so that both branches end up the same.
                     switch (wasmRepr(repr.?)) {
                         .primitive => |valtype| {
-                            c.hint_stack.appendNTimes(.stack, 3) catch oom();
+                            branch_hint = .stack;
                             emitEnum(f, valtype);
                         },
                         .heap => {
                             const output_ptr = shadowPush(c, f, repr.?);
-                            c.hint_stack.appendNTimes(.{ .value_at = c.box(output_ptr) }, 3) catch oom();
+                            branch_hint = .{ .value_at = c.box(output_ptr) };
                             emitByte(f, wasm.block_empty);
                         },
                     }
                 },
             }
-        },
-        .@"else" => {
-            const hint = c.hint_stack.pop();
-            const value_then = c.walue_stack.pop();
-            if (hint == .nowhere) dropStack(c, f, value_then);
+
+            skip(c, f, tir_f, .then);
+            const then = try genExprNext(c, f, tir_f, branch_hint);
+            //if (hint == .nowhere) {
+            //    then = dropStack(then); // TODO move this into copyToHint. in dropStack, replace .stack with constant
+            //}
+
             emitEnum(f, wasm.Opcode.@"else");
-            c.hint_stack.append(hint) catch oom();
-            c.walue_stack.append(value_then) catch oom();
+
+            skip(c, f, tir_f, .@"else");
+            const @"else" = try genExprNext(c, f, tir_f, branch_hint);
+            // (hint == .nowhere) {
+            //    @"else" = dropStack(@"else");
+            //}
+
+            emitEnum(f, wasm.Opcode.end);
+
+            assert(then.equal(@"else"));
+            return then;
         },
-        .@"if" => {
-            switch (direction) {
-                .begin => {
-                    c.hint_stack.append(.stack) catch oom();
-                },
-                .end => {
-                    const hint = c.hint_stack.pop();
-                    const value_else = c.walue_stack.pop();
-                    if (hint == .nowhere) dropStack(c, f, value_else);
-                    emitEnum(f, wasm.Opcode.end);
-                    // Both branches got the same hint, so both should have produced the same walue
-                    const value_then = c.walue_stack.pop();
-                    assert(value_else.equal(value_then));
-                    c.walue_stack.append(value_then) catch oom();
-                },
-            }
+        .@"return" => {
+            const result_hint: wir.Hint = switch (wasmRepr(tir_f.return_repr.one)) {
+                .primitive => .stack,
+                .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
+            };
+            _ = try genExprNext(c, f, tir_f, result_hint);
+            return wir.Walue.emptyStruct();
+        },
+        .nop => {
+            const value = try genExprNext(c, f, tir_f, hint);
+            return value;
+        },
+        .begin, .then, .@"else" => {
+            panic("This should have been skipped", .{});
         },
         else => {
-            //std.debug.print("TODO generate {}\n", .{expr_data});
+            std.debug.print("TODO generate {}\n", .{expr_data});
             return fail(c, .todo);
         },
     }
 }
 
-fn push(c: *Compiler, f: *wir.FunData, hint: wir.Hint, walue: wir.Walue) void {
-    c.walue_stack.append(copyToHint(c, f, walue, hint)) catch oom();
-}
+fn skip(
+    c: *Compiler,
+    f: *wir.FunData,
+    tir_f: tir.FunData,
+    expr_tag: std.meta.Tag(tir.ExprData),
+) void {
+    _ = f;
 
-fn copyToHint(c: *Compiler, f: *wir.FunData, walue: wir.Walue, hint: wir.Hint) wir.Walue {
-    switch (hint) {
-        .nowhere, .anywhere => {
-            return walue;
-        },
-        .stack => {
-            load(c, f, walue);
-            return .{ .stack = wasmRepr(walueRepr(c, f, walue)).primitive };
-        },
-        .value_at => |ptr| {
-            store(c, f, walue, ptr.*);
-            return .{ .value_at = .{ .ptr = ptr, .repr = walueRepr(c, f, walue) } };
-        },
-    }
+    const expr = c.begin_end.get(c.tir_expr_next);
+    c.tir_expr_next.id += 1;
+
+    const expr_data = tir_f.expr_data.get(expr);
+    std.debug.print("skip {} {}\n", .{ c.tir_expr_next.id - 1, expr_data });
+    assert(std.meta.activeTag(expr_data) == expr_tag);
 }
 
 fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {

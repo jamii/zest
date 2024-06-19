@@ -217,9 +217,6 @@ fn inferExpr(
             const repr = Repr{ .ref = c.box(get.repr) };
             pushExpr(c, f, .{ .ref_get = .{ .index = get.index, .offset = get.offset } }, repr);
         },
-        .ref_set_middle => {
-            pushExpr(c, f, .ref_set_middle, null);
-        },
         .ref_set => {
             const value = c.repr_stack.pop();
             const ref = c.repr_stack.pop();
