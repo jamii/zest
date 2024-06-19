@@ -300,8 +300,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => {
                     const hint = c.hint_stack.pop();
-                    c.hint_stack.append(hint) catch oom();
-                    c.hint_stack.append(hint) catch oom();
+                    c.hint_stack.appendNTimes(hint, 2) catch oom();
                 },
                 .end => {
                     const hint = c.hint_stack.pop();
@@ -384,8 +383,7 @@ fn generateExpr(
             switch (direction) {
                 .begin => {
                     const output = shadowPush(c, f, repr.?.ref.*);
-                    c.hint_stack.append(.{ .value_at = c.box(output) }) catch oom(); // for end
-                    c.hint_stack.append(.{ .value_at = c.box(output) }) catch oom(); // for child
+                    c.hint_stack.appendNTimes(.{ .value_at = c.box(output) }, 2) catch oom();
                 },
                 .end => {
                     const output = c.hint_stack.pop().value_at.*;
@@ -415,8 +413,7 @@ fn generateExpr(
         },
         .ref_set_middle => {
             const ref = c.walue_stack.pop();
-            c.hint_stack.append(.{ .value_at = c.box(ref) }) catch oom(); // for end
-            c.hint_stack.append(.{ .value_at = c.box(ref) }) catch oom(); // for value
+            c.hint_stack.appendNTimes(.{ .value_at = c.box(ref) }, 2) catch oom();
         },
         .ref_set => {
             switch (direction) {
@@ -457,8 +454,7 @@ fn generateExpr(
             f.is_leaf = false;
             switch (direction) {
                 .begin => {
-                    c.hint_stack.append(.anywhere) catch oom(); // arg
-                    c.hint_stack.append(.anywhere) catch oom(); // closure
+                    c.hint_stack.appendNTimes(.anywhere, 2) catch oom();
                 },
                 .end => {
                     const hint = c.hint_stack.pop();
@@ -527,25 +523,19 @@ fn generateExpr(
             emitEnum(f, wasm.Opcode.@"if");
             switch (hint) {
                 .nowhere, .value_at, .stack => {
-                    c.hint_stack.append(hint) catch oom();
-                    c.hint_stack.append(hint) catch oom();
-                    c.hint_stack.append(hint) catch oom();
+                    c.hint_stack.appendNTimes(hint, 3) catch oom();
                     emitByte(f, wasm.block_empty);
                 },
                 .anywhere => {
                     // Need to pick a specific hint so that both branches end up the same.
                     switch (wasmRepr(repr.?)) {
                         .primitive => |valtype| {
-                            c.hint_stack.append(.stack) catch oom();
-                            c.hint_stack.append(.stack) catch oom();
-                            c.hint_stack.append(.stack) catch oom();
+                            c.hint_stack.appendNTimes(.stack, 3) catch oom();
                             emitEnum(f, valtype);
                         },
                         .heap => {
                             const output_ptr = shadowPush(c, f, repr.?);
-                            c.hint_stack.append(.{ .value_at = c.box(output_ptr) }) catch oom();
-                            c.hint_stack.append(.{ .value_at = c.box(output_ptr) }) catch oom();
-                            c.hint_stack.append(.{ .value_at = c.box(output_ptr) }) catch oom();
+                            c.hint_stack.appendNTimes(.{ .value_at = c.box(output_ptr) }, 3) catch oom();
                             emitByte(f, wasm.block_empty);
                         },
                     }
