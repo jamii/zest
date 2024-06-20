@@ -236,6 +236,41 @@ fn inferExpr(
         .call_builtin => |builtin| {
             const args = c.repr_stack.pop();
             switch (builtin) {
+                .equal => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .equal_i32 }, .i32);
+                },
+                .less_than => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .less_than_i32 }, .i32);
+                },
+                .less_than_or_equal => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .less_than_or_equal_i32 }, .i32);
+                },
+                .more_than => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .more_than_i32 }, .i32);
+                },
+                .more_than_or_equal => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .more_than_or_equal_i32 }, .i32);
+                },
                 .add => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];

@@ -266,6 +266,41 @@ pub fn evalExpr(
         .call_builtin => |builtin| {
             const args = c.value_stack.pop();
             switch (builtin) {
+                .equal => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = if (arg0.i32 == arg1.i32) 1 else 0 }) catch oom();
+                },
+                .less_than => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = if (arg0.i32 < arg1.i32) 1 else 0 }) catch oom();
+                },
+                .less_than_or_equal => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = if (arg0.i32 <= arg1.i32) 1 else 0 }) catch oom();
+                },
+                .more_than => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = if (arg0.i32 > arg1.i32) 1 else 0 }) catch oom();
+                },
+                .more_than_or_equal => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = if (arg0.i32 >= arg1.i32) 1 else 0 }) catch oom();
+                },
                 .add => {
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];

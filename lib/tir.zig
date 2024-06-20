@@ -62,6 +62,11 @@ pub const ExprData = union(enum) {
 };
 
 pub const BuiltinTyped = enum {
+    equal_i32,
+    less_than_i32,
+    less_than_or_equal_i32,
+    more_than_i32,
+    more_than_or_equal_i32,
     add_i32,
     subtract_i32,
     multiply_i32,

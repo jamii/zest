@@ -408,6 +408,71 @@ fn genExpr(
         },
         .call_builtin => |builtin| {
             switch (builtin) {
+                .equal_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = if (arg0.i32 == arg1.i32) 1 else 0 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_eq);
+                        return .{ .stack = .i32 };
+                    }
+                },
+                .less_than_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = if (arg0.i32 < arg1.i32) 1 else 0 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_lt_s);
+                        return .{ .stack = .i32 };
+                    }
+                },
+                .less_than_or_equal_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = if (arg0.i32 <= arg1.i32) 1 else 0 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_le_s);
+                        return .{ .stack = .i32 };
+                    }
+                },
+                .more_than_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = if (arg0.i32 > arg1.i32) 1 else 0 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_gt_s);
+                        return .{ .stack = .i32 };
+                    }
+                },
+                .more_than_or_equal_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = if (arg0.i32 >= arg1.i32) 1 else 0 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_ge_s);
+                        return .{ .stack = .i32 };
+                    }
+                },
                 .add_i32 => {
                     const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
