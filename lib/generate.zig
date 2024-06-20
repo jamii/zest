@@ -845,33 +845,53 @@ fn emitBytes(c: anytype, bs: []const u8) void {
 }
 
 /// Don't use this directly.
-fn emitLeb(c: anytype, i: anytype) void {
+fn emitLebU(c: anytype, i: anytype) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
-        const is_last_chunk = n == 0;
-        const chunk = @as(u8, @truncate(n & 0b0111_1111));
-        n = n >> 7;
-        const encoded_chunk = if (is_last_chunk) chunk else chunk | 0b1000_0000;
-        c.wasm.append(encoded_chunk) catch oom();
-        if (is_last_chunk) break;
+        const chunk = @as(u8, @truncate(n));
+        n >>= 7;
+        if (n == 0) {
+            c.wasm.append(chunk & 0b0111_1111) catch oom();
+            break;
+        } else {
+            c.wasm.append(chunk | 0b1000_0000) catch oom();
+        }
+    }
+}
+
+/// Don't use this directly.
+fn emitLebI(c: anytype, i: anytype) void {
+    // https://webassembly.github.io/spec/core/binary/values.html#integers
+    const U = std.meta.Int(.unsigned, @typeInfo(@TypeOf(i)).Int.bits);
+    var n = i;
+    while (true) {
+        const chunk = @as(u8, @truncate(@as(U, @bitCast(n))));
+        n >>= 6;
+        if (n == 0 or n == -1) {
+            c.wasm.append(chunk & 0b0111_1111) catch oom();
+            break;
+        } else {
+            n >>= 1;
+            c.wasm.append(chunk | 0b1000_0000) catch oom();
+        }
     }
 }
 
 fn emitLebU32(c: anytype, i: u32) void {
-    emitLeb(c, i);
+    emitLebU(c, i);
 }
 
 fn emitLebI32(c: anytype, i: i32) void {
-    emitLebU32(c, @bitCast(i));
+    emitLebI(c, i);
 }
 
 fn emitLebU64(c: anytype, i: u64) void {
-    emitLeb(c, i);
+    emitLebU(c, i);
 }
 
 fn emitLebI64(c: anytype, i: i64) void {
-    emitLebU64(c, @bitCast(i));
+    emitLebI(c, i);
 }
 
 fn emitName(c: anytype, string: []const u8) void {
