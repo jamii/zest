@@ -792,3 +792,30 @@ a
 
 42
 ```
+
+```
+1 + 2
+
+3
+
+3
+```
+
+
+```
+1 + [2]
+
+Cannot call zest.Builtin.add with these args: [1, [2]]
+
+Cannot call zest.Builtin.add with these args: struct[i32, struct[i32]]
+```
+
+```
+a mut = 1
+a@ = a + 2
+a
+
+3
+
+3
+```

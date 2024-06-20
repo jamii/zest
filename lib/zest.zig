@@ -304,6 +304,7 @@ pub const Compiler = struct {
                                 .struct_init, .block => |count| try writer.print(" count={}", .{count}),
                                 .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
                                 .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
+                                .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
                                 inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                             }
                             try writer.print("\n", .{});
@@ -340,6 +341,7 @@ pub const Compiler = struct {
                                 .ref_get => |ref_get| try writer.print(" index={} offset={}", .{ ref_get.index, ref_get.offset }),
                                 .ref_set => {},
                                 .call => |fun| try writer.print(" f{}", .{fun.id}),
+                                .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
                                 .block => |count| try writer.print(" count={}", .{count}),
                                 inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                             }
@@ -416,6 +418,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .not_a_bool => |data| format(c, "Not a 'boolean': {}", .{data}),
                     .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
                     .cannot_unstage_value => |data| format(c, "Cannot unstage value: {}", .{data}),
+                    .invalid_call_builtin => |data| format(c, "Cannot call {} with these args: {}", .{ data.builtin, data.args }),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },
@@ -431,6 +434,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .not_a_bool => |data| format(c, "Not a 'boolean': {}", .{data}),
+                    .invalid_call_builtin => |data| format(c, "Cannot call {} with these args: {}", .{ data.builtin, data.args }),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

@@ -106,8 +106,8 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!sir.Expr {
                 const right = try parseExprTight(c);
                 const zero = c.sir_expr_data.append(.{ .i32 = 0 });
                 const one = c.sir_expr_data.append(.{ .i32 = 1 });
-                head = c.sir_expr_data.append(.{ .call = .{
-                    .head = c.sir_expr_data.append(.{ .builtin = op }),
+                head = c.sir_expr_data.append(.{ .call_builtin = .{
+                    .head = op,
                     .args = .{
                         .keys = c.allocator.dupe(sir.Expr, &.{ zero, one }) catch oom(),
                         .values = c.allocator.dupe(sir.Expr, &.{ head, right }) catch oom(),

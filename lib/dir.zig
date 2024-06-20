@@ -10,6 +10,7 @@ const fieldType = zest.fieldType;
 const List = zest.List;
 const Map = zest.Map;
 const Value = zest.Value;
+const Builtin = zest.Builtin;
 
 pub const Local = struct { id: usize };
 
@@ -49,6 +50,7 @@ pub const ExprData = union(enum) {
     ref_set,
     ref_deref,
     call,
+    call_builtin: Builtin,
     block: usize,
     @"if",
     then,
@@ -58,7 +60,7 @@ pub const ExprData = union(enum) {
     pub fn isEnd(expr_data: ExprData) bool {
         return switch (expr_data) {
             .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage, .then, .@"else" => false,
-            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .block, .@"return", .@"if" => true,
+            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .@"if" => true,
         };
     }
 };

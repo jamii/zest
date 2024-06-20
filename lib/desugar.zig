@@ -204,6 +204,12 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             try desugarExpr(c, f, call.head);
             try desugarObject(c, f, call.args);
         },
+        .call_builtin => |call| {
+            _ = f.expr_data.append(.begin);
+            defer _ = f.expr_data.append(.{ .call_builtin = call.head });
+
+            try desugarObject(c, f, call.args);
+        },
         .block => |block| {
             const scope_saved = c.scope.save();
             defer c.scope.restore(scope_saved);

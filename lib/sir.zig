@@ -15,7 +15,6 @@ pub const ExprData = union(enum) {
         name: []const u8,
         mut: bool,
     },
-    builtin: Builtin,
     let: struct {
         path: Expr,
         value: Expr,
@@ -43,6 +42,10 @@ pub const ExprData = union(enum) {
     },
     call: struct {
         head: Expr,
+        args: Object,
+    },
+    call_builtin: struct {
+        head: Builtin,
         args: Object,
     },
     block: []Expr,

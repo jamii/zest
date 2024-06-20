@@ -11,6 +11,7 @@ const List = zest.List;
 const Compiler = zest.Compiler;
 const Value = zest.Value;
 const Repr = zest.Repr;
+const Builtin = zest.Builtin;
 const dir = zest.dir;
 const tir = zest.tir;
 
@@ -262,6 +263,19 @@ pub fn evalExpr(
             const ref = c.value_stack.pop();
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
+        .call_builtin => |builtin| {
+            const args = c.value_stack.pop();
+            switch (builtin) {
+                .add => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = arg0.i32 + arg1.i32 }) catch oom();
+                },
+                else => return fail(c, .todo),
+            }
+        },
         .block => |count| {
             if (count == 0) {
                 c.value_stack.append(Value.emptyStruct()) catch oom();
@@ -336,5 +350,9 @@ pub const EvalErrorData = union(enum) {
     not_a_bool: Value,
     cannot_stage_expr,
     cannot_unstage_value: Repr,
+    invalid_call_builtin: struct {
+        builtin: Builtin,
+        args: Value,
+    },
     todo,
 };

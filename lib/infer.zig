@@ -9,6 +9,7 @@ const oom = zest.oom;
 const Compiler = zest.Compiler;
 const Value = zest.Value;
 const Repr = zest.Repr;
+const Builtin = zest.Builtin;
 const FlatLattice = zest.FlatLattice;
 const dir = zest.dir;
 const tir = zest.tir;
@@ -232,6 +233,19 @@ fn inferExpr(
             const repr = ref.ref.*;
             pushExpr(c, f, .ref_deref, repr);
         },
+        .call_builtin => |builtin| {
+            const args = c.repr_stack.pop();
+            switch (builtin) {
+                .add => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .add_i32 }, .i32);
+                },
+                else => return fail(c, .todo),
+            }
+        },
         .block => |count| {
             if (count == 0) {
                 pushExpr(c, f, .{ .block = count }, Repr.emptyStruct());
@@ -348,5 +362,9 @@ pub const InferErrorData = union(enum) {
     },
     not_a_fun: Repr,
     not_a_bool: Repr,
+    invalid_call_builtin: struct {
+        builtin: Builtin,
+        args: Repr,
+    },
     todo,
 };
