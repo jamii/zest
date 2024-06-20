@@ -421,6 +421,32 @@ fn genExpr(
                         return .{ .stack = .i32 };
                     }
                 },
+                .subtract_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = arg0.i32 - arg1.i32 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_sub);
+                        return .{ .stack = .i32 };
+                    }
+                },
+                .multiply_i32 => {
+                    const args = try genExprNext(c, f, tir_f, .anywhere);
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 == .i32 and arg1 == .i32) {
+                        return .{ .i32 = arg0.i32 * arg1.i32 };
+                    } else {
+                        load(c, f, arg0);
+                        load(c, f, arg1);
+                        emitEnum(f, wasm.Opcode.i32_mul);
+                        return .{ .stack = .i32 };
+                    }
+                },
             }
         },
         .block => |count| {

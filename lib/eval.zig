@@ -273,6 +273,20 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
                     c.value_stack.append(.{ .i32 = arg0.i32 + arg1.i32 }) catch oom();
                 },
+                .subtract => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = arg0.i32 - arg1.i32 }) catch oom();
+                },
+                .multiply => {
+                    const arg0 = args.@"struct".values[0];
+                    const arg1 = args.@"struct".values[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    c.value_stack.append(.{ .i32 = arg0.i32 * arg1.i32 }) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },

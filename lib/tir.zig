@@ -63,6 +63,8 @@ pub const ExprData = union(enum) {
 
 pub const BuiltinTyped = enum {
     add_i32,
+    subtract_i32,
+    multiply_i32,
 };
 
 pub const FunKey = struct {

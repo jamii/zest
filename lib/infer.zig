@@ -243,6 +243,20 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
                     pushExpr(c, f, .{ .call_builtin = .add_i32 }, .i32);
                 },
+                .subtract => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .subtract_i32 }, .i32);
+                },
+                .multiply => {
+                    const arg0 = args.@"struct".reprs[0];
+                    const arg1 = args.@"struct".reprs[1];
+                    if (arg0 != .i32 or arg1 != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                    pushExpr(c, f, .{ .call_builtin = .multiply_i32 }, .i32);
+                },
                 else => return fail(c, .todo),
             }
         },
