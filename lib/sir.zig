@@ -15,7 +15,6 @@ pub const ExprData = union(enum) {
         name: []const u8,
         mut: bool,
     },
-    mut: Expr,
     builtin: Builtin,
     let: struct {
         path: Expr,
