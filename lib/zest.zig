@@ -154,6 +154,9 @@ pub const Builtin = enum {
     subtract,
     multiply,
     divide,
+    @"and",
+    @"or",
+    not,
 };
 
 pub fn FlatLattice(comptime T: type) type {

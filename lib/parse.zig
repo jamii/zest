@@ -205,6 +205,7 @@ fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.E
         .string => return parseString(c),
         .@"[" => return parseObject(c),
         .@"{" => return parseGroup(c),
+        .@"-" => return parseNegate(c),
         else => {
             const token = take(c);
             return fail(c, .{ .unexpected = .{ .expected = "sir-atom", .found = token } });
@@ -280,6 +281,20 @@ fn parseGroup(c: *Compiler) error{ParseError}!sir.Expr {
     const exprs = try parseBlock(c, .@"}");
     try expect(c, .@"}");
     return exprs;
+}
+
+fn parseNegate(c: *Compiler) error{ParseError}!sir.Expr {
+    try expect(c, .@"-");
+    const value = try parseExprAtom(c, .{});
+    const zero = c.sir_expr_data.append(.{ .i32 = 0 });
+    const one = c.sir_expr_data.append(.{ .i32 = 1 });
+    return c.sir_expr_data.append(.{ .call_builtin = .{
+        .head = .subtract,
+        .args = .{
+            .keys = c.allocator.dupe(sir.Expr, &.{ zero, one }) catch oom(),
+            .values = c.allocator.dupe(sir.Expr, &.{ zero, value }) catch oom(),
+        },
+    } });
 }
 
 fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!sir.Object {
