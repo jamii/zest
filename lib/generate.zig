@@ -184,14 +184,19 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     c.begin_end.appendNTimes(.{ .id = 0 }, tir_f.expr_data.count());
     for (tir_f.expr_data.items(), 0..) |expr_data, expr_id| {
         const expr = tir.Expr{ .id = expr_id };
-        if (expr_data == .begin or expr_data == .if_begin) {
-            c.begin_stack.append(.{ .id = expr_id }) catch oom();
-        } else if (expr_data.isEnd() or expr_data == .if_end) {
-            const begin = c.begin_stack.pop();
-            c.begin_end.getPtr(begin).* = expr;
-            c.begin_end.getPtr(expr).* = begin;
-        } else {
-            c.begin_end.getPtr(expr).* = expr;
+        switch (expr_data.treePart()) {
+            .branch_begin => {
+                c.begin_stack.append(.{ .id = expr_id }) catch oom();
+            },
+            .branch_end => {
+                const begin = c.begin_stack.pop();
+                c.begin_end.getPtr(begin).* = expr;
+                c.begin_end.getPtr(expr).* = begin;
+            },
+            .leaf, .branch_separator => {
+                c.begin_end.getPtr(expr).* = expr;
+            },
+            .branch_begin_without_end => unreachable,
         }
     }
 
@@ -232,8 +237,8 @@ fn genExprNextOrNull(
     const repr = tir_f.expr_repr.get(expr);
 
     const result_maybe = try genExpr(c, f, tir_f, hint, expr_data, repr);
-    if (expr_data.isEnd())
-        skip(c, f, tir_f, .begin);
+    if (expr_data.treePart() == .branch_end)
+        skipBegin(c, f, tir_f);
 
     if (result_maybe) |result| {
         switch (hint) {
@@ -560,7 +565,6 @@ fn genExpr(
             skip(c, f, tir_f, .if_else);
             const @"else" = try genExprNext(c, f, tir_f, branch_hint);
 
-            skip(c, f, tir_f, .if_begin);
             emitEnum(f, wasm.Opcode.end);
 
             assert(then.equal(@"else"));
@@ -601,6 +605,20 @@ fn skip(
 
     const expr_data = tir_f.expr_data.get(expr);
     assert(std.meta.activeTag(expr_data) == expr_tag);
+}
+
+fn skipBegin(
+    c: *Compiler,
+    f: *wir.FunData,
+    tir_f: tir.FunData,
+) void {
+    _ = f;
+
+    const expr = c.begin_end.get(c.tir_expr_next);
+    c.tir_expr_next.id += 1;
+
+    const expr_data = tir_f.expr_data.get(expr);
+    assert(expr_data.treePart() == .branch_begin);
 }
 
 fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {

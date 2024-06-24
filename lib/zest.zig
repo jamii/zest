@@ -159,6 +159,14 @@ pub const Builtin = enum {
     not,
 };
 
+pub const TreePart = enum {
+    leaf,
+    branch_begin,
+    branch_separator,
+    branch_end,
+    branch_begin_without_end,
+};
+
 pub fn FlatLattice(comptime T: type) type {
     return union(enum) {
         zero,
@@ -292,10 +300,10 @@ pub const Compiler = struct {
                         try writer.print("local l{}\n", .{local_id});
                     }
                     for (f.expr_data.items()) |expr_data| {
-                        if (expr_data == .begin) {
+                        if (expr_data.treePart() == .branch_begin) {
                             indent += 1;
                         } else {
-                            if (expr_data.isEnd()) indent -= 1;
+                            if (expr_data.treePart() == .branch_end) indent -= 1;
                             try writer.writeByteNTimes(' ', indent * 2);
                             try writer.print("{s}", .{@tagName(expr_data)});
                             switch (expr_data) {
@@ -327,10 +335,10 @@ pub const Compiler = struct {
                         try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.one });
                     }
                     for (f.expr_data.items(), f.expr_repr.items()) |expr_data, repr| {
-                        if (expr_data == .begin) {
+                        if (expr_data.treePart() == .branch_begin) {
                             indent += 1;
                         } else {
-                            if (expr_data.isEnd()) indent -= 1;
+                            if (expr_data.treePart() == .branch_end) indent -= 1;
                             try writer.writeByteNTimes(' ', indent * 2);
                             try writer.print("{s}", .{@tagName(expr_data)});
                             switch (expr_data) {

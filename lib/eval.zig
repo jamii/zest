@@ -94,7 +94,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
         }
 
         if (expr_data == .begin) ends_remaining += 1;
-        if (expr_data.isEnd()) ends_remaining -= 1;
+        if (expr_data.treePart() == .branch_end) ends_remaining -= 1;
         if (ends_remaining == 0) {
             assert(c.value_stack.items.len == 1);
             return c.value_stack.pop();
@@ -361,10 +361,10 @@ fn skip(c: *Compiler, to: std.meta.Tag(dir.ExprData)) void {
     while (true) {
         frame.expr.id += 1;
         const expr_data = f.expr_data.get(frame.expr);
-        if (expr_data == .begin) {
-            depth += 1;
-        } else if (expr_data.isEnd()) {
-            depth -= 1;
+        switch (expr_data.treePart()) {
+            .branch_begin => depth += 1,
+            .branch_end => depth -= 1,
+            .leaf, .branch_separator, .branch_begin_without_end => {},
         }
         if (depth == 0) {
             frame.expr.id += 1;

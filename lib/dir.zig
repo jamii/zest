@@ -11,6 +11,7 @@ const List = zest.List;
 const Map = zest.Map;
 const Value = zest.Value;
 const Builtin = zest.Builtin;
+const TreePart = zest.TreePart;
 
 pub const Local = struct { id: usize };
 
@@ -30,9 +31,6 @@ pub const ExprData = union(enum) {
     local_get: Local,
 
     begin,
-    stage,
-    unstage,
-
     nop,
     struct_init: usize,
     fun_init: struct {
@@ -58,11 +56,20 @@ pub const ExprData = union(enum) {
     if_then,
     if_else,
     if_end,
+    while_begin,
+    while_body,
+    while_end,
 
-    pub fn isEnd(expr_data: ExprData) bool {
+    stage,
+    unstage,
+
+    pub fn treePart(expr_data: ExprData) TreePart {
         return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage, .if_begin, .if_then, .if_else, .if_end => false,
-            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return" => true,
+            .i32, .f32, .string, .arg, .closure, .local_get => .leaf,
+            .begin, .if_begin, .while_begin => .branch_begin,
+            .if_then, .if_else, .while_body => .branch_separator,
+            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .if_end, .while_end => .branch_end,
+            .stage, .unstage => .branch_begin_without_end,
         };
     }
 };

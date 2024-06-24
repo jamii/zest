@@ -9,6 +9,7 @@ const List = zest.List;
 const Repr = zest.Repr;
 const Value = zest.Value;
 const FlatLattice = zest.FlatLattice;
+const TreePart = zest.TreePart;
 const dir = @import("./dir.zig");
 
 pub const Local = struct { id: usize };
@@ -30,7 +31,6 @@ pub const ExprData = union(enum) {
 
     begin,
     nop,
-
     struct_init,
     fun_init,
     local_let: Local,
@@ -54,11 +54,16 @@ pub const ExprData = union(enum) {
     if_then,
     if_else,
     if_end,
+    while_begin,
+    while_body,
+    while_end,
 
-    pub fn isEnd(expr_data: ExprData) bool {
+    pub fn treePart(expr_data: ExprData) TreePart {
         return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get, .begin, .if_begin, .if_then, .if_else, .if_end => false,
-            .nop, .struct_init, .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return" => true,
+            .i32, .f32, .string, .arg, .closure, .local_get => .leaf,
+            .begin, .if_begin, .while_begin => .branch_begin,
+            .if_then, .if_else, .while_body => .branch_separator,
+            .nop, .struct_init, .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .if_end, .while_end => .branch_end,
         };
     }
 };
