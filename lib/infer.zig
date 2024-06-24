@@ -167,6 +167,12 @@ fn inferExpr(
             const repr = f.local_data.get(local).repr.one;
             pushExpr(c, f, .{ .local_get = local }, repr);
         },
+        .begin => {
+            pushExpr(c, f, .begin, null);
+        },
+        .nop => {
+            pushExpr(c, f, .nop, null);
+        },
         .local_let => |dir_local| {
             const value = c.repr_stack.pop();
             const local = tir.Local{ .id = dir_local.id };
@@ -305,7 +311,21 @@ fn inferExpr(
                 pushExpr(c, f, .{ .block = count }, repr);
             }
         },
-        .@"if" => {
+        .@"return" => {
+            const value = c.repr_stack.pop();
+            _ = try reprUnion(c, &f.return_repr, value);
+            pushExpr(c, f, .@"return", null);
+        },
+        .if_begin => {
+            pushExpr(c, f, .if_begin, null);
+        },
+        .if_then => {
+            pushExpr(c, f, .if_then, null);
+        },
+        .if_else => {
+            pushExpr(c, f, .if_else, null);
+        },
+        .if_end => {
             const @"else" = c.repr_stack.pop();
             const then = c.repr_stack.pop();
             const cond = c.repr_stack.pop();
@@ -313,24 +333,7 @@ fn inferExpr(
                 return fail(c, .{ .not_a_bool = cond });
             if (!then.equal(@"else"))
                 return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
-            pushExpr(c, f, .@"if", then);
-        },
-        .then => {
-            pushExpr(c, f, .then, null);
-        },
-        .@"else" => {
-            pushExpr(c, f, .@"else", null);
-        },
-        .@"return" => {
-            const value = c.repr_stack.pop();
-            _ = try reprUnion(c, &f.return_repr, value);
-            pushExpr(c, f, .@"return", null);
-        },
-        .begin => {
-            pushExpr(c, f, .begin, null);
-        },
-        .nop => {
-            pushExpr(c, f, .nop, null);
+            pushExpr(c, f, .if_end, then);
         },
         .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
         else => return fail(c, .todo),

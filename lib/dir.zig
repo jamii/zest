@@ -52,15 +52,17 @@ pub const ExprData = union(enum) {
     call,
     call_builtin: Builtin,
     block: usize,
-    @"if",
-    then,
-    @"else",
     @"return",
+
+    if_begin,
+    if_then,
+    if_else,
+    if_end,
 
     pub fn isEnd(expr_data: ExprData) bool {
         return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage, .then, .@"else" => false,
-            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .@"if" => true,
+            .i32, .f32, .string, .arg, .closure, .local_get, .begin, .stage, .unstage, .if_begin, .if_then, .if_else, .if_end => false,
+            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return" => true,
         };
     }
 };

@@ -184,9 +184,9 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     c.begin_end.appendNTimes(.{ .id = 0 }, tir_f.expr_data.count());
     for (tir_f.expr_data.items(), 0..) |expr_data, expr_id| {
         const expr = tir.Expr{ .id = expr_id };
-        if (expr_data == .begin) {
+        if (expr_data == .begin or expr_data == .if_begin) {
             c.begin_stack.append(.{ .id = expr_id }) catch oom();
-        } else if (expr_data.isEnd()) {
+        } else if (expr_data.isEnd() or expr_data == .if_end) {
             const begin = c.begin_stack.pop();
             c.begin_end.getPtr(begin).* = expr;
             c.begin_end.getPtr(expr).* = begin;
@@ -524,7 +524,7 @@ fn genExpr(
             }
             return value orelse wir.Walue.emptyStruct();
         },
-        .@"if" => {
+        .if_end => {
             _ = try genExprNext(c, f, tir_f, .stack);
 
             emitEnum(f, wasm.Opcode.@"if");
@@ -552,14 +552,15 @@ fn genExpr(
                 },
             }
 
-            skip(c, f, tir_f, .then);
+            skip(c, f, tir_f, .if_then);
             const then = try genExprNext(c, f, tir_f, branch_hint);
 
             emitEnum(f, wasm.Opcode.@"else");
 
-            skip(c, f, tir_f, .@"else");
+            skip(c, f, tir_f, .if_else);
             const @"else" = try genExprNext(c, f, tir_f, branch_hint);
 
+            skip(c, f, tir_f, .if_begin);
             emitEnum(f, wasm.Opcode.end);
 
             assert(then.equal(@"else"));
@@ -577,7 +578,7 @@ fn genExpr(
             const value = try genExprNext(c, f, tir_f, hint);
             return value;
         },
-        .begin, .then, .@"else" => {
+        .begin, .if_then, .if_else, .if_begin => {
             panic("This should have been skipped", .{});
         },
         else => {

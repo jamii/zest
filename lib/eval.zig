@@ -335,18 +335,19 @@ pub fn evalExpr(
                 c.value_stack.append(value) catch oom();
             }
         },
-        .then => {
+        .if_begin => {},
+        .if_then => {
             const cond = c.value_stack.pop();
             c.value_stack.append(cond) catch oom();
             if (cond != .i32)
                 return fail(c, .{ .not_a_bool = cond });
             if (cond.i32 == 0)
-                skip(c, .@"else");
+                skip(c, .if_else);
         },
-        .@"else" => {
-            skip(c, .@"if");
+        .if_else => {
+            skip(c, .if_end);
         },
-        .@"if" => {},
+        .if_end => {},
         .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_data}),
         .nop => {},
         else => return fail(c, .todo),

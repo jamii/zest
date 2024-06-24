@@ -227,13 +227,13 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             _ = f.expr_data.append(.{ .block = count });
         },
         .@"if" => |@"if"| {
-            _ = f.expr_data.append(.begin);
+            _ = f.expr_data.append(.if_begin);
             try desugarExpr(c, f, @"if".cond);
-            _ = f.expr_data.append(.then);
+            _ = f.expr_data.append(.if_then);
             try desugarExpr(c, f, @"if".then);
-            _ = f.expr_data.append(.@"else");
+            _ = f.expr_data.append(.if_else);
             try desugarExpr(c, f, @"if".@"else");
-            _ = f.expr_data.append(.@"if");
+            _ = f.expr_data.append(.if_end);
         },
         else => return fail(c, expr, .todo),
     }
