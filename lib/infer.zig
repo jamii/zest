@@ -335,6 +335,19 @@ fn inferExpr(
                 return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
             pushExpr(c, f, .if_end, then);
         },
+        .while_begin => {
+            pushExpr(c, f, .while_begin, null);
+        },
+        .while_body => {
+            pushExpr(c, f, .while_body, null);
+        },
+        .while_end => {
+            _ = c.repr_stack.pop();
+            const cond = c.repr_stack.pop();
+            if (cond != .i32)
+                return fail(c, .{ .not_a_bool = cond });
+            pushExpr(c, f, .while_end, null);
+        },
         .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
         else => return fail(c, .todo),
     }

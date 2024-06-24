@@ -144,7 +144,6 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitLebU32(c, global_shadow);
             }
 
-            emitEnum(c, wasm.Opcode.@"return");
             emitEnum(c, wasm.Opcode.end);
         }
     }
@@ -238,7 +237,7 @@ fn genExprNextOrNull(
 
     const result_maybe = try genExpr(c, f, tir_f, hint, expr_data, repr);
     if (expr_data.treePart() == .branch_end)
-        skipBegin(c, f, tir_f);
+        skipOverBegin(c, f, tir_f);
 
     if (result_maybe) |result| {
         switch (hint) {
@@ -529,6 +528,18 @@ fn genExpr(
             }
             return value orelse wir.Walue.emptyStruct();
         },
+        .@"return" => {
+            const result_hint: wir.Hint = switch (wasmRepr(tir_f.return_repr.one)) {
+                .primitive => .stack,
+                .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
+            };
+            _ = try genExprNext(c, f, tir_f, result_hint);
+            return null;
+        },
+        .nop => {
+            const value = try genExprNext(c, f, tir_f, hint);
+            return value;
+        },
         .if_end => {
             _ = try genExprNext(c, f, tir_f, .stack);
 
@@ -557,12 +568,12 @@ fn genExpr(
                 },
             }
 
-            skip(c, f, tir_f, .if_then);
+            skipOver(c, f, tir_f, .if_then);
             const then = try genExprNext(c, f, tir_f, branch_hint);
 
             emitEnum(f, wasm.Opcode.@"else");
 
-            skip(c, f, tir_f, .if_else);
+            skipOver(c, f, tir_f, .if_else);
             const @"else" = try genExprNext(c, f, tir_f, branch_hint);
 
             emitEnum(f, wasm.Opcode.end);
@@ -570,20 +581,32 @@ fn genExpr(
             assert(then.equal(@"else"));
             return then;
         },
-        .@"return" => {
-            const result_hint: wir.Hint = switch (wasmRepr(tir_f.return_repr.one)) {
-                .primitive => .stack,
-                .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
-            };
-            _ = try genExprNext(c, f, tir_f, result_hint);
+        .while_end => {
+            emitEnum(f, wasm.Opcode.block);
+            emitByte(f, wasm.block_empty);
+
+            emitEnum(f, wasm.Opcode.loop);
+            emitByte(f, wasm.block_empty);
+
+            _ = try genExprNext(c, f, tir_f, .stack);
+            emitEnum(f, wasm.Opcode.i32_eqz);
+            emitEnum(f, wasm.Opcode.br_if);
+            emitLebU32(f, 1);
+
+            skipOver(c, f, tir_f, .while_body);
+
+            _ = try genExprNext(c, f, tir_f, .nowhere);
+            emitEnum(f, wasm.Opcode.br);
+            emitLebU32(f, 0);
+
+            emitEnum(f, wasm.Opcode.end);
+            emitEnum(f, wasm.Opcode.end);
+
             return null;
         },
-        .nop => {
-            const value = try genExprNext(c, f, tir_f, hint);
-            return value;
-        },
-        .begin, .if_then, .if_else, .if_begin => {
-            panic("This should have been skipped", .{});
+
+        .begin, .if_then, .if_else, .if_begin, .while_body, .while_begin => {
+            panic("This should have been skipped: {}", .{expr_data});
         },
         else => {
             std.debug.print("TODO generate {}\n", .{expr_data});
@@ -592,7 +615,7 @@ fn genExpr(
     }
 }
 
-fn skip(
+fn skipOver(
     c: *Compiler,
     f: *wir.FunData,
     tir_f: tir.FunData,
@@ -607,7 +630,7 @@ fn skip(
     assert(std.meta.activeTag(expr_data) == expr_tag);
 }
 
-fn skipBegin(
+fn skipOverBegin(
     c: *Compiler,
     f: *wir.FunData,
     tir_f: tir.FunData,

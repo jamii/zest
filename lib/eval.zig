@@ -342,19 +342,40 @@ pub fn evalExpr(
             if (cond != .i32)
                 return fail(c, .{ .not_a_bool = cond });
             if (cond.i32 == 0)
-                skip(c, .if_else);
+                skipExpr(c, .if_else);
         },
         .if_else => {
-            skip(c, .if_end);
+            skipExpr(c, .if_end);
         },
         .if_end => {},
+        .while_begin => {
+            const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+            c.while_stack.append(frame.expr) catch oom();
+        },
+        .while_body => {
+            const cond = c.value_stack.pop();
+            c.value_stack.append(cond) catch oom();
+            if (cond != .i32)
+                return fail(c, .{ .not_a_bool = cond });
+            if (cond.i32 == 0) {
+                _ = c.while_stack.pop();
+                skipExpr(c, .while_end);
+                const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+                frame.expr.id += 1;
+            }
+        },
+        .while_end => {
+            _ = c.value_stack.pop();
+            const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+            frame.expr = c.while_stack.items[c.while_stack.items.len - 1];
+        },
         .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_data}),
         .nop => {},
         else => return fail(c, .todo),
     }
 }
 
-fn skip(c: *Compiler, to: std.meta.Tag(dir.ExprData)) void {
+fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
     var depth: usize = 0;
@@ -368,7 +389,7 @@ fn skip(c: *Compiler, to: std.meta.Tag(dir.ExprData)) void {
         }
         if (depth == 0) {
             frame.expr.id += 1;
-            assert(std.meta.activeTag(f.expr_data.get(frame.expr)) == to);
+            assert(std.meta.activeTag(f.expr_data.get(frame.expr)) == expect_next);
             break;
         }
     }

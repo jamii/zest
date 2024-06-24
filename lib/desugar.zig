@@ -219,7 +219,8 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             _ = f.expr_data.append(.begin);
 
             for (block) |statement| {
-                if (c.sir_expr_data.get(statement) != .let)
+                const statement_data = c.sir_expr_data.get(statement);
+                if (statement_data != .let and statement_data != .@"while")
                     count += 1;
                 try desugarExpr(c, f, statement);
             }
@@ -234,6 +235,13 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
             _ = f.expr_data.append(.if_else);
             try desugarExpr(c, f, @"if".@"else");
             _ = f.expr_data.append(.if_end);
+        },
+        .@"while" => |@"while"| {
+            _ = f.expr_data.append(.while_begin);
+            try desugarExpr(c, f, @"while".cond);
+            _ = f.expr_data.append(.while_body);
+            try desugarExpr(c, f, @"while".body);
+            _ = f.expr_data.append(.while_end);
         },
         else => return fail(c, expr, .todo),
     }

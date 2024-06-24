@@ -205,6 +205,7 @@ pub const Compiler = struct {
     dir_frame_stack: ArrayList(dir.Frame),
     value_stack: ArrayList(Value),
     local_stack: ArrayList(Value),
+    while_stack: ArrayList(dir.Expr),
 
     // infer
     tir_fun_data: List(tir.Fun, tir.FunData),
@@ -244,6 +245,7 @@ pub const Compiler = struct {
             .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
             .local_stack = fieldType(Compiler, .local_stack).init(allocator),
+            .while_stack = fieldType(Compiler, .while_stack).init(allocator),
 
             .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
             .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
