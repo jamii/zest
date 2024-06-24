@@ -365,7 +365,7 @@ fn genExpr(
             return ref;
         },
         .ref_get => |ref_get| {
-            const ref = try genExprNext(c, f, tir_f, .anywhere);
+            const ref = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
             return .{ .add = .{
                 .walue = c.box(ref),
                 .offset = ref_get.offset,
@@ -377,7 +377,7 @@ fn genExpr(
             return null;
         },
         .ref_deref => {
-            const ref = try genExprNext(c, f, tir_f, .anywhere);
+            const ref = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
             const value = wir.Walue{ .value_at = .{ .ptr = c.box(ref), .repr = repr.? } };
             switch (hint) {
                 .nowhere, .stack, .value_at => {
@@ -608,7 +608,6 @@ fn genExpr(
 
             return null;
         },
-
         .begin, .if_then, .if_else, .if_begin, .while_body, .while_begin => {
             panic("This should have been skipped: {}", .{expr_data});
         },
