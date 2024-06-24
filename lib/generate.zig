@@ -342,7 +342,7 @@ fn genExpr(
             return null;
         },
         .object_get => |object_get| {
-            const object = try genExprNext(c, f, tir_f, .anywhere);
+            const object = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
             switch (object) {
                 .value_at => |value_at| {
                     return .{ .value_at = .{

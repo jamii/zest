@@ -896,8 +896,29 @@ a + 25
 x mut = 0
 while {x < 5} {
   x@ = x + 1
-  [x, x + 1]
 }
+x
+
+5
+
+5
+```
+
+```
+x = 5
+// Don't generate this trash
+[x, x + 1].0 + 1
+x
+
+5
+
+5
+```
+
+```
+x mut = 5
+// Don't generate this trash
+[x, x + 1].0 + 1
 x
 
 5
