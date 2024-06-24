@@ -925,3 +925,14 @@ x
 
 5
 ```
+
+```
+x mut = 5
+// Don't generate this trash
+if 0 1 else [x, x + 1].0 + 1
+x
+
+5
+
+5
+```

@@ -547,8 +547,14 @@ fn genExpr(
         .if_end => {
             _ = try genExprNext(c, f, tir_f, .stack);
 
+            const branch_hint: wir.Hint = if (hint != .anywhere) hint else
+            // Need to pick a specific hint so that both branches end up the same.
+            switch (wasmRepr(repr.?)) {
+                .primitive => .stack,
+                .heap => .{ .value_at = c.box(shadowPush(c, f, repr.?)) },
+            };
+
             emitEnum(f, wasm.Opcode.@"if");
-            var branch_hint = hint;
             switch (branch_hint) {
                 .nowhere, .value_at => {
                     emitByte(f, wasm.block_empty);
@@ -556,20 +562,7 @@ fn genExpr(
                 .stack => {
                     emitEnum(f, wasmRepr(repr.?).primitive);
                 },
-                .anywhere => {
-                    // Need to pick a specific hint so that both branches end up the same.
-                    switch (wasmRepr(repr.?)) {
-                        .primitive => |valtype| {
-                            branch_hint = .stack;
-                            emitEnum(f, valtype);
-                        },
-                        .heap => {
-                            const output_ptr = shadowPush(c, f, repr.?);
-                            branch_hint = .{ .value_at = c.box(output_ptr) };
-                            emitByte(f, wasm.block_empty);
-                        },
-                    }
-                },
+                .anywhere => unreachable,
             }
 
             skipOver(c, f, tir_f, .if_then);
@@ -582,7 +575,9 @@ fn genExpr(
 
             emitEnum(f, wasm.Opcode.end);
 
-            assert(then.equal(@"else"));
+            if (branch_hint != .nowhere)
+                assert(then.equal(@"else"));
+
             return then;
         },
         .while_end => {
