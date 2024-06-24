@@ -293,7 +293,7 @@ fn genExpr(
             const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
             for (values) |*value| {
                 // TODO Can pass hint if we do alias analysis.
-                value.* = spillStack(c, f, try genExprNext(c, f, tir_f, .anywhere));
+                value.* = spillStack(c, f, try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere));
             }
             return .{ .@"struct" = .{
                 .repr = struct_repr,
@@ -411,6 +411,10 @@ fn genExpr(
             return output;
         },
         .call_builtin => |builtin| {
+            if (hint == .nowhere) {
+                _ = try genExprNext(c, f, tir_f, .nowhere);
+                return .{ .i32 = 0 };
+            }
             switch (builtin) {
                 .equal_i32 => {
                     const args = try genExprNext(c, f, tir_f, .anywhere);
