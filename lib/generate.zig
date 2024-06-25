@@ -192,7 +192,7 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
                 c.begin_end.getPtr(begin).* = expr;
                 c.begin_end.getPtr(expr).* = begin;
             },
-            .leaf, .branch_separator => {
+            .leaf => {
                 c.begin_end.getPtr(expr).* = expr;
             },
             .branch_begin_without_end => unreachable,

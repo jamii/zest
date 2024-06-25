@@ -65,9 +65,8 @@ pub const ExprData = union(enum) {
 
     pub fn treePart(expr_data: ExprData) TreePart {
         return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get => .leaf,
+            .i32, .f32, .string, .arg, .closure, .local_get, .if_then, .if_else, .while_body => .leaf,
             .begin, .if_begin, .while_begin => .branch_begin,
-            .if_then, .if_else, .while_body => .branch_separator,
             .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .if_end, .while_end => .branch_end,
             .stage, .unstage => .branch_begin_without_end,
         };

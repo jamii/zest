@@ -162,7 +162,6 @@ pub const Builtin = enum {
 pub const TreePart = enum {
     leaf,
     branch_begin,
-    branch_separator,
     branch_end,
     branch_begin_without_end,
 };

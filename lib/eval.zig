@@ -385,7 +385,7 @@ fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
         switch (expr_data.treePart()) {
             .branch_begin => depth += 1,
             .branch_end => depth -= 1,
-            .leaf, .branch_separator, .branch_begin_without_end => {},
+            .leaf, .branch_begin_without_end => {},
         }
         if (depth == 0) {
             frame.expr.id += 1;
