@@ -429,7 +429,6 @@ fn popValue(c: *Compiler) error{InferError}!Value {
 
 fn pushExpr(c: *Compiler, f: *tir.FunData, expr: tir.ExprData, repr: ?Repr) void {
     _ = f.expr_data.append(expr);
-    _ = f.expr_repr.append(repr);
     if (repr != null) c.repr_stack.append(repr.?) catch oom();
 }
 
