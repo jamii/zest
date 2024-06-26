@@ -339,14 +339,14 @@ pub const Compiler = struct {
                             .string => |s| try writer.print(" {s}", .{s}),
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
                             .local_let_end => |local| try writer.print(" l{}", .{local.id}),
-                            .fun_init_end => |repr_fun| try writer.print(" {}", .{Repr{ .fun = repr_fun }}),
+                            .fun_init_end => |repr_fun| try writer.print(" /{}", .{Repr{ .fun = repr_fun }}),
                             .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),
                             .ref_get_end => |ref_get| try writer.print(" offset={}", .{ref_get.offset}),
                             .ref_set_end => {},
                             .call_end => |fun| try writer.print(" f{}", .{fun.id}),
                             .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
-                            .struct_init_end => |repr_struct| try writer.print(" {}", .{Repr{ .@"struct" = repr_struct }}),
-                            .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" {}", .{repr}),
+                            .struct_init_end => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
+                            .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" /{}", .{repr}),
                             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                         }
                         try writer.print("\n", .{});
