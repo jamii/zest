@@ -52,7 +52,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
         switch (expr_data) {
-            .call => {
+            .call_end => {
                 const args = c.value_stack.pop();
                 const fun = c.value_stack.pop();
                 if (fun != .fun)
@@ -68,7 +68,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
             // TODO This is a simple version.
             //      To make things like `stage(repr-of(a.b.c))` work we'd need to switch back to infer.
             //      Also have to limit to exprs with no side-effects or panics.
-            .unstage => {
+            .unstage_begin => {
                 frame.expr.id += 1;
                 const value = switch (f.expr_data.get(frame.expr)) {
                     .local_get => |local| value: {
@@ -84,17 +84,21 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                 };
                 c.value_stack.append(value) catch oom();
             },
-            .@"return", .arg, .closure => {
+            .unstage_end => {},
+            .return_end, .arg, .closure => {
                 return fail(c, .cannot_stage_expr);
             },
-            .begin, .stage => {},
+            .stage_end => {},
             else => {
                 try evalExpr(c, expr_data);
             },
         }
 
-        if (expr_data == .begin) ends_remaining += 1;
-        if (expr_data.treePart() == .branch_end) ends_remaining -= 1;
+        switch (expr_data.treePart()) {
+            .branch_begin => ends_remaining += 1,
+            .branch_end => ends_remaining -= 1,
+            .leaf => {},
+        }
         if (ends_remaining == 0) {
             assert(c.value_stack.items.len == 1);
             return c.value_stack.pop();
@@ -112,7 +116,7 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
             switch (expr_data) {
-                .call => {
+                .call_end => {
                     const args = c.value_stack.pop();
                     const fun = c.value_stack.pop();
                     if (fun != .fun)
@@ -124,14 +128,14 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     });
                     continue :fun;
                 },
-                .@"return" => {
+                .return_end => {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop();
                     c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
                     continue :fun;
                 },
-                .begin, .stage, .unstage => {},
+                .stage_end, .unstage_end => {},
                 else => {
                     try evalExpr(c, expr_data);
                 },
@@ -152,7 +156,7 @@ pub fn evalExpr(
         .string => |string| {
             c.value_stack.append(.{ .string = string }) catch oom();
         },
-        .struct_init => |count| {
+        .struct_init_end => |count| {
             const keys = c.allocator.alloc(Value, count) catch oom();
             const reprs = c.allocator.alloc(Repr, count) catch oom();
             const values = c.allocator.alloc(Value, count) catch oom();
@@ -171,7 +175,7 @@ pub fn evalExpr(
                 .values = values,
             } }) catch oom();
         },
-        .fun_init => |fun_init| {
+        .fun_init_end => |fun_init| {
             const closure = c.value_stack.pop();
             c.value_stack.append(.{ .fun = .{
                 .repr = .{
@@ -193,11 +197,11 @@ pub fn evalExpr(
             const value = c.local_stack.items[c.local_stack.items.len - 1 - local.id];
             c.value_stack.append(value) catch oom();
         },
-        .local_let => |local| {
+        .local_let_end => |local| {
             const value = c.value_stack.pop();
             c.local_stack.items[c.local_stack.items.len - 1 - local.id] = value;
         },
-        .assert_object => |assert_object| {
+        .assert_object_end => |assert_object| {
             const value = c.value_stack.pop();
             switch (value) {
                 .@"struct" => |@"struct"| {
@@ -212,33 +216,33 @@ pub fn evalExpr(
             }
             c.value_stack.append(value) catch oom();
         },
-        .assert_is_ref => {
+        .assert_is_ref_end => {
             const value = c.value_stack.pop();
             if (value != .ref)
                 return fail(c, .{ .expected_is_ref = value });
             c.value_stack.append(value) catch oom();
         },
-        .assert_has_no_ref => {
+        .assert_has_no_ref_end => {
             const value = c.value_stack.pop();
             if (value.reprOf().hasRef())
                 return fail(c, .{ .expected_has_no_ref = value });
             c.value_stack.append(value) catch oom();
         },
-        .object_get => {
+        .object_get_end => {
             const key = c.value_stack.pop();
             const object = c.value_stack.pop();
             const value = object.get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
             c.value_stack.append(value) catch oom();
         },
-        .ref_init => {
+        .ref_init_end => {
             const value = c.value_stack.pop();
             c.value_stack.append(.{ .ref = .{
                 .repr = c.box(value.reprOf()),
                 .value = c.box(value.copy(c.allocator)),
             } }) catch oom();
         },
-        .ref_set => {
+        .ref_set_end => {
             const value = c.value_stack.pop();
             const ref = c.value_stack.pop();
             const input_repr = value.reprOf();
@@ -249,7 +253,7 @@ pub fn evalExpr(
                 } });
             ref.ref.value.* = value.copy(c.allocator);
         },
-        .ref_get => {
+        .ref_get_end => {
             const key = c.value_stack.pop();
             const ref = c.value_stack.pop();
             const value_ptr = ref.ref.value.getMut(key) orelse
@@ -259,11 +263,11 @@ pub fn evalExpr(
                 .value = value_ptr,
             } }) catch oom();
         },
-        .ref_deref => {
+        .ref_deref_end => {
             const ref = c.value_stack.pop();
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
-        .call_builtin => |builtin| {
+        .call_builtin_end => |builtin| {
             const args = c.value_stack.pop();
             switch (builtin) {
                 .equal => {
@@ -325,20 +329,26 @@ pub fn evalExpr(
                 else => return fail(c, .todo),
             }
         },
-        .block => |count| {
-            if (count == 0) {
-                c.value_stack.append(Value.emptyStruct()) catch oom();
-            } else {
-                const value = c.value_stack.pop();
-                for (0..count - 1) |_|
-                    _ = c.value_stack.pop();
-                c.value_stack.append(value) catch oom();
+        .block_begin => {
+            c.block_value_count_stack.append(c.value_stack.items.len) catch oom();
+        },
+        .block_last => {
+            const value_count_at_begin = c.block_value_count_stack.items[c.block_value_count_stack.items.len - 1];
+            for (value_count_at_begin..c.value_stack.items.len) |_| {
+                _ = c.value_stack.pop();
+            }
+        },
+        .block_end => {
+            const value_count_at_begin = c.block_value_count_stack.pop();
+            switch (c.value_stack.items.len - value_count_at_begin) {
+                0 => c.value_stack.append(Value.emptyStruct()) catch oom(),
+                1 => {},
+                else => panic("More than one value returned from block", .{}),
             }
         },
         .if_begin => {},
         .if_then => {
             const cond = c.value_stack.pop();
-            c.value_stack.append(cond) catch oom();
             if (cond != .i32)
                 return fail(c, .{ .not_a_bool = cond });
             if (cond.i32 == 0)
@@ -354,7 +364,6 @@ pub fn evalExpr(
         },
         .while_body => {
             const cond = c.value_stack.pop();
-            c.value_stack.append(cond) catch oom();
             if (cond != .i32)
                 return fail(c, .{ .not_a_bool = cond });
             if (cond.i32 == 0) {
@@ -369,9 +378,12 @@ pub fn evalExpr(
             const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             frame.expr = c.while_stack.items[c.while_stack.items.len - 1];
         },
-        .call, .@"return" => panic("Can't eval control flow expr: {}", .{expr_data}),
-        .nop => {},
-        else => return fail(c, .todo),
+        .call_end, .return_end => panic("Can't eval control flow expr: {}", .{expr_data}),
+        .nop_end => {},
+        else => {
+            if (expr_data.treePart() != .branch_begin)
+                return fail(c, .todo);
+        },
     }
 }
 
@@ -385,7 +397,7 @@ fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
         switch (expr_data.treePart()) {
             .branch_begin => depth += 1,
             .branch_end => depth -= 1,
-            .leaf, .branch_begin_without_end => {},
+            .leaf => {},
         }
         if (depth == 0) {
             frame.expr.id += 1;

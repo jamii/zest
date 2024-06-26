@@ -163,7 +163,6 @@ pub const TreePart = enum {
     leaf,
     branch_begin,
     branch_end,
-    branch_begin_without_end,
 };
 
 pub fn FlatLattice(comptime T: type) type {
@@ -205,6 +204,7 @@ pub const Compiler = struct {
     value_stack: ArrayList(Value),
     local_stack: ArrayList(Value),
     while_stack: ArrayList(dir.Expr),
+    block_value_count_stack: ArrayList(usize),
 
     // infer
     tir_fun_data: List(tir.Fun, tir.FunData),
@@ -212,16 +212,14 @@ pub const Compiler = struct {
     tir_fun_main: ?tir.Fun,
     tir_frame_stack: ArrayList(tir.Frame),
     repr_stack: ArrayList(Repr),
+    repr_fixup_stack: ArrayList(tir.Expr),
 
     // generate
     wir_fun_data: List(tir.Fun, wir.FunData),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
     tir_expr_next: tir.Expr,
-    begin_stack: ArrayList(tir.Expr),
-    begin_end: List(tir.Expr, tir.Expr),
     local_walue: List(tir.Local, ?wir.Walue),
-    block_stack: ArrayList(wir.Block),
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -245,21 +243,20 @@ pub const Compiler = struct {
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
             .local_stack = fieldType(Compiler, .local_stack).init(allocator),
             .while_stack = fieldType(Compiler, .while_stack).init(allocator),
+            .block_value_count_stack = fieldType(Compiler, .block_value_count_stack).init(allocator),
 
             .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
             .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
             .tir_fun_main = null,
             .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
             .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
+            .repr_fixup_stack = fieldType(Compiler, .repr_fixup_stack).init(allocator),
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
             .tir_expr_next = .{ .id = 0 },
-            .begin_stack = fieldType(Compiler, .begin_stack).init(allocator),
-            .begin_end = fieldType(Compiler, .begin_end).init(allocator),
             .local_walue = fieldType(Compiler, .local_walue).init(allocator),
-            .block_stack = fieldType(Compiler, .block_stack).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
@@ -301,26 +298,23 @@ pub const Compiler = struct {
                         try writer.print("local l{}\n", .{local_id});
                     }
                     for (f.expr_data.items()) |expr_data| {
-                        if (expr_data.treePart() == .branch_begin) {
-                            indent += 1;
-                        } else {
-                            if (expr_data.treePart() == .branch_end) indent -= 1;
-                            try writer.writeByteNTimes(' ', indent * 2);
-                            try writer.print("{s}", .{@tagName(expr_data)});
-                            switch (expr_data) {
-                                .i32 => |i| try writer.print(" {}", .{i}),
-                                .f32 => |i| try writer.print(" {}", .{i}),
-                                .string => |s| try writer.print(" {s}", .{s}),
-                                .local_get => |local| try writer.print(" l{}", .{local.id}),
-                                .local_let => |local| try writer.print(" l{}", .{local.id}),
-                                .struct_init, .block => |count| try writer.print(" count={}", .{count}),
-                                .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
-                                .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
-                                .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
-                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
-                            }
-                            try writer.print("\n", .{});
+                        if (expr_data.treePart() == .branch_end) indent -= 1;
+                        try writer.writeByteNTimes(' ', indent * 2);
+                        try writer.print("{s}", .{@tagName(expr_data)});
+                        switch (expr_data) {
+                            .i32 => |i| try writer.print(" {}", .{i}),
+                            .f32 => |i| try writer.print(" {}", .{i}),
+                            .string => |s| try writer.print(" {s}", .{s}),
+                            .local_get => |local| try writer.print(" l{}", .{local.id}),
+                            .local_let_end => |local| try writer.print(" l{}", .{local.id}),
+                            .struct_init_end => |count| try writer.print(" count={}", .{count}),
+                            .fun_init_end => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
+                            .assert_object_end => |assert_object| try writer.print(" count={}", .{assert_object.count}),
+                            .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                            inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                         }
+                        try writer.print("\n", .{});
+                        if (expr_data.treePart() == .branch_begin) indent += 1;
                     }
                 }
                 try writer.print("---\n", .{});
@@ -335,33 +329,28 @@ pub const Compiler = struct {
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.one });
                     }
-                    for (f.expr_data.items(), f.expr_repr.items()) |expr_data, repr| {
-                        if (expr_data.treePart() == .branch_begin) {
-                            indent += 1;
-                        } else {
-                            if (expr_data.treePart() == .branch_end) indent -= 1;
-                            try writer.writeByteNTimes(' ', indent * 2);
-                            try writer.print("{s}", .{@tagName(expr_data)});
-                            switch (expr_data) {
-                                .i32 => |i| try writer.print(" {}", .{i}),
-                                .f32 => |i| try writer.print(" {}", .{i}),
-                                .string => |s| try writer.print(" {s}", .{s}),
-                                .local_get => |local| try writer.print(" l{}", .{local.id}),
-                                .local_let => |local| try writer.print(" l{}", .{local.id}),
-                                .fun_init => try writer.print(" f{}", .{repr.?.fun.fun.id}),
-                                .object_get => |object_get| try writer.print(" index={} offset={}", .{ object_get.index, object_get.offset }),
-                                .ref_get => |ref_get| try writer.print(" index={} offset={}", .{ ref_get.index, ref_get.offset }),
-                                .ref_set => {},
-                                .call => |fun| try writer.print(" f{}", .{fun.id}),
-                                .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
-                                .block => |count| try writer.print(" count={}", .{count}),
-                                inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
-                            }
-                            if (repr != null) {
-                                try writer.print(" /{}", .{repr.?});
-                            }
-                            try writer.print("\n", .{});
+                    for (f.expr_data.items()) |expr_data| {
+                        if (expr_data.treePart() == .branch_end) indent -= 1;
+                        try writer.writeByteNTimes(' ', indent * 2);
+                        try writer.print("{s}", .{@tagName(expr_data)});
+                        switch (expr_data) {
+                            .i32 => |i| try writer.print(" {}", .{i}),
+                            .f32 => |i| try writer.print(" {}", .{i}),
+                            .string => |s| try writer.print(" {s}", .{s}),
+                            .local_get => |local| try writer.print(" l{}", .{local.id}),
+                            .local_let_end => |local| try writer.print(" l{}", .{local.id}),
+                            .fun_init_end => |repr_fun| try writer.print(" {}", .{Repr{ .fun = repr_fun }}),
+                            .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),
+                            .ref_get_end => |ref_get| try writer.print(" offset={}", .{ref_get.offset}),
+                            .ref_set_end => {},
+                            .call_end => |fun| try writer.print(" f{}", .{fun.id}),
+                            .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                            .struct_init_end => |repr_struct| try writer.print(" {}", .{Repr{ .@"struct" = repr_struct }}),
+                            .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" {}", .{repr}),
+                            inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                         }
+                        try writer.print("\n", .{});
+                        if (expr_data.treePart() == .branch_begin) indent += 1;
                     }
                 }
                 try writer.print("---\n", .{});

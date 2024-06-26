@@ -30,27 +30,43 @@ pub const ExprData = union(enum) {
     closure,
     local_get: Local,
 
-    begin,
-    nop,
-    struct_init: usize,
-    fun_init: struct {
+    nop_begin,
+    nop_end,
+    struct_init_begin,
+    struct_init_end: usize,
+    fun_init_begin,
+    fun_init_end: struct {
         fun: Fun,
     },
-    local_let: Local,
-    assert_object: struct {
+    local_let_begin,
+    local_let_end: Local,
+    assert_object_begin,
+    assert_object_end: struct {
         count: usize,
     },
-    assert_is_ref,
-    assert_has_no_ref,
-    object_get,
-    ref_init,
-    ref_get,
-    ref_set,
-    ref_deref,
-    call,
-    call_builtin: Builtin,
-    block: usize,
-    @"return",
+    assert_is_ref_begin,
+    assert_is_ref_end,
+    assert_has_no_ref_begin,
+    assert_has_no_ref_end,
+    object_get_begin,
+    object_get_end,
+    ref_init_begin,
+    ref_init_end,
+    ref_get_begin,
+    ref_get_end,
+    ref_set_begin,
+    ref_set_end,
+    ref_deref_begin,
+    ref_deref_end,
+    call_begin,
+    call_end,
+    call_builtin_begin,
+    call_builtin_end: Builtin,
+    block_begin,
+    block_last,
+    block_end,
+    return_begin,
+    return_end,
 
     if_begin,
     if_then,
@@ -60,16 +76,23 @@ pub const ExprData = union(enum) {
     while_body,
     while_end,
 
-    stage,
-    unstage,
+    stage_begin,
+    stage_end,
+    unstage_begin,
+    unstage_end,
 
     pub fn treePart(expr_data: ExprData) TreePart {
-        return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get, .if_then, .if_else, .while_body => .leaf,
-            .begin, .if_begin, .while_begin => .branch_begin,
-            .nop, .struct_init, .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .if_end, .while_end => .branch_end,
-            .stage, .unstage => .branch_begin_without_end,
-        };
+        switch (expr_data) {
+            inline else => |_, tag| {
+                if (std.mem.endsWith(u8, @tagName(tag), "_begin")) {
+                    return .branch_begin;
+                } else if (std.mem.endsWith(u8, @tagName(tag), "_end")) {
+                    return .branch_end;
+                } else {
+                    return .leaf;
+                }
+            },
+        }
     }
 };
 

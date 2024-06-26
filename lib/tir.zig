@@ -7,6 +7,8 @@ const zest = @import("./zest.zig");
 const fieldType = zest.fieldType;
 const List = zest.List;
 const Repr = zest.Repr;
+const ReprStruct = zest.ReprStruct;
+const ReprFun = zest.ReprFun;
 const Value = zest.Value;
 const FlatLattice = zest.FlatLattice;
 const TreePart = zest.TreePart;
@@ -29,28 +31,39 @@ pub const ExprData = union(enum) {
     arg,
     local_get: Local,
 
-    begin,
-    nop,
-    struct_init,
-    fun_init,
-    local_let: Local,
-    object_get: struct {
+    nop_begin,
+    nop_end,
+    struct_init_begin,
+    struct_init_end: ReprStruct,
+    fun_init_begin,
+    fun_init_end: ReprFun,
+    local_let_begin,
+    local_let_end: Local,
+    object_get_begin,
+    object_get_end: struct {
         index: usize,
+    },
+    ref_init_begin: Repr,
+    ref_init_end,
+    ref_get_begin,
+    ref_get_end: struct {
         offset: u32,
     },
-    ref_init,
-    ref_get: struct {
-        index: usize,
-        offset: u32,
-    },
-    ref_set,
-    ref_deref,
-    call: Fun,
-    call_builtin: BuiltinTyped,
-    block: usize,
-    @"return",
+    ref_set_begin,
+    ref_set_end,
+    ref_deref_begin,
+    ref_deref_end: Repr,
+    call_begin,
+    call_end: Fun,
+    call_builtin_begin,
+    call_builtin_end: BuiltinTyped,
+    block_begin,
+    block_last,
+    block_end,
+    return_begin,
+    return_end,
 
-    if_begin,
+    if_begin: Repr,
     if_then,
     if_else,
     if_end,
@@ -59,11 +72,17 @@ pub const ExprData = union(enum) {
     while_end,
 
     pub fn treePart(expr_data: ExprData) TreePart {
-        return switch (expr_data) {
-            .i32, .f32, .string, .arg, .closure, .local_get, .if_then, .if_else, .while_body => .leaf,
-            .begin, .if_begin, .while_begin => .branch_begin,
-            .nop, .struct_init, .fun_init, .local_let, .object_get, .ref_init, .ref_get, .ref_set, .ref_deref, .call, .call_builtin, .block, .@"return", .if_end, .while_end => .branch_end,
-        };
+        switch (expr_data) {
+            inline else => |_, tag| {
+                if (std.mem.endsWith(u8, @tagName(tag), "_begin")) {
+                    return .branch_begin;
+                } else if (std.mem.endsWith(u8, @tagName(tag), "_end")) {
+                    return .branch_end;
+                } else {
+                    return .leaf;
+                }
+            },
+        }
     }
 };
 

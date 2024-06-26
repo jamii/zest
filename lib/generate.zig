@@ -175,43 +175,26 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?));
     const f = c.wir_fun_data.getPtr(fun);
 
-    // Map begin exprs to their end.
-    assert(c.begin_stack.items.len == 0);
-    defer assert(c.begin_stack.items.len == 0);
-    assert(c.begin_end.count() == 0);
-    defer c.begin_end.data.shrinkRetainingCapacity(0);
-    c.begin_end.appendNTimes(.{ .id = 0 }, tir_f.expr_data.count());
-    for (tir_f.expr_data.items(), 0..) |expr_data, expr_id| {
-        const expr = tir.Expr{ .id = expr_id };
-        switch (expr_data.treePart()) {
-            .branch_begin => {
-                c.begin_stack.append(.{ .id = expr_id }) catch oom();
-            },
-            .branch_end => {
-                const begin = c.begin_stack.pop();
-                c.begin_end.getPtr(begin).* = expr;
-                c.begin_end.getPtr(expr).* = begin;
-            },
-            .leaf => {
-                c.begin_end.getPtr(expr).* = expr;
-            },
-            .branch_begin_without_end => unreachable,
-        }
-    }
-
     // Prepare to track addresses for tir locals.
     assert(c.local_walue.count() == 0);
     defer c.local_walue.data.shrinkRetainingCapacity(0);
     c.local_walue.appendNTimes(null, tir_f.local_data.count());
 
     c.tir_expr_next.id = 0;
-    assert(c.block_stack.items.len == 0);
-    // TODO Uncomment asserts once todo is gone.
-    //defer assert(c.block_stack.items.len == 0);
 
     while (c.tir_expr_next.id + 1 < tir_f.expr_data.count()) {
         _ = try genExprNextOrNull(c, f, tir_f, .nowhere);
     }
+}
+
+fn peekExprNext(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
+    return tir_f.expr_data.get(c.tir_expr_next);
+}
+
+fn takeExprNext(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
+    const expr_data = peekExprNext(c, tir_f);
+    c.tir_expr_next.id += 1;
+    return expr_data;
 }
 
 fn genExprNext(
@@ -229,16 +212,10 @@ fn genExprNextOrNull(
     tir_f: tir.FunData,
     hint: wir.Hint,
 ) error{GenerateError}!?wir.Walue {
-    const expr = c.begin_end.get(c.tir_expr_next);
+    const expr = c.tir_expr_next;
     c.tir_expr_next.id += 1;
-
     const expr_data = tir_f.expr_data.get(expr);
-    const repr = tir_f.expr_repr.get(expr);
-
-    const result_maybe = try genExpr(c, f, tir_f, hint, expr_data, repr);
-    if (expr_data.treePart() == .branch_end)
-        skipOverBegin(c, f, tir_f);
-
+    const result_maybe = try genExpr(c, f, tir_f, hint, expr_data);
     if (result_maybe) |result| {
         switch (hint) {
             .nowhere => {
@@ -267,7 +244,6 @@ fn genExpr(
     tir_f: tir.FunData,
     hint: wir.Hint,
     expr_data: tir.ExprData,
-    repr: ?Repr,
 ) error{GenerateError}!?wir.Walue {
     switch (expr_data) {
         .i32 => |i| {
@@ -276,43 +252,46 @@ fn genExpr(
         .closure => {
             return .{ .value_at = .{
                 .ptr = c.box(wir.Walue{ .closure = {} }),
-                .repr = repr.?,
+                .repr = tir_f.key.closure_repr,
             } };
         },
         .arg => {
             return .{ .value_at = .{
                 .ptr = c.box(wir.Walue{ .arg = {} }),
-                .repr = repr.?,
+                .repr = tir_f.key.arg_repr,
             } };
         },
         .local_get => |local| {
             return c.local_walue.get(local).?;
         },
-        .struct_init => {
-            const struct_repr = repr.?.@"struct";
-            const values = c.allocator.alloc(wir.Walue, struct_repr.reprs.len) catch oom();
-            for (values) |*value| {
-                // TODO Can pass hint if we do alias analysis.
-                value.* = spillStack(c, f, try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere));
+        .struct_init_begin => {
+            var values = ArrayList(wir.Walue).init(c.allocator);
+            while (peekExprNext(c, tir_f) != .struct_init_end) {
+                // TODO Can pass hint if we do alias analysis,
+                const value = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
+                values.append(spillStack(c, f, value)) catch oom();
             }
+            const struct_repr = takeExprNext(c, tir_f).struct_init_end;
             return .{ .@"struct" = .{
                 .repr = struct_repr,
-                .values = values,
+                .values = values.toOwnedSlice() catch oom(),
             } };
         },
-        .fun_init => {
+        .fun_init_begin => {
             // TODO Should we change the repr in hint.value_at?
             const closure = try genExprNext(c, f, tir_f, hint);
+            const fun_repr = takeExprNext(c, tir_f).fun_init_end;
             return if (closure == .@"struct")
                 .{ .fun = .{
-                    .repr = repr.?.fun,
+                    .repr = fun_repr,
                     .closure = c.box(closure),
                 } }
             else
                 closure;
         },
-        .local_let => |local| {
+        .local_let_begin => {
             var value = spillStack(c, f, try genExprNext(c, f, tir_f, .anywhere));
+            const local = takeExprNext(c, tir_f).local_let_end;
             switch (value) {
                 .value_at => |value_at| {
                     switch (wasmRepr(value_at.repr)) {
@@ -341,16 +320,19 @@ fn genExpr(
             c.local_walue.getPtr(local).* = value;
             return null;
         },
-        .object_get => |object_get| {
+        .object_get_begin => {
             const object = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
+            const object_get = takeExprNext(c, tir_f).object_get_end;
             switch (object) {
                 .value_at => |value_at| {
+                    const offset = value_at.repr.@"struct".offsetOf(object_get.index);
+                    const repr = value_at.repr.@"struct".reprs[object_get.index];
                     return .{ .value_at = .{
                         .ptr = c.box(wir.Walue{ .add = .{
                             .walue = value_at.ptr,
-                            .offset = object_get.offset,
+                            .offset = @intCast(offset),
                         } }),
-                        .repr = repr.?,
+                        .repr = repr,
                     } };
                 },
                 .@"struct" => |@"struct"| {
@@ -359,26 +341,30 @@ fn genExpr(
                 else => panic("Can't represent struct with {}", .{object}),
             }
         },
-        .ref_init => {
-            const ref = shadowPush(c, f, repr.?.ref.*);
+        .ref_init_begin => |repr| {
+            const ref = shadowPush(c, f, repr);
             _ = try genExprNext(c, f, tir_f, .{ .value_at = c.box(ref) });
+            _ = takeExprNext(c, tir_f).ref_init_end;
             return ref;
         },
-        .ref_get => |ref_get| {
+        .ref_get_begin => {
             const ref = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
+            const ref_get = takeExprNext(c, tir_f).ref_get_end;
             return .{ .add = .{
                 .walue = c.box(ref),
                 .offset = ref_get.offset,
             } };
         },
-        .ref_set => {
+        .ref_set_begin => {
             const ref = try genExprNext(c, f, tir_f, .anywhere);
             _ = try genExprNext(c, f, tir_f, .{ .value_at = c.box(ref) });
+            _ = takeExprNext(c, tir_f).ref_set_end;
             return null;
         },
-        .ref_deref => {
+        .ref_deref_begin => {
             const ref = try genExprNext(c, f, tir_f, if (hint == .nowhere) .nowhere else .anywhere);
-            const value = wir.Walue{ .value_at = .{ .ptr = c.box(ref), .repr = repr.? } };
+            const repr = takeExprNext(c, tir_f).ref_deref_end;
+            const value = wir.Walue{ .value_at = .{ .ptr = c.box(ref), .repr = repr } };
             switch (hint) {
                 .nowhere, .stack, .value_at => {
                     return value;
@@ -389,20 +375,22 @@ fn genExpr(
                 },
             }
         },
-        .call => |fun| {
+        .call_begin => {
             f.is_leaf = false;
             const closure = try genExprNext(c, f, tir_f, .anywhere);
             const arg = try genExprNext(c, f, tir_f, .anywhere);
-            const output = switch (wasmRepr(repr.?)) {
+            const fun = takeExprNext(c, tir_f).call_end;
+            const output_repr = c.tir_fun_data.get(fun).return_repr.one;
+            const output = switch (wasmRepr(output_repr)) {
                 .primitive => |valtype| wir.Walue{ .stack = valtype },
                 .heap => wir.Walue{ .value_at = .{
-                    .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, repr.?)),
-                    .repr = repr.?,
+                    .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, output_repr)),
+                    .repr = output_repr,
                 } },
             };
             loadPtrTo(c, f, arg);
             loadPtrTo(c, f, closure);
-            switch (wasmRepr(repr.?)) {
+            switch (wasmRepr(output_repr)) {
                 .primitive => {},
                 .heap => loadPtrTo(c, f, output),
             }
@@ -410,14 +398,16 @@ fn genExpr(
             emitLebU32(f, @intCast(fun.id));
             return output;
         },
-        .call_builtin => |builtin| {
+        .call_builtin_begin => {
             if (hint == .nowhere) {
                 _ = try genExprNext(c, f, tir_f, .nowhere);
+                _ = takeExprNext(c, tir_f).call_builtin_end;
                 return .{ .i32 = 0 };
             }
+            const args = try genExprNext(c, f, tir_f, .anywhere);
+            const builtin = takeExprNext(c, tir_f).call_builtin_end;
             switch (builtin) {
                 .equal_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -430,7 +420,6 @@ fn genExpr(
                     }
                 },
                 .less_than_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -443,7 +432,6 @@ fn genExpr(
                     }
                 },
                 .less_than_or_equal_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -456,7 +444,6 @@ fn genExpr(
                     }
                 },
                 .more_than_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -469,7 +456,6 @@ fn genExpr(
                     }
                 },
                 .more_than_or_equal_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -482,7 +468,6 @@ fn genExpr(
                     }
                 },
                 .add_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -495,7 +480,6 @@ fn genExpr(
                     }
                 },
                 .subtract_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -508,7 +492,6 @@ fn genExpr(
                     }
                 },
                 .multiply_i32 => {
-                    const args = try genExprNext(c, f, tir_f, .anywhere);
                     const arg0 = args.@"struct".values[0];
                     const arg1 = args.@"struct".values[1];
                     if (arg0 == .i32 and arg1 == .i32) {
@@ -522,37 +505,46 @@ fn genExpr(
                 },
             }
         },
-        .block => |count| {
+        .block_begin => {
             // TODO reset shadow
+            var statement_hint: wir.Hint = .nowhere;
             var value: ?wir.Walue = null;
-            var remaining = count;
-            while (tir_f.expr_data.get(c.begin_end.get(c.tir_expr_next)) != .begin) {
-                value = try genExprNextOrNull(c, f, tir_f, if (remaining == 1) hint else .nowhere);
-                if (value != null) remaining -= 1;
+            while (true) {
+                if (peekExprNext(c, tir_f) == .block_last) {
+                    c.tir_expr_next.id += 1;
+                    statement_hint = hint;
+                }
+                if (peekExprNext(c, tir_f) == .block_end) {
+                    c.tir_expr_next.id += 1;
+                    break;
+                }
+                value = try genExprNextOrNull(c, f, tir_f, statement_hint);
             }
             return value orelse wir.Walue.emptyStruct();
         },
-        .@"return" => {
+        .return_begin => {
             const result_hint: wir.Hint = switch (wasmRepr(tir_f.return_repr.one)) {
                 .primitive => .stack,
                 .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
             };
             _ = try genExprNext(c, f, tir_f, result_hint);
+            _ = takeExprNext(c, tir_f).return_end;
             return null;
         },
-        .nop => {
+        .nop_begin => {
             const value = try genExprNext(c, f, tir_f, hint);
+            _ = takeExprNext(c, tir_f).nop_end;
             return value;
         },
-        .if_end => {
-            _ = try genExprNext(c, f, tir_f, .stack);
-
+        .if_begin => |repr| {
             const branch_hint: wir.Hint = if (hint != .anywhere) hint else
             // Need to pick a specific hint so that both branches end up the same.
-            switch (wasmRepr(repr.?)) {
+            switch (wasmRepr(repr)) {
                 .primitive => .stack,
-                .heap => .{ .value_at = c.box(shadowPush(c, f, repr.?)) },
+                .heap => .{ .value_at = c.box(shadowPush(c, f, repr)) },
             };
+
+            _ = try genExprNext(c, f, tir_f, .stack);
 
             emitEnum(f, wasm.Opcode.@"if");
             switch (branch_hint) {
@@ -560,19 +552,20 @@ fn genExpr(
                     emitByte(f, wasm.block_empty);
                 },
                 .stack => {
-                    emitEnum(f, wasmRepr(repr.?).primitive);
+                    emitEnum(f, wasmRepr(repr).primitive);
                 },
                 .anywhere => unreachable,
             }
 
-            skipOver(c, f, tir_f, .if_then);
+            _ = takeExprNext(c, tir_f).if_then;
             const then = try genExprNext(c, f, tir_f, branch_hint);
 
             emitEnum(f, wasm.Opcode.@"else");
 
-            skipOver(c, f, tir_f, .if_else);
+            _ = takeExprNext(c, tir_f).if_else;
             const @"else" = try genExprNext(c, f, tir_f, branch_hint);
 
+            _ = takeExprNext(c, tir_f).if_end;
             emitEnum(f, wasm.Opcode.end);
 
             if (branch_hint != .nowhere)
@@ -580,7 +573,7 @@ fn genExpr(
 
             return then;
         },
-        .while_end => {
+        .while_begin => {
             emitEnum(f, wasm.Opcode.block);
             emitByte(f, wasm.block_empty);
 
@@ -592,54 +585,26 @@ fn genExpr(
             emitEnum(f, wasm.Opcode.br_if);
             emitLebU32(f, 1);
 
-            skipOver(c, f, tir_f, .while_body);
-
+            _ = takeExprNext(c, tir_f).while_body;
             _ = try genExprNext(c, f, tir_f, .nowhere);
             emitEnum(f, wasm.Opcode.br);
             emitLebU32(f, 0);
 
+            _ = takeExprNext(c, tir_f).while_end;
             emitEnum(f, wasm.Opcode.end);
             emitEnum(f, wasm.Opcode.end);
 
             return null;
         },
-        .begin, .if_then, .if_else, .if_begin, .while_body, .while_begin => {
-            panic("This should have been skipped: {}", .{expr_data});
-        },
-        else => {
-            std.debug.print("TODO generate {}\n", .{expr_data});
-            return fail(c, .todo);
+        inline else => |_, tag| {
+            if (comptime std.mem.endsWith(u8, @tagName(tag), "_begin")) {
+                @compileError("Unhandled branch begin: " ++ @tagName(tag));
+            } else {
+                std.debug.print("TODO generate {}\n", .{expr_data});
+                return fail(c, .todo);
+            }
         },
     }
-}
-
-fn skipOver(
-    c: *Compiler,
-    f: *wir.FunData,
-    tir_f: tir.FunData,
-    expr_tag: std.meta.Tag(tir.ExprData),
-) void {
-    _ = f;
-
-    const expr = c.begin_end.get(c.tir_expr_next);
-    c.tir_expr_next.id += 1;
-
-    const expr_data = tir_f.expr_data.get(expr);
-    assert(std.meta.activeTag(expr_data) == expr_tag);
-}
-
-fn skipOverBegin(
-    c: *Compiler,
-    f: *wir.FunData,
-    tir_f: tir.FunData,
-) void {
-    _ = f;
-
-    const expr = c.begin_end.get(c.tir_expr_next);
-    c.tir_expr_next.id += 1;
-
-    const expr_data = tir_f.expr_data.get(expr);
-    assert(expr_data.treePart() == .branch_begin);
 }
 
 fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {

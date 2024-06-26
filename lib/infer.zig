@@ -72,7 +72,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
     while (frame.expr.id <= dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
         const expr_data = dir_f.expr_data.get(frame.expr);
         switch (expr_data) {
-            .call => {
+            .call_end => {
                 const args = c.repr_stack.pop();
                 const fun = c.repr_stack.pop();
                 if (fun != .fun)
@@ -85,7 +85,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 if (c.tir_fun_by_key.get(key)) |tir_fun| {
                     // TODO once we have recursive functions, seeing a .zero here indicates that type inference is cyclic
                     const return_repr = c.tir_fun_data.get(tir_fun).return_repr.one;
-                    _ = pushExpr(c, f, .{ .call = tir_fun }, return_repr);
+                    _ = pushExpr(c, f, .{ .call_end = tir_fun }, return_repr);
                 } else {
                     // Put inputs back on stack and switch to the called function.
                     // When we return to this expr we'll hit the cached tir_fun.
@@ -95,7 +95,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                     return .call;
                 }
             },
-            .stage => {
+            .stage_begin => {
                 frame.expr.id += 1;
                 eval.pushFun(c, .{
                     .fun = frame.key.fun,
@@ -108,6 +108,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 frame.expr = eval_frame.expr;
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
             },
+            .stage_end => {},
             else => {
                 try inferExpr(c, f, expr_data);
             },
@@ -129,7 +130,7 @@ fn inferExpr(
         //    pushExpr(c, f, .{ .string = data }, .string);
         //    return .string;
         //},
-        .struct_init => |count| {
+        .struct_init_end => |count| {
             const keys = c.allocator.alloc(Value, count) catch oom();
             const reprs = c.allocator.alloc(Repr, count) catch oom();
             for (0..count) |i| {
@@ -141,15 +142,15 @@ fn inferExpr(
                 .keys = keys,
                 .reprs = reprs,
             } };
-            pushExpr(c, f, .struct_init, repr);
+            pushExpr(c, f, .{ .struct_init_end = repr.@"struct" }, repr);
         },
-        .fun_init => |fun_init| {
+        .fun_init_end => |fun_init| {
             const closure = c.repr_stack.pop();
             const repr = Repr{ .fun = .{
                 .fun = fun_init.fun,
                 .closure = closure.@"struct",
             } };
-            pushExpr(c, f, .fun_init, repr);
+            pushExpr(c, f, .{ .fun_init_end = repr.fun }, repr);
         },
         .arg => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
@@ -167,24 +168,26 @@ fn inferExpr(
             const repr = f.local_data.get(local).repr.one;
             pushExpr(c, f, .{ .local_get = local }, repr);
         },
-        .begin => {
-            pushExpr(c, f, .begin, null);
-        },
-        .nop => {
-            pushExpr(c, f, .nop, null);
-        },
-        .local_let => |dir_local| {
+        .nop_begin => {},
+        .nop_end => {},
+        .local_let_end => |dir_local| {
             const value = c.repr_stack.pop();
             const local = tir.Local{ .id = dir_local.id };
             _ = try reprUnion(c, &f.local_data.getPtr(local).repr, value);
-            pushExpr(c, f, .{ .local_let = local }, null);
+            pushExpr(c, f, .{ .local_let_end = local }, null);
         },
-        .ref_init => {
+        .ref_init_begin => {
+            pushExpr(c, f, .{ .ref_init_begin = Repr.i32 }, null);
+            c.repr_fixup_stack.append(f.expr_data.lastKey().?) catch oom();
+        },
+        .ref_init_end => {
             const value = c.repr_stack.pop();
             const repr = Repr{ .ref = c.box(value) };
-            pushExpr(c, f, .ref_init, repr);
+            f.expr_data.getPtr(c.repr_fixup_stack.pop()).ref_init_begin = value;
+            pushExpr(c, f, .ref_init_end, repr);
         },
-        .assert_object => |assert_object| {
+        .assert_object_begin => {},
+        .assert_object_end => |assert_object| {
             const value = c.repr_stack.pop();
             switch (value) {
                 .@"struct" => |@"struct"| {
@@ -197,34 +200,36 @@ fn inferExpr(
                 .@"union" => return fail(c, .todo),
                 .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
             }
-            pushExpr(c, f, .nop, value);
+            c.repr_stack.append(value) catch oom();
         },
-        .assert_is_ref => {
+        .assert_is_ref_begin => {},
+        .assert_is_ref_end => {
             const value = c.repr_stack.pop();
             if (value != .ref)
                 return fail(c, .{ .expected_is_ref = value });
-            pushExpr(c, f, .nop, value);
+            c.repr_stack.append(value) catch oom();
         },
-        .assert_has_no_ref => {
+        .assert_has_no_ref_begin => {},
+        .assert_has_no_ref_end => {
             const value = c.repr_stack.pop();
             if (value.hasRef())
                 return fail(c, .{ .expected_has_no_ref = value });
-            pushExpr(c, f, .nop, value);
+            c.repr_stack.append(value) catch oom();
         },
-        .object_get => {
+        .object_get_end => {
             const key = try popValue(c);
             const object = c.repr_stack.pop();
             const get = try objectGet(c, object, key);
-            pushExpr(c, f, .{ .object_get = .{ .index = get.index, .offset = get.offset } }, get.repr);
+            pushExpr(c, f, .{ .object_get_end = .{ .index = get.index } }, get.repr);
         },
-        .ref_get => {
+        .ref_get_end => {
             const key = try popValue(c);
             const ref = c.repr_stack.pop();
             const get = try objectGet(c, ref.ref.*, key);
             const repr = Repr{ .ref = c.box(get.repr) };
-            pushExpr(c, f, .{ .ref_get = .{ .index = get.index, .offset = get.offset } }, repr);
+            pushExpr(c, f, .{ .ref_get_end = .{ .offset = get.offset } }, repr);
         },
-        .ref_set => {
+        .ref_set_end => {
             const value = c.repr_stack.pop();
             const ref = c.repr_stack.pop();
             if (!ref.ref.equal(value))
@@ -232,14 +237,14 @@ fn inferExpr(
                     .expected = ref.ref.*,
                     .found = value,
                 } });
-            pushExpr(c, f, .ref_set, null);
+            pushExpr(c, f, .ref_set_end, null);
         },
-        .ref_deref => {
+        .ref_deref_end => {
             const ref = c.repr_stack.pop();
             const repr = ref.ref.*;
-            pushExpr(c, f, .ref_deref, repr);
+            pushExpr(c, f, .{ .ref_deref_end = repr }, repr);
         },
-        .call_builtin => |builtin| {
+        .call_builtin_end => |builtin| {
             const args = c.repr_stack.pop();
             switch (builtin) {
                 .equal => {
@@ -247,77 +252,87 @@ fn inferExpr(
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .equal_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .equal_i32 }, .i32);
                 },
                 .less_than => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .less_than_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .less_than_i32 }, .i32);
                 },
                 .less_than_or_equal => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .less_than_or_equal_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .less_than_or_equal_i32 }, .i32);
                 },
                 .more_than => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .more_than_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .more_than_i32 }, .i32);
                 },
                 .more_than_or_equal => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .more_than_or_equal_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .more_than_or_equal_i32 }, .i32);
                 },
                 .add => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .add_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .add_i32 }, .i32);
                 },
                 .subtract => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .subtract_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .subtract_i32 }, .i32);
                 },
                 .multiply => {
                     const arg0 = args.@"struct".reprs[0];
                     const arg1 = args.@"struct".reprs[1];
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
-                    pushExpr(c, f, .{ .call_builtin = .multiply_i32 }, .i32);
+                    pushExpr(c, f, .{ .call_builtin_end = .multiply_i32 }, .i32);
                 },
                 else => return fail(c, .todo),
             }
         },
-        .block => |count| {
-            if (count == 0) {
-                pushExpr(c, f, .{ .block = count }, Repr.emptyStruct());
-            } else {
-                const repr = c.repr_stack.pop();
-                for (0..count - 1) |_|
-                    _ = c.repr_stack.pop();
-                pushExpr(c, f, .{ .block = count }, repr);
+        .block_begin => {
+            c.block_value_count_stack.append(c.repr_stack.items.len) catch oom();
+            pushExpr(c, f, .block_begin, null);
+        },
+        .block_last => {
+            const value_count_at_begin = c.block_value_count_stack.items[c.block_value_count_stack.items.len - 1];
+            for (value_count_at_begin..c.repr_stack.items.len) |_| {
+                _ = c.repr_stack.pop();
+            }
+            pushExpr(c, f, .block_last, null);
+        },
+        .block_end => {
+            const value_count_at_begin = c.block_value_count_stack.pop();
+            switch (c.repr_stack.items.len - value_count_at_begin) {
+                0 => pushExpr(c, f, .block_end, Repr.emptyStruct()),
+                1 => pushExpr(c, f, .block_end, c.repr_stack.pop()),
+                else => panic("More than one value returned from block", .{}),
             }
         },
-        .@"return" => {
+        .return_end => {
             const value = c.repr_stack.pop();
             _ = try reprUnion(c, &f.return_repr, value);
-            pushExpr(c, f, .@"return", null);
+            pushExpr(c, f, .return_end, null);
         },
         .if_begin => {
-            pushExpr(c, f, .if_begin, null);
+            pushExpr(c, f, .{ .if_begin = Repr.i32 }, null);
+            c.repr_fixup_stack.append(f.expr_data.lastKey().?) catch oom();
         },
         .if_then => {
             pushExpr(c, f, .if_then, null);
@@ -333,6 +348,7 @@ fn inferExpr(
                 return fail(c, .{ .not_a_bool = cond });
             if (!then.equal(@"else"))
                 return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
+            f.expr_data.getPtr(c.repr_fixup_stack.pop()).if_begin = then;
             pushExpr(c, f, .if_end, then);
         },
         .while_begin => {
@@ -348,8 +364,23 @@ fn inferExpr(
                 return fail(c, .{ .not_a_bool = cond });
             pushExpr(c, f, .while_end, null);
         },
-        .call, .stage => panic("Should be handled in inferFrame, not inferExpr", .{}),
-        else => return fail(c, .todo),
+        .call_end, .stage_end => panic("Should be handled in inferFrame, not inferExpr", .{}),
+        else => {
+            if (expr_data.treePart() == .branch_begin) {
+                switch (expr_data) {
+                    inline else => |_, tag| {
+                        if (comptime !std.mem.endsWith(u8, @tagName(tag), "_begin")) unreachable;
+                        if (comptime std.mem.startsWith(u8, @tagName(tag), "assert_")) unreachable;
+                        if (comptime std.mem.startsWith(u8, @tagName(tag), "stage_")) unreachable;
+                        if (comptime std.mem.startsWith(u8, @tagName(tag), "unstage_")) unreachable;
+                        if (comptime tag == .if_begin or tag == .ref_init_begin) unreachable;
+                        pushExpr(c, f, @unionInit(tir.ExprData, @tagName(tag), {}), null);
+                    },
+                }
+            } else {
+                return fail(c, .todo);
+            }
+        },
     }
 }
 
