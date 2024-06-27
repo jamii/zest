@@ -289,18 +289,6 @@ fn genExpr(
                 .values = values.toOwnedSlice() catch oom(),
             } };
         },
-        .fun_init_begin => {
-            // TODO Should we change the repr in hint.value_at?
-            const closure = try genExprNext(c, f, tir_f, hint);
-            const fun_repr = takeExprNext(c, tir_f).fun_init_end;
-            return if (closure == .@"struct")
-                .{ .fun = .{
-                    .repr = fun_repr,
-                    .closure = c.box(closure),
-                } }
-            else
-                closure;
-        },
         .local_let_begin => {
             var value = spillStack(c, f, try genExprNext(c, f, tir_f, .anywhere));
             const local = takeExprNext(c, tir_f).local_let_end;

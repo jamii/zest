@@ -339,7 +339,6 @@ pub const Compiler = struct {
                             .string => |s| try writer.print(" {s}", .{s}),
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
                             .local_let_end => |local| try writer.print(" l{}", .{local.id}),
-                            .fun_init_end => |repr_fun| try writer.print(" /{}", .{Repr{ .fun = repr_fun }}),
                             .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),
                             .ref_get_end => |ref_get| try writer.print(" offset={}", .{ref_get.offset}),
                             .ref_set_end => {},

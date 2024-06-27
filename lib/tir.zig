@@ -35,8 +35,6 @@ pub const ExprData = union(enum) {
     nop_end,
     struct_init_begin,
     struct_init_end: ReprStruct,
-    fun_init_begin,
-    fun_init_end: ReprFun,
     local_let_begin,
     local_let_end: Local,
     object_get_begin,

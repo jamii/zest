@@ -72,6 +72,9 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
     while (frame.expr.id <= dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
         const expr_data = dir_f.expr_data.get(frame.expr);
         switch (expr_data) {
+            .call_begin => {
+                _ = pushExpr(c, f, .call_begin, null);
+            },
             .call_end => {
                 const args = c.repr_stack.pop();
                 const fun = c.repr_stack.pop();
@@ -144,13 +147,14 @@ fn inferExpr(
             } };
             pushExpr(c, f, .{ .struct_init_end = repr.@"struct" }, repr);
         },
+        .fun_init_begin => {},
         .fun_init_end => |fun_init| {
             const closure = c.repr_stack.pop();
             const repr = Repr{ .fun = .{
                 .fun = fun_init.fun,
                 .closure = closure.@"struct",
             } };
-            pushExpr(c, f, .{ .fun_init_end = repr.fun }, repr);
+            c.repr_stack.append(repr) catch oom();
         },
         .arg => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
@@ -364,19 +368,10 @@ fn inferExpr(
                 return fail(c, .{ .not_a_bool = cond });
             pushExpr(c, f, .while_end, null);
         },
-        .call_end, .stage_end => panic("Should be handled in inferFrame, not inferExpr", .{}),
-        else => {
-            if (expr_data.treePart() == .branch_begin) {
-                switch (expr_data) {
-                    inline else => |_, tag| {
-                        if (comptime !std.mem.endsWith(u8, @tagName(tag), "_begin")) unreachable;
-                        if (comptime std.mem.startsWith(u8, @tagName(tag), "assert_")) unreachable;
-                        if (comptime std.mem.startsWith(u8, @tagName(tag), "stage_")) unreachable;
-                        if (comptime std.mem.startsWith(u8, @tagName(tag), "unstage_")) unreachable;
-                        if (comptime tag == .if_begin or tag == .ref_init_begin) unreachable;
-                        pushExpr(c, f, @unionInit(tir.ExprData, @tagName(tag), {}), null);
-                    },
-                }
+        .call_begin, .call_end, .stage_begin, .stage_end, .unstage_begin, .unstage_end => panic("Should be handled in inferFrame, not inferExpr", .{}),
+        inline else => |_, tag| {
+            if (comptime std.mem.endsWith(u8, @tagName(tag), "_begin")) {
+                pushExpr(c, f, @unionInit(tir.ExprData, @tagName(tag), {}), null);
             } else {
                 return fail(c, .todo);
             }
