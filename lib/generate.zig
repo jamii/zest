@@ -603,10 +603,22 @@ fn genExpr(
             emitEnum(f, wasm.Opcode.loop);
             emitByte(f, wasm.block_empty);
 
-            _ = try genExprNext(c, f, tir_f, .stack);
-            emitEnum(f, wasm.Opcode.i32_eqz);
-            emitEnum(f, wasm.Opcode.br_if);
-            emitLebU32(f, 1);
+            const cond = try genExprNext(c, f, tir_f, .anywhere);
+            if (cond == .i32 and cond.i32 == 0) {
+                _ = takeExprNext(c, tir_f).while_body;
+                skipTree(c, tir_f);
+                _ = takeExprNext(c, tir_f).while_end;
+                return null;
+            }
+
+            if (cond == .i32) {
+                assert(cond.i32 != 0);
+            } else {
+                load(c, f, cond);
+                emitEnum(f, wasm.Opcode.i32_eqz);
+                emitEnum(f, wasm.Opcode.br_if);
+                emitLebU32(f, 1);
+            }
 
             _ = takeExprNext(c, tir_f).while_body;
             _ = try genExprNext(c, f, tir_f, .nowhere);
