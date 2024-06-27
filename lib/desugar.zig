@@ -195,7 +195,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData, expr: sir.Expr) error{DesugarError
                 for (dir_fun_data.closure_keys.items) |name| {
                     stageString(c, f, name);
                     const binding = c.scope.lookup(name).?;
-                    desugarWalue(c, f, binding.value, binding.is_staged);
+                    desugarBinding(c, f, binding);
                 }
             }
         },
@@ -278,7 +278,7 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, expr: sir.Expr, must_be_mut: b
                 return fail(c, expr, .{ .todo_may_not_close_over_ref = .{ .name = name.name } });
             if (must_be_mut and !binding.mut)
                 return fail(c, expr, .{ .may_not_mutate_immutable_binding = .{ .name = name.name } });
-            desugarWalue(c, f, binding.value, binding.is_staged);
+            desugarBinding(c, f, binding);
             return binding.mut;
         },
         .get => |get| {
@@ -311,15 +311,15 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, expr: sir.Expr, must_be_mut: b
     }
 }
 
-fn desugarWalue(c: *Compiler, f: *dir.FunData, value: dir.Walue, is_staged: bool) void {
-    if (is_staged) {
+fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void {
+    if (binding.is_staged) {
         _ = f.expr_data.append(.unstage_begin);
     }
-    defer if (is_staged) {
+    defer if (binding.is_staged) {
         _ = f.expr_data.append(.unstage_end);
     };
 
-    switch (value) {
+    switch (binding.value) {
         .arg => _ = f.expr_data.append(.arg),
         .closure => |name| {
             if (!f.closure_keys_index.contains(name)) {
