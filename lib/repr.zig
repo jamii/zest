@@ -107,26 +107,29 @@ pub const Repr = union(enum) {
         }
     }
 
-    pub fn hasRef(self: Repr) bool {
+    pub fn hasRef(self: Repr, kind: enum { any, visible }) bool {
         return switch (self) {
             .i32, .string => {
                 return false;
             },
             .@"struct" => |@"struct"| {
                 for (@"struct".keys) |key| {
-                    if (key.reprOf().hasRef()) return true;
+                    if (key.reprOf().hasRef(kind)) return true;
                 }
                 for (@"struct".reprs) |repr| {
-                    if (repr.hasRef()) return true;
+                    if (repr.hasRef(kind)) return true;
                 }
                 return false;
             },
             .@"union" => panic("TODO {}", .{self}),
             .fun => |fun| {
-                return (Repr{ .@"struct" = fun.closure }).hasRef();
+                switch (kind) {
+                    .any => return (Repr{ .@"struct" = fun.closure }).hasRef(kind),
+                    .visible => return false,
+                }
             },
             .only => |only| {
-                return only.reprOf().hasRef();
+                return only.reprOf().hasRef(kind);
             },
             .ref => {
                 return true;

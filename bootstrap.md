@@ -949,3 +949,40 @@ a
 
 111
 ```
+
+```
+a mut = 42
+inc = () { a@ = a + 1 }
+inc()
+inc()
+a
+
+44
+
+44
+```
+
+
+```
+a mut = 42
+make-inc = () () { a@ = a + 1 }
+inc = make-inc()
+inc()
+inc()
+a
+
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
+
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]
+```
+
+```
+a mut = 42
+get = () a
+a@ = a + 1
+get()
+
+43
+
+43
+```

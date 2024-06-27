@@ -114,8 +114,8 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, pattern: s
                 _ = f.expr_data.append(.ref_init_end);
             };
 
-            _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref_begin else .assert_has_no_ref_begin);
-            defer _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref_end else .assert_has_no_ref_end);
+            _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref_begin else .assert_has_no_ref_visible_begin);
+            defer _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref_end else .assert_has_no_ref_visible_end);
 
             try desugarPatternInput(c, f, input);
         },
@@ -274,8 +274,6 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, expr: sir.Expr, must_be_mut: b
                 return fail(c, expr, .meaningless_mut);
             const binding = c.scope.lookup(name.name) orelse
                 return fail(c, expr, .{ .name_not_bound = .{ .name = name.name } });
-            if (must_be_mut and binding.value == .closure)
-                return fail(c, expr, .{ .todo_may_not_close_over_ref = .{ .name = name.name } });
             if (must_be_mut and !binding.mut)
                 return fail(c, expr, .{ .may_not_mutate_immutable_binding = .{ .name = name.name } });
             desugarBinding(c, f, binding);
@@ -376,9 +374,6 @@ pub const DesugarErrorData = union(enum) {
         name: []const u8,
     },
     name_already_bound: struct {
-        name: []const u8,
-    },
-    todo_may_not_close_over_ref: struct {
         name: []const u8,
     },
     may_not_mutate_immutable_binding: struct {

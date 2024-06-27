@@ -224,7 +224,13 @@ pub fn evalExpr(
         },
         .assert_has_no_ref_end => {
             const value = c.value_stack.pop();
-            if (value.reprOf().hasRef())
+            if (value.reprOf().hasRef(.any))
+                return fail(c, .{ .expected_has_no_ref = value });
+            c.value_stack.append(value) catch oom();
+        },
+        .assert_has_no_ref_visible_end => {
+            const value = c.value_stack.pop();
+            if (value.reprOf().hasRef(.visible))
                 return fail(c, .{ .expected_has_no_ref = value });
             c.value_stack.append(value) catch oom();
         },

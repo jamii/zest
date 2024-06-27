@@ -216,7 +216,14 @@ fn inferExpr(
         .assert_has_no_ref_begin => {},
         .assert_has_no_ref_end => {
             const value = c.repr_stack.pop();
-            if (value.hasRef())
+            if (value.hasRef(.any))
+                return fail(c, .{ .expected_has_no_ref = value });
+            c.repr_stack.append(value) catch oom();
+        },
+        .assert_has_no_ref_visible_begin => {},
+        .assert_has_no_ref_visible_end => {
+            const value = c.repr_stack.pop();
+            if (value.hasRef(.visible))
                 return fail(c, .{ .expected_has_no_ref = value });
             c.repr_stack.append(value) catch oom();
         },

@@ -46,6 +46,8 @@ pub const ExprData = union(enum) {
     },
     assert_is_ref_begin,
     assert_is_ref_end,
+    assert_has_no_ref_visible_begin,
+    assert_has_no_ref_visible_end,
     assert_has_no_ref_begin,
     assert_has_no_ref_end,
     object_get_begin,
