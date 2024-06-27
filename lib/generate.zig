@@ -197,6 +197,18 @@ fn takeExprNext(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
     return expr_data;
 }
 
+fn skipTree(c: *Compiler, tir_f: tir.FunData) void {
+    var ends_remaining: usize = 0;
+    while (true) {
+        switch (takeExprNext(c, tir_f).treePart()) {
+            .branch_begin => ends_remaining += 1,
+            .branch_end => ends_remaining -= 1,
+            .leaf => {},
+        }
+        if (ends_remaining == 0) break;
+    }
+}
+
 fn genExprNext(
     c: *Compiler,
     f: *wir.FunData,
@@ -537,6 +549,18 @@ fn genExpr(
             return value;
         },
         .if_begin => |repr| {
+            const cond = try genExprNext(c, f, tir_f, .anywhere);
+
+            if (cond == .i32) {
+                var value: ?wir.Walue = null;
+                _ = takeExprNext(c, tir_f).if_then;
+                if (cond.i32 == 0) skipTree(c, tir_f) else value = try genExprNext(c, f, tir_f, hint);
+                _ = takeExprNext(c, tir_f).if_else;
+                if (cond.i32 != 0) skipTree(c, tir_f) else value = try genExprNext(c, f, tir_f, hint);
+                _ = takeExprNext(c, tir_f).if_end;
+                return value.?;
+            }
+
             const branch_hint: wir.Hint = if (hint != .anywhere) hint else
             // Need to pick a specific hint so that both branches end up the same.
             switch (wasmRepr(repr)) {
@@ -544,8 +568,7 @@ fn genExpr(
                 .heap => .{ .value_at = c.box(shadowPush(c, f, repr)) },
             };
 
-            _ = try genExprNext(c, f, tir_f, .stack);
-
+            load(c, f, cond);
             emitEnum(f, wasm.Opcode.@"if");
             switch (branch_hint) {
                 .nowhere, .value_at => {
