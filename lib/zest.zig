@@ -19,14 +19,12 @@ pub const ValueUnion = @import("./value.zig").ValueUnion;
 pub const ValueFun = @import("./value.zig").ValueFun;
 
 pub const sir = @import("./sir.zig");
-pub const sir2 = @import("./sir2.zig");
 pub const dir = @import("./dir.zig");
 pub const tir = @import("./tir.zig");
 pub const wir = @import("./wir.zig");
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
-pub const parse2 = @import("./parse2.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
@@ -177,7 +175,7 @@ pub const TreePart = enum {
 
 pub fn treePart(expr_data: anytype) TreePart {
     switch (@TypeOf(expr_data)) {
-        sir2.ExprData, dir.ExprData, tir.ExprData => {},
+        sir.ExprData, dir.ExprData, tir.ExprData => {},
         else => @compileError("What are " ++ @typeName(@TypeOf(expr_data))),
     }
     switch (expr_data) {
@@ -221,7 +219,6 @@ pub const Compiler = struct {
     // parse
     token_next: Token,
     sir_expr_data: List(sir.Expr, sir.ExprData),
-    sir2_expr_data: List(sir2.Expr, sir2.ExprData),
 
     // desugar
     scope: dir.Scope,
@@ -263,7 +260,6 @@ pub const Compiler = struct {
 
             .token_next = .{ .id = 0 },
             .sir_expr_data = fieldType(Compiler, .sir_expr_data).init(allocator),
-            .sir2_expr_data = fieldType(Compiler, .sir2_expr_data).init(allocator),
 
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
@@ -320,7 +316,7 @@ pub const Compiler = struct {
             .sir => {
                 try writer.print("--- SIR ---\n", .{});
                 var indent: usize = 0;
-                for (c.sir2_expr_data.items()) |expr_data| {
+                for (c.sir_expr_data.items()) |expr_data| {
                     if (treePart(expr_data) == .branch_end) indent -= 1;
                     try writer.writeByteNTimes(' ', indent * 2);
                     try writer.print("{s}", .{@tagName(expr_data)});
@@ -510,10 +506,6 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
     c.print(.tokens, std.io.getStdErr().writer()) catch unreachable;
 
     try parse(c);
-    assert(c.token_next.id == c.token_data.count());
-
-    c.token_next.id = 0;
-    try parse2(c);
     assert(c.token_next.id == c.token_data.count());
     c.print(.sir, std.io.getStdErr().writer()) catch unreachable;
 

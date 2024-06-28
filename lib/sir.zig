@@ -10,49 +10,37 @@ pub const ExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
-    object: Object,
     name: struct {
         name: []const u8,
         mut: bool,
     },
-    let: struct {
-        path: Expr,
-        value: Expr,
-    },
-    get: struct {
-        object: Expr,
-        key: Expr,
-    },
-    @"if": struct {
-        cond: Expr,
-        then: Expr,
-        @"else": Expr,
-    },
-    @"while": struct {
-        cond: Expr,
-        body: Expr,
-    },
-    fun: struct {
-        params: Object,
-        body: Expr,
-    },
-    make: struct {
-        head: Expr,
-        args: Object,
-    },
-    call: struct {
-        head: Expr,
-        args: Object,
-    },
-    call_builtin: struct {
-        head: Builtin,
-        args: Object,
-    },
-    block: []Expr,
-    ref_to: Expr,
-};
 
-pub const Object = struct {
-    keys: []Expr,
-    values: []Expr,
+    object_begin,
+    object_end,
+    let_begin,
+    let_end,
+    get_begin,
+    get_end,
+    fun_begin,
+    fun_end,
+    make_begin,
+    make_end,
+    call_begin,
+    call_end,
+    call_slash_begin,
+    call_slash_end,
+    call_builtin_begin,
+    call_builtin_end: Builtin,
+    block_begin,
+    block_end,
+    ref_to_begin,
+    ref_to_end,
+
+    if_begin,
+    if_then,
+    if_else,
+    if_end,
+    while_begin,
+    while_body,
+    while_end,
 };
