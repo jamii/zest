@@ -7,6 +7,7 @@ const ArrayList = std.ArrayList;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const deepEqual = zest.deepEqual;
+const treePart = zest.treePart;
 const List = zest.List;
 const Compiler = zest.Compiler;
 const Value = zest.Value;
@@ -94,7 +95,7 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
             },
         }
 
-        switch (expr_data.treePart()) {
+        switch (treePart(expr_data)) {
             .branch_begin => ends_remaining += 1,
             .branch_end => ends_remaining -= 1,
             .leaf => {},
@@ -387,7 +388,7 @@ pub fn evalExpr(
         .call_end, .return_end => panic("Can't eval control flow expr: {}", .{expr_data}),
         .nop_end => {},
         else => {
-            if (expr_data.treePart() != .branch_begin)
+            if (treePart(expr_data) != .branch_begin)
                 return fail(c, .todo);
         },
     }
@@ -400,7 +401,7 @@ fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
     while (true) {
         frame.expr.id += 1;
         const expr_data = f.expr_data.get(frame.expr);
-        switch (expr_data.treePart()) {
+        switch (treePart(expr_data)) {
             .branch_begin => depth += 1,
             .branch_end => depth -= 1,
             .leaf => {},

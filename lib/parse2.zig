@@ -9,39 +9,40 @@ const oom = zest.oom;
 const Compiler = zest.Compiler;
 const TokenData = zest.TokenData;
 const Builtin = zest.Builtin;
-const sir2 = @import("./sir2.zig");
+const sir = @import("./sir.zig");
 
 pub fn parse(c: *Compiler) !void {
     _ = try parseBlock(c, .eof);
     try expect(c, .eof);
 }
 
-fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!void {
-    allowNewline(c);
+fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!sir.Expr {
+    var exprs = ArrayList(sir.Expr).init(c.allocator);
 
-    _ = c.sir2_expr_data.append(.block_begin);
-    defer _ = c.sir2_expr_data.append(.block_end);
+    allowNewline(c);
 
     while (true) {
         if (peek(c) == end) break;
-        const start = c.sir2_expr_data.count();
-        try parseExpr(c);
+        const expr = try parseExpr(c);
         if (peek(c) == .@"=") {
             try expectSpace(c);
             try expect(c, .@"=");
             try expectSpace(c);
-
-            _ = c.sir2_expr_data.insert(start, .let_begin);
-            defer _ = c.sir2_expr_data.append(.let_end);
-
-            try parseExpr(c);
+            const value = try parseExpr(c);
+            exprs.append(c.sir_expr_data.append(.{ .let = .{
+                .path = expr,
+                .value = value,
+            } })) catch oom();
+        } else {
+            exprs.append(expr) catch oom();
         }
         if (!(takeIf(c, .@";") or takeIf(c, .newline))) break;
         allowNewline(c);
     }
+    return c.sir_expr_data.append(.{ .block = exprs.toOwnedSlice() catch oom() });
 }
 
-fn parseExpr(c: *Compiler) error{ParseError}!void {
+fn parseExpr(c: *Compiler) error{ParseError}!sir.Expr {
     switch (peek(c)) {
         .@"(" => return parseFn(c),
         .@"if" => return parseIf(c),
@@ -50,42 +51,32 @@ fn parseExpr(c: *Compiler) error{ParseError}!void {
     }
 }
 
-fn parseFn(c: *Compiler) error{ParseError}!void {
-    _ = c.sir2_expr_data.append(.fun_begin);
-    defer _ = c.sir2_expr_data.append(.fun_end);
-
+fn parseFn(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"(");
-    try parseArgs(c, .@")", 0);
+    const params = try parseArgs(c, .@")", 0);
     try expect(c, .@")");
-    try parseExpr(c);
+    const body = try parseExpr(c);
+    return c.sir_expr_data.append(.{ .fun = .{ .params = params, .body = body } });
 }
 
-fn parseIf(c: *Compiler) error{ParseError}!void {
-    _ = c.sir2_expr_data.append(.if_begin);
-    defer _ = c.sir2_expr_data.append(.if_end);
-
+fn parseIf(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"if");
-    try parseExprAtom(c, .{});
-    _ = c.sir2_expr_data.append(.if_then);
-    try parseExpr(c);
+    const cond = try parseExprAtom(c, .{});
+    const then = try parseExpr(c);
     try expect(c, .@"else");
-    _ = c.sir2_expr_data.append(.if_else);
-    try parseExpr(c);
+    const @"else" = try parseExpr(c);
+    return c.sir_expr_data.append(.{ .@"if" = .{ .cond = cond, .then = then, .@"else" = @"else" } });
 }
 
-fn parseWhile(c: *Compiler) error{ParseError}!void {
-    _ = c.sir2_expr_data.append(.while_begin);
-    defer _ = c.sir2_expr_data.append(.while_end);
-
+fn parseWhile(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"while");
-    try parseExprAtom(c, .{});
-    _ = c.sir2_expr_data.append(.while_body);
-    try parseExpr(c);
+    const cond = try parseExprAtom(c, .{});
+    const body = try parseExpr(c);
+    return c.sir_expr_data.append(.{ .@"while" = .{ .cond = cond, .body = body } });
 }
 
-fn parseExprLoose(c: *Compiler) error{ParseError}!void {
-    const start = c.sir2_expr_data.count();
-    try parseExprTight(c);
+fn parseExprLoose(c: *Compiler) error{ParseError}!sir.Expr {
+    var head = try parseExprTight(c);
     var prev_op: ?Builtin = null;
     while (true) {
         if (!peekSpace(c)) break;
@@ -112,96 +103,102 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
 
                 try expectSpaceOrNewline(c);
                 allowNewline(c);
-
-                c.sir2_expr_data.insertSlice(start, &.{
-                    .call_builtin_begin,
-                    .object_begin,
-                    .{ .i32 = 0 },
-                });
-                defer _ = c.sir2_expr_data.appendSlice(&.{
-                    .object_end,
-                    .{ .call_builtin_end = op },
-                });
-
-                _ = c.sir2_expr_data.append(.{ .i32 = 1 });
-                try parseExprTight(c);
+                const right = try parseExprTight(c);
+                const zero = c.sir_expr_data.append(.{ .i32 = 0 });
+                const one = c.sir_expr_data.append(.{ .i32 = 1 });
+                head = c.sir_expr_data.append(.{ .call_builtin = .{
+                    .head = op,
+                    .args = .{
+                        .keys = c.allocator.dupe(sir.Expr, &.{ zero, one }) catch oom(),
+                        .values = c.allocator.dupe(sir.Expr, &.{ head, right }) catch oom(),
+                    },
+                } });
             },
             else => break,
         }
     }
+    return head;
 }
 
-fn parseExprTight(c: *Compiler) error{ParseError}!void {
-    const start = c.sir2_expr_data.count();
-    try parseExprAtom(c, .{});
+fn parseExprTight(c: *Compiler) error{ParseError}!sir.Expr {
+    var head = try parseExprAtom(c, .{});
     while (true) {
         if (peekSpace(c)) break;
         switch (peek(c)) {
-            .@"." => try parseGet(c, start),
-            .@"(" => try parseCall(c, start),
-            .@"[" => try parseMake(c, start),
-            .@"/" => try parseCallSlash(c, start),
-            .@"@" => try parseRefTo(c, start),
+            .@"." => head = try parseGet(c, head),
+            .@"(" => head = try parseCall(c, head),
+            .@"[" => head = try parseMake(c, head),
+            .@"/" => head = try parseCallSlash(c, head),
+            .@"@" => head = try parseRefTo(c, head),
             else => break,
         }
     }
+    return head;
 }
 
-fn parseGet(c: *Compiler, start: usize) error{ParseError}!void {
-    _ = c.sir2_expr_data.insert(start, .get_begin);
-    defer _ = c.sir2_expr_data.append(.get_end);
-
+fn parseGet(c: *Compiler, object: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@".");
     try expectNoSpace(c);
-    try parseExprAtom(c, .{
+    const key = try parseExprAtom(c, .{
         // We want to parse `x.4.2` as `{x.4}.2`, not `x.{4.2}`.
         .allow_floats = false,
     });
+    return c.sir_expr_data.append(.{ .get = .{
+        .object = object,
+        .key = key,
+    } });
 }
 
-fn parseCall(c: *Compiler, start: usize) error{ParseError}!void {
-    _ = c.sir2_expr_data.insert(start, .call_begin);
-    defer _ = c.sir2_expr_data.append(.call_end);
-
+fn parseCall(c: *Compiler, head: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"(");
-    try parseArgs(c, .@")", 0);
+    const args = try parseArgs(c, .@")", 0);
     try expect(c, .@")");
+    return c.sir_expr_data.append(.{ .call = .{ .head = head, .args = args } });
 }
 
-fn parseMake(c: *Compiler, start: usize) error{ParseError}!void {
-    _ = c.sir2_expr_data.insert(start, .make_begin);
-    defer _ = c.sir2_expr_data.append(.make_end);
-
+fn parseMake(c: *Compiler, head: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"[");
-    try parseArgs(c, .@"]", 0);
+    const args = try parseArgs(c, .@"]", 0);
     try expect(c, .@"]");
+    return c.sir_expr_data.append(.{ .make = .{ .head = head, .args = args } });
 }
 
-fn parseCallSlash(c: *Compiler, start: usize) error{ParseError}!void {
-    _ = c.sir2_expr_data.insert(start, .call_slash_begin);
-    defer _ = c.sir2_expr_data.append(.call_slash_end);
-
+fn parseCallSlash(c: *Compiler, arg: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"/");
     allowNewline(c);
-    try parseName(c);
+    const head = try parseName(c);
     try expectNoSpace(c);
     try expect(c, .@"(");
-    try parseArgs(c, .@")", 1);
+    const args = try parseArgs(c, .@")", 1);
     try expect(c, .@")");
+
+    var keys = ArrayList(sir.Expr).init(c.allocator);
+    keys.append(c.sir_expr_data.append(.{ .i32 = 0 })) catch oom();
+    keys.appendSlice(args.keys) catch oom();
+
+    var values = ArrayList(sir.Expr).init(c.allocator);
+    values.append(arg) catch oom();
+    values.appendSlice(args.values) catch oom();
+
+    return c.sir_expr_data.append(.{ .call = .{
+        .head = head,
+        .args = .{
+            .keys = keys.toOwnedSlice() catch oom(),
+            .values = values.toOwnedSlice() catch oom(),
+        },
+    } });
 }
 
-fn parseRefTo(c: *Compiler, start: usize) error{ParseError}!void {
-    _ = c.sir2_expr_data.insert(start, .ref_to_begin);
-    defer _ = c.sir2_expr_data.append(.ref_to_end);
-
+fn parseRefTo(c: *Compiler, head: sir.Expr) error{ParseError}!sir.Expr {
     try expect(c, .@"@");
+    return c.sir_expr_data.append(.{ .ref_to = head });
 }
 
 const ExprAtomOptions = struct {
     allow_floats: bool = true,
 };
 
-fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
+fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.Expr {
     switch (peek(c)) {
         .name => return parseName(c),
         .number => return parseNumber(c, options),
@@ -211,19 +208,19 @@ fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void 
         .@"-" => return parseNegate(c),
         else => {
             const token = take(c);
-            return fail(c, .{ .unexpected = .{ .expected = "expr-atom", .found = token } });
+            return fail(c, .{ .unexpected = .{ .expected = "sir-atom", .found = token } });
         },
     }
 }
 
-fn parseName(c: *Compiler) error{ParseError}!void {
+fn parseName(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .name);
     const name = lastTokenText(c);
     const mut = takeIf(c, .mut);
-    _ = c.sir2_expr_data.append(.{ .name = .{ .name = name, .mut = mut } });
+    return c.sir_expr_data.append(.{ .name = .{ .name = name, .mut = mut } });
 }
 
-fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
+fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!sir.Expr {
     try expect(c, .number);
     if (options.allow_floats and !peekSpace(c) and takeIf(c, .@".")) {
         try expectNoSpace(c);
@@ -235,7 +232,7 @@ fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
             return fail(c, .{ .parse_f32 = switch (err) {
             error.InvalidCharacter => .invalid_character,
         } });
-        _ = c.sir2_expr_data.append(.{ .f32 = num });
+        return c.sir_expr_data.append(.{ .f32 = num });
     } else {
         const text = lastTokenText(c);
         const num = std.fmt.parseInt(i32, text, 10) catch |err|
@@ -243,11 +240,11 @@ fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
             error.Overflow => .overflow,
             error.InvalidCharacter => .invalid_character,
         } });
-        _ = c.sir2_expr_data.append(.{ .i32 = num });
+        return c.sir_expr_data.append(.{ .i32 = num });
     }
 }
 
-fn parseString(c: *Compiler) error{ParseError}!void {
+fn parseString(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .string);
     const text = lastTokenText(c);
     var chars = ArrayList(u8).initCapacity(c.allocator, text.len) catch oom();
@@ -269,39 +266,40 @@ fn parseString(c: *Compiler) error{ParseError}!void {
         }
     }
     assert(escaped == false);
-    _ = c.sir2_expr_data.append(.{ .string = chars.toOwnedSlice() catch oom() });
+    return c.sir_expr_data.append(.{ .string = chars.toOwnedSlice() catch oom() });
 }
 
-fn parseObject(c: *Compiler) error{ParseError}!void {
+fn parseObject(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"[");
-    try parseArgs(c, .@"]", 0);
+    const fields = try parseArgs(c, .@"]", 0);
     try expect(c, .@"]");
+    return c.sir_expr_data.append(.{ .object = fields });
 }
 
-fn parseGroup(c: *Compiler) error{ParseError}!void {
+fn parseGroup(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"{");
     const exprs = try parseBlock(c, .@"}");
     try expect(c, .@"}");
     return exprs;
 }
 
-fn parseNegate(c: *Compiler) error{ParseError}!void {
-    _ = c.sir2_expr_data.append(.call_builtin_begin);
-    defer _ = c.sir2_expr_data.append(.{ .call_builtin_end = .subtract });
-
-    _ = c.sir2_expr_data.append(.object_begin);
-    defer _ = c.sir2_expr_data.append(.object_end);
-
+fn parseNegate(c: *Compiler) error{ParseError}!sir.Expr {
     try expect(c, .@"-");
-    _ = c.sir2_expr_data.append(.{ .i32 = 0 });
-    _ = c.sir2_expr_data.append(.{ .i32 = 0 });
-    _ = c.sir2_expr_data.append(.{ .i32 = 1 });
-    try parseExprAtom(c, .{});
+    const value = try parseExprAtom(c, .{});
+    const zero = c.sir_expr_data.append(.{ .i32 = 0 });
+    const one = c.sir_expr_data.append(.{ .i32 = 1 });
+    return c.sir_expr_data.append(.{ .call_builtin = .{
+        .head = .subtract,
+        .args = .{
+            .keys = c.allocator.dupe(sir.Expr, &.{ zero, one }) catch oom(),
+            .values = c.allocator.dupe(sir.Expr, &.{ zero, value }) catch oom(),
+        },
+    } });
 }
 
-fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!void {
-    _ = c.sir2_expr_data.append(.object_begin);
-    defer _ = c.sir2_expr_data.append(.object_end);
+fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!sir.Object {
+    var keys = ArrayList(sir.Expr).init(c.allocator);
+    var values = ArrayList(sir.Expr).init(c.allocator);
 
     allowNewline(c);
 
@@ -313,28 +311,35 @@ fn parseArgs(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!void
             ix = null;
             try expect(c, .name);
             const name = lastTokenText(c);
-            _ = c.sir2_expr_data.append(.{ .name = .{ .name = name, .mut = false } });
-            _ = c.sir2_expr_data.append(.{ .name = .{ .name = name, .mut = false } });
+            keys.append(c.sir_expr_data.append(.{ .name = .{ .name = name, .mut = false } })) catch oom();
+            values.append(c.sir_expr_data.append(.{ .name = .{ .name = name, .mut = false } })) catch oom();
         } else {
-            const start = c.sir2_expr_data.count();
-            try parseExpr(c);
+            const expr = try parseExpr(c);
             if (takeIf(c, .@":")) {
                 // Looks like `key: value`
                 ix = null;
-                try parseExpr(c);
+                const value = try parseExpr(c);
+                keys.append(expr) catch oom();
+                values.append(value) catch oom();
             } else {
-                // Looks like `value`, desugar to `{ix}: value`
+                // Looks like `value`
                 if (ix) |key| {
-                    c.sir2_expr_data.insert(start, .{ .i32 = key });
-                    ix = key + 1;
+                    keys.append(c.sir_expr_data.append(.{ .i32 = key })) catch oom();
+                    values.append(expr) catch oom();
                 } else {
                     return fail(c, .positional_args_after_keyed_args);
                 }
+                ix = ix.? + 1;
             }
         }
         if (!takeIf(c, .@",")) break;
         allowNewline(c);
     }
+
+    return .{
+        .keys = keys.toOwnedSlice() catch oom(),
+        .values = values.toOwnedSlice() catch oom(),
+    };
 }
 
 fn peek(c: *Compiler) TokenData {
@@ -414,4 +419,15 @@ fn fail(c: *Compiler, data: ParseErrorData) error{ParseError} {
     return error.ParseError;
 }
 
-pub const ParseErrorData = @import("./parse2.zig").ParseErrorData;
+pub const ParseErrorData = union(enum) {
+    unexpected: struct {
+        expected: []const u8,
+        found: TokenData,
+    },
+    unexpected_space,
+    ambiguous_precedence: [2]Builtin,
+    invalid_string_escape: u8,
+    positional_args_after_keyed_args,
+    parse_i32: enum { overflow, invalid_character },
+    parse_f32: enum { invalid_character },
+};

@@ -8,6 +8,7 @@ const wasm = std.wasm;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const deepEqual = zest.deepEqual;
+const treePart = zest.treePart;
 const Compiler = zest.Compiler;
 const Repr = zest.Repr;
 const tir = zest.tir;
@@ -200,7 +201,7 @@ fn takeExprNext(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
 fn skipTree(c: *Compiler, tir_f: tir.FunData) void {
     var ends_remaining: usize = 0;
     while (true) {
-        switch (takeExprNext(c, tir_f).treePart()) {
+        switch (treePart(takeExprNext(c, tir_f))) {
             .branch_begin => ends_remaining += 1,
             .branch_end => ends_remaining -= 1,
             .leaf => {},

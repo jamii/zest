@@ -19,12 +19,14 @@ pub const ValueUnion = @import("./value.zig").ValueUnion;
 pub const ValueFun = @import("./value.zig").ValueFun;
 
 pub const sir = @import("./sir.zig");
+pub const sir2 = @import("./sir2.zig");
 pub const dir = @import("./dir.zig");
 pub const tir = @import("./tir.zig");
 pub const wir = @import("./wir.zig");
 
 pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
+pub const parse2 = @import("./parse2.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const inferMain = @import("./infer.zig").inferMain;
@@ -60,6 +62,14 @@ pub fn List(comptime K: type, comptime V: type) type {
 
         pub fn appendNTimes(self: *Self, value: V, n: usize) void {
             self.data.appendNTimes(value, n) catch oom();
+        }
+
+        pub fn insert(self: *Self, pos: usize, value: V) void {
+            self.data.insert(pos, value) catch oom();
+        }
+
+        pub fn insertSlice(self: *Self, pos: usize, values: []const V) void {
+            self.data.insertSlice(pos, values) catch oom();
         }
 
         pub fn get(self: Self, key: K) V {
@@ -165,6 +175,24 @@ pub const TreePart = enum {
     branch_end,
 };
 
+pub fn treePart(expr_data: anytype) TreePart {
+    switch (@TypeOf(expr_data)) {
+        sir2.ExprData, dir.ExprData, tir.ExprData => {},
+        else => @compileError("What are " ++ @typeName(@TypeOf(expr_data))),
+    }
+    switch (expr_data) {
+        inline else => |_, tag| {
+            if (std.mem.endsWith(u8, @tagName(tag), "_begin")) {
+                return .branch_begin;
+            } else if (std.mem.endsWith(u8, @tagName(tag), "_end")) {
+                return .branch_end;
+            } else {
+                return .leaf;
+            }
+        },
+    }
+}
+
 pub fn FlatLattice(comptime T: type) type {
     return union(enum) {
         zero,
@@ -193,6 +221,7 @@ pub const Compiler = struct {
     // parse
     token_next: Token,
     sir_expr_data: List(sir.Expr, sir.ExprData),
+    sir2_expr_data: List(sir2.Expr, sir2.ExprData),
 
     // desugar
     scope: dir.Scope,
@@ -234,6 +263,7 @@ pub const Compiler = struct {
 
             .token_next = .{ .id = 0 },
             .sir_expr_data = fieldType(Compiler, .sir_expr_data).init(allocator),
+            .sir2_expr_data = fieldType(Compiler, .sir2_expr_data).init(allocator),
 
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
@@ -287,6 +317,26 @@ pub const Compiler = struct {
                 }
                 try writer.print("---\n", .{});
             },
+            .sir => {
+                try writer.print("--- SIR ---\n", .{});
+                var indent: usize = 0;
+                for (c.sir2_expr_data.items()) |expr_data| {
+                    if (treePart(expr_data) == .branch_end) indent -= 1;
+                    try writer.writeByteNTimes(' ', indent * 2);
+                    try writer.print("{s}", .{@tagName(expr_data)});
+                    switch (expr_data) {
+                        .i32 => |i| try writer.print(" {}", .{i}),
+                        .f32 => |i| try writer.print(" {}", .{i}),
+                        .string => |s| try writer.print(" {s}", .{s}),
+                        .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
+                        .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                        inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
+                    }
+                    try writer.print("\n", .{});
+                    if (treePart(expr_data) == .branch_begin) indent += 1;
+                }
+                try writer.print("---\n", .{});
+            },
             .dir => {
                 try writer.print("--- DIR ---\n", .{});
                 try writer.print("main = f{}\n", .{c.dir_fun_main.?.id});
@@ -298,7 +348,7 @@ pub const Compiler = struct {
                         try writer.print("local l{}\n", .{local_id});
                     }
                     for (f.expr_data.items()) |expr_data| {
-                        if (expr_data.treePart() == .branch_end) indent -= 1;
+                        if (treePart(expr_data) == .branch_end) indent -= 1;
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("{s}", .{@tagName(expr_data)});
                         switch (expr_data) {
@@ -314,7 +364,7 @@ pub const Compiler = struct {
                             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                         }
                         try writer.print("\n", .{});
-                        if (expr_data.treePart() == .branch_begin) indent += 1;
+                        if (treePart(expr_data) == .branch_begin) indent += 1;
                     }
                 }
                 try writer.print("---\n", .{});
@@ -330,7 +380,7 @@ pub const Compiler = struct {
                         try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.one });
                     }
                     for (f.expr_data.items()) |expr_data| {
-                        if (expr_data.treePart() == .branch_end) indent -= 1;
+                        if (treePart(expr_data) == .branch_end) indent -= 1;
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("{s}", .{@tagName(expr_data)});
                         switch (expr_data) {
@@ -349,7 +399,7 @@ pub const Compiler = struct {
                             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                         }
                         try writer.print("\n", .{});
-                        if (expr_data.treePart() == .branch_begin) indent += 1;
+                        if (treePart(expr_data) == .branch_begin) indent += 1;
                     }
                 }
                 try writer.print("---\n", .{});
@@ -461,6 +511,11 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
 
     try parse(c);
     assert(c.token_next.id == c.token_data.count());
+
+    c.token_next.id = 0;
+    try parse2(c);
+    assert(c.token_next.id == c.token_data.count());
+    c.print(.sir, std.io.getStdErr().writer()) catch unreachable;
 
     try desugar(c);
     assert(c.dir_fun_main != null);

@@ -82,20 +82,6 @@ pub const ExprData = union(enum) {
     stage_end,
     unstage_begin,
     unstage_end,
-
-    pub fn treePart(expr_data: ExprData) TreePart {
-        switch (expr_data) {
-            inline else => |_, tag| {
-                if (std.mem.endsWith(u8, @tagName(tag), "_begin")) {
-                    return .branch_begin;
-                } else if (std.mem.endsWith(u8, @tagName(tag), "_end")) {
-                    return .branch_end;
-                } else {
-                    return .leaf;
-                }
-            },
-        }
-    }
 };
 
 pub const Fun = struct { id: usize };
