@@ -986,3 +986,13 @@ get()
 
 43
 ```
+
+```
+a mut = 42
+get = () a
+b mut = get
+
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
+
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]
+```

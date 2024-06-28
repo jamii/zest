@@ -114,8 +114,24 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, pattern: s
                 _ = f.expr_data.append(.ref_init_end);
             };
 
-            _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref_begin else .assert_has_no_ref_visible_begin);
-            defer _ = f.expr_data.append(if (context == .args and name.mut) .assert_is_ref_end else .assert_has_no_ref_visible_end);
+            const assert_begin: dir.ExprData, const assert_end: dir.ExprData = if (name.mut)
+                switch (context) {
+                    .args => .{
+                        .assert_is_ref_begin,
+                        .assert_is_ref_end,
+                    },
+                    .let => .{
+                        .assert_has_no_ref_begin,
+                        .assert_has_no_ref_end,
+                    },
+                }
+            else
+                .{
+                    .assert_has_no_ref_visible_begin,
+                    .assert_has_no_ref_visible_end,
+                };
+            _ = f.expr_data.append(assert_begin);
+            defer _ = f.expr_data.append(assert_end);
 
             try desugarPatternInput(c, f, input);
         },
