@@ -62,14 +62,6 @@ pub fn List(comptime K: type, comptime V: type) type {
             self.data.appendNTimes(value, n) catch oom();
         }
 
-        pub fn insert(self: *Self, pos: usize, value: V) void {
-            self.data.insert(pos, value) catch oom();
-        }
-
-        pub fn insertSlice(self: *Self, pos: usize, values: []const V) void {
-            self.data.insertSlice(pos, values) catch oom();
-        }
-
         pub fn get(self: Self, key: K) V {
             return self.data.items[key.id];
         }
@@ -219,6 +211,8 @@ pub const Compiler = struct {
     // parse
     token_next: Token,
     sir_expr_data: List(sir.Expr, sir.ExprData),
+    sir_expr_data_buffer: ArrayList(sir.ExprData),
+    sir_expr_main: ?sir.Expr,
 
     // desugar
     scope: dir.Scope,
@@ -260,6 +254,8 @@ pub const Compiler = struct {
 
             .token_next = .{ .id = 0 },
             .sir_expr_data = fieldType(Compiler, .sir_expr_data).init(allocator),
+            .sir_expr_data_buffer = fieldType(Compiler, .sir_expr_data_buffer).init(allocator),
+            .sir_expr_main = null,
 
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
@@ -315,22 +311,7 @@ pub const Compiler = struct {
             },
             .sir => {
                 try writer.print("--- SIR ---\n", .{});
-                var indent: usize = 0;
-                for (c.sir_expr_data.items()) |expr_data| {
-                    if (treePart(expr_data) == .branch_end) indent -= 1;
-                    try writer.writeByteNTimes(' ', indent * 2);
-                    try writer.print("{s}", .{@tagName(expr_data)});
-                    switch (expr_data) {
-                        .i32 => |i| try writer.print(" {}", .{i}),
-                        .f32 => |i| try writer.print(" {}", .{i}),
-                        .string => |s| try writer.print(" {s}", .{s}),
-                        .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
-                        .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
-                        inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
-                    }
-                    try writer.print("\n", .{});
-                    if (treePart(expr_data) == .branch_begin) indent += 1;
-                }
+                try c.printSir(writer, c.sir_expr_main.?, 0);
                 try writer.print("---\n", .{});
             },
             .dir => {
@@ -401,6 +382,34 @@ pub const Compiler = struct {
                 try writer.print("---\n", .{});
             },
             else => panic("TODO", .{}),
+        }
+    }
+
+    fn printSir(c: *Compiler, writer: anytype, start_expr: sir.Expr, start_indent: usize) @TypeOf(writer.print("", .{})) {
+        var expr = start_expr;
+        var indent = start_indent;
+        while (true) {
+            const expr_data = c.sir_expr_data.get(expr);
+            if (expr_data == .indirect) {
+                try c.printSir(writer, expr_data.indirect, indent);
+            } else {
+                if (treePart(expr_data) == .branch_end) indent -= 1;
+                try writer.writeByteNTimes(' ', indent * 2);
+                try writer.print("{s}", .{@tagName(expr_data)});
+                switch (expr_data) {
+                    .i32 => |i| try writer.print(" {}", .{i}),
+                    .f32 => |i| try writer.print(" {}", .{i}),
+                    .string => |s| try writer.print(" {s}", .{s}),
+                    .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
+                    .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                    .indirect => unreachable,
+                    inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
+                }
+                try writer.print("\n", .{});
+                if (treePart(expr_data) == .branch_begin) indent += 1;
+            }
+            if (indent == 0) break;
+            expr.id += 1;
         }
     }
 };

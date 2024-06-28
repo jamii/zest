@@ -15,6 +15,8 @@ pub const ExprData = union(enum) {
         mut: bool,
     },
 
+    indirect: Expr,
+
     object_begin,
     object_end,
     let_begin,
