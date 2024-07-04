@@ -996,3 +996,26 @@ Expected a value containing no mutable references, found: fun[id: 0, closure: st
 
 Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]
 ```
+
+```
+square-n-times = (m mut, n) {
+    i mut = 0
+    while {i < n} {
+        m@ = [
+            [
+                {m.0.0 * m.0.0} + {m.0.1 * m.1.0},
+                {m.0.0 * m.0.1} + {m.0.1 * m.1.1},
+            ],
+            [
+                {m.1.0 * m.0.0} + {m.1.1 * m.1.0},
+                {m.1.0 * m.0.1} + {m.1.1 * m.1.1},
+            ],
+        ]
+        i@ = i + 1
+    }
+    0 // TODO should be able to eval without this
+}
+m mut = [[0,1],[1,0]]
+square-n-times(m@, 3)
+0
+```
