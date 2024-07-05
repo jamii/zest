@@ -16,7 +16,7 @@ const sir = zest.sir;
 const dir = zest.dir;
 
 pub fn desugar(c: *Compiler) error{DesugarError}!void {
-    pushNext(c, c.sir_expr_main.?);
+    c.sir_expr_next = c.sir_expr_main.?;
     var f = dir.FunData.init(c.allocator);
 
     {
@@ -31,6 +31,12 @@ pub fn desugar(c: *Compiler) error{DesugarError}!void {
 
 fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
     switch (peek(c)) {
+        .indirect => |expr| {
+            const next = c.sir_expr_next;
+            c.sir_expr_next = expr;
+            try desugarExpr(c, f);
+            c.sir_expr_next = .{ .id = next.id + 1 };
+        },
         .name, .get_begin, .ref_to_begin => {
             try desugarPath(c, f);
         },
@@ -182,6 +188,12 @@ fn desugarFun(c: *Compiler) error{DesugarError}!dir.Fun {
 
 fn desugarPath(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
     switch (peek(c)) {
+        .indirect => |expr| {
+            const next = c.sir_expr_next;
+            c.sir_expr_next = expr;
+            try desugarPath(c, f);
+            c.sir_expr_next = .{ .id = next.id + 1 };
+        },
         .ref_to_begin => {
             _ = take(c).ref_to_begin;
             _ = try desugarPathPart(c, f, true);
@@ -202,6 +214,13 @@ fn desugarPath(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
 
 fn desugarPathPart(c: *Compiler, f: *dir.FunData, must_be_mut: bool) error{DesugarError}!bool {
     switch (peek(c)) {
+        .indirect => |expr| {
+            const next = c.sir_expr_next;
+            c.sir_expr_next = expr;
+            const is_mut = try desugarPathPart(c, f, must_be_mut);
+            c.sir_expr_next = .{ .id = next.id + 1 };
+            return is_mut;
+        },
         .name => |name| {
             _ = take(c).name;
             if (name.mut)
@@ -276,6 +295,12 @@ fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void 
 
 fn desugarKey(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
     switch (peek(c)) {
+        .indirect => |expr| {
+            const next = c.sir_expr_next;
+            c.sir_expr_next = expr;
+            try desugarKey(c, f);
+            c.sir_expr_next = .{ .id = next.id + 1 };
+        },
         .name => |name| {
             _ = take(c).name;
             if (name.mut)
@@ -326,6 +351,12 @@ const PatternContext = enum { args, let };
 
 fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: PatternContext) error{DesugarError}!void {
     switch (peek(c)) {
+        .indirect => |expr| {
+            const next = c.sir_expr_next;
+            c.sir_expr_next = expr;
+            try desugarPattern(c, f, input, context);
+            c.sir_expr_next = .{ .id = next.id + 1 };
+        },
         .name => |name| {
             _ = take(c).name;
 
@@ -419,8 +450,10 @@ fn desugarPatternInput(c: *Compiler, f: *dir.FunData, input: PatternInput) error
     switch (input) {
         .arg => emit(c, f, .arg),
         .expr => |expr| {
-            pushNext(c, expr);
+            const next = c.sir_expr_next;
+            c.sir_expr_next = expr;
             try desugarExpr(c, f);
+            c.sir_expr_next = next;
         },
         .object_get => |object_get| {
             emit(c, f, .object_get_begin);
@@ -428,8 +461,10 @@ fn desugarPatternInput(c: *Compiler, f: *dir.FunData, input: PatternInput) error
 
             emit(c, f, .{ .local_get = object_get.object });
 
-            pushNext(c, object_get.key);
+            const next = c.sir_expr_next;
+            c.sir_expr_next = object_get.key;
             try desugarKey(c, f);
+            c.sir_expr_next = next;
         },
     }
 }
@@ -440,70 +475,27 @@ fn emit(c: *Compiler, f: *dir.FunData, expr_data: dir.ExprData) void {
 }
 
 fn peek(c: *Compiler) sir.ExprData {
-    const next = &c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
-    const expr_data = c.sir_expr_data.get(next.expr);
-    return expr_data;
+    return c.sir_expr_data.get(c.sir_expr_next);
 }
 
 fn take(c: *Compiler) sir.ExprData {
     const expr_data = peek(c);
-    takeInner(c);
+    c.sir_expr_next.id += 1;
     return expr_data;
 }
 
 fn takeIf(c: *Compiler, tag: std.meta.Tag(sir.ExprData)) bool {
     const expr_data = peek(c);
     if (expr_data == tag) {
-        takeInner(c);
+        c.sir_expr_next.id += 1;
         return true;
     } else {
         return false;
     }
 }
 
-// TODO This is awful
-fn takeInner(c: *Compiler) void {
-    {
-        const next = &c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
-        const expr_data = c.sir_expr_data.get(next.expr);
-        switch (treePart(expr_data)) {
-            .branch_begin => next.ends_remaining += 1,
-            .branch_end => next.ends_remaining -= 1,
-            .leaf => {},
-        }
-    }
-    while (true) {
-        const next = &c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
-        next.expr.id += 1;
-        if (next.ends_remaining > 0)
-            break;
-        _ = c.sir_expr_next.pop();
-        if (c.sir_expr_next.items.len == 0)
-            return;
-        if (c.sir_expr_data.get(c.sir_expr_next.items[c.sir_expr_next.items.len - 1].expr) != .indirect)
-            break;
-    }
-    while (true) {
-        const next = &c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
-        const expr_data = c.sir_expr_data.get(next.expr);
-        if (expr_data != .indirect) break;
-        c.sir_expr_next.append(.{ .expr = expr_data.indirect, .ends_remaining = 0 }) catch oom();
-    }
-}
-
-// TODO This is awful
-fn pushNext(c: *Compiler, expr: sir.Expr) void {
-    c.sir_expr_next.append(.{ .expr = expr, .ends_remaining = 0 }) catch oom();
-    while (true) {
-        const next = &c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
-        const expr_data = c.sir_expr_data.get(next.expr);
-        if (expr_data != .indirect) break;
-        c.sir_expr_next.append(.{ .expr = expr_data.indirect, .ends_remaining = 0 }) catch oom();
-    }
-}
-
 fn skipTree(c: *Compiler) sir.Expr {
-    const start = c.sir_expr_next.items[c.sir_expr_next.items.len - 1].expr;
+    const start = c.sir_expr_next;
     var ends_remaining: usize = 0;
     while (true) {
         switch (treePart(take(c))) {

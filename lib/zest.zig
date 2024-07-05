@@ -218,7 +218,7 @@ pub const Compiler = struct {
     scope: dir.Scope,
     dir_fun_data: List(dir.Fun, dir.FunData),
     dir_fun_main: ?dir.Fun,
-    sir_expr_next: ArrayList(sir.Next),
+    sir_expr_next: sir.Expr,
 
     // eval
     dir_frame_stack: ArrayList(dir.Frame),
@@ -261,7 +261,7 @@ pub const Compiler = struct {
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
-            .sir_expr_next = fieldType(Compiler, .sir_expr_next).init(allocator),
+            .sir_expr_next = .{ .id = 0 },
 
             .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
@@ -446,8 +446,7 @@ pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
         switch (error_data) {
             .desugar => |err| {
-                const next = c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
-                const expr_data = c.sir_expr_data.get(next.expr);
+                const expr_data = c.sir_expr_data.get(c.sir_expr_next);
                 return switch (err) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
