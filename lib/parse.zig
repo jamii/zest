@@ -34,29 +34,34 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!void {
             try expect(c, .@"=");
             try expectSpace(c);
 
-            const left = cutBufferAfter(c, buffer_start);
+            const pattern = cutBufferAfter(c, buffer_start);
 
             emit(c, .let_begin);
             defer emit(c, .let_end);
 
-            emit(c, left);
             try parseExpr(c);
+            emit(c, pattern);
         }
-        if (!(takeIf(c, .@";") or takeIf(c, .newline))) break;
+        if (!(takeIf(c, .@";") or takeIf(c, .newline))) {
+            const last = cutBufferAfter(c, buffer_start);
+
+            emit(c, .block_last);
+            emit(c, last);
+        }
         allowNewline(c);
     }
 }
 
 fn parseExpr(c: *Compiler) error{ParseError}!void {
     switch (peek(c)) {
-        .@"(" => return parseFn(c),
+        .@"(" => return parseFun(c),
         .@"if" => return parseIf(c),
         .@"while" => return parseWhile(c),
         else => return parseExprLoose(c),
     }
 }
 
-fn parseFn(c: *Compiler) error{ParseError}!void {
+fn parseFun(c: *Compiler) error{ParseError}!void {
     emit(c, .fun_begin);
     defer emit(c, .fun_end);
 
@@ -328,9 +333,6 @@ fn parseArgs(c: *Compiler, end: TokenData) error{ParseError}!void {
 }
 
 fn parseArgsInner(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!void {
-    emit(c, .object_begin);
-    defer emit(c, .object_end);
-
     allowNewline(c);
 
     // ix set to null when positional args are no longer allowed

@@ -19,7 +19,7 @@ pub const ExprData = union(enum) {
 
     object_begin,
     object_end,
-    let_begin,
+    let_begin, // value, path
     let_end,
     get_begin,
     get_end,
@@ -34,6 +34,7 @@ pub const ExprData = union(enum) {
     call_builtin_begin,
     call_builtin_end: Builtin,
     block_begin,
+    block_last,
     block_end,
     ref_to_begin,
     ref_to_end,
@@ -45,4 +46,9 @@ pub const ExprData = union(enum) {
     while_begin,
     while_body,
     while_end,
+};
+
+pub const Next = struct {
+    expr: Expr,
+    ends_remaining: usize,
 };

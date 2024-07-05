@@ -218,6 +218,7 @@ pub const Compiler = struct {
     scope: dir.Scope,
     dir_fun_data: List(dir.Fun, dir.FunData),
     dir_fun_main: ?dir.Fun,
+    sir_expr_next: ArrayList(sir.Next),
 
     // eval
     dir_frame_stack: ArrayList(dir.Frame),
@@ -260,6 +261,7 @@ pub const Compiler = struct {
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
+            .sir_expr_next = fieldType(Compiler, .sir_expr_next).init(allocator),
 
             .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
@@ -408,7 +410,7 @@ pub const Compiler = struct {
                 try writer.print("\n", .{});
                 if (treePart(expr_data) == .branch_begin) indent += 1;
             }
-            if (indent == 0) break;
+            if (indent == start_indent) break;
             expr.id += 1;
         }
     }
@@ -423,10 +425,7 @@ pub const GenerateErrorData = @import("./generate.zig").GenerateErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
-    desugar: struct {
-        expr: sir.Expr,
-        data: DesugarErrorData,
-    },
+    desugar: DesugarErrorData,
     eval: struct {
         fun: dir.Fun,
         expr: dir.Expr,
@@ -447,8 +446,9 @@ pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
         switch (error_data) {
             .desugar => |err| {
-                const expr_data = c.sir_expr_data.get(err.expr);
-                return switch (err.data) {
+                const next = c.sir_expr_next.items[c.sir_expr_next.items.len - 1];
+                const expr_data = c.sir_expr_data.get(next.expr);
+                return switch (err) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
                     .name_already_bound => |data| format(c, "Name already bound: {s}", .{data.name}),
