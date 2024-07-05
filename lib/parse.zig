@@ -25,16 +25,17 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!void {
     emit(c, .block_begin);
     defer emit(c, .block_end);
 
+    var buffer_start: ?usize = null;
     while (true) {
         if (peek(c) == end) break;
-        const buffer_start = bufferLen(c);
+        buffer_start = bufferLen(c);
         try parseExpr(c);
         if (peek(c) == .@"=") {
             try expectSpace(c);
             try expect(c, .@"=");
             try expectSpace(c);
 
-            const pattern = cutBufferAfter(c, buffer_start);
+            const pattern = cutBufferAfter(c, buffer_start.?);
 
             emit(c, .let_begin);
             defer emit(c, .let_end);
@@ -42,13 +43,14 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!void {
             try parseExpr(c);
             emit(c, pattern);
         }
-        if (!(takeIf(c, .@";") or takeIf(c, .newline))) {
-            const last = cutBufferAfter(c, buffer_start);
-
-            emit(c, .block_last);
-            emit(c, last);
-        }
+        if (!(takeIf(c, .@";") or takeIf(c, .newline))) break;
         allowNewline(c);
+    }
+
+    if (buffer_start != null) {
+        const last = cutBufferAfter(c, buffer_start.?);
+        emit(c, .block_last);
+        emit(c, last);
     }
 }
 

@@ -1018,4 +1018,8 @@ square-n-times = (m mut, n) {
 m mut = [[0,1],[1,0]]
 square-n-times(m@, 3)
 0
+
+0
+
+0
 ```
