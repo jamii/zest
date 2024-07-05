@@ -971,9 +971,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
+Expected a value containing no mutable references, found: fun[id: 2, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
 
-Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]
+Expected a value containing no mutable references, found: fun[id: 2, closure: struct['a': ref[i32]]]
 ```
 
 ```
