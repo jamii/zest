@@ -181,7 +181,12 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
         emit(c, wrapper_f, .return_begin);
         defer emit(c, wrapper_f, .return_end);
 
+        emit(c, wrapper_f, .block_begin);
+        defer emit(c, wrapper_f, .block_end);
+
         try desugarPattern(c, wrapper_f, .{ .arg = arg }, .args);
+
+        emit(c, wrapper_f, .block_last);
 
         var arg_count: usize = 0;
         emit(c, wrapper_f, .call_begin);

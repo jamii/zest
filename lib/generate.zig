@@ -157,7 +157,9 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
     var return_types = ArrayList(wasm.Valtype).init(c.allocator);
     arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
-    arg_types.append(wasmAbi(tir_f.key.arg_repr)) catch oom();
+    for (tir_f.key.arg_reprs) |arg_repr| {
+        arg_types.append(wasmAbi(arg_repr)) catch oom();
+    }
     switch (wasmRepr(tir_f.return_repr.one)) {
         .primitive => |valtype| return_types.append(valtype) catch oom(),
         .heap => arg_types.append(.i32) catch oom(),
@@ -243,10 +245,10 @@ fn genExprInner(
                 .repr = tir_f.key.closure_repr,
             } };
         },
-        .arg => {
+        .arg => |arg| {
             return .{ .value_at = .{
-                .ptr = c.box(wir.Walue{ .arg = {} }),
-                .repr = tir_f.key.arg_repr,
+                .ptr = c.box(wir.Walue{ .arg = arg }),
+                .repr = tir_f.key.arg_reprs[arg.id],
             } };
         },
         .local_get => |local| {
@@ -354,7 +356,14 @@ fn genExprInner(
         .call_begin => {
             f.is_leaf = false;
             const closure = try genExpr(c, f, tir_f, .anywhere);
-            const arg = try genExpr(c, f, tir_f, .anywhere);
+            loadPtrTo(c, f, closure);
+            while (peek(c, tir_f) != .call_end) {
+                const arg = try genExpr(c, f, tir_f, .anywhere);
+                switch (wasmRepr(walueRepr(c, f, arg))) {
+                    .primitive => load(c, f, arg),
+                    .heap => loadPtrTo(c, f, arg),
+                }
+            }
             const fun = take(c, tir_f).call_end;
             const output_repr = c.tir_fun_data.get(fun).return_repr.one;
             const output = switch (wasmRepr(output_repr)) {
@@ -364,8 +373,6 @@ fn genExprInner(
                     .repr = output_repr,
                 } },
             };
-            loadPtrTo(c, f, arg);
-            loadPtrTo(c, f, closure);
             switch (wasmRepr(output_repr)) {
                 .primitive => {},
                 .heap => loadPtrTo(c, f, output),

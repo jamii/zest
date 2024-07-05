@@ -44,7 +44,7 @@ pub fn popFun(c: *Compiler) dir.Frame {
     return frame;
 }
 
-pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_repr: Repr) error{EvalError}!Value {
+pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_reprs: []Repr, closure_repr: Repr) error{EvalError}!Value {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
 
@@ -81,8 +81,8 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
                         break :value local_repr.valueOf() orelse
                             return fail(c, .{ .cannot_unstage_value = local_repr });
                     },
-                    .arg => arg_repr.valueOf() orelse
-                        return fail(c, .{ .cannot_unstage_value = arg_repr }),
+                    .arg => |arg| arg_reprs[arg.id].valueOf() orelse
+                        return fail(c, .{ .cannot_unstage_value = arg_reprs[arg.id] }),
                     .closure => closure_repr.valueOf() orelse
                         return fail(c, .{ .cannot_unstage_value = closure_repr }),
                     else => |other| panic("Invalid unstaged expr: {}", .{other}),

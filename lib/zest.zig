@@ -372,6 +372,7 @@ pub const Compiler = struct {
                             .i32 => |i| try writer.print(" {}", .{i}),
                             .f32 => |i| try writer.print(" {}", .{i}),
                             .string => |s| try writer.print(" {s}", .{s}),
+                            .arg => |arg| try writer.print(" a{}", .{arg.id}),
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
                             .local_let_end => |local| try writer.print(" l{}", .{local.id}),
                             .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),

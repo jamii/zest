@@ -23,7 +23,7 @@ pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
         .{
             .fun = c.dir_fun_main.?,
             .closure_repr = Repr.emptyStruct(),
-            .arg_repr = Repr.emptyStruct(),
+            .arg_reprs = &.{},
         },
     );
     try infer(c);
@@ -75,15 +75,19 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
             .call_begin => {
                 _ = emit(c, f, .call_begin, null);
             },
-            .call_end => {
-                const args = c.repr_stack.pop();
+            .call_end => |call_end| {
+                const args = c.allocator.alloc(Repr, call_end.arg_count) catch oom();
+                for (0..call_end.arg_count) |i| {
+                    const ix = call_end.arg_count - 1 - i;
+                    args[ix] = c.repr_stack.pop();
+                }
                 const fun = c.repr_stack.pop();
                 if (fun != .fun)
                     return fail(c, .{ .not_a_fun = fun });
                 const key = tir.FunKey{
                     .fun = fun.fun.fun,
                     .closure_repr = .{ .@"struct" = fun.fun.closure },
-                    .arg_repr = args,
+                    .arg_reprs = args,
                 };
                 if (c.tir_fun_by_key.get(key)) |tir_fun| {
                     // TODO once we have recursive functions, seeing a .zero here indicates that type inference is cyclic
@@ -93,7 +97,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                     // Put inputs back on stack and switch to the called function.
                     // When we return to this expr we'll hit the cached tir_fun.
                     c.repr_stack.append(fun) catch oom();
-                    c.repr_stack.append(args) catch oom();
+                    c.repr_stack.appendSlice(args) catch oom();
                     _ = pushFun(c, key);
                     return .call;
                 }
@@ -106,7 +110,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                     .args = &.{},
                     .closure = Value.emptyStruct(),
                 });
-                const return_value = try eval.evalStaged(c, f, frame.key.arg_repr, frame.key.closure_repr);
+                const return_value = try eval.evalStaged(c, f, frame.key.arg_reprs, frame.key.closure_repr);
                 const eval_frame = eval.popFun(c);
                 frame.expr = eval_frame.expr;
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
@@ -156,10 +160,10 @@ fn inferExpr(
             } };
             c.repr_stack.append(repr) catch oom();
         },
-        .arg => {
+        .arg => |arg| {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-            const repr = frame.key.arg_repr;
-            emit(c, f, .arg, repr);
+            const repr = frame.key.arg_reprs[arg.id];
+            emit(c, f, .{ .arg = .{ .id = arg.id } }, repr);
         },
         .closure => {
             const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];

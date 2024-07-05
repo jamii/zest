@@ -16,7 +16,7 @@ const tir = zest.tir;
 
 pub const Walue = union(enum) {
     closure,
-    arg,
+    arg: tir.Arg,
     @"return",
     local: Local,
     shadow,

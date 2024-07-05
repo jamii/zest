@@ -14,6 +14,8 @@ const FlatLattice = zest.FlatLattice;
 const TreePart = zest.TreePart;
 const dir = @import("./dir.zig");
 
+pub const Arg = struct { id: usize };
+
 pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
@@ -28,7 +30,7 @@ pub const ExprData = union(enum) {
     f32: f32,
     string: []const u8,
     closure,
-    arg,
+    arg: Arg,
     local_get: Local,
 
     nop_begin,
@@ -84,7 +86,7 @@ pub const BuiltinTyped = enum {
 pub const FunKey = struct {
     fun: dir.Fun,
     closure_repr: Repr,
-    arg_repr: Repr,
+    arg_reprs: []Repr,
 };
 
 pub const Fun = struct { id: usize };
