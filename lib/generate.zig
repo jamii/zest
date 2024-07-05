@@ -246,10 +246,14 @@ fn genExprInner(
             } };
         },
         .arg => |arg| {
-            return .{ .value_at = .{
-                .ptr = c.box(wir.Walue{ .arg = arg }),
-                .repr = tir_f.key.arg_reprs[arg.id],
-            } };
+            const repr = tir_f.key.arg_reprs[arg.id];
+            return switch (wasmRepr(repr)) {
+                .primitive => .{ .arg = arg },
+                .heap => .{ .value_at = .{
+                    .ptr = c.box(wir.Walue{ .arg = arg }),
+                    .repr = repr,
+                } },
+            };
         },
         .local_get => |local| {
             return c.local_walue.get(local).?;
@@ -872,9 +876,9 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
 
 fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
     return switch (walue) {
-        .arg => 0,
-        .closure => 1,
-        .@"return" => 2,
+        .closure => 0,
+        .arg => |arg| @intCast(1 + arg.id),
+        .@"return" => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len - 1),
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
         .stack, .i32, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
