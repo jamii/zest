@@ -215,8 +215,20 @@ fn genExprOrNull(
                 return result;
             },
             .stack => {
-                load(c, f, result);
-                return .{ .stack = wasmRepr(walueRepr(c, f, result)).primitive };
+                const repr = walueRepr(c, f, result);
+                switch (wasmRepr(repr)) {
+                    .primitive => |valtype| {
+                        load(c, f, result);
+                        return .{ .stack = valtype };
+                    },
+                    .heap => {
+                        loadPtrTo(c, f, result);
+                        return .{ .value_at = .{
+                            .ptr = c.box(wir.Walue{ .stack = .i32 }),
+                            .repr = repr,
+                        } };
+                    },
+                }
             },
             .value_at => |ptr| {
                 store(c, f, result, ptr.*);
@@ -362,11 +374,7 @@ fn genExprInner(
             const closure = try genExpr(c, f, tir_f, .anywhere);
             loadPtrTo(c, f, closure);
             while (peek(c, tir_f) != .call_end) {
-                const arg = try genExpr(c, f, tir_f, .anywhere);
-                switch (wasmRepr(walueRepr(c, f, arg))) {
-                    .primitive => load(c, f, arg),
-                    .heap => loadPtrTo(c, f, arg),
-                }
+                _ = try genExpr(c, f, tir_f, .stack);
             }
             const fun = take(c, tir_f).call_end;
             const output_repr = c.tir_fun_data.get(fun).return_repr.one;
