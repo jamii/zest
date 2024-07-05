@@ -320,7 +320,11 @@ pub const Compiler = struct {
                 try writer.print("--- DIR ---\n", .{});
                 try writer.print("main = f{}\n", .{c.dir_fun_main.?.id});
                 for (c.dir_fun_data.items(), 0..) |f, fun_id| {
-                    try writer.print("f{} = (closure, arg)\n", .{fun_id});
+                    try writer.print("f{} = (closure", .{fun_id});
+                    for (0..f.arg_data.count()) |arg_id| {
+                        try writer.print(", a{}", .{arg_id});
+                    }
+                    try writer.print(")\n", .{});
                     var indent: usize = 1;
                     for (0..f.local_data.count()) |local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
@@ -334,6 +338,7 @@ pub const Compiler = struct {
                             .i32 => |i| try writer.print(" {}", .{i}),
                             .f32 => |i| try writer.print(" {}", .{i}),
                             .string => |s| try writer.print(" {s}", .{s}),
+                            .arg => |arg| try writer.print(" a{}", .{arg.id}),
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
                             .local_let_end => |local| try writer.print(" l{}", .{local.id}),
                             .struct_init_end => |count| try writer.print(" count={}", .{count}),

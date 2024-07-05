@@ -13,11 +13,15 @@ const Value = zest.Value;
 const Builtin = zest.Builtin;
 const TreePart = zest.TreePart;
 
+pub const Arg = struct { id: usize };
+
+pub const ArgData = struct {};
+
 pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
+    name: ?[]const u8, // if null, was created by desugar
     is_mutable: bool,
-    is_tmp: bool,
 };
 
 pub const Expr = struct { id: usize };
@@ -26,7 +30,7 @@ pub const ExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
-    arg,
+    arg: Arg,
     closure,
     local_get: Local,
 
@@ -89,22 +93,16 @@ pub const Fun = struct { id: usize };
 pub const FunData = struct {
     closure_keys_index: Map([]const u8, void),
     closure_keys: ArrayList([]const u8),
-
-    pattern_local_count: usize,
+    arg_data: List(Arg, ArgData),
     local_data: List(Local, LocalData),
-
-    pattern_expr_count: usize,
     expr_data: List(Expr, ExprData),
 
     pub fn init(allocator: Allocator) FunData {
         return .{
             .closure_keys_index = fieldType(FunData, .closure_keys_index).init(allocator),
             .closure_keys = fieldType(FunData, .closure_keys).init(allocator),
-
-            .pattern_local_count = 0,
+            .arg_data = fieldType(FunData, .arg_data).init(allocator),
             .local_data = fieldType(FunData, .local_data).init(allocator),
-
-            .pattern_expr_count = 0,
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
         };
     }
@@ -175,7 +173,7 @@ pub const BindingInfo = struct {
 };
 
 pub const Walue = union(enum) {
-    arg,
+    arg: Arg,
     closure: []const u8,
     local: Local,
 };

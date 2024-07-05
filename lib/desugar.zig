@@ -73,7 +73,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             _ = take(c).let_end;
         },
         .fun_begin => {
-            const dir_fun = dir_fun: {
+            const dir_funs = dir_fun: {
                 const prev_closure_until_len = c.scope.closure_until_len;
                 c.scope.closure_until_len = c.scope.bindings.items.len;
                 defer c.scope.closure_until_len = prev_closure_until_len;
@@ -83,15 +83,15 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
 
                 break :dir_fun try desugarFun(c);
             };
-            const dir_fun_data = c.dir_fun_data.get(dir_fun);
+            const body_fun_data = c.dir_fun_data.get(dir_funs.body);
 
             emit(c, f, .fun_init_begin);
-            defer emit(c, f, .{ .fun_init_end = .{ .fun = dir_fun } });
+            defer emit(c, f, .{ .fun_init_end = .{ .fun = dir_funs.wrapper } });
 
             emit(c, f, .struct_init_begin);
-            defer emit(c, f, .{ .struct_init_end = dir_fun_data.closure_keys.items.len });
+            defer emit(c, f, .{ .struct_init_end = body_fun_data.closure_keys.items.len });
 
-            for (dir_fun_data.closure_keys.items) |name| {
+            for (body_fun_data.closure_keys.items) |name| {
                 stageString(c, f, name);
                 const binding = c.scope.lookup(name).?;
                 desugarBinding(c, f, binding);
@@ -166,25 +166,69 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
     }
 }
 
-fn desugarFun(c: *Compiler) error{DesugarError}!dir.Fun {
-    var f = dir.FunData.init(c.allocator);
+fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body: dir.Fun } {
+    const wrapper_fun = c.dir_fun_data.append(dir.FunData.init(c.allocator));
+    const body_fun = c.dir_fun_data.append(dir.FunData.init(c.allocator));
+
+    const wrapper_f = c.dir_fun_data.getPtr(wrapper_fun);
+    const body_f = c.dir_fun_data.getPtr(body_fun);
 
     _ = take(c).fun_begin;
-    try desugarPattern(c, &f, .arg, .args);
-    f.pattern_local_count = f.local_data.count();
-    f.pattern_expr_count = f.expr_data.count();
+
     {
-        emit(c, &f, .return_begin);
-        defer emit(c, &f, .return_end);
+        const arg = wrapper_f.arg_data.append(.{});
 
-        emit(c, &f, .assert_has_no_ref_begin);
-        defer emit(c, &f, .assert_has_no_ref_end);
+        emit(c, body_f, .return_begin);
+        defer emit(c, body_f, .return_end);
 
-        try desugarExpr(c, &f);
+        try desugarPattern(c, wrapper_f, .{ .arg = arg }, .args);
+
+        emit(c, wrapper_f, .call_begin);
+        defer emit(c, wrapper_f, .call_end);
+
+        {
+            emit(c, wrapper_f, .fun_init_begin);
+            defer emit(c, wrapper_f, .{ .fun_init_end = .{ .fun = body_fun } });
+
+            emit(c, wrapper_f, .closure);
+        }
+
+        for (wrapper_f.local_data.items(), 0..) |local_data, local_id| {
+            if (local_data.name != null)
+                emit(c, wrapper_f, .{ .local_get = .{ .id = local_id } });
+        }
     }
+
+    {
+        const scope_saved = c.scope.save();
+        defer c.scope.restore(scope_saved);
+
+        for (wrapper_f.local_data.items()) |local_data| {
+            if (local_data.name != null) {
+                const arg = body_f.arg_data.append(.{});
+                c.scope.push(.{
+                    .name = local_data.name.?,
+                    .value = .{ .arg = arg },
+                    .mut = local_data.is_mutable,
+                });
+            }
+        }
+
+        emit(c, body_f, .return_begin);
+        defer emit(c, body_f, .return_end);
+
+        emit(c, body_f, .assert_has_no_ref_begin);
+        defer emit(c, body_f, .assert_has_no_ref_end);
+
+        try desugarExpr(c, body_f);
+    }
+
     _ = take(c).fun_end;
 
-    return c.dir_fun_data.append(f);
+    return .{
+        .wrapper = wrapper_fun,
+        .body = body_fun,
+    };
 }
 
 fn desugarPath(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
@@ -273,7 +317,7 @@ fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void 
     };
 
     switch (binding.value) {
-        .arg => emit(c, f, .arg),
+        .arg => |arg| emit(c, f, .{ .arg = arg }),
         .closure => |name| {
             if (!f.closure_keys_index.contains(name)) {
                 f.closure_keys_index.put(name, {}) catch oom();
@@ -338,7 +382,7 @@ fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
 
 // Would be nicer for this to be a closure that emits some exprs, but zig closures are painful.
 const PatternInput = union(enum) {
-    arg,
+    arg: dir.Arg,
     expr: sir.Expr,
     object_get: struct {
         object: dir.Local,
@@ -363,8 +407,8 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: P
                 return fail(c, .{ .name_already_bound = .{ .name = name.name } });
 
             const local = f.local_data.append(.{
+                .name = name.name,
                 .is_mutable = name.mut,
-                .is_tmp = false,
             });
 
             c.scope.push(.{
@@ -408,8 +452,8 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: P
         },
         .object_begin => {
             const local = f.local_data.append(.{
+                .name = null,
                 .is_mutable = false,
-                .is_tmp = true,
             });
 
             const assert_object_end = assert_object_end: {
@@ -447,7 +491,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: P
 
 fn desugarPatternInput(c: *Compiler, f: *dir.FunData, input: PatternInput) error{DesugarError}!void {
     switch (input) {
-        .arg => emit(c, f, .arg),
+        .arg => |arg| emit(c, f, .{ .arg = arg }),
         .expr => |expr| {
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
