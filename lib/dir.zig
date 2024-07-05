@@ -65,7 +65,9 @@ pub const ExprData = union(enum) {
     ref_deref_begin,
     ref_deref_end,
     call_begin,
-    call_end,
+    call_end: struct {
+        arg_count: usize,
+    },
     call_builtin_begin,
     call_builtin_end: Builtin,
     block_begin,
@@ -180,7 +182,7 @@ pub const Walue = union(enum) {
 
 pub const Frame = struct {
     fun: Fun,
-    arg: Value,
+    args: []Value,
     closure: Value,
     expr: Expr = .{ .id = 0 },
 };

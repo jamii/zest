@@ -344,6 +344,7 @@ pub const Compiler = struct {
                             .struct_init_end => |count| try writer.print(" count={}", .{count}),
                             .fun_init_end => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
                             .assert_object_end => |assert_object| try writer.print(" count={}", .{assert_object.count}),
+                            .call_end => |call_end| try writer.print(" arg_count={}", .{call_end.arg_count}),
                             .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
                             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                         }

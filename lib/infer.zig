@@ -103,7 +103,7 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 eval.pushFun(c, .{
                     .fun = frame.key.fun,
                     .expr = frame.expr,
-                    .arg = Value.emptyStruct(),
+                    .args = &.{},
                     .closure = Value.emptyStruct(),
                 });
                 const return_value = try eval.evalStaged(c, f, frame.key.arg_repr, frame.key.closure_repr);

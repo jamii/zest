@@ -99,7 +99,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
         },
         .call_begin => {
             emit(c, f, .call_begin);
-            defer emit(c, f, .call_end);
+            defer emit(c, f, .{ .call_end = .{ .arg_count = 1 } });
 
             _ = take(c).call_begin;
             try desugarExpr(c, f);
@@ -178,13 +178,14 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
     {
         const arg = wrapper_f.arg_data.append(.{});
 
-        emit(c, body_f, .return_begin);
-        defer emit(c, body_f, .return_end);
+        emit(c, wrapper_f, .return_begin);
+        defer emit(c, wrapper_f, .return_end);
 
         try desugarPattern(c, wrapper_f, .{ .arg = arg }, .args);
 
+        var arg_count: usize = 0;
         emit(c, wrapper_f, .call_begin);
-        defer emit(c, wrapper_f, .call_end);
+        defer emit(c, wrapper_f, .{ .call_end = .{ .arg_count = arg_count } });
 
         {
             emit(c, wrapper_f, .fun_init_begin);
@@ -194,8 +195,10 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
         }
 
         for (wrapper_f.local_data.items(), 0..) |local_data, local_id| {
-            if (local_data.name != null)
+            if (local_data.name != null) {
+                arg_count += 1;
                 emit(c, wrapper_f, .{ .local_get = .{ .id = local_id } });
+            }
         }
     }
 

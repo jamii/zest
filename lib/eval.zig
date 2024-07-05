@@ -22,7 +22,7 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     pushFun(c, .{
         .fun = c.dir_fun_main.?,
         .closure = Value.emptyStruct(),
-        .arg = Value.emptyStruct(),
+        .args = &.{},
     });
     return eval(c);
 }
@@ -53,15 +53,19 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_repr: Repr, closure_rep
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
         switch (expr_data) {
-            .call_end => {
-                const args = c.value_stack.pop();
+            .call_end => |call_end| {
+                const args = c.allocator.alloc(Value, call_end.arg_count) catch oom();
+                for (0..call_end.arg_count) |i| {
+                    const ix = call_end.arg_count - 1 - i;
+                    args[ix] = c.value_stack.pop();
+                }
                 const fun = c.value_stack.pop();
                 if (fun != .fun)
                     return fail(c, .{ .not_a_fun = fun });
                 pushFun(c, .{
                     .fun = fun.fun.repr.fun,
                     .closure = .{ .@"struct" = fun.fun.getClosure() },
-                    .arg = args,
+                    .args = args,
                 });
                 const return_value = try eval(c);
                 c.value_stack.append(return_value) catch oom();
@@ -117,15 +121,19 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
         while (true) {
             const expr_data = f.expr_data.get(frame.expr);
             switch (expr_data) {
-                .call_end => {
-                    const args = c.value_stack.pop();
+                .call_end => |call_end| {
+                    const args = c.allocator.alloc(Value, call_end.arg_count) catch oom();
+                    for (0..call_end.arg_count) |i| {
+                        const ix = call_end.arg_count - 1 - i;
+                        args[ix] = c.value_stack.pop();
+                    }
                     const fun = c.value_stack.pop();
                     if (fun != .fun)
                         return fail(c, .{ .not_a_fun = fun });
                     pushFun(c, .{
                         .fun = fun.fun.repr.fun,
                         .closure = .{ .@"struct" = fun.fun.getClosure() },
-                        .arg = args,
+                        .args = args,
                     });
                     continue :fun;
                 },
@@ -186,9 +194,9 @@ pub fn evalExpr(
                 .closure = closure.@"struct".values,
             } }) catch oom();
         },
-        .arg => {
+        .arg => |arg| {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            c.value_stack.append(frame.arg) catch oom();
+            c.value_stack.append(frame.args[arg.id]) catch oom();
         },
         .closure => {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
