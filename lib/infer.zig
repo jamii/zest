@@ -260,62 +260,61 @@ fn inferExpr(
             emit(c, f, .{ .ref_deref_end = repr }, repr);
         },
         .call_builtin_end => |builtin| {
-            const args = c.repr_stack.pop();
             switch (builtin) {
                 .equal => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .equal_i32 }, .i32);
                 },
                 .less_than => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .less_than_i32 }, .i32);
                 },
                 .less_than_or_equal => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .less_than_or_equal_i32 }, .i32);
                 },
                 .more_than => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .more_than_i32 }, .i32);
                 },
                 .more_than_or_equal => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .more_than_or_equal_i32 }, .i32);
                 },
                 .add => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .add_i32 }, .i32);
                 },
                 .subtract => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .subtract_i32 }, .i32);
                 },
                 .multiply => {
-                    const arg0 = args.@"struct".reprs[0];
-                    const arg1 = args.@"struct".reprs[1];
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .multiply_i32 }, .i32);
                 },
                 else => return fail(c, .todo),
@@ -465,7 +464,7 @@ pub const InferErrorData = union(enum) {
     not_a_bool: Repr,
     invalid_call_builtin: struct {
         builtin: Builtin,
-        args: Repr,
+        args: []Repr,
     },
     todo,
 };

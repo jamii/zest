@@ -283,62 +283,61 @@ pub fn evalExpr(
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
         .call_builtin_end => |builtin| {
-            const args = c.value_stack.pop();
             switch (builtin) {
                 .equal => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = if (arg0.i32 == arg1.i32) 1 else 0 }) catch oom();
                 },
                 .less_than => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = if (arg0.i32 < arg1.i32) 1 else 0 }) catch oom();
                 },
                 .less_than_or_equal => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = if (arg0.i32 <= arg1.i32) 1 else 0 }) catch oom();
                 },
                 .more_than => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = if (arg0.i32 > arg1.i32) 1 else 0 }) catch oom();
                 },
                 .more_than_or_equal => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = if (arg0.i32 >= arg1.i32) 1 else 0 }) catch oom();
                 },
                 .add => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = arg0.i32 + arg1.i32 }) catch oom();
                 },
                 .subtract => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = arg0.i32 - arg1.i32 }) catch oom();
                 },
                 .multiply => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = args } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = arg0.i32 * arg1.i32 }) catch oom();
                 },
                 else => return fail(c, .todo),
@@ -450,7 +449,7 @@ pub const EvalErrorData = union(enum) {
     cannot_unstage_value: Repr,
     invalid_call_builtin: struct {
         builtin: Builtin,
-        args: Value,
+        args: []Value,
     },
     todo,
 };

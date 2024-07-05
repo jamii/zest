@@ -109,7 +109,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
         .call_builtin_begin => {
             emit(c, f, .call_builtin_begin);
             _ = take(c).call_builtin_begin;
-            try desugarExpr(c, f);
+            while (peek(c) != .call_builtin_end) {
+                try desugarExpr(c, f);
+            }
             const builtin = take(c).call_builtin_end;
             emit(c, f, .{ .call_builtin_end = builtin });
         },

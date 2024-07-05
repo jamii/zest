@@ -131,13 +131,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
                 emit(c, .call_builtin_begin);
                 defer emit(c, .{ .call_builtin_end = op });
 
-                emit(c, .object_begin);
-                defer emit(c, .object_end);
-
-                emit(c, .{ .i32 = 0 });
                 emit(c, left);
-
-                emit(c, .{ .i32 = 1 });
                 try parseExprTight(c);
             },
             else => break,
@@ -317,13 +311,8 @@ fn parseNegate(c: *Compiler) error{ParseError}!void {
     emit(c, .call_builtin_begin);
     defer emit(c, .{ .call_builtin_end = .subtract });
 
-    emit(c, .object_begin);
-    defer emit(c, .object_end);
-
     try expect(c, .@"-");
     emit(c, .{ .i32 = 0 });
-    emit(c, .{ .i32 = 0 });
-    emit(c, .{ .i32 = 1 });
     try parseExprAtom(c, .{});
 }
 

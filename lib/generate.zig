@@ -395,16 +395,21 @@ fn genExprInner(
         },
         .call_builtin_begin => {
             if (hint == .nowhere) {
-                _ = try genExpr(c, f, tir_f, .nowhere);
+                while (peek(c, tir_f) != .call_builtin_end) {
+                    _ = try genExpr(c, f, tir_f, .nowhere);
+                }
                 _ = take(c, tir_f).call_builtin_end;
                 return .{ .i32 = 0 };
             }
-            const args = try genExpr(c, f, tir_f, .anywhere);
+            var args = std.ArrayList(wir.Walue).init(c.allocator);
+            while (peek(c, tir_f) != .call_builtin_end) {
+                args.append(try genExpr(c, f, tir_f, .anywhere)) catch oom();
+            }
             const builtin = take(c, tir_f).call_builtin_end;
             switch (builtin) {
                 .equal_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = if (arg0.i32 == arg1.i32) 1 else 0 };
                     } else {
@@ -415,8 +420,8 @@ fn genExprInner(
                     }
                 },
                 .less_than_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = if (arg0.i32 < arg1.i32) 1 else 0 };
                     } else {
@@ -427,8 +432,8 @@ fn genExprInner(
                     }
                 },
                 .less_than_or_equal_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = if (arg0.i32 <= arg1.i32) 1 else 0 };
                     } else {
@@ -439,8 +444,8 @@ fn genExprInner(
                     }
                 },
                 .more_than_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = if (arg0.i32 > arg1.i32) 1 else 0 };
                     } else {
@@ -451,8 +456,8 @@ fn genExprInner(
                     }
                 },
                 .more_than_or_equal_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = if (arg0.i32 >= arg1.i32) 1 else 0 };
                     } else {
@@ -463,8 +468,8 @@ fn genExprInner(
                     }
                 },
                 .add_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = arg0.i32 + arg1.i32 };
                     } else {
@@ -475,8 +480,8 @@ fn genExprInner(
                     }
                 },
                 .subtract_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = arg0.i32 - arg1.i32 };
                     } else {
@@ -487,8 +492,8 @@ fn genExprInner(
                     }
                 },
                 .multiply_i32 => {
-                    const arg0 = args.@"struct".values[0];
-                    const arg1 = args.@"struct".values[1];
+                    const arg0 = args.items[0];
+                    const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
                         return .{ .i32 = arg0.i32 * arg1.i32 };
                     } else {

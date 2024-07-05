@@ -805,9 +805,9 @@ a
 ```
 1 + [2]
 
-Cannot call zest.Builtin.add with these args: [1, [2]]
+Cannot call zest.Builtin.add with these args: { 1, [2] }
 
-Cannot call zest.Builtin.add with these args: struct[i32, struct[i32]]
+Cannot call zest.Builtin.add with these args: { i32, struct[i32] }
 ```
 
 ```
