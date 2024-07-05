@@ -161,8 +161,6 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             emit(c, f, .while_end);
         },
         else => {
-            // XXX
-            panic("TODO", .{});
             return fail(c, .todo);
         },
     }
