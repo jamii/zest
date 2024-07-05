@@ -93,6 +93,7 @@ pub const ExprData = union(enum) {
 pub const Fun = struct { id: usize };
 
 pub const FunData = struct {
+    @"inline": bool,
     closure_keys_index: Map([]const u8, void),
     closure_keys: ArrayList([]const u8),
     arg_data: List(Arg, ArgData),
@@ -101,6 +102,7 @@ pub const FunData = struct {
 
     pub fn init(allocator: Allocator) FunData {
         return .{
+            .@"inline" = false,
             .closure_keys_index = fieldType(FunData, .closure_keys_index).init(allocator),
             .closure_keys = fieldType(FunData, .closure_keys).init(allocator),
             .arg_data = fieldType(FunData, .arg_data).init(allocator),

@@ -175,6 +175,8 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
     const wrapper_f = c.dir_fun_data.getPtr(wrapper_fun);
     const body_f = c.dir_fun_data.getPtr(body_fun);
 
+    wrapper_f.@"inline" = true;
+
     _ = take(c).fun_begin;
 
     {
