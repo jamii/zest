@@ -188,38 +188,6 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     }
 }
 
-fn peek(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
-    return tir_f.expr_data.get(c.tir_expr_next);
-}
-
-fn take(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
-    const expr_data = peek(c, tir_f);
-    c.tir_expr_next.id += 1;
-    return expr_data;
-}
-
-fn takeIf(c: *Compiler, tir_f: tir.FunData, tag: std.meta.Tag(tir.ExprData)) bool {
-    const expr_data = peek(c, tir_f);
-    if (expr_data == tag) {
-        c.tir_expr_next.id += 1;
-        return true;
-    } else {
-        return false;
-    }
-}
-
-fn skipTree(c: *Compiler, tir_f: tir.FunData) void {
-    var ends_remaining: usize = 0;
-    while (true) {
-        switch (treePart(take(c, tir_f))) {
-            .branch_begin => ends_remaining += 1,
-            .branch_end => ends_remaining -= 1,
-            .leaf => {},
-        }
-        if (ends_remaining == 0) break;
-    }
-}
-
 fn genExpr(
     c: *Compiler,
     f: *wir.FunData,
@@ -923,6 +891,38 @@ fn valtypeRepr(valtype: wasm.Valtype) Repr {
         .i32 => .i32,
         else => panic("TODO", .{}),
     };
+}
+
+fn peek(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
+    return tir_f.expr_data.get(c.tir_expr_next);
+}
+
+fn take(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
+    const expr_data = peek(c, tir_f);
+    c.tir_expr_next.id += 1;
+    return expr_data;
+}
+
+fn takeIf(c: *Compiler, tir_f: tir.FunData, tag: std.meta.Tag(tir.ExprData)) bool {
+    const expr_data = peek(c, tir_f);
+    if (expr_data == tag) {
+        c.tir_expr_next.id += 1;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+fn skipTree(c: *Compiler, tir_f: tir.FunData) void {
+    var ends_remaining: usize = 0;
+    while (true) {
+        switch (treePart(take(c, tir_f))) {
+            .branch_begin => ends_remaining += 1,
+            .branch_end => ends_remaining -= 1,
+            .leaf => {},
+        }
+        if (ends_remaining == 0) break;
+    }
 }
 
 fn emitByte(c: anytype, byte: u8) void {
