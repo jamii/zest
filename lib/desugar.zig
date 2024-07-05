@@ -23,6 +23,9 @@ pub fn desugar(c: *Compiler) error{DesugarError}!void {
         emit(c, &f, .return_begin);
         defer emit(c, &f, .return_end);
 
+        emit(c, &f, .assert_has_no_ref_begin);
+        defer emit(c, &f, .assert_has_no_ref_end);
+
         try desugarExpr(c, &f);
     }
 
@@ -195,9 +198,7 @@ fn desugarPath(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             c.sir_expr_next = .{ .id = next.id + 1 };
         },
         .ref_to_begin => {
-            _ = take(c).ref_to_begin;
             _ = try desugarPathPart(c, f, true);
-            _ = take(c).ref_to_end;
         },
         else => {
             const nop = f.expr_data.append(.nop_begin);
