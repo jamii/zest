@@ -309,7 +309,7 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, must_be_mut: bool) error{Desug
         },
         .ref_to_begin => {
             _ = take(c).ref_to_begin;
-            const is_mut = desugarPathPart(c, f, true);
+            const is_mut = try desugarPathPart(c, f, true);
             _ = take(c).ref_to_end;
             return is_mut;
         },
