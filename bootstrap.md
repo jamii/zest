@@ -1013,7 +1013,6 @@ square-n-times = (m mut, n) {
         ]
         i@ = i + 1
     }
-    0 // TODO should be able to eval without this
 }
 m mut = [[0,1],[1,0]]
 square-n-times(m@, 3)

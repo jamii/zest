@@ -383,8 +383,6 @@ pub fn evalExpr(
             if (cond.i32 == 0) {
                 _ = c.while_stack.pop();
                 skipExpr(c, .while_end);
-                const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-                frame.expr.id += 1;
             }
         },
         .while_end => {
@@ -404,16 +402,16 @@ pub fn evalExpr(
 fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
-    var depth: usize = 0;
+    var ends_remaining: usize = 0;
     while (true) {
         frame.expr.id += 1;
         const expr_data = f.expr_data.get(frame.expr);
         switch (treePart(expr_data)) {
-            .branch_begin => depth += 1,
-            .branch_end => depth -= 1,
+            .branch_begin => ends_remaining += 1,
+            .branch_end => ends_remaining -= 1,
             .leaf => {},
         }
-        if (depth == 0) {
+        if (ends_remaining == 0) {
             frame.expr.id += 1;
             assert(std.meta.activeTag(f.expr_data.get(frame.expr)) == expect_next);
             break;
