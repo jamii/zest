@@ -403,12 +403,13 @@ pub const Compiler = struct {
         var indent = start_indent;
         while (true) {
             const expr_data = c.sir_expr_data.get(expr);
+            if (treePart(expr_data) == .branch_end) indent -= 1;
+            try writer.writeByteNTimes(' ', indent * 2);
+            try writer.print("{s}", .{@tagName(expr_data)});
             if (expr_data == .indirect) {
+                try writer.print("\n", .{});
                 try c.printSir(writer, expr_data.indirect, indent);
             } else {
-                if (treePart(expr_data) == .branch_end) indent -= 1;
-                try writer.writeByteNTimes(' ', indent * 2);
-                try writer.print("{s}", .{@tagName(expr_data)});
                 switch (expr_data) {
                     .i32 => |i| try writer.print(" {}", .{i}),
                     .f32 => |i| try writer.print(" {}", .{i}),
@@ -419,8 +420,8 @@ pub const Compiler = struct {
                     inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                 }
                 try writer.print("\n", .{});
-                if (treePart(expr_data) == .branch_begin) indent += 1;
             }
+            if (treePart(expr_data) == .branch_begin) indent += 1;
             if (indent == start_indent) break;
             expr.id += 1;
         }
@@ -533,7 +534,7 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
     c.print(.dir, std.io.getStdErr().writer()) catch unreachable;
 }
 
-pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, LowerError, GenerateError }!void {
+pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }!void {
     assert(c.dir_fun_main != null);
 
     try inferMain(c);

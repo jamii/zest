@@ -19,7 +19,10 @@ pub fn fuzz(source: []const u8) void {
     const allocator = arena.allocator();
 
     var compiler = Compiler.init(allocator, source);
-    const lax_or_err = evalLax(allocator, &compiler);
+    const lax_or_err = evalLax(allocator, &compiler) catch |err| switch (err) {
+        error.EvalError => error.EvalError,
+        else => return,
+    };
 
     zest.compileStrict(&compiler) catch return;
     const strict = evalWasm(allocator, &compiler);
@@ -43,9 +46,9 @@ pub fn fuzz(source: []const u8) void {
                 , .{ lax_trimmed, strict_trimmed });
             }
         }
-    } else |err| {
+    } else |_| {
         // There are currently no runtime errors, but eventually we'll want to check that lax and strict produce the same error.
-        panic("Lax err: {}", .{err});
+        panic("Lax err: {s}", .{zest.formatError(&compiler)});
     }
 }
 
