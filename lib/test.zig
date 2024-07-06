@@ -133,10 +133,16 @@ pub fn main() !void {
             }
 
             var compiler = Compiler.init(allocator, source);
-            const actual_lax = std.mem.trim(u8, evalLax(allocator, &compiler) catch zest.formatError(&compiler), "\n");
-
-            compiler = Compiler.init(allocator, source);
-            const actual_strict = std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n");
+            const lax_or_err = evalLax(allocator, &compiler);
+            const actual_lax = std.mem.trim(u8, lax_or_err catch zest.formatError(&compiler), "\n");
+            const should_run_strict = if (lax_or_err) |_| true else |err| switch (err) {
+                error.EvalError => true,
+                else => false,
+            };
+            const actual_strict = if (should_run_strict)
+                std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n")
+            else
+                actual_lax;
 
             std.debug.print(
                 \\--- wat ---
