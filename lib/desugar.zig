@@ -169,48 +169,45 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
 }
 
 fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body: dir.Fun } {
-    const wrapper_fun = c.dir_fun_data.append(dir.FunData.init(c.allocator));
-    const body_fun = c.dir_fun_data.append(dir.FunData.init(c.allocator));
-
-    const wrapper_f = c.dir_fun_data.getPtr(wrapper_fun);
-    const body_f = c.dir_fun_data.getPtr(body_fun);
-
-    wrapper_f.@"inline" = true;
-
     _ = take(c).fun_begin;
 
+    var body_fun_init: ?dir.Expr = null;
+
+    var wrapper_f = dir.FunData.init(c.allocator);
+    wrapper_f.@"inline" = true;
     {
         const arg = wrapper_f.arg_data.append(.{});
 
-        emit(c, wrapper_f, .return_begin);
-        defer emit(c, wrapper_f, .return_end);
+        emit(c, &wrapper_f, .return_begin);
+        defer emit(c, &wrapper_f, .return_end);
 
-        emit(c, wrapper_f, .block_begin);
-        defer emit(c, wrapper_f, .block_end);
+        emit(c, &wrapper_f, .block_begin);
+        defer emit(c, &wrapper_f, .block_end);
 
-        try desugarPattern(c, wrapper_f, .{ .arg = arg }, .args);
+        try desugarPattern(c, &wrapper_f, .{ .arg = arg }, .args);
 
-        emit(c, wrapper_f, .block_last);
+        emit(c, &wrapper_f, .block_last);
 
         var arg_count: usize = 0;
-        emit(c, wrapper_f, .call_begin);
-        defer emit(c, wrapper_f, .{ .call_end = .{ .arg_count = arg_count } });
+        emit(c, &wrapper_f, .call_begin);
+        defer emit(c, &wrapper_f, .{ .call_end = .{ .arg_count = arg_count } });
 
         {
-            emit(c, wrapper_f, .fun_init_begin);
-            defer emit(c, wrapper_f, .{ .fun_init_end = .{ .fun = body_fun } });
+            emit(c, &wrapper_f, .fun_init_begin);
+            defer body_fun_init = wrapper_f.expr_data.append(.{ .fun_init_end = .{ .fun = .{ .id = 0 } } });
 
-            emit(c, wrapper_f, .closure);
+            emit(c, &wrapper_f, .closure);
         }
 
         for (wrapper_f.local_data.items(), 0..) |local_data, local_id| {
             if (local_data.name != null) {
                 arg_count += 1;
-                emit(c, wrapper_f, .{ .local_get = .{ .id = local_id } });
+                emit(c, &wrapper_f, .{ .local_get = .{ .id = local_id } });
             }
         }
     }
 
+    var body_f = dir.FunData.init(c.allocator);
     {
         const scope_saved = c.scope.save();
         defer c.scope.restore(scope_saved);
@@ -226,16 +223,21 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
             }
         }
 
-        emit(c, body_f, .return_begin);
-        defer emit(c, body_f, .return_end);
+        emit(c, &body_f, .return_begin);
+        defer emit(c, &body_f, .return_end);
 
-        emit(c, body_f, .assert_has_no_ref_begin);
-        defer emit(c, body_f, .assert_has_no_ref_end);
+        emit(c, &body_f, .assert_has_no_ref_begin);
+        defer emit(c, &body_f, .assert_has_no_ref_end);
 
-        try desugarExpr(c, body_f);
+        try desugarExpr(c, &body_f);
     }
 
     _ = take(c).fun_end;
+
+    const body_fun = c.dir_fun_data.append(body_f);
+    wrapper_f.expr_data.getPtr(body_fun_init.?).fun_init_end.fun = body_fun;
+
+    const wrapper_fun = c.dir_fun_data.append(wrapper_f);
 
     return .{
         .wrapper = wrapper_fun,
