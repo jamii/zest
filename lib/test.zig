@@ -29,9 +29,14 @@ pub fn evalStrict(
     allocator: Allocator,
     compiler: *Compiler,
 ) ![]const u8 {
-    try zest.compileLax(compiler);
     try zest.compileStrict(compiler);
+    return evalWasm(allocator, compiler);
+}
 
+pub fn evalWasm(
+    allocator: Allocator,
+    compiler: *Compiler,
+) []const u8 {
     const wasm_filename = wasmFilename(allocator);
 
     {
