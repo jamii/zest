@@ -77,7 +77,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         emitEnum(c, wasm.Valtype.i32);
         emitByte(c, 0x01); // mutable
         emitEnum(c, wasm.Opcode.i32_const);
-        emitLebU32(c, stack_top);
+        emitLebI32(c, @intCast(stack_top));
         emitEnum(c, wasm.Opcode.end);
     }
 
@@ -118,7 +118,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
                 emitEnum(c, wasm.Opcode.i32_const);
-                emitLebU32(c, @intCast(f.shadow_offset_max));
+                emitLebI32(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_sub);
                 if (f.is_leaf) {
                     // Don't need to set global_shadow in leaf functions.
@@ -139,7 +139,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 emitEnum(c, wasm.Opcode.local_get);
                 emitLebU32(c, wasmLocal(c, &f, .shadow));
                 emitEnum(c, wasm.Opcode.i32_const);
-                emitLebU32(c, @intCast(f.shadow_offset_max));
+                emitLebI32(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_add);
                 emitEnum(c, wasm.Opcode.global_set);
                 emitLebU32(c, global_shadow);
@@ -700,7 +700,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
                     load(c, f, to_ptr);
                     load(c, f, from_ptr);
                     emitEnum(f, wasm.Opcode.i32_const);
-                    emitLebU32(f, @intCast(byte_count));
+                    emitLebI32(f, @intCast(byte_count));
                     emitEnum(f, wasm.Opcode.misc_prefix);
                     emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
                     emitLebU32(f, 0); // memory from
@@ -754,7 +754,7 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             load(c, f, from_add.walue.*);
             if (add.offset != 0) {
                 emitEnum(f, wasm.Opcode.i32_const);
-                emitLebU32(f, add.offset);
+                emitLebI32(f, @intCast(add.offset));
                 emitEnum(f, wasm.Opcode.i32_add);
             }
         },
@@ -774,7 +774,7 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
         .value_at => |value_at| {
             if (value_at.repr.sizeOf() == 0) {
                 emitEnum(f, wasm.Opcode.i32_const);
-                emitLebU32(f, 0);
+                emitLebI32(f, 0);
             } else {
                 load(c, f, value_at.ptr.*);
             }
@@ -970,10 +970,10 @@ fn emitLebU(c: anytype, i: anytype) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
     var n = i;
     while (true) {
-        const chunk = @as(u8, @truncate(n));
+        const chunk = @as(u8, @truncate(n & 0b0111_1111));
         n >>= 7;
         if (n == 0) {
-            c.wasm.append(chunk & 0b0111_1111) catch oom();
+            c.wasm.append(chunk) catch oom();
             break;
         } else {
             c.wasm.append(chunk | 0b1000_0000) catch oom();
