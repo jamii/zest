@@ -593,10 +593,8 @@ fn genExprInner(
                 skipTree(c, tir_f);
                 _ = take(c, tir_f).while_end;
                 return wir.Walue.emptyStruct();
-            }
-
-            if (cond == .i32) {
-                assert(cond.i32 != 0);
+            } else if (cond == .i32 and cond.i32 == 1) {
+                _ = dropStack(c, f, cond);
             } else {
                 load(c, f, cond);
                 emitEnum(f, wasm.Opcode.i32_eqz);
