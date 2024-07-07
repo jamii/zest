@@ -592,7 +592,7 @@ fn genExprInner(
                 _ = take(c, tir_f).while_body;
                 skipTree(c, tir_f);
                 _ = take(c, tir_f).while_end;
-                return null;
+                return wir.Walue.emptyStruct();
             }
 
             if (cond == .i32) {
@@ -613,7 +613,7 @@ fn genExprInner(
             emitEnum(f, wasm.Opcode.end);
             emitEnum(f, wasm.Opcode.end);
 
-            return null;
+            return wir.Walue.emptyStruct();
         },
         inline else => |_, tag| {
             if (comptime std.mem.endsWith(u8, @tagName(tag), "_begin")) {

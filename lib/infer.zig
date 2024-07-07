@@ -379,7 +379,7 @@ fn inferExpr(
             const cond = c.repr_stack.pop();
             if (cond != .i32)
                 return fail(c, .{ .not_a_bool = cond });
-            emit(c, f, .while_end, null);
+            emit(c, f, .while_end, Repr.emptyStruct());
         },
         .call_begin, .call_end, .stage_begin, .stage_end, .unstage_begin, .unstage_end => panic("Should be handled in inferFrame, not inferExpr", .{}),
         inline else => |_, tag| {

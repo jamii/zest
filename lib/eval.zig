@@ -386,6 +386,7 @@ pub fn evalExpr(
                 return fail(c, .{ .not_a_bool = cond });
             if (cond.i32 == 0) {
                 _ = c.while_stack.pop();
+                c.value_stack.append(Value.emptyStruct()) catch oom();
                 skipExpr(c, .while_end);
             }
         },
