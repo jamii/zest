@@ -18,7 +18,11 @@ const tir = zest.tir;
 
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.dir_frame_stack.items.len == 0);
+    defer c.dir_frame_stack.shrinkRetainingCapacity(0);
+
     assert(c.value_stack.items.len == 0);
+    defer c.value_stack.shrinkRetainingCapacity(0);
+
     pushFun(c, .{
         .fun = c.dir_fun_main.?,
         .closure = Value.emptyStruct(),

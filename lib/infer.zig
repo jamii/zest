@@ -18,6 +18,7 @@ const eval = @import("./eval.zig");
 
 pub fn inferMain(c: *Compiler) error{ EvalError, InferError }!void {
     assert(c.tir_frame_stack.items.len == 0);
+    assert(c.repr_stack.items.len == 0);
     c.tir_fun_main = pushFun(
         c,
         .{
@@ -104,6 +105,8 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
             },
             .stage_begin => {
                 frame.expr.id += 1;
+                assert(c.dir_frame_stack.items.len == 0);
+                assert(c.value_stack.items.len == 0);
                 eval.pushFun(c, .{
                     .fun = frame.key.fun,
                     .expr = frame.expr,
