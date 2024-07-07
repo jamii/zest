@@ -51,9 +51,9 @@ pub fn popFun(c: *Compiler) dir.Frame {
 pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_reprs: []Repr, closure_repr: Repr) error{EvalError}!Value {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
+    assert(f.expr_data.get(frame.expr) == .stage_begin);
 
     var ends_remaining: usize = 0;
-
     while (true) {
         const expr_data = f.expr_data.get(frame.expr);
         switch (expr_data) {
@@ -94,25 +94,23 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_reprs: []Repr, closure_
                 c.value_stack.append(value) catch oom();
             },
             .unstage_end => {},
+            .stage_begin => {
+                ends_remaining += 1;
+            },
+            .stage_end => {
+                ends_remaining -= 1;
+                if (ends_remaining == 0) {
+                    assert(c.value_stack.items.len == 1);
+                    return c.value_stack.pop();
+                }
+            },
             .return_end, .arg, .closure => {
                 return fail(c, .cannot_stage_expr);
             },
-            .stage_end => {},
             else => {
                 try evalExpr(c, expr_data);
             },
         }
-
-        switch (treePart(expr_data)) {
-            .branch_begin => ends_remaining += 1,
-            .branch_end => ends_remaining -= 1,
-            .leaf => {},
-        }
-        if (ends_remaining == 0) {
-            assert(c.value_stack.items.len == 1);
-            return c.value_stack.pop();
-        }
-
         frame.expr.id += 1;
     }
 }

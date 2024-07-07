@@ -104,7 +104,6 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 }
             },
             .stage_begin => {
-                frame.expr.id += 1;
                 assert(c.dir_frame_stack.items.len == 0);
                 assert(c.value_stack.items.len == 0);
                 eval.pushFun(c, .{
