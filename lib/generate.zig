@@ -592,6 +592,8 @@ fn genExprInner(
                 _ = take(c, tir_f).while_body;
                 skipTree(c, tir_f);
                 _ = take(c, tir_f).while_end;
+                emitEnum(f, wasm.Opcode.end);
+                emitEnum(f, wasm.Opcode.end);
                 return wir.Walue.emptyStruct();
             } else if (cond == .i32 and cond.i32 == 1) {
                 _ = dropStack(c, f, cond);

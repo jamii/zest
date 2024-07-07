@@ -1038,3 +1038,12 @@ Name not bound: a
 
 Name not bound: a
 ```
+
+```
+while 0 []
+1
+
+1
+
+1
+```
