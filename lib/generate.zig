@@ -625,23 +625,43 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             if (from_ptr.equal(to_ptr))
                 return;
 
-            // TODO For byte_count <= 64, break into load/store.i64/i32/i16/i8.
             const byte_count = value_at.repr.sizeOf();
-            switch (byte_count) {
-                0 => {},
-                4 => {
-                    storePrimitive(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .i32 } }, to_ptr, .i32);
-                },
-                else => {
-                    load(c, f, to_ptr);
-                    load(c, f, from_ptr);
-                    emitEnum(f, wasm.Opcode.i32_const);
-                    emitLebI32(f, @intCast(byte_count));
-                    emitEnum(f, wasm.Opcode.misc_prefix);
-                    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
-                    emitLebU32(f, 0); // memory from
-                    emitLebU32(f, 0); // memory to
-                },
+            if (byte_count > 64) {
+                load(c, f, to_ptr);
+                load(c, f, from_ptr);
+                emitEnum(f, wasm.Opcode.i32_const);
+                emitLebI32(f, @intCast(byte_count));
+                emitEnum(f, wasm.Opcode.misc_prefix);
+                emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+                emitLebU32(f, 0); // memory from
+                emitLebU32(f, 0); // memory to
+            } else {
+                var offset: u32 = 0;
+                const to_add = asAdd(c, to_ptr);
+                const from_add = asAdd(c, from_ptr);
+                while (offset < byte_count) {
+                    const remaining = byte_count - offset;
+                    inline for (.{
+                        .{ 8, wasm.Opcode.i64_load, wasm.Opcode.i64_store },
+                        .{ 4, wasm.Opcode.i32_load, wasm.Opcode.i32_store },
+                        .{ 2, wasm.Opcode.i32_load16_u, wasm.Opcode.i32_store16 },
+                        .{ 1, wasm.Opcode.i32_load8_u, wasm.Opcode.i32_store8 },
+                    }) |params| {
+                        const chunk, const load_op, const store_op = params;
+                        if (remaining >= chunk) {
+                            load(c, f, to_add.walue.*);
+                            load(c, f, from_add.walue.*);
+                            emitEnum(f, load_op);
+                            emitLebU32(f, 0); // align
+                            emitLebU32(f, from_add.offset + offset);
+                            emitEnum(f, store_op);
+                            emitLebU32(f, 0); // align
+                            emitLebU32(f, to_add.offset + offset);
+                            offset += chunk;
+                            break;
+                        }
+                    } else unreachable;
+                }
             }
         },
     }
