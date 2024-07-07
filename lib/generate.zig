@@ -625,6 +625,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             if (from_ptr.equal(to_ptr))
                 return;
 
+            // TODO For byte_count <= 64, break into load/store.i64/i32/i16/i8.
             const byte_count = value_at.repr.sizeOf();
             switch (byte_count) {
                 0 => {},
@@ -647,6 +648,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
 }
 
 fn storePrimitive(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue, valtype: wasm.Valtype) void {
+    assert(from_value != .stack);
     const to_add = asAdd(c, to_ptr);
     load(c, f, to_add.walue.*);
     load(c, f, from_value);
