@@ -34,6 +34,10 @@ pub fn oom() noreturn {
     panic("OOM", .{});
 }
 
+pub fn p(thing: anytype) void {
+    std.debug.print("{any}\n", .{thing});
+}
+
 pub fn fieldType(comptime T: type, comptime field_enum: std.meta.FieldEnum(T)) type {
     return std.meta.fieldInfo(T, field_enum).type;
 }
