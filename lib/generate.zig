@@ -162,7 +162,7 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     }
     switch (wasmRepr(tir_f.return_repr.one)) {
         .primitive => |valtype| return_types.append(valtype) catch oom(),
-        .heap => arg_types.append(.i32) catch oom(),
+        .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
     }
     const fun_type_data = wir.FunTypeData{
         .arg_types = arg_types.toOwnedSlice() catch oom(),
@@ -387,7 +387,7 @@ fn genExprInner(
             };
             switch (wasmRepr(output_repr)) {
                 .primitive => {},
-                .heap => loadPtrTo(c, f, output),
+                .heap => if (output_repr.sizeOf() > 0) loadPtrTo(c, f, output),
             }
             emitEnum(f, wasm.Opcode.call);
             emitLebU32(f, @intCast(fun.id));
