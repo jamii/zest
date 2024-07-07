@@ -20,7 +20,7 @@ pub const ArgData = struct {};
 pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
-    name: ?[]const u8, // if null, was created by desugar
+    is_tmp: bool,
     is_mutable: bool,
 };
 

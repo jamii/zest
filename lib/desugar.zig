@@ -69,7 +69,11 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
         .let_begin => {
             _ = take(c).let_begin;
             const value = skipTree(c);
-            try desugarPattern(c, f, .{ .expr = value }, .let);
+            var bindings = ArrayList(dir.Binding).init(c.allocator);
+            try desugarPattern(c, f, &bindings, .{ .expr = value }, .let);
+            for (bindings.items) |binding| {
+                c.scope.push(binding);
+            }
             _ = take(c).let_end;
         },
         .fun_begin => {
@@ -171,73 +175,76 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
 fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body: dir.Fun } {
     _ = take(c).fun_begin;
 
+    var bindings = ArrayList(dir.Binding).init(c.allocator);
     var body_fun_init: ?dir.Expr = null;
 
-    var wrapper_f = dir.FunData.init(c.allocator);
-    wrapper_f.@"inline" = true;
-    {
-        const arg = wrapper_f.arg_data.append(.{});
-
-        emit(c, &wrapper_f, .return_begin);
-        defer emit(c, &wrapper_f, .return_end);
-
-        emit(c, &wrapper_f, .block_begin);
-        defer emit(c, &wrapper_f, .block_end);
-
-        try desugarPattern(c, &wrapper_f, .{ .arg = arg }, .args);
-
-        emit(c, &wrapper_f, .block_last);
-
-        var arg_count: usize = 0;
-        emit(c, &wrapper_f, .call_begin);
-        defer emit(c, &wrapper_f, .{ .call_end = .{ .arg_count = arg_count } });
-
+    const wrapper_fun = wrapper_fun: {
+        var f = dir.FunData.init(c.allocator);
+        f.@"inline" = true;
         {
-            emit(c, &wrapper_f, .fun_init_begin);
-            defer body_fun_init = wrapper_f.expr_data.append(.{ .fun_init_end = .{ .fun = .{ .id = 0 } } });
+            const arg = f.arg_data.append(.{});
 
-            emit(c, &wrapper_f, .closure);
-        }
+            emit(c, &f, .return_begin);
+            defer emit(c, &f, .return_end);
 
-        for (wrapper_f.local_data.items(), 0..) |local_data, local_id| {
-            if (local_data.name != null) {
-                arg_count += 1;
-                emit(c, &wrapper_f, .{ .local_get = .{ .id = local_id } });
+            emit(c, &f, .block_begin);
+            defer emit(c, &f, .block_end);
+
+            try desugarPattern(c, &f, &bindings, .{ .arg = arg }, .args);
+
+            emit(c, &f, .block_last);
+
+            emit(c, &f, .call_begin);
+            defer emit(c, &f, .{ .call_end = .{ .arg_count = bindings.items.len } });
+
+            {
+                emit(c, &f, .fun_init_begin);
+                defer body_fun_init = f.expr_data.append(.{ .fun_init_end = .{ .fun = .{ .id = 0 } } });
+
+                emit(c, &f, .closure);
             }
-        }
-    }
 
-    var body_f = dir.FunData.init(c.allocator);
-    {
-        const scope_saved = c.scope.save();
-        defer c.scope.restore(scope_saved);
-
-        for (wrapper_f.local_data.items()) |local_data| {
-            if (local_data.name != null) {
-                const arg = body_f.arg_data.append(.{});
-                c.scope.push(.{
-                    .name = local_data.name.?,
-                    .value = .{ .arg = arg },
-                    .mut = local_data.is_mutable,
+            for (bindings.items) |binding| {
+                desugarBinding(c, &f, .{
+                    .name = binding.name,
+                    .value = binding.value,
+                    .mut = binding.mut,
+                    .is_staged = false,
                 });
             }
         }
+        break :wrapper_fun c.dir_fun_data.append(f);
+    };
 
-        emit(c, &body_f, .return_begin);
-        defer emit(c, &body_f, .return_end);
+    const body_fun = body_fun: {
+        var f = dir.FunData.init(c.allocator);
+        {
+            const scope_saved = c.scope.save();
+            defer c.scope.restore(scope_saved);
 
-        emit(c, &body_f, .assert_has_no_ref_begin);
-        defer emit(c, &body_f, .assert_has_no_ref_end);
+            for (bindings.items) |binding| {
+                const arg = f.arg_data.append(.{});
+                c.scope.push(.{
+                    .name = binding.name,
+                    .value = .{ .arg = arg },
+                    .mut = binding.mut,
+                });
+            }
 
-        try desugarExpr(c, &body_f);
-    }
+            emit(c, &f, .return_begin);
+            defer emit(c, &f, .return_end);
+
+            emit(c, &f, .assert_has_no_ref_begin);
+            defer emit(c, &f, .assert_has_no_ref_end);
+
+            try desugarExpr(c, &f);
+        }
+        break :body_fun c.dir_fun_data.append(f);
+    };
 
     _ = take(c).fun_end;
 
-    const body_fun = c.dir_fun_data.append(body_f);
-    wrapper_f.expr_data.getPtr(body_fun_init.?).fun_init_end.fun = body_fun;
-
-    const wrapper_fun = c.dir_fun_data.append(wrapper_f);
+    c.dir_fun_data.getPtr(wrapper_fun).expr_data.getPtr(body_fun_init.?).fun_init_end.fun = body_fun;
 
     return .{
         .wrapper = wrapper_fun,
@@ -406,12 +413,12 @@ const PatternInput = union(enum) {
 
 const PatternContext = enum { args, let };
 
-fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: PatternContext) error{DesugarError}!void {
+fn desugarPattern(c: *Compiler, f: *dir.FunData, bindings: *ArrayList(dir.Binding), input: PatternInput, context: PatternContext) error{DesugarError}!void {
     switch (peek(c)) {
         .indirect => |expr| {
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
-            try desugarPattern(c, f, input, context);
+            try desugarPattern(c, f, bindings, input, context);
             c.sir_expr_next = .{ .id = next.id + 1 };
         },
         .name => |name| {
@@ -421,15 +428,15 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: P
                 return fail(c, .{ .name_already_bound = .{ .name = name.name } });
 
             const local = f.local_data.append(.{
-                .name = name.name,
+                .is_tmp = false,
                 .is_mutable = name.mut,
             });
 
-            c.scope.push(.{
+            bindings.append(.{
                 .name = name.name,
                 .value = .{ .local = local },
                 .mut = name.mut,
-            });
+            }) catch oom();
 
             emit(c, f, .local_let_begin);
             defer emit(c, f, .{ .local_let_end = local });
@@ -466,7 +473,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: P
         },
         .object_begin => {
             const local = f.local_data.append(.{
-                .name = null,
+                .is_tmp = true,
                 .is_mutable = false,
             });
 
@@ -486,7 +493,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, input: PatternInput, context: P
                     break;
 
                 const key_expr = skipTree(c);
-                try desugarPattern(c, f, .{ .object_get = .{ .object = local, .key = key_expr } }, context);
+                try desugarPattern(c, f, bindings, .{ .object_get = .{ .object = local, .key = key_expr } }, context);
                 count += 1;
             }
 

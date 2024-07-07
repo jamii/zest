@@ -528,9 +528,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[fun[id: 1, closure: struct[]][]: 1]
+[fun[id: 0, closure: struct[]][]: 1]
 
-Cannot unstage value: ref[fun[id: 1, closure: struct[]]]
+Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
 ```
 
 ```
@@ -992,9 +992,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i32]]]
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]
 ```
 
 ```
@@ -1021,4 +1021,20 @@ square-n-times(m@, 3)
 0
 
 0
+```
+
+```
+a = a
+
+Name not bound: a
+
+Name not bound: a
+```
+
+```
+a mut = a
+
+Name not bound: a
+
+Name not bound: a
 ```
