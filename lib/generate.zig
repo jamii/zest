@@ -531,7 +531,7 @@ fn genExprInner(
                 emitEnum(f, wasm.Opcode.end);
                 return wir.Walue.emptyStruct();
             } else if (cond == .i32 and cond.i32 == 1) {
-                _ = dropStack(c, f, cond);
+                // Don't bother with branch.
             } else {
                 load(c, f, cond);
                 emitEnum(f, wasm.Opcode.i32_eqz);
