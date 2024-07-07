@@ -401,107 +401,42 @@ fn genExprInner(
                 _ = take(c, tir_f).call_builtin_end;
                 return .{ .i32 = 0 };
             }
-            var args = std.ArrayList(wir.Walue).init(c.allocator);
             while (peek(c, tir_f) != .call_builtin_end) {
-                args.append(try genExpr(c, f, tir_f, .anywhere)) catch oom();
+                _ = try genExpr(c, f, tir_f, .stack);
             }
             const builtin = take(c, tir_f).call_builtin_end;
             switch (builtin) {
                 .equal_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = if (arg0.i32 == arg1.i32) 1 else 0 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_eq);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_eq);
+                    return .{ .stack = .i32 };
                 },
                 .less_than_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = if (arg0.i32 < arg1.i32) 1 else 0 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_lt_s);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_lt_s);
+                    return .{ .stack = .i32 };
                 },
                 .less_than_or_equal_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = if (arg0.i32 <= arg1.i32) 1 else 0 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_le_s);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_le_s);
+                    return .{ .stack = .i32 };
                 },
                 .more_than_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = if (arg0.i32 > arg1.i32) 1 else 0 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_gt_s);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_gt_s);
+                    return .{ .stack = .i32 };
                 },
                 .more_than_or_equal_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = if (arg0.i32 >= arg1.i32) 1 else 0 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_ge_s);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_ge_s);
+                    return .{ .stack = .i32 };
                 },
                 .add_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = arg0.i32 +% arg1.i32 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_add);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_add);
+                    return .{ .stack = .i32 };
                 },
                 .subtract_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = arg0.i32 -% arg1.i32 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_sub);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_sub);
+                    return .{ .stack = .i32 };
                 },
                 .multiply_i32 => {
-                    const arg0 = args.items[0];
-                    const arg1 = args.items[1];
-                    if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = arg0.i32 *% arg1.i32 };
-                    } else {
-                        load(c, f, arg0);
-                        load(c, f, arg1);
-                        emitEnum(f, wasm.Opcode.i32_mul);
-                        return .{ .stack = .i32 };
-                    }
+                    emitEnum(f, wasm.Opcode.i32_mul);
+                    return .{ .stack = .i32 };
                 },
             }
         },
