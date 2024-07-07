@@ -328,21 +328,21 @@ pub fn evalExpr(
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = arg0.i32 + arg1.i32 }) catch oom();
+                    c.value_stack.append(.{ .i32 = arg0.i32 +% arg1.i32 }) catch oom();
                 },
                 .subtract => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = arg0.i32 - arg1.i32 }) catch oom();
+                    c.value_stack.append(.{ .i32 = arg0.i32 -% arg1.i32 }) catch oom();
                 },
                 .multiply => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i32 or arg1 != .i32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = arg0.i32 * arg1.i32 }) catch oom();
+                    c.value_stack.append(.{ .i32 = arg0.i32 *% arg1.i32 }) catch oom();
                 },
                 else => return fail(c, .todo),
             }

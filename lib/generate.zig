@@ -471,7 +471,7 @@ fn genExprInner(
                     const arg0 = args.items[0];
                     const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = arg0.i32 + arg1.i32 };
+                        return .{ .i32 = arg0.i32 +% arg1.i32 };
                     } else {
                         load(c, f, arg0);
                         load(c, f, arg1);
@@ -483,7 +483,7 @@ fn genExprInner(
                     const arg0 = args.items[0];
                     const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = arg0.i32 - arg1.i32 };
+                        return .{ .i32 = arg0.i32 -% arg1.i32 };
                     } else {
                         load(c, f, arg0);
                         load(c, f, arg1);
@@ -495,7 +495,7 @@ fn genExprInner(
                     const arg0 = args.items[0];
                     const arg1 = args.items[1];
                     if (arg0 == .i32 and arg1 == .i32) {
-                        return .{ .i32 = arg0.i32 * arg1.i32 };
+                        return .{ .i32 = arg0.i32 *% arg1.i32 };
                     } else {
                         load(c, f, arg0);
                         load(c, f, arg1);
