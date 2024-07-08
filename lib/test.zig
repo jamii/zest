@@ -146,7 +146,7 @@ pub fn main() !void {
 
             std.debug.print(
                 \\--- wat ---
-                \\ {s}
+                \\{s}
                 \\
             , .{readWat(allocator)});
 
