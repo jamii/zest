@@ -1066,3 +1066,41 @@ pass([1,2,3]).2
 
 3
 ```
+
+```
+f = (opts: [:y, :z]) z
+f(opts: [y: 1, z: 2])
+
+2
+
+2
+```
+
+```
+f = (opts: [:y, :z]) z
+opts = [y: 1, z: 2]
+f(:opts)
+
+2
+
+2
+```
+
+```
+f = (:opts) opts.z
+f(opts: [y: 1, z: 2])
+
+2
+
+2
+```
+
+```
+f = (:opts) opts.z
+opts = [y: 1, z: 2]
+f(:opts)
+
+2
+
+2
+```
