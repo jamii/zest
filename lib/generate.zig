@@ -26,7 +26,9 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             // Get fun_type.
             var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
             var return_types = ArrayList(wasm.Valtype).init(c.allocator);
-            arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
+            if (!tir_f.key.closure_repr.isEmptyStruct()) {
+                arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
+            }
             for (tir_f.key.arg_reprs) |arg_repr| {
                 arg_types.append(wasmAbi(arg_repr)) catch oom();
             }
@@ -421,8 +423,12 @@ fn genExprInner(
                 const result = try genExpr(c, f, callee_tir_f, .anywhere);
                 return result;
             } else {
-                const closure = try genExpr(c, f, tir_f, .anywhere);
-                loadPtrTo(c, f, closure);
+                if (c.tir_fun_data.get(tir_fun).key.closure_repr.isEmptyStruct()) {
+                    _ = try genExpr(c, f, tir_f, .nowhere);
+                } else {
+                    const closure = try genExpr(c, f, tir_f, .anywhere);
+                    loadPtrTo(c, f, closure);
+                }
                 while (peek(c, tir_f) != .call_end) {
                     _ = try genExpr(c, f, tir_f, .stack);
                 }
@@ -904,7 +910,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
 fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
     return switch (walue) {
         .closure => 0,
-        .arg => |arg| @intCast(1 + arg.id),
+        .arg => |arg| @intCast(arg.id + @as(usize, if (c.tir_fun_data.get(f.tir_fun).key.closure_repr.isEmptyStruct()) 0 else 1)),
         .@"return" => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len - 1),
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
