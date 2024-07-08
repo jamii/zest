@@ -366,7 +366,11 @@ pub const Compiler = struct {
                 try writer.print("--- TIR ---\n", .{});
                 try writer.print("main = f{}\n", .{c.tir_fun_main.?.id});
                 for (c.tir_fun_data.items(), 0..) |f, fun_id| {
-                    try writer.print("f{} = (closure, arg) {}\n", .{ fun_id, f.return_repr.one });
+                    try writer.print("f{} = (closure", .{fun_id});
+                    for (0..f.key.arg_reprs.len) |arg_id| {
+                        try writer.print(", a{}", .{arg_id});
+                    }
+                    try writer.print(")\n", .{});
                     var indent: usize = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
