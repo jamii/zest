@@ -15,7 +15,7 @@ const tir = zest.tir;
 const wir = zest.wir;
 
 const global_shadow = 0;
-const stack_top = 1 * wasm.page_size;
+const stack_top = 128 * wasm.page_size; // 8mb
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
     for (0..c.tir_fun_data.count()) |tir_fun_id| {
