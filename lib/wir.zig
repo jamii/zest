@@ -49,7 +49,7 @@ pub const Walue = union(enum) {
     }
 };
 
-pub const Hint = union(enum) {
+pub const Destination = union(enum) {
     nowhere,
     anywhere,
     stack,
