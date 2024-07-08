@@ -18,8 +18,40 @@ const global_shadow = 0;
 const stack_top = 128 * wasm.page_size; // 8mb
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
-    for (0..c.tir_fun_data.count()) |tir_fun_id| {
-        try genFun(c, .{ .id = tir_fun_id });
+    for (0.., c.tir_fun_data.items()) |tir_fun_id, tir_f| {
+        const tir_fun = tir.Fun{ .id = tir_fun_id };
+        const dir_f = c.dir_fun_data.get(tir_f.key.fun);
+        if (!dir_f.@"inline") {
+
+            // Get fun_type.
+            var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
+            var return_types = ArrayList(wasm.Valtype).init(c.allocator);
+            arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
+            for (tir_f.key.arg_reprs) |arg_repr| {
+                arg_types.append(wasmAbi(arg_repr)) catch oom();
+            }
+            switch (wasmRepr(tir_f.return_repr.one)) {
+                .primitive => |valtype| return_types.append(valtype) catch oom(),
+                .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
+            }
+            const fun_type_data = wir.FunTypeData{
+                .arg_types = arg_types.toOwnedSlice() catch oom(),
+                .return_types = return_types.toOwnedSlice() catch oom(),
+            };
+            var fun_type: ?wir.FunType = c.fun_type_memo.get(fun_type_data);
+            if (fun_type == null) {
+                fun_type = c.fun_type_data.append(fun_type_data);
+                c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
+            }
+
+            // Make wir fun.
+            const wir_fun = c.wir_fun_data.append(wir.FunData.init(c.allocator, tir_fun, fun_type.?));
+            c.wir_fun_by_tir.put(tir_fun, wir_fun) catch oom();
+        }
+    }
+
+    for (c.wir_fun_data.items()) |*f| {
+        try genFun(c, f);
     }
 
     emitBytes(c, &wasm.magic);
@@ -150,33 +182,8 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
     }
 }
 
-fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
-    const tir_f = c.tir_fun_data.get(fun);
-
-    // Get fun_type.
-    var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
-    var return_types = ArrayList(wasm.Valtype).init(c.allocator);
-    arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
-    for (tir_f.key.arg_reprs) |arg_repr| {
-        arg_types.append(wasmAbi(arg_repr)) catch oom();
-    }
-    switch (wasmRepr(tir_f.return_repr.one)) {
-        .primitive => |valtype| return_types.append(valtype) catch oom(),
-        .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
-    }
-    const fun_type_data = wir.FunTypeData{
-        .arg_types = arg_types.toOwnedSlice() catch oom(),
-        .return_types = return_types.toOwnedSlice() catch oom(),
-    };
-    var fun_type: ?wir.FunType = c.fun_type_memo.get(fun_type_data);
-    if (fun_type == null) {
-        fun_type = c.fun_type_data.append(fun_type_data);
-        c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
-    }
-
-    // Make wir_fun.
-    _ = c.wir_fun_data.append(wir.FunData.init(c.allocator, fun_type.?));
-    const f = c.wir_fun_data.getPtr(fun);
+fn genFun(c: *Compiler, f: *wir.FunData) error{GenerateError}!void {
+    const tir_f = c.tir_fun_data.get(f.tir_fun);
 
     // Prepare to track addresses for tir locals.
     assert(c.local_walue.count() == 0);
@@ -184,10 +191,7 @@ fn genFun(c: *Compiler, fun: tir.Fun) error{GenerateError}!void {
     c.local_walue.appendNTimes(null, tir_f.local_data.count());
 
     c.tir_expr_next.id = 0;
-
-    while (c.tir_expr_next.id + 1 < tir_f.expr_data.count()) {
-        _ = try genExprOrNull(c, f, tir_f, .nowhere);
-    }
+    _ = try genExprOrNull(c, f, tir_f, .nowhere);
 }
 
 fn genExpr(
@@ -252,23 +256,32 @@ fn genExprInner(
             return .{ .i32 = i };
         },
         .closure => {
-            return .{ .value_at = .{
-                .ptr = c.box(wir.Walue{ .closure = {} }),
-                .repr = tir_f.key.closure_repr,
-            } };
+            if (c.inlining) |inlining| {
+                return inlining.closure;
+            } else {
+                return .{ .value_at = .{
+                    .ptr = c.box(wir.Walue{ .closure = {} }),
+                    .repr = tir_f.key.closure_repr,
+                } };
+            }
         },
         .arg => |arg| {
-            const repr = tir_f.key.arg_reprs[arg.id];
-            return switch (wasmRepr(repr)) {
-                .primitive => .{ .arg = arg },
-                .heap => .{ .value_at = .{
-                    .ptr = c.box(wir.Walue{ .arg = arg }),
-                    .repr = repr,
-                } },
-            };
+            if (c.inlining) |inlining| {
+                return inlining.arg;
+            } else {
+                const repr = tir_f.key.arg_reprs[arg.id];
+                return switch (wasmRepr(repr)) {
+                    .primitive => .{ .arg = arg },
+                    .heap => .{ .value_at = .{
+                        .ptr = c.box(wir.Walue{ .arg = arg }),
+                        .repr = repr,
+                    } },
+                };
+            }
         },
         .local_get => |local| {
-            return c.local_walue.get(local).?;
+            const local_offset = if (c.inlining) |inlining| inlining.local_offset else 0;
+            return c.local_walue.get(.{ .id = local.id + local_offset }).?;
         },
         .struct_init_begin => {
             var values = ArrayList(wir.Walue).init(c.allocator);
@@ -311,7 +324,8 @@ fn genExprInner(
                 },
                 else => {},
             }
-            c.local_walue.getPtr(local).* = value;
+            const local_offset = if (c.inlining) |inlining| inlining.local_offset else 0;
+            c.local_walue.getPtr(.{ .id = local.id + local_offset }).* = value;
             return null;
         },
         .object_get_begin => {
@@ -371,27 +385,64 @@ fn genExprInner(
         },
         .call_begin => {
             f.is_leaf = false;
-            const closure = try genExpr(c, f, tir_f, .anywhere);
-            loadPtrTo(c, f, closure);
+
+            // TODO This is a hack - should move inlining into a separate pass.
+            const expr = c.tir_expr_next;
             while (peek(c, tir_f) != .call_end) {
-                _ = try genExpr(c, f, tir_f, .stack);
+                _ = skipTree(c, tir_f);
             }
-            const fun = take(c, tir_f).call_end;
-            const output_repr = c.tir_fun_data.get(fun).return_repr.one;
-            const output = switch (wasmRepr(output_repr)) {
-                .primitive => |valtype| wir.Walue{ .stack = valtype },
-                .heap => wir.Walue{ .value_at = .{
-                    .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, output_repr)),
-                    .repr = output_repr,
-                } },
-            };
-            switch (wasmRepr(output_repr)) {
-                .primitive => {},
-                .heap => if (output_repr.sizeOf() > 0) loadPtrTo(c, f, output),
+            const tir_fun = take(c, tir_f).call_end;
+            c.tir_expr_next = expr;
+
+            const callee_tir_f = c.tir_fun_data.get(tir_fun);
+            if (c.dir_fun_data.get(callee_tir_f.key.fun).@"inline") {
+                const closure = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
+
+                assert(callee_tir_f.key.arg_reprs.len == 1);
+                const arg = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
+
+                _ = take(c, tir_f).call_end;
+
+                const inlining = c.inlining;
+                c.inlining = .{
+                    .closure = closure,
+                    .arg = arg,
+                    .local_offset = c.local_walue.count(),
+                };
+                defer c.inlining = inlining;
+
+                c.local_walue.appendNTimes(null, callee_tir_f.local_data.count());
+                defer c.local_walue.data.shrinkRetainingCapacity(c.inlining.?.local_offset);
+
+                const expr_next = c.tir_expr_next;
+                c.tir_expr_next = .{ .id = 0 };
+                defer c.tir_expr_next = expr_next;
+
+                const result = try genExpr(c, f, callee_tir_f, .anywhere);
+                return result;
+            } else {
+                const closure = try genExpr(c, f, tir_f, .anywhere);
+                loadPtrTo(c, f, closure);
+                while (peek(c, tir_f) != .call_end) {
+                    _ = try genExpr(c, f, tir_f, .stack);
+                }
+                _ = take(c, tir_f).call_end;
+                const output_repr = c.tir_fun_data.get(tir_fun).return_repr.one;
+                const output = switch (wasmRepr(output_repr)) {
+                    .primitive => |valtype| wir.Walue{ .stack = valtype },
+                    .heap => wir.Walue{ .value_at = .{
+                        .ptr = c.box(if (hint == .value_at) hint.value_at.* else shadowPush(c, f, output_repr)),
+                        .repr = output_repr,
+                    } },
+                };
+                switch (wasmRepr(output_repr)) {
+                    .primitive => {},
+                    .heap => if (output_repr.sizeOf() > 0) loadPtrTo(c, f, output),
+                }
+                emitEnum(f, wasm.Opcode.call);
+                emitLebU32(f, @intCast(c.wir_fun_by_tir.get(tir_fun).?.id));
+                return output;
             }
-            emitEnum(f, wasm.Opcode.call);
-            emitLebU32(f, @intCast(fun.id));
-            return output;
         },
         .call_builtin_begin => {
             if (hint == .nowhere) {
@@ -454,13 +505,19 @@ fn genExprInner(
             return value orelse wir.Walue.emptyStruct();
         },
         .return_begin => {
-            const result_hint: wir.Hint = switch (wasmRepr(tir_f.return_repr.one)) {
-                .primitive => .stack,
-                .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
-            };
-            _ = try genExpr(c, f, tir_f, result_hint);
-            _ = take(c, tir_f).return_end;
-            return null;
+            if (c.inlining) |_| {
+                const result = try genExpr(c, f, tir_f, .anywhere);
+                _ = take(c, tir_f).return_end;
+                return result;
+            } else {
+                const result_hint: wir.Hint = switch (wasmRepr(tir_f.return_repr.one)) {
+                    .primitive => .stack,
+                    .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
+                };
+                _ = try genExpr(c, f, tir_f, result_hint);
+                _ = take(c, tir_f).return_end;
+                return null;
+            }
         },
         .nop_begin => {
             const value = try genExpr(c, f, tir_f, hint);

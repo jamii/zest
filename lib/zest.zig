@@ -240,11 +240,17 @@ pub const Compiler = struct {
     repr_fixup_stack: ArrayList(tir.Expr),
 
     // generate
-    wir_fun_data: List(tir.Fun, wir.FunData),
+    wir_fun_data: List(wir.Fun, wir.FunData),
+    wir_fun_by_tir: Map(tir.Fun, wir.Fun),
     fun_type_memo: Map(wir.FunTypeData, wir.FunType),
     fun_type_data: List(wir.FunType, wir.FunTypeData),
     tir_expr_next: tir.Expr,
     local_walue: List(tir.Local, ?wir.Walue),
+    inlining: ?struct {
+        closure: wir.Walue,
+        arg: wir.Walue,
+        local_offset: usize,
+    },
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -281,10 +287,12 @@ pub const Compiler = struct {
             .repr_fixup_stack = fieldType(Compiler, .repr_fixup_stack).init(allocator),
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
+            .wir_fun_by_tir = fieldType(Compiler, .wir_fun_by_tir).init(allocator),
             .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
             .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
             .tir_expr_next = .{ .id = 0 },
             .local_walue = fieldType(Compiler, .local_walue).init(allocator),
+            .inlining = null,
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
