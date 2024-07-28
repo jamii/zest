@@ -176,9 +176,9 @@ pub fn treePart(expr_data: anytype) TreePart {
     }
     switch (expr_data) {
         inline else => |_, tag| {
-            if (std.mem.endsWith(u8, @tagName(tag), "_begin")) {
+            if (comptime std.mem.endsWith(u8, @tagName(tag), "_begin")) {
                 return .branch_begin;
-            } else if (std.mem.endsWith(u8, @tagName(tag), "_end")) {
+            } else if (comptime std.mem.endsWith(u8, @tagName(tag), "_end")) {
                 return .branch_end;
             } else {
                 return .leaf;
