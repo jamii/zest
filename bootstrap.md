@@ -1123,3 +1123,28 @@ Name already bound: i32
 
 Name already bound: i32
 ```
+
+```
+[i32: 101].i32
+
+101
+
+101
+```
+
+```
+[{i32}: 101].{i32}
+
+101
+
+101
+```
+
+```
+f = (i32) 42
+f(0)
+
+Name already bound: i32
+
+Name already bound: i32
+```

@@ -330,10 +330,10 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, must_be_mut: bool) error{Desug
 }
 
 fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void {
-    if (binding.is_staged) {
+    if (binding.is_staged and binding.value != .constant) {
         emit(c, f, .unstage_begin);
     }
-    defer if (binding.is_staged) {
+    defer if (binding.is_staged and binding.value != .constant) {
         emit(c, f, .unstage_end);
     };
 
