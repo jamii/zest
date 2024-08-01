@@ -1148,3 +1148,13 @@ Name already bound: i32
 
 Name already bound: i32
 ```
+
+```
+struct
+only
+42
+
+42
+
+TODO infer: dir.ExprData{ .repr_kind_struct = void }
+```

@@ -11,6 +11,7 @@ const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
+const ReprKind = zest.ReprKind;
 const deepEqual = zest.deepEqual;
 
 pub const Value = union(enum) {
@@ -22,6 +23,7 @@ pub const Value = union(enum) {
     only: *Value,
     ref: ValueRef,
     repr: Repr,
+    repr_kind: ReprKind,
 
     pub fn reprOf(value: Value) Repr {
         switch (value) {
@@ -33,6 +35,7 @@ pub const Value = union(enum) {
             .fun => |fun| return .{ .fun = fun.repr },
             .ref => |ref| return .{ .ref = ref.repr },
             .repr => return .repr,
+            .repr_kind => return .repr_kind,
         }
     }
 
@@ -50,7 +53,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .i32, .string, .fun, .only, .ref, .repr => null,
+            .i32, .string, .fun, .only, .ref, .repr, .repr_kind => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => panic("TODO", .{}),
         };
@@ -58,7 +61,7 @@ pub const Value = union(enum) {
 
     pub fn getMut(self: *Value, key: Value) ?*Value {
         return switch (self.*) {
-            .i32, .string, .fun, .only, .ref, .repr => null,
+            .i32, .string, .fun, .only, .ref, .repr, .repr_kind => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
             .@"union" => panic("TODO", .{}),
         };
@@ -118,7 +121,7 @@ pub const Value = union(enum) {
                 .repr = ref.repr,
                 .value = Value.copyBox(ref.value, allocator),
             } },
-            .repr => self,
+            .repr, .repr_kind => self,
         };
     }
 

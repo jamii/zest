@@ -33,6 +33,8 @@ pub const ExprData = union(enum) {
     repr_i32,
     repr_string,
     repr_repr,
+    repr_kind_struct,
+    repr_kind_only,
     arg: Arg,
     closure,
     local_get: Local,
@@ -115,9 +117,11 @@ pub const FunData = struct {
     }
 };
 
-pub const predefined_bindings: [3]Binding = .{
+pub const predefined_bindings: [5]Binding = .{
     .{ .name = "i32", .value = .{ .constant = .repr_i32 }, .mut = false },
     .{ .name = "string", .value = .{ .constant = .repr_string }, .mut = false },
+    .{ .name = "struct", .value = .{ .constant = .repr_kind_struct }, .mut = false },
+    .{ .name = "only", .value = .{ .constant = .repr_kind_only }, .mut = false },
     .{ .name = "repr", .value = .{ .constant = .repr_repr }, .mut = false },
 };
 

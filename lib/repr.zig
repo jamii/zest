@@ -16,6 +16,7 @@ pub const Repr = union(enum) {
     only: *Value,
     ref: *Repr,
     repr,
+    repr_kind,
 
     pub fn emptyStruct() Repr {
         return .{ .@"struct" = .{
@@ -53,7 +54,7 @@ pub const Repr = union(enum) {
             .fun => |fun| fun.sizeOf(),
             .only => 0,
             .ref => 4,
-            .repr => panic("TODO {}", .{self}),
+            .repr, .repr_kind => panic("TODO {}", .{self}),
         };
     }
 
@@ -68,7 +69,7 @@ pub const Repr = union(enum) {
                 .{ .fun = .{ .repr = fun, .closure = closure.values } }
             else
                 null,
-            .i32, .string, .@"union", .ref, .repr => null,
+            .i32, .string, .@"union", .ref, .repr, .repr_kind => null,
         };
     }
 
@@ -134,7 +135,7 @@ pub const Repr = union(enum) {
             .ref => {
                 return true;
             },
-            .repr => {
+            .repr, .repr_kind => {
                 return false;
             },
         };
@@ -203,4 +204,9 @@ pub const ReprFun = struct {
     pub fn sizeOf(self: ReprFun) usize {
         return self.closure.sizeOf();
     }
+};
+
+pub const ReprKind = enum {
+    @"struct",
+    only,
 };

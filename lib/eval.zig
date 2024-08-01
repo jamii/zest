@@ -176,6 +176,12 @@ pub fn evalExpr(
         .repr_repr => {
             c.value_stack.append(.{ .repr = .repr }) catch oom();
         },
+        .repr_kind_struct => {
+            c.value_stack.append(.{ .repr_kind = .@"struct" }) catch oom();
+        },
+        .repr_kind_only => {
+            c.value_stack.append(.{ .repr_kind = .only }) catch oom();
+        },
         .struct_init_end => |count| {
             const keys = c.allocator.alloc(Value, count) catch oom();
             const reprs = c.allocator.alloc(Repr, count) catch oom();
@@ -232,7 +238,7 @@ pub fn evalExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .i32, .string, .repr, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
+                .i32, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
             }
             c.value_stack.append(value) catch oom();
         },

@@ -12,6 +12,7 @@ pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
 pub const ReprUnion = @import("./repr.zig").ReprUnion;
 pub const ReprFun = @import("./repr.zig").ReprFun;
+pub const ReprKind = @import("./repr.zig").ReprKind;
 
 pub const Value = @import("./value.zig").Value;
 pub const ValueStruct = @import("./value.zig").ValueStruct;
