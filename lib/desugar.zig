@@ -354,6 +354,9 @@ fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void 
         .local => |local| {
             emit(c, f, .{ .local_get = local });
         },
+        .constant => |constant| {
+            emit(c, f, constant);
+        },
     }
 }
 

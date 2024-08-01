@@ -30,6 +30,9 @@ pub const ExprData = union(enum) {
     i32: i32,
     f32: f32,
     string: []const u8,
+    repr_i32,
+    repr_string,
+    repr_repr,
     arg: Arg,
     closure,
     local_get: Local,
@@ -112,17 +115,25 @@ pub const FunData = struct {
     }
 };
 
+pub const predefined_bindings: [3]Binding = .{
+    .{ .name = "i32", .value = .{ .constant = .repr_i32 }, .mut = false },
+    .{ .name = "string", .value = .{ .constant = .repr_string }, .mut = false },
+    .{ .name = "repr", .value = .{ .constant = .repr_repr }, .mut = false },
+};
+
 pub const Scope = struct {
     closure_until_len: usize,
     staged_until_len: ?usize,
     bindings: ArrayList(Binding),
 
     pub fn init(allocator: Allocator) Scope {
-        return .{
+        var scope = .{
             .closure_until_len = 0,
             .staged_until_len = null,
             .bindings = fieldType(Scope, .bindings).init(allocator),
         };
+        scope.bindings.appendSlice(&predefined_bindings) catch oom();
+        return scope;
     }
 
     pub fn push(self: *Scope, binding: Binding) void {
@@ -153,12 +164,6 @@ pub const Scope = struct {
                 };
             }
         }
-        // TODO builtins
-        //inline for (@typeInfo(Builtin).Enum.fields) |field| {
-        //    if (std.mem.eql(u8, name, field.name)) {
-        //        return c.sir_expr_data.append(.{ .builtin = @as(Builtin, @enumFromInt(field.value)) });
-        //    }
-        //}
         return null;
     }
 };
@@ -180,6 +185,7 @@ pub const Walue = union(enum) {
     arg: Arg,
     closure: []const u8,
     local: Local,
+    constant: ExprData,
 };
 
 pub const Frame = struct {

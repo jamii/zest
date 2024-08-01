@@ -1104,3 +1104,22 @@ f(:opts)
 
 2
 ```
+
+```
+i32
+string
+repr
+42
+
+42
+
+TODO infer: dir.ExprData{ .repr_i32 = void }
+```
+
+```
+i32 = 1
+
+Name already bound: i32
+
+Name already bound: i32
+```

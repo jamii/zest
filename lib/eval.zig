@@ -167,6 +167,15 @@ pub fn evalExpr(
         .string => |string| {
             c.value_stack.append(.{ .string = string }) catch oom();
         },
+        .repr_i32 => {
+            c.value_stack.append(.{ .repr = .i32 }) catch oom();
+        },
+        .repr_string => {
+            c.value_stack.append(.{ .repr = .string }) catch oom();
+        },
+        .repr_repr => {
+            c.value_stack.append(.{ .repr = .repr }) catch oom();
+        },
         .struct_init_end => |count| {
             const keys = c.allocator.alloc(Value, count) catch oom();
             const reprs = c.allocator.alloc(Repr, count) catch oom();
