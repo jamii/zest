@@ -360,6 +360,42 @@ pub fn evalExpr(
                 else => return fail(c, .todo),
             }
         },
+        .make_end => {
+            const args = c.value_stack.pop();
+            const head = c.value_stack.pop();
+            switch (head) {
+                .repr => |repr| switch (repr) {
+                    .i32, .string, .repr, .repr_kind => {
+                        if (args.@"struct".repr.keys.len != 1 or
+                            args.@"struct".repr.keys[0] != .i32 or
+                            args.@"struct".repr.keys[0].i32 != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        if (!args.@"struct".repr.reprs[0].equal(repr))
+                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args.@"struct".repr.reprs[0] } });
+                        c.value_stack.append(args.@"struct".values[0]) catch oom();
+                    },
+                    .@"struct" => {
+                        if (!args.reprOf().equal(repr))
+                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args.reprOf() } });
+                        c.value_stack.append(args) catch oom();
+                    },
+                    .@"union", .fun, .only, .ref => panic("TODO {}", .{head}),
+                },
+                .repr_kind => |repr_kind| switch (repr_kind) {
+                    .@"struct" => {
+                        const reprs = c.allocator.alloc(Repr, args.@"struct".values.len) catch oom();
+                        for (reprs, args.@"struct".values) |*repr, value| {
+                            if (value != .repr)
+                                return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                            repr.* = value.repr;
+                        }
+                        c.value_stack.append(.{ .repr = .{ .@"struct" = .{ .keys = args.@"struct".repr.keys, .reprs = reprs } } }) catch oom();
+                    },
+                    .only => panic("TODO {}", .{head}),
+                },
+                else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
+            }
+        },
         .block_begin => {
             c.block_value_count_stack.append(c.value_stack.items.len) catch oom();
         },
@@ -466,6 +502,13 @@ pub const EvalErrorData = union(enum) {
     invalid_call_builtin: struct {
         builtin: Builtin,
         args: []Value,
+    },
+    cannot_make: struct {
+        head: Value,
+        args: Value,
+    },
+    cannot_make_head: struct {
+        head: Value,
     },
     todo,
 };

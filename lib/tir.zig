@@ -57,6 +57,10 @@ pub const ExprData = union(enum) {
     call_end: Fun,
     call_builtin_begin,
     call_builtin_end: BuiltinTyped,
+    make_begin,
+    make_end: struct {
+        to: Repr,
+    },
     block_begin,
     block_last,
     block_end,

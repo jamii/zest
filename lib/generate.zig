@@ -497,6 +497,16 @@ fn genExprInner(
                 },
             }
         },
+        .make_begin => {
+            // TODO This is a silly blocker of dest.
+            const args = try genExpr(c, f, tir_f, .anywhere);
+            const make_end = take(c, tir_f).make_end;
+            return switch (make_end.to) {
+                .i32, .string, .repr, .repr_kind => args.@"struct".values[0],
+                .@"struct" => args,
+                .@"union", .fun, .only, .ref => panic("TODO", .{}),
+            };
+        },
         .block_begin => {
             // TODO reset shadow
             var statement_dest: wir.Destination = .nowhere;

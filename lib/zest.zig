@@ -401,6 +401,7 @@ pub const Compiler = struct {
                             .ref_set_end => {},
                             .call_end => |fun| try writer.print(" f{}", .{fun.id}),
                             .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                            .make_end => |make_end| try writer.print(" to={}", .{make_end.to}),
                             .struct_init_end => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
                             .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" /{}", .{repr}),
                             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
@@ -501,6 +502,8 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .cannot_stage_expr => format(c, "Cannot stage expr", .{}),
                     .cannot_unstage_value => |data| format(c, "Cannot unstage value: {}", .{data}),
                     .invalid_call_builtin => |data| format(c, "Cannot call {} with these args: {any}", .{ data.builtin, data.args }),
+                    .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
+                    .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },
@@ -517,6 +520,8 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .not_a_fun => |data| format(c, "Not a function: {}", .{data}),
                     .not_a_bool => |data| format(c, "Not a 'boolean': {}", .{data}),
                     .invalid_call_builtin => |data| format(c, "Cannot call {} with these args: {any}", .{ data.builtin, data.args }),
+                    .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
+                    .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

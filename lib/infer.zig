@@ -322,6 +322,34 @@ fn inferExpr(
                 else => return fail(c, .todo),
             }
         },
+        .make_begin => {
+            emit(c, f, .make_begin, null);
+        },
+        .make_end => {
+            const args = c.repr_stack.pop();
+            const head = try popValue(c);
+            switch (head) {
+                .repr => |repr| switch (repr) {
+                    .i32, .string, .repr, .repr_kind => {
+                        if (args.@"struct".keys.len != 1 or
+                            args.@"struct".keys[0] != .i32 or
+                            args.@"struct".keys[0].i32 != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        if (!args.@"struct".reprs[0].equal(repr))
+                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args.@"struct".reprs[0] } });
+                        emit(c, f, .{ .make_end = .{ .to = repr } }, repr);
+                    },
+                    .@"struct" => {
+                        if (!args.equal(repr))
+                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args } });
+                        emit(c, f, .{ .make_end = .{ .to = repr } }, repr);
+                    },
+                    .@"union", .fun, .only, .ref => panic("TODO {}", .{head}),
+                },
+                .repr_kind => panic("TODO {}", .{head}),
+                else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
+            }
+        },
         .block_begin => {
             c.block_value_count_stack.append(c.repr_stack.items.len) catch oom();
             emit(c, f, .block_begin, null);
@@ -467,6 +495,13 @@ pub const InferErrorData = union(enum) {
     invalid_call_builtin: struct {
         builtin: Builtin,
         args: []Repr,
+    },
+    cannot_make: struct {
+        head: Value,
+        args: Repr,
+    },
+    cannot_make_head: struct {
+        head: Value,
     },
     todo,
 };

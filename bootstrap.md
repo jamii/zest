@@ -1158,3 +1158,47 @@ only
 
 TODO infer: dir.ExprData{ .repr_kind_struct = void }
 ```
+
+```
+i32[42]
+
+42
+
+42
+```
+
+```
+a = struct[x: i32, y: i32][x: 42, y: 101]
+a.y
+
+101
+
+101
+```
+
+```
+a = struct[x: i32, y: i32][x: 42, y: []]
+a.y
+
+Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': struct[]]
+
+Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': struct[]]
+```
+
+```
+a = struct[x: i32, y: i32][x: 42, z: 101]
+a.y
+
+Expected struct['x': i32, 'y': i32], found struct['x': i32, 'z': i32]
+
+Expected struct['x': i32, 'y': i32], found struct['x': i32, 'z': i32]
+```
+
+```
+a = struct[x: i32, y: i32][x: 42, y: 101, z: 0]
+a.y
+
+Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': i32, 'z': i32]
+
+Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': i32, 'z': i32]
+```
