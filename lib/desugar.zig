@@ -113,10 +113,18 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
         .call_builtin_begin => {
             emit(c, f, .call_builtin_begin);
             _ = take(c).call_builtin_begin;
+            var arg_count: usize = 0;
             while (peek(c) != .call_builtin_end) {
                 try desugarExpr(c, f);
+                arg_count += 1;
             }
             const builtin = take(c).call_builtin_end;
+            if (arg_count != builtin.argCount())
+                return fail(c, .{ .wrong_builtin_arg_count = .{
+                    .builtin = builtin,
+                    .expected = builtin.argCount(),
+                    .found = arg_count,
+                } });
             emit(c, f, .{ .call_builtin_end = builtin });
         },
         .make_begin => {
@@ -603,5 +611,10 @@ pub const DesugarErrorData = union(enum) {
     invalid_let_path,
     invalid_path,
     meaningless_mut,
+    wrong_builtin_arg_count: struct {
+        builtin: Builtin,
+        expected: usize,
+        found: usize,
+    },
     todo,
 };

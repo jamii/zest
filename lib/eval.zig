@@ -357,6 +357,10 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = arg0.i32 *% arg1.i32 }) catch oom();
                 },
+                .@"memory-size" => {
+                    const page_count = @divExact(c.heap.items.len, std.wasm.page_size);
+                    c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },

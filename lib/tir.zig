@@ -85,6 +85,7 @@ pub const BuiltinTyped = enum {
     add_i32,
     subtract_i32,
     multiply_i32,
+    memory_size,
 };
 
 pub const FunKey = struct {

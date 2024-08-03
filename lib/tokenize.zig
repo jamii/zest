@@ -27,6 +27,7 @@ pub fn tokenize(c: *Compiler) !void {
             '.' => .@".",
             ':' => .@":",
             ';' => .@";",
+            '%' => .@"%",
             '=' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;

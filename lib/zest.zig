@@ -130,6 +130,7 @@ pub const TokenData = enum {
     @".",
     @":",
     @";",
+    @"%",
     @"=",
     @"==",
     @"~=",
@@ -162,6 +163,18 @@ pub const Builtin = enum {
     @"and",
     @"or",
     not,
+    @"memory-size",
+    @"memory-grow",
+    load,
+    store,
+
+    pub fn argCount(builtin: Builtin) usize {
+        return switch (builtin) {
+            .@"memory-size" => 0,
+            .not, .@"memory-grow" => 1,
+            .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
+        };
+    }
 };
 
 pub const TreePart = enum {
@@ -487,6 +500,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .invalid_path => format(c, "Invalid path: {}", .{expr_data}),
                     .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
                     .meaningless_mut => format(c, "Meaningless to write `mut` here", .{}),
+                    .wrong_builtin_arg_count => |data| format(c, "%{s} expected {} arguments, found {}", .{ @tagName(data.builtin), data.expected, data.found }),
                     .todo => format(c, "TODO desugar: {}", .{expr_data}),
                 };
             },

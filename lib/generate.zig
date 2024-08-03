@@ -495,6 +495,11 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.i32_mul);
                     return .{ .stack = .i32 };
                 },
+                .memory_size => {
+                    emitEnum(f, wasm.Opcode.memory_size);
+                    emitLebU32(f, 0); // memory
+                    return .{ .stack = .i32 };
+                },
             }
         },
         .make_begin => {

@@ -1213,3 +1213,19 @@ b.0.0
 
 42
 ```
+
+```
+%memory-size(42)
+
+%memory-size expected 0 arguments, found 1
+
+%memory-size expected 0 arguments, found 1
+```
+
+```
+%memory-size()
+
+0
+
+128
+```

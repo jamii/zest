@@ -319,6 +319,9 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .multiply_i32 }, .i32);
                 },
+                .@"memory-size" => {
+                    emit(c, f, .{ .call_builtin_end = .memory_size }, .i32);
+                },
                 else => return fail(c, .todo),
             }
         },

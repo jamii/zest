@@ -225,12 +225,13 @@ const ExprAtomOptions = struct {
 
 fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
     switch (peek(c)) {
-        .name => return parseName(c),
-        .number => return parseNumber(c, options),
-        .string => return parseString(c),
-        .@"[" => return parseObject(c),
-        .@"{" => return parseGroup(c),
-        .@"-" => return parseNegate(c),
+        .name => try parseName(c),
+        .number => try parseNumber(c, options),
+        .string => try parseString(c),
+        .@"[" => try parseObject(c),
+        .@"{" => try parseGroup(c),
+        .@"-" => try parseNegate(c),
+        .@"%" => try parseBuiltinCall(c),
         else => {
             const token = take(c);
             return fail(c, .{ .unexpected = .{ .expected = "expr-atom", .found = token } });
@@ -314,6 +315,37 @@ fn parseNegate(c: *Compiler) error{ParseError}!void {
     try expect(c, .@"-");
     emit(c, .{ .i32 = 0 });
     try parseExprAtom(c, .{});
+}
+
+fn parseBuiltinCall(c: *Compiler) error{ParseError}!void {
+    try expect(c, .@"%");
+
+    const builtin = try parseBuiltin(c);
+
+    emit(c, .call_builtin_begin);
+    defer emit(c, .{ .call_builtin_end = builtin });
+
+    try expect(c, .@"(");
+    while (peek(c) != .@")") {
+        try parseExpr(c);
+        if (!takeIf(c, .@",")) break;
+    }
+    try expect(c, .@")");
+}
+
+fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
+    try expect(c, .name);
+    const name = lastTokenText(c);
+    for ([_]Builtin{
+        .@"memory-size",
+        .@"memory-grow",
+        .load,
+        .store,
+    }) |builtin| {
+        if (std.mem.eql(u8, @tagName(builtin), name))
+            return builtin;
+    }
+    return fail(c, .{ .not_a_builtin = name });
 }
 
 fn parseArgs(c: *Compiler, end: TokenData) error{ParseError}!void {
@@ -463,4 +495,5 @@ pub const ParseErrorData = union(enum) {
     positional_args_after_keyed_args,
     parse_i32: enum { overflow, invalid_character },
     parse_f32: enum { invalid_character },
+    not_a_builtin: []const u8,
 };
