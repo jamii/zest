@@ -231,6 +231,7 @@ pub const Compiler = struct {
     local_stack: ArrayList(Value),
     while_stack: ArrayList(dir.Expr),
     block_value_count_stack: ArrayList(usize),
+    heap: ArrayList(u8),
 
     // infer
     tir_fun_data: List(tir.Fun, tir.FunData),
@@ -279,6 +280,7 @@ pub const Compiler = struct {
             .local_stack = fieldType(Compiler, .local_stack).init(allocator),
             .while_stack = fieldType(Compiler, .while_stack).init(allocator),
             .block_value_count_stack = fieldType(Compiler, .block_value_count_stack).init(allocator),
+            .heap = fieldType(Compiler, .heap).init(allocator),
 
             .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
             .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
