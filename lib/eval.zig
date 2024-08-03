@@ -358,7 +358,16 @@ pub fn evalExpr(
                     c.value_stack.append(.{ .i32 = arg0.i32 *% arg1.i32 }) catch oom();
                 },
                 .@"memory-size" => {
-                    const page_count = @divExact(c.heap.items.len, std.wasm.page_size);
+                    const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
+                    c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
+                },
+                .@"memory-grow" => {
+                    // TODO Should we have a limit on heap size?
+                    const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
+                    const grow_page_count = c.value_stack.pop();
+                    if (grow_page_count != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{grow_page_count}) } });
+                    c.memory.appendNTimes(0, @as(usize, @intCast(grow_page_count.i32)) * std.wasm.page_size) catch oom();
                     c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
                 },
                 else => return fail(c, .todo),

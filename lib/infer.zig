@@ -322,6 +322,12 @@ fn inferExpr(
                 .@"memory-size" => {
                     emit(c, f, .{ .call_builtin_end = .memory_size }, .i32);
                 },
+                .@"memory-grow" => {
+                    const grow_page_count = c.repr_stack.pop();
+                    if (grow_page_count != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{grow_page_count}) } });
+                    emit(c, f, .{ .call_builtin_end = .memory_grow }, .i32);
+                },
                 else => return fail(c, .todo),
             }
         },

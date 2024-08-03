@@ -15,7 +15,8 @@ const tir = zest.tir;
 const wir = zest.wir;
 
 const global_shadow = 0;
-const stack_top = 128 * wasm.page_size; // 8mb
+const stack_pages = 128;
+const stack_top = stack_pages * wasm.page_size; // 8mb
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
     for (0.., c.tir_fun_data.items()) |tir_fun_id, tir_f| {
@@ -451,13 +452,14 @@ fn genExprInner(
             }
         },
         .call_builtin_begin => {
-            if (dest == .nowhere) {
-                while (peek(c, tir_f) != .call_builtin_end) {
-                    _ = try genExpr(c, f, tir_f, .nowhere);
-                }
-                _ = take(c, tir_f).call_builtin_end;
-                return .{ .i32 = 0 };
-            }
+            // TODO Can't erase non-pure builtins.
+            //if (dest == .nowhere) {
+            //    while (peek(c, tir_f) != .call_builtin_end) {
+            //        _ = try genExpr(c, f, tir_f, .nowhere);
+            //    }
+            //    _ = take(c, tir_f).call_builtin_end;
+            //    return .{ .i32 = 0 };
+            //}
             while (peek(c, tir_f) != .call_builtin_end) {
                 _ = try genExpr(c, f, tir_f, .stack);
             }
@@ -497,6 +499,11 @@ fn genExprInner(
                 },
                 .memory_size => {
                     emitEnum(f, wasm.Opcode.memory_size);
+                    emitLebU32(f, 0); // memory
+                    return .{ .stack = .i32 };
+                },
+                .memory_grow => {
+                    emitEnum(f, wasm.Opcode.memory_grow);
                     emitLebU32(f, 0); // memory
                     return .{ .stack = .i32 };
                 },
