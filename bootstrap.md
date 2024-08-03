@@ -1202,3 +1202,14 @@ Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': i32, 'z': i32]
 
 Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': i32, 'z': i32]
 ```
+
+```
+a mut = [42]
+// Pointless copy here because make expr blocks dest
+b = struct[struct[i32]][a]
+b.0.0
+
+42
+
+42
+```
