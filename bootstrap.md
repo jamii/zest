@@ -1321,3 +1321,36 @@ b.0.0
 
 10752
 ```
+
+```
+%memory-grow(1)
+%store(struct[i32, struct[i32, i32]], %heap-start(), [0,[1,2]])
+x = %load(struct[i32, struct[i32, i32]], %heap-start())
+x.0
+
+0
+
+0
+```
+
+```
+%memory-grow(1)
+%store(struct[i32, struct[i32, i32]], %heap-start(), [0,[1,2]])
+x = %load(struct[i32, struct[i32, i32]], %heap-start())
+x.1.0
+
+1
+
+1
+```
+
+```
+%memory-grow(1)
+%store(struct[i32, struct[i32, i32]], %heap-start(), [0,[1,2]])
+x = %load(struct[i32, struct[i32, i32]], %heap-start())
+x.1.1
+
+2
+
+2
+```

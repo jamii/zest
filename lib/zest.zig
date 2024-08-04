@@ -255,7 +255,7 @@ pub const Compiler = struct {
     tir_fun_main: ?tir.Fun,
     tir_frame_stack: ArrayList(tir.Frame),
     repr_stack: ArrayList(Repr),
-    repr_fixup_stack: ArrayList(tir.Expr),
+    fixup_stack: ArrayList(tir.Expr),
 
     // generate
     wir_fun_data: List(wir.Fun, wir.FunData),
@@ -303,7 +303,7 @@ pub const Compiler = struct {
             .tir_fun_main = null,
             .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
             .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
-            .repr_fixup_stack = fieldType(Compiler, .repr_fixup_stack).init(allocator),
+            .fixup_stack = fieldType(Compiler, .fixup_stack).init(allocator),
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .wir_fun_by_tir = fieldType(Compiler, .wir_fun_by_tir).init(allocator),
@@ -418,7 +418,7 @@ pub const Compiler = struct {
                             .ref_get_end => |ref_get| try writer.print(" offset={}", .{ref_get.offset}),
                             .ref_set_end => {},
                             .call_end => |fun| try writer.print(" f{}", .{fun.id}),
-                            .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                            .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
                             .make_end => |make_end| try writer.print(" to={}", .{make_end.to}),
                             .struct_init_end => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
                             .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" /{}", .{repr}),

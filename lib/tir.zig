@@ -55,8 +55,8 @@ pub const ExprData = union(enum) {
     ref_deref_end: Repr,
     call_begin,
     call_end: Fun,
-    call_builtin_begin,
-    call_builtin_end: BuiltinTyped,
+    call_builtin_begin: BuiltinTyped,
+    call_builtin_end,
     make_begin,
     make_end: struct {
         to: Repr,
@@ -77,6 +77,7 @@ pub const ExprData = union(enum) {
 };
 
 pub const BuiltinTyped = union(enum) {
+    dummy, // should never be generated
     equal_i32,
     less_than_i32,
     less_than_or_equal_i32,
@@ -91,6 +92,13 @@ pub const BuiltinTyped = union(enum) {
     size_of: i32,
     load: Repr,
     store: Repr,
+
+    pub fn hasSideEffects(builtin: BuiltinTyped) bool {
+        return switch (builtin) {
+            .dummy, .equal_i32, .less_than_i32, .less_than_or_equal_i32, .more_than_i32, .more_than_or_equal_i32, .add_i32, .subtract_i32, .multiply_i32, .memory_size, .heap_start, .size_of => false,
+            .memory_grow, .load, .store => true,
+        };
+    }
 };
 
 pub const FunKey = struct {

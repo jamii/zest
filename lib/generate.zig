@@ -460,20 +460,30 @@ fn genExprInner(
                 return output;
             }
         },
-        .call_builtin_begin => {
-            // TODO Can't erase non-pure builtins.
-            //if (dest == .nowhere) {
-            //    while (peek(c, tir_f) != .call_builtin_end) {
-            //        _ = try genExpr(c, f, tir_f, .nowhere);
-            //    }
-            //    _ = take(c, tir_f).call_builtin_end;
-            //    return .{ .i32 = 0 };
-            //}
+        .call_builtin_begin => |builtin| {
+            if (dest == .nowhere and !builtin.hasSideEffects()) {
+                while (peek(c, tir_f) != .call_builtin_end) {
+                    _ = try genExpr(c, f, tir_f, .nowhere);
+                }
+                _ = take(c, tir_f).call_builtin_end;
+                return .{ .i32 = 0 };
+            }
+            switch (builtin) {
+                .store => {
+                    const address = try genExpr(c, f, tir_f, .anywhere);
+                    const value = try genExpr(c, f, tir_f, .anywhere);
+                    _ = take(c, tir_f).call_builtin_end;
+                    store(c, f, value, address);
+                    return wir.Walue.emptyStruct();
+                },
+                else => {},
+            }
             while (peek(c, tir_f) != .call_builtin_end) {
                 _ = try genExpr(c, f, tir_f, .stack);
             }
-            const builtin = take(c, tir_f).call_builtin_end;
+            _ = take(c, tir_f).call_builtin_end;
             switch (builtin) {
+                .dummy => panic("Uninitialized builtin", .{}),
                 .equal_i32 => {
                     emitEnum(f, wasm.Opcode.i32_eq);
                     return .{ .stack = .i32 };
@@ -530,15 +540,7 @@ fn genExprInner(
                         .repr = repr,
                     } };
                 },
-                .store => |repr| {
-                    // TODO Can't store compound value to stack - need builtin before args.
-                    if (repr != .i32)
-                        panic("TODO", .{});
-                    emitEnum(f, wasm.Opcode.i32_store);
-                    emitLebU32(f, 0); // align
-                    emitLebU32(f, 0); // offset
-                    return wir.Walue.emptyStruct();
-                },
+                .store => unreachable, // handled above
             }
         },
         .make_begin => {
@@ -724,10 +726,11 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             storePrimitive(c, f, from_value, to_ptr, .i32);
         },
         .@"struct" => |@"struct"| {
+            const to_ptr_spilled = spillStack(c, f, to_ptr);
             for (@"struct".values, 0..) |value, i| {
                 const offset = @"struct".repr.offsetOf(i);
                 const to_field_ptr = wir.Walue{ .add = .{
-                    .walue = c.box(to_ptr),
+                    .walue = c.box(to_ptr_spilled),
                     .offset = @intCast(offset),
                 } };
                 store(c, f, value, to_field_ptr);
