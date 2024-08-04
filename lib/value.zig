@@ -136,6 +136,40 @@ pub const Value = union(enum) {
         for (values, self) |*value, old_value| value.* = old_value.copy(allocator);
         return values;
     }
+
+    pub fn load(allocator: Allocator, bytes: []const u8, repr: Repr) Value {
+        switch (repr) {
+            .i32 => {
+                return .{ .i32 = std.mem.readInt(i32, bytes[0..@sizeOf(i32)], .little) };
+            },
+            .@"struct" => |@"struct"| {
+                const values = allocator.alloc(Value, @"struct".keys.len) catch oom();
+                var offset: usize = 0;
+                for (@"struct".reprs, values) |value_repr, *value| {
+                    value.* = load(allocator, bytes[offset..], value_repr);
+                    offset += value_repr.sizeOf();
+                }
+                return .{ .@"struct" = .{ .repr = @"struct", .values = values } };
+            },
+            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind => panic("TODO load: {}", .{repr}),
+        }
+    }
+
+    pub fn store(self: Value, bytes: []u8) void {
+        switch (self) {
+            .i32 => |i| {
+                std.mem.writeInt(i32, bytes[0..@sizeOf(i32)], i, .little);
+            },
+            .@"struct" => |@"struct"| {
+                var offset: usize = 0;
+                for (@"struct".repr.reprs, @"struct".values) |value_repr, value| {
+                    value.store(bytes[offset..]);
+                    offset += value_repr.sizeOf();
+                }
+            },
+            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind => panic("TODO store: {}", .{self}),
+        }
+    }
 };
 
 pub const ValueStruct = struct {

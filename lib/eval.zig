@@ -379,27 +379,9 @@ pub fn evalExpr(
                     const repr = c.value_stack.pop();
                     if (address != .i32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
-                    if (repr.repr != .i32)
-                        return fail(c, .todo);
-                    if (address.i32 < 0)
-                        return fail(c, .{ .out_of_bounds = .{
-                            .op = .load,
-                            .repr = repr.repr,
-                            .address = address.i32,
-                        } });
-                    const address_usize = @as(usize, @intCast(address.i32));
-                    const repr_size_of = repr.repr.sizeOf();
-                    if (address_usize < 0 or
-                        address_usize > c.memory.items.len or
-                        c.memory.items.len - address_usize < repr_size_of)
-                        return fail(c, .{ .out_of_bounds = .{
-                            .op = .load,
-                            .repr = repr.repr,
-                            .address = address.i32,
-                        } });
-                    const bytes = c.memory.items[address_usize..][0..@sizeOf(i32)];
-                    const loaded = std.mem.readInt(i32, bytes, .little);
-                    c.value_stack.append(.{ .i32 = loaded }) catch oom();
+                    const address_usize = try boundsCheck(c, .load, address.i32, repr.repr);
+                    const loaded = Value.load(c.allocator, c.memory.items[address_usize..], repr.repr);
+                    c.value_stack.append(loaded) catch oom();
                 },
                 .store => {
                     const value = c.value_stack.pop();
@@ -407,26 +389,8 @@ pub fn evalExpr(
                     const repr = c.value_stack.pop();
                     if (address != .i32 or repr != .repr or !value.reprOf().equal(repr.repr))
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
-                    if (repr.repr != .i32)
-                        return fail(c, .todo);
-                    if (address.i32 < 0)
-                        return fail(c, .{ .out_of_bounds = .{
-                            .op = .store,
-                            .repr = repr.repr,
-                            .address = address.i32,
-                        } });
-                    const address_usize = @as(usize, @intCast(address.i32));
-                    const repr_size_of = repr.repr.sizeOf();
-                    if (address_usize < 0 or
-                        address_usize > c.memory.items.len or
-                        c.memory.items.len - address_usize < repr_size_of)
-                        return fail(c, .{ .out_of_bounds = .{
-                            .op = .store,
-                            .repr = repr.repr,
-                            .address = address.i32,
-                        } });
-                    const bytes = c.memory.items[address_usize..][0..@sizeOf(i32)];
-                    std.mem.writeInt(i32, bytes, value.i32, .little);
+                    const address_usize = try boundsCheck(c, .load, address.i32, repr.repr);
+                    value.store(c.memory.items[address_usize..]);
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
                 .@"size-of" => {
@@ -550,6 +514,25 @@ fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
             break;
         }
     }
+}
+
+fn boundsCheck(c: *Compiler, op: anytype, address: i32, repr: Repr) error{EvalError}!usize {
+    if (address < 0)
+        return fail(c, .{ .out_of_bounds = .{
+            .op = .load,
+            .repr = repr,
+            .address = address,
+        } });
+    const address_usize = @as(usize, @intCast(address));
+    if (address_usize < 0 or
+        address_usize > c.memory.items.len or
+        c.memory.items.len - address_usize < repr.sizeOf())
+        return fail(c, .{ .out_of_bounds = .{
+            .op = op,
+            .repr = repr,
+            .address = address,
+        } });
+    return address_usize;
 }
 
 fn fail(c: *Compiler, data: EvalErrorData) error{EvalError} {
