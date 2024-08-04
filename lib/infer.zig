@@ -319,6 +319,7 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     emit(c, f, .{ .call_builtin_end = .multiply_i32 }, .i32);
                 },
+                // TODO Should use u32 for all memory builtins.
                 .@"memory-size" => {
                     emit(c, f, .{ .call_builtin_end = .memory_size }, .i32);
                 },
@@ -330,6 +331,27 @@ fn inferExpr(
                 },
                 .@"heap-start" => {
                     emit(c, f, .{ .call_builtin_end = .heap_start }, .i32);
+                },
+                .load => {
+                    const address = c.repr_stack.pop();
+                    const repr = try popValue(c);
+                    if (address != .i32 or repr != .repr)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ repr.reprOf(), address }) } });
+                    emit(c, f, .{ .call_builtin_end = .{ .load = repr.repr } }, repr.repr);
+                },
+                .store => {
+                    const value = c.repr_stack.pop();
+                    const address = c.repr_stack.pop();
+                    const repr = try popValue(c);
+                    if (address != .i32 or repr != .repr or !value.equal(repr.repr))
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ repr.reprOf(), address }) } });
+                    emit(c, f, .{ .call_builtin_end = .{ .store = repr.repr } }, repr.repr);
+                },
+                .@"size-of" => {
+                    const repr = try popValue(c);
+                    if (repr != .repr)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{repr.reprOf()}) } });
+                    emit(c, f, .{ .call_builtin_end = .{ .size_of = @intCast(repr.repr.sizeOf()) } }, .i32);
                 },
                 else => return fail(c, .todo),
             }

@@ -111,20 +111,28 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             _ = take(c).call_end;
         },
         .call_builtin_begin => {
+            const builtin = take(c).call_builtin_begin;
             emit(c, f, .call_builtin_begin);
-            _ = take(c).call_builtin_begin;
             var arg_count: usize = 0;
             while (peek(c) != .call_builtin_end) {
+                const is_staged = arg_count == 0 and
+                    (builtin == .load or
+                    builtin == .store or
+                    builtin == .@"size-of");
+
+                if (is_staged) emit(c, f, .stage_begin);
+                defer if (is_staged) emit(c, f, .stage_end);
+
                 try desugarExpr(c, f);
                 arg_count += 1;
             }
-            const builtin = take(c).call_builtin_end;
             if (arg_count != builtin.argCount())
                 return fail(c, .{ .wrong_builtin_arg_count = .{
                     .builtin = builtin,
                     .expected = builtin.argCount(),
                     .found = arg_count,
                 } });
+            _ = take(c).call_builtin_end;
             emit(c, f, .{ .call_builtin_end = builtin });
         },
         .make_begin => {

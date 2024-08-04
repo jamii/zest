@@ -128,8 +128,8 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
 
                 const left = cutBufferAfter(c, buffer_start);
 
-                emit(c, .call_builtin_begin);
-                defer emit(c, .{ .call_builtin_end = op });
+                emit(c, .{ .call_builtin_begin = op });
+                defer emit(c, .call_builtin_end);
 
                 emit(c, left);
                 try parseExprTight(c);
@@ -309,8 +309,8 @@ fn parseGroup(c: *Compiler) error{ParseError}!void {
 }
 
 fn parseNegate(c: *Compiler) error{ParseError}!void {
-    emit(c, .call_builtin_begin);
-    defer emit(c, .{ .call_builtin_end = .subtract });
+    emit(c, .{ .call_builtin_begin = .subtract });
+    defer emit(c, .call_builtin_end);
 
     try expect(c, .@"-");
     emit(c, .{ .i32 = 0 });
@@ -322,8 +322,8 @@ fn parseBuiltinCall(c: *Compiler) error{ParseError}!void {
 
     const builtin = try parseBuiltin(c);
 
-    emit(c, .call_builtin_begin);
-    defer emit(c, .{ .call_builtin_end = builtin });
+    emit(c, .{ .call_builtin_begin = builtin });
+    defer emit(c, .call_builtin_end);
 
     try expect(c, .@"(");
     while (peek(c) != .@")") {
@@ -342,6 +342,7 @@ fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
         .@"heap-start",
         .load,
         .store,
+        .@"size-of",
     }) |builtin| {
         if (std.mem.eql(u8, @tagName(builtin), name))
             return builtin;

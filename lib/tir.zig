@@ -76,7 +76,7 @@ pub const ExprData = union(enum) {
     while_end,
 };
 
-pub const BuiltinTyped = enum {
+pub const BuiltinTyped = union(enum) {
     equal_i32,
     less_than_i32,
     less_than_or_equal_i32,
@@ -88,6 +88,9 @@ pub const BuiltinTyped = enum {
     memory_size,
     memory_grow,
     heap_start,
+    size_of: i32,
+    load: Repr,
+    store: Repr,
 };
 
 pub const FunKey = struct {

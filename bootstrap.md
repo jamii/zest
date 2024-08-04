@@ -1264,3 +1264,60 @@ b.0.0
 
 8388608
 ```
+
+```
+%size-of(i32)
+
+4
+
+4
+```
+
+```
+%size-of(struct[i32, struct[i32, i32]])
+
+12
+
+12
+```
+
+```
+%memory-grow(1)
+%load(i32, %heap-start() + 0)
+
+0
+
+0
+```
+
+```
+%memory-grow(1)
+%store(i32, %heap-start() + 0, 42)
+%store(i32, %heap-start() + %size-of(i32), 101)
+%load(i32, %heap-start() + 0)
+
+42
+
+42
+```
+
+```
+%memory-grow(1)
+%store(i32, %heap-start() + 0, 42)
+%store(i32, %heap-start() + %size-of(i32), 101)
+%load(i32, %heap-start() + %size-of(i32))
+
+101
+
+101
+```
+
+```
+%memory-grow(1)
+%store(i32, %heap-start() + 1, 42)
+%load(i32, %heap-start() + 0)
+
+10752
+
+10752
+```

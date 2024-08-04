@@ -521,6 +521,24 @@ fn genExprInner(
                     emitLebU32(f, global_heap_start);
                     return .{ .stack = .i32 };
                 },
+                .size_of => |size_of| {
+                    return .{ .i32 = size_of };
+                },
+                .load => |repr| {
+                    return wir.Walue{ .value_at = .{
+                        .ptr = c.box(wir.Walue{ .stack = .i32 }),
+                        .repr = repr,
+                    } };
+                },
+                .store => |repr| {
+                    // TODO Can't store compound value to stack - need builtin before args.
+                    if (repr != .i32)
+                        panic("TODO", .{});
+                    emitEnum(f, wasm.Opcode.i32_store);
+                    emitLebU32(f, 0); // align
+                    emitLebU32(f, 0); // offset
+                    return wir.Walue.emptyStruct();
+                },
             }
         },
         .make_begin => {

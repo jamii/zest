@@ -357,6 +357,7 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i32 = arg0.i32 *% arg1.i32 }) catch oom();
                 },
+                // TODO Should use u32 for all memory builtins.
                 .@"memory-size" => {
                     const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
                     c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
@@ -372,6 +373,68 @@ pub fn evalExpr(
                 },
                 .@"heap-start" => {
                     c.value_stack.append(.{ .i32 = 0 }) catch oom();
+                },
+                .load => {
+                    const address = c.value_stack.pop();
+                    const repr = c.value_stack.pop();
+                    if (address != .i32 or repr != .repr)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
+                    if (repr.repr != .i32)
+                        return fail(c, .todo);
+                    if (address.i32 < 0)
+                        return fail(c, .{ .out_of_bounds = .{
+                            .op = .load,
+                            .repr = repr.repr,
+                            .address = address.i32,
+                        } });
+                    const address_usize = @as(usize, @intCast(address.i32));
+                    const repr_size_of = repr.repr.sizeOf();
+                    if (address_usize < 0 or
+                        address_usize > c.memory.items.len or
+                        c.memory.items.len - address_usize < repr_size_of)
+                        return fail(c, .{ .out_of_bounds = .{
+                            .op = .load,
+                            .repr = repr.repr,
+                            .address = address.i32,
+                        } });
+                    const bytes = c.memory.items[address_usize..][0..@sizeOf(i32)];
+                    const loaded = std.mem.readInt(i32, bytes, .little);
+                    c.value_stack.append(.{ .i32 = loaded }) catch oom();
+                },
+                .store => {
+                    const value = c.value_stack.pop();
+                    const address = c.value_stack.pop();
+                    const repr = c.value_stack.pop();
+                    if (address != .i32 or repr != .repr or !value.reprOf().equal(repr.repr))
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
+                    if (repr.repr != .i32)
+                        return fail(c, .todo);
+                    if (address.i32 < 0)
+                        return fail(c, .{ .out_of_bounds = .{
+                            .op = .store,
+                            .repr = repr.repr,
+                            .address = address.i32,
+                        } });
+                    const address_usize = @as(usize, @intCast(address.i32));
+                    const repr_size_of = repr.repr.sizeOf();
+                    if (address_usize < 0 or
+                        address_usize > c.memory.items.len or
+                        c.memory.items.len - address_usize < repr_size_of)
+                        return fail(c, .{ .out_of_bounds = .{
+                            .op = .store,
+                            .repr = repr.repr,
+                            .address = address.i32,
+                        } });
+                    const bytes = c.memory.items[address_usize..][0..@sizeOf(i32)];
+                    std.mem.writeInt(i32, bytes, value.i32, .little);
+                    c.value_stack.append(Value.emptyStruct()) catch oom();
+                },
+                .@"size-of" => {
+                    const repr = c.value_stack.pop();
+                    if (repr != .repr)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{repr}) } });
+                    const size = repr.repr.sizeOf();
+                    c.value_stack.append(.{ .i32 = @intCast(size) }) catch oom();
                 },
                 else => return fail(c, .todo),
             }
@@ -525,6 +588,11 @@ pub const EvalErrorData = union(enum) {
     },
     cannot_make_head: struct {
         head: Value,
+    },
+    out_of_bounds: struct {
+        op: enum { load, store },
+        repr: Repr,
+        address: i32,
     },
     todo,
 };

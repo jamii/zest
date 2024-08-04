@@ -168,11 +168,12 @@ pub const Builtin = enum {
     @"heap-start",
     load,
     store,
+    @"size-of",
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start" => 0,
-            .not, .@"memory-grow" => 1,
+            .not, .@"memory-grow", .@"size-of" => 1,
             .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load => 2,
             .store => 3,
         };
@@ -450,7 +451,7 @@ pub const Compiler = struct {
                     .f32 => |i| try writer.print(" {}", .{i}),
                     .string => |s| try writer.print(" {s}", .{s}),
                     .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
-                    .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
+                    .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
                     .indirect => unreachable,
                     inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
                 }
@@ -492,6 +493,19 @@ pub const ErrorData = union(enum) {
 pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
         switch (error_data) {
+            .parse => |err| {
+                const source_offset = c.token_to_source.get(c.token_next);
+                return switch (err) {
+                    .unexpected => |data| format(c, "At {}: expected {s}, found {}", .{ source_offset[0], data.expected, data.found }),
+                    .unexpected_space => format(c, "At {}: unexpected space", .{source_offset[0]}),
+                    .ambiguous_precedence => |data| format(c, "At {}: ambigious precedence between {} and {}", .{ source_offset[0], data[0], data[1] }),
+                    .invalid_string_escape => |data| format(c, "At {}: invalid string escape \\{}", .{ source_offset[0], data }),
+                    .positional_args_after_keyed_args => format(c, "At {}: all positional args must appear before all keyed args", .{source_offset[0]}),
+                    .parse_i32 => |data| format(c, "At {}: invalid i32: {}", .{ source_offset[0], data }),
+                    .parse_f32 => |data| format(c, "At {}: invalid f32: {}", .{ source_offset[0], data }),
+                    .not_a_builtin => |data| format(c, "At {}: invalid builtin: {s}", .{ source_offset[0], data }),
+                };
+            },
             .desugar => |err| {
                 const expr_data = c.sir_expr_data.get(c.sir_expr_next);
                 return switch (err) {
@@ -522,6 +536,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .invalid_call_builtin => |data| format(c, "Cannot call {} with these args: {any}", .{ data.builtin, data.args }),
                     .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
                     .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
+                    .out_of_bounds => |data| format(c, "Out of bounds {s} of {} at {}", .{ @tagName(data.op), data.repr, data.address }),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },
