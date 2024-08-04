@@ -527,6 +527,7 @@ fn genExprInner(
                     return .{ .stack = .i32 };
                 },
                 .heap_start => {
+                    // TODO Could add heap_start to Walue to avoid an extra local here.
                     emitEnum(f, wasm.Opcode.global_get);
                     emitLebU32(f, global_heap_start);
                     return .{ .stack = .i32 };

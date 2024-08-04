@@ -1283,7 +1283,7 @@ b.0.0
 
 ```
 %memory-grow(1)
-%load(i32, %heap-start() + 0)
+%load(%heap-start() + 0, i32)
 
 0
 
@@ -1292,9 +1292,9 @@ b.0.0
 
 ```
 %memory-grow(1)
-%store(i32, %heap-start() + 0, 42)
-%store(i32, %heap-start() + %size-of(i32), 101)
-%load(i32, %heap-start() + 0)
+%store(%heap-start() + 0, 42)
+%store(%heap-start() + %size-of(i32), 101)
+%load(%heap-start() + 0, i32)
 
 42
 
@@ -1303,9 +1303,9 @@ b.0.0
 
 ```
 %memory-grow(1)
-%store(i32, %heap-start() + 0, 42)
-%store(i32, %heap-start() + %size-of(i32), 101)
-%load(i32, %heap-start() + %size-of(i32))
+%store(%heap-start() + 0, 42)
+%store(%heap-start() + %size-of(i32), 101)
+%load(%heap-start() + %size-of(i32), i32)
 
 101
 
@@ -1314,8 +1314,8 @@ b.0.0
 
 ```
 %memory-grow(1)
-%store(i32, %heap-start() + 1, 42)
-%load(i32, %heap-start() + 0)
+%store(%heap-start() + 1, 42)
+%load(%heap-start() + 0, i32)
 
 10752
 
@@ -1324,8 +1324,8 @@ b.0.0
 
 ```
 %memory-grow(1)
-%store(struct[i32, struct[i32, i32]], %heap-start(), [0,[1,2]])
-x = %load(struct[i32, struct[i32, i32]], %heap-start())
+%store(%heap-start(), [0,[1,2]])
+x = %load(%heap-start(), struct[i32, struct[i32, i32]])
 x.0
 
 0
@@ -1335,8 +1335,8 @@ x.0
 
 ```
 %memory-grow(1)
-%store(struct[i32, struct[i32, i32]], %heap-start(), [0,[1,2]])
-x = %load(struct[i32, struct[i32, i32]], %heap-start())
+%store(%heap-start(), [0,[1,2]])
+x = %load(%heap-start(), struct[i32, struct[i32, i32]])
 x.1.0
 
 1
@@ -1346,8 +1346,8 @@ x.1.0
 
 ```
 %memory-grow(1)
-%store(struct[i32, struct[i32, i32]], %heap-start(), [0,[1,2]])
-x = %load(struct[i32, struct[i32, i32]], %heap-start())
+%store(%heap-start(), [0,[1,2]])
+x = %load(%heap-start(), struct[i32, struct[i32, i32]])
 x.1.1
 
 2

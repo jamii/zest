@@ -115,10 +115,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             emit(c, f, .call_builtin_begin);
             var arg_count: usize = 0;
             while (peek(c) != .call_builtin_end) {
-                const is_staged = arg_count == 0 and
-                    (builtin == .load or
-                    builtin == .store or
-                    builtin == .@"size-of");
+                const is_staged =
+                    (builtin == .load and arg_count == 1) or
+                    (builtin == .@"size-of" and arg_count == 0);
 
                 if (is_staged) emit(c, f, .stage_begin);
                 defer if (is_staged) emit(c, f, .stage_end);

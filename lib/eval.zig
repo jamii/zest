@@ -375,8 +375,8 @@ pub fn evalExpr(
                     c.value_stack.append(.{ .i32 = 0 }) catch oom();
                 },
                 .load => {
-                    const address = c.value_stack.pop();
                     const repr = c.value_stack.pop();
+                    const address = c.value_stack.pop();
                     if (address != .i32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
                     const address_usize = try boundsCheck(c, .load, address.i32, repr.repr);
@@ -386,10 +386,9 @@ pub fn evalExpr(
                 .store => {
                     const value = c.value_stack.pop();
                     const address = c.value_stack.pop();
-                    const repr = c.value_stack.pop();
-                    if (address != .i32 or repr != .repr or !value.reprOf().equal(repr.repr))
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
-                    const address_usize = try boundsCheck(c, .load, address.i32, repr.repr);
+                    if (address != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, value }) } });
+                    const address_usize = try boundsCheck(c, .store, address.i32, value.reprOf());
                     value.store(c.memory.items[address_usize..]);
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },

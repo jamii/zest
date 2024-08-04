@@ -350,21 +350,20 @@ fn inferExpr(
                     emit(c, f, .call_builtin_end, .i32);
                 },
                 .load => {
-                    const address = c.repr_stack.pop();
                     const repr = try popValue(c);
+                    const address = c.repr_stack.pop();
                     if (address != .i32 or repr != .repr)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ repr.reprOf(), address }) } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, repr.reprOf() }) } });
                     f.expr_data.getPtr(begin).call_builtin_begin = .{ .load = repr.repr };
                     emit(c, f, .call_builtin_end, repr.repr);
                 },
                 .store => {
                     const value = c.repr_stack.pop();
                     const address = c.repr_stack.pop();
-                    const repr = try popValue(c);
-                    if (address != .i32 or repr != .repr or !value.equal(repr.repr))
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ repr.reprOf(), address }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .{ .store = repr.repr };
-                    emit(c, f, .call_builtin_end, repr.repr);
+                    if (address != .i32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, value }) } });
+                    f.expr_data.getPtr(begin).call_builtin_begin = .store;
+                    emit(c, f, .call_builtin_end, Repr.emptyStruct());
                 },
                 .@"size-of" => {
                     const repr = try popValue(c);

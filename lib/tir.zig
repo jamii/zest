@@ -91,7 +91,7 @@ pub const BuiltinTyped = union(enum) {
     heap_start,
     size_of: i32,
     load: Repr,
-    store: Repr,
+    store,
 
     pub fn hasSideEffects(builtin: BuiltinTyped) bool {
         return switch (builtin) {

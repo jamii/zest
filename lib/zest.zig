@@ -174,8 +174,7 @@ pub const Builtin = enum {
         return switch (builtin) {
             .@"memory-size", .@"heap-start" => 0,
             .not, .@"memory-grow", .@"size-of" => 1,
-            .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load => 2,
-            .store => 3,
+            .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
         };
     }
 };
