@@ -339,6 +339,7 @@ fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
     for ([_]Builtin{
         .@"memory-size",
         .@"memory-grow",
+        .@"heap-start",
         .load,
         .store,
     }) |builtin| {

@@ -328,6 +328,9 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{grow_page_count}) } });
                     emit(c, f, .{ .call_builtin_end = .memory_grow }, .i32);
                 },
+                .@"heap-start" => {
+                    emit(c, f, .{ .call_builtin_end = .heap_start }, .i32);
+                },
                 else => return fail(c, .todo),
             }
         },

@@ -370,6 +370,9 @@ pub fn evalExpr(
                     c.memory.appendNTimes(0, @as(usize, @intCast(grow_page_count.i32)) * std.wasm.page_size) catch oom();
                     c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
                 },
+                .@"heap-start" => {
+                    c.value_stack.append(.{ .i32 = 0 }) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },

@@ -15,6 +15,7 @@ const tir = zest.tir;
 const wir = zest.wir;
 
 const global_shadow = 0;
+const global_heap_start = 1;
 const stack_pages = 128;
 const stack_top = stack_pages * wasm.page_size; // 8mb
 
@@ -107,10 +108,18 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         defer emitSectionEnd(c, section);
 
         // Number of globals.
-        emitLebU32(c, 1);
+        emitLebU32(c, 2);
 
+        // global_shadow
         emitEnum(c, wasm.Valtype.i32);
         emitByte(c, 0x01); // mutable
+        emitEnum(c, wasm.Opcode.i32_const);
+        emitLebI32(c, @intCast(stack_top));
+        emitEnum(c, wasm.Opcode.end);
+
+        // global_heap_start
+        emitEnum(c, wasm.Valtype.i32);
+        emitByte(c, 0x00); // const
         emitEnum(c, wasm.Opcode.i32_const);
         emitLebI32(c, @intCast(stack_top));
         emitEnum(c, wasm.Opcode.end);
@@ -505,6 +514,11 @@ fn genExprInner(
                 .memory_grow => {
                     emitEnum(f, wasm.Opcode.memory_grow);
                     emitLebU32(f, 0); // memory
+                    return .{ .stack = .i32 };
+                },
+                .heap_start => {
+                    emitEnum(f, wasm.Opcode.global_get);
+                    emitLebU32(f, global_heap_start);
                     return .{ .stack = .i32 };
                 },
             }

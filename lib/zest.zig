@@ -165,14 +165,16 @@ pub const Builtin = enum {
     not,
     @"memory-size",
     @"memory-grow",
+    @"heap-start",
     load,
     store,
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
-            .@"memory-size" => 0,
+            .@"memory-size", .@"heap-start" => 0,
             .not, .@"memory-grow" => 1,
-            .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
+            .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load => 2,
+            .store => 3,
         };
     }
 };
