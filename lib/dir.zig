@@ -163,12 +163,12 @@ pub const Scope = struct {
             if (std.mem.eql(u8, binding.name, name)) {
                 return BindingInfo{
                     .name = binding.name,
-                    .value = if (i - 1 < self.closure_until_len)
+                    .value = if (binding.value != .constant and i - 1 < self.closure_until_len)
                         .{ .closure = binding.name }
                     else
                         binding.value,
                     .mut = binding.mut,
-                    .is_staged = i - 1 < (self.staged_until_len orelse 0),
+                    .is_staged = binding.value != .constant and i - 1 < (self.staged_until_len orelse 0),
                 };
             }
         }

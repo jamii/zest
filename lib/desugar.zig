@@ -354,10 +354,10 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, must_be_mut: bool) error{Desug
 }
 
 fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void {
-    if (binding.is_staged and binding.value != .constant) {
+    if (binding.is_staged) {
         emit(c, f, .unstage_begin);
     }
-    defer if (binding.is_staged and binding.value != .constant) {
+    defer if (binding.is_staged) {
         emit(c, f, .unstage_end);
     };
 
@@ -435,6 +435,10 @@ const PatternInput = union(enum) {
     object_get: struct {
         object: dir.Local,
         key: sir.Expr,
+    },
+    make: struct {
+        head: sir.Expr,
+        input: *PatternInput,
     },
 };
 
@@ -533,6 +537,22 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, bindings: *ArrayList(dir.Bindin
             try desugarPath(c, f);
             try desugarPatternInput(c, f, input);
         },
+        .make_begin => {
+            _ = take(c).make_begin;
+
+            const head_expr = skipTree(c);
+
+            _ = take(c).object_begin;
+            var key = take(c);
+            while (key == .indirect) {
+                key = c.sir_expr_data.get(key.indirect);
+            }
+            if (key != .i64 and key.i64 != 0) return fail(c, .invalid_pattern);
+            try desugarPattern(c, f, bindings, .{ .make = .{ .head = head_expr, .input = c.box(input) } }, context);
+            if (take(c) != .object_end) return fail(c, .invalid_pattern);
+
+            _ = take(c).make_end;
+        },
         else => return fail(c, .invalid_pattern),
     }
 }
@@ -556,6 +576,26 @@ fn desugarPatternInput(c: *Compiler, f: *dir.FunData, input: PatternInput) error
             c.sir_expr_next = object_get.key;
             try desugarKey(c, f);
             c.sir_expr_next = next;
+        },
+        .make => |make| {
+            emit(c, f, .make_begin);
+            defer emit(c, f, .make_end);
+
+            const next = c.sir_expr_next;
+            c.sir_expr_next = make.head;
+            try stageExpr(c, f);
+            c.sir_expr_next = next;
+
+            emit(c, f, .struct_init_begin);
+            defer emit(c, f, .{ .struct_init_end = 1 });
+
+            {
+                emit(c, f, .stage_begin);
+                defer emit(c, f, .stage_end);
+
+                emit(c, f, .{ .i64 = 0 });
+            }
+            try desugarPatternInput(c, f, make.input.*);
         },
     }
 }

@@ -73,6 +73,8 @@ pub const Value = union(enum) {
         _ = fmt;
         _ = options;
         switch (self) {
+            // TODO Need to adjust test.js to print this.
+            //.u32 => |i| try writer.print("u32[{}]", .{i}),
             inline .u32, .i64 => |i| try writer.print("{}", .{i}),
             .string => |string| try writer.print("'{s}'", .{string}), // TODO escape
             .@"struct" => |@"struct"| {

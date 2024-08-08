@@ -192,22 +192,38 @@ fn parseMake(c: *Compiler, left: sir.ExprData) error{ParseError}!void {
 }
 
 fn parseCallSlash(c: *Compiler, left: sir.ExprData) error{ParseError}!void {
-    emit(c, .call_begin);
-    defer emit(c, .call_end);
-
     try expect(c, .@"/");
     allowNewline(c);
+
+    const buffer_start = bufferLen(c);
     try parseName(c);
-    try expectNoSpace(c);
+    const head = cutBufferAfter(c, buffer_start);
 
-    emit(c, .object_begin);
-    defer emit(c, .object_end);
+    if (!peekSpace(c) and takeIf(c, .@"(")) {
+        emit(c, .call_begin);
+        defer emit(c, .call_end);
 
-    try expect(c, .@"(");
-    emit(c, .{ .i64 = 0 });
-    emit(c, left);
-    try parseArgsInner(c, .@")", 1);
-    try expect(c, .@")");
+        emit(c, head);
+
+        emit(c, .object_begin);
+        defer emit(c, .object_end);
+
+        emit(c, .{ .i64 = 0 });
+        emit(c, left);
+        try parseArgsInner(c, .@")", 1);
+        try expect(c, .@")");
+    } else {
+        emit(c, .make_begin);
+        defer emit(c, .make_end);
+
+        emit(c, head);
+
+        emit(c, .object_begin);
+        defer emit(c, .object_end);
+
+        emit(c, .{ .i64 = 0 });
+        emit(c, left);
+    }
 }
 
 fn parseRefTo(c: *Compiler, left: sir.ExprData) error{ParseError}!void {

@@ -523,8 +523,7 @@ fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { 
 
 fn popValue(c: *Compiler) error{InferError}!Value {
     const repr = c.repr_stack.pop();
-    return repr.valueOf() orelse
-        fail(c, .{ .value_not_staged = repr });
+    return repr.valueOf() orelse fail(c, .{ .value_not_staged = repr });
 }
 
 fn emit(c: *Compiler, f: *tir.FunData, expr: tir.ExprData, repr: ?Repr) void {

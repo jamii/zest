@@ -1168,6 +1168,15 @@ i64[42]
 ```
 
 ```
+f = (x) i64[x]
+f(42)
+
+42
+
+42
+```
+
+```
 a = struct[x: i64, y: i64][[x: 42, y: 101]]
 a.y
 
@@ -1393,4 +1402,74 @@ x.0
 2
 
 2
+```
+
+```
+42 + 1/i64
+
+43
+
+43
+```
+
+```
+42 + 1/u32
+
+Cannot call zest.Builtin.add with these args: { 42, 1 }
+
+Cannot call zest.Builtin.add with these args: { i64, u32 }
+```
+
+```
+x/i64 = 42
+x + 1
+
+43
+
+43
+```
+
+```
+x/u32 = 42
+x + 1
+
+Cannot call zest.Builtin.add with these args: { 42, 1 }
+
+Cannot call zest.Builtin.add with these args: { u32, i64 }
+```
+
+```
+f = (x/i64) x + 1
+f(1)
+
+2
+
+2
+```
+
+```
+f = (x/i64) x + 1
+f(1/u32)
+
+Expected i64, found u32
+
+Expected i64, found u32
+```
+
+```
+f = (struct[i64, i64][x]) x.1
+f([101,42])
+
+42
+
+42
+```
+
+```
+f = (struct[i64, i64][x]) x.1
+f([101,42,32])
+
+Expected struct[i64, i64], found struct[i64, i64, i64]
+
+Expected struct[i64, i64], found struct[i64, i64, i64]
 ```
