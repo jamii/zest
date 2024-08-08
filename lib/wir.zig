@@ -20,7 +20,7 @@ pub const Walue = union(enum) {
     @"return",
     local: Local,
     shadow,
-    stack: wasm.Valtype,
+    stack: Repr, // must be primitive
     i32: i32,
     @"struct": struct {
         repr: ReprStruct,

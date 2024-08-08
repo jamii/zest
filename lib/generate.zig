@@ -233,9 +233,9 @@ fn genExprOrNull(
             .stack => {
                 const repr = walueRepr(c, f, result);
                 switch (wasmRepr(repr)) {
-                    .primitive => |valtype| {
+                    .primitive => {
                         load(c, f, result);
-                        return .{ .stack = valtype };
+                        return .{ .stack = repr };
                     },
                     .heap => {
                         loadPtrTo(c, f, result);
@@ -445,7 +445,7 @@ fn genExprInner(
                 _ = take(c, tir_f).call_end;
                 const output_repr = c.tir_fun_data.get(tir_fun).return_repr.one;
                 const output = switch (wasmRepr(output_repr)) {
-                    .primitive => |valtype| wir.Walue{ .stack = valtype },
+                    .primitive => wir.Walue{ .stack = output_repr },
                     .heap => wir.Walue{ .value_at = .{
                         .ptr = c.box(if (dest == .value_at) dest.value_at.* else shadowPush(c, f, output_repr)),
                         .repr = output_repr,
@@ -713,11 +713,12 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             const valtype = switch (from_local) {
                 .closure, .arg, .@"return", .shadow => .i32,
                 .local => |local| f.local_data.get(local).type,
-                .stack => |valtype| valtype: {
-                    from_local = .{ .local = getShuffler(f, valtype) };
+                .stack => |repr| valtype: {
+                    const stack_valtype = wasmRepr(repr).primitive;
+                    from_local = .{ .local = getShuffler(f, stack_valtype) };
                     emitEnum(f, wasm.Opcode.local_set);
                     emitLebU32(f, wasmLocal(c, f, from_local));
-                    break :valtype valtype;
+                    break :valtype stack_valtype;
                 },
                 else => unreachable,
             };
@@ -863,9 +864,9 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
 
 fn copy(c: *Compiler, f: *wir.FunData, value_at: std.meta.FieldType(wir.Walue, .value_at)) wir.Walue {
     switch (wasmRepr(value_at.repr)) {
-        .primitive => |valtype| {
+        .primitive => {
             load(c, f, .{ .value_at = value_at });
-            return .{ .stack = valtype };
+            return .{ .stack = value_at.repr };
         },
         .heap => {
             const ptr = copyToShadow(c, f, .{ .value_at = value_at }, value_at.repr);
@@ -920,8 +921,8 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
         .closure, .arg, .@"return", .local, .shadow, .i32 => {
             return walue;
         },
-        .stack => |valtype| {
-            const local = f.local_data.append(.{ .type = valtype });
+        .stack => |repr| {
+            const local = f.local_data.append(.{ .type = wasmRepr(repr).primitive });
             emitEnum(f, wasm.Opcode.local_set);
             emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
             return .{ .local = local };
@@ -980,7 +981,7 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
     _ = c;
     return switch (walue) {
         .closure, .arg, .@"return", .shadow, .i32, .add => .i32,
-        .stack => |valtype| valtypeRepr(valtype),
+        .stack => |repr| repr,
         .local => |local| valtypeRepr(f.local_data.get(local).type),
         .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
         .fun => |fun| .{ .fun = fun.repr },
