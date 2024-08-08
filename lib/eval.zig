@@ -421,7 +421,7 @@ pub fn evalExpr(
                             return fail(c, .{ .type_error = .{ .expected = repr, .found = args.reprOf() } });
                         c.value_stack.append(args) catch oom();
                     },
-                    .@"union", .fun, .only, .ref => panic("TODO {}", .{head}),
+                    .@"union", .fun, .only, .ref => return fail(c, .todo),
                 },
                 .repr_kind => |repr_kind| switch (repr_kind) {
                     .@"struct" => {
@@ -433,7 +433,7 @@ pub fn evalExpr(
                         }
                         c.value_stack.append(.{ .repr = .{ .@"struct" = .{ .keys = args.@"struct".repr.keys, .reprs = reprs } } }) catch oom();
                     },
-                    .only => panic("TODO {}", .{head}),
+                    .only => return fail(c, .todo),
                 },
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
             }
