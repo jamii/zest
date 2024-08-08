@@ -161,14 +161,17 @@ pub fn evalExpr(
     expr_data: dir.ExprData,
 ) error{EvalError}!void {
     switch (expr_data) {
-        .i32 => |i| {
-            c.value_stack.append(.{ .i32 = i }) catch oom();
+        .i64 => |i| {
+            c.value_stack.append(.{ .i64 = i }) catch oom();
         },
         .string => |string| {
             c.value_stack.append(.{ .string = string }) catch oom();
         },
-        .repr_i32 => {
-            c.value_stack.append(.{ .repr = .i32 }) catch oom();
+        .repr_u32 => {
+            c.value_stack.append(.{ .repr = .u32 }) catch oom();
+        },
+        .repr_i64 => {
+            c.value_stack.append(.{ .repr = .i64 }) catch oom();
         },
         .repr_string => {
             c.value_stack.append(.{ .repr = .string }) catch oom();
@@ -238,7 +241,7 @@ pub fn evalExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .i32, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
             }
             c.value_stack.append(value) catch oom();
         },
@@ -304,91 +307,102 @@ pub fn evalExpr(
                 .equal => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = if (arg0.i32 == arg1.i32) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
                 },
                 .less_than => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = if (arg0.i32 < arg1.i32) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (arg0.i64 < arg1.i64) 1 else 0 }) catch oom();
                 },
                 .less_than_or_equal => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = if (arg0.i32 <= arg1.i32) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (arg0.i64 <= arg1.i64) 1 else 0 }) catch oom();
                 },
                 .more_than => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = if (arg0.i32 > arg1.i32) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (arg0.i64 > arg1.i64) 1 else 0 }) catch oom();
                 },
                 .more_than_or_equal => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = if (arg0.i32 >= arg1.i32) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (arg0.i64 >= arg1.i64) 1 else 0 }) catch oom();
                 },
                 .add => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = arg0.i64 +% arg1.i64 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .u32 = arg0.u32 +% arg1.u32 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = arg0.i32 +% arg1.i32 }) catch oom();
+                    }
                 },
                 .subtract => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = arg0.i64 -% arg1.i64 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .u32 = arg0.u32 -% arg1.u32 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = arg0.i32 -% arg1.i32 }) catch oom();
+                    }
                 },
                 .multiply => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = arg0.i64 *% arg1.i64 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .u32 = arg0.u32 *% arg1.u32 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i32 = arg0.i32 *% arg1.i32 }) catch oom();
+                    }
                 },
-                // TODO Should use u32 for all memory builtins.
                 .@"memory-size" => {
                     const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
-                    c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
+                    c.value_stack.append(.{ .u32 = @intCast(page_count) }) catch oom();
                 },
                 .@"memory-grow" => {
                     // TODO Should we have a limit on heap size?
                     const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
                     const grow_page_count = c.value_stack.pop();
-                    if (grow_page_count != .i32)
+                    if (grow_page_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{grow_page_count}) } });
-                    c.memory.appendNTimes(0, @as(usize, @intCast(grow_page_count.i32)) * std.wasm.page_size) catch oom();
-                    c.value_stack.append(.{ .i32 = @intCast(page_count) }) catch oom();
+                    c.memory.appendNTimes(0, @as(usize, @intCast(grow_page_count.u32)) * std.wasm.page_size) catch oom();
+                    c.value_stack.append(.{ .u32 = @intCast(page_count) }) catch oom();
                 },
                 .@"heap-start" => {
-                    c.value_stack.append(.{ .i32 = 0 }) catch oom();
+                    c.value_stack.append(.{ .u32 = 0 }) catch oom();
                 },
                 .load => {
                     const repr = c.value_stack.pop();
                     const address = c.value_stack.pop();
-                    if (address != .i32 or repr != .repr)
+                    if (address != .u32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
-                    const address_usize = try boundsCheck(c, .load, address.i32, repr.repr);
+                    const address_usize = try boundsCheck(c, .load, address.u32, repr.repr);
                     const loaded = Value.load(c.allocator, c.memory.items[address_usize..], repr.repr);
                     c.value_stack.append(loaded) catch oom();
                 },
                 .store => {
                     const value = c.value_stack.pop();
                     const address = c.value_stack.pop();
-                    if (address != .i32)
+                    if (address != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, value }) } });
-                    const address_usize = try boundsCheck(c, .store, address.i32, value.reprOf());
+                    const address_usize = try boundsCheck(c, .store, address.u32, value.reprOf());
                     value.store(c.memory.items[address_usize..]);
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
@@ -397,7 +411,7 @@ pub fn evalExpr(
                     if (repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{repr}) } });
                     const size = repr.repr.sizeOf();
-                    c.value_stack.append(.{ .i32 = @intCast(size) }) catch oom();
+                    c.value_stack.append(.{ .u32 = @intCast(size) }) catch oom();
                 },
                 else => return fail(c, .todo),
             }
@@ -406,19 +420,29 @@ pub fn evalExpr(
             const args = c.value_stack.pop();
             const head = c.value_stack.pop();
             switch (head) {
-                .repr => |repr| switch (repr) {
-                    .i32, .string, .repr, .repr_kind => {
+                .repr => |to_repr| switch (to_repr) {
+                    .u32, .i64, .string, .repr, .repr_kind => {
                         if (args.@"struct".repr.keys.len != 1 or
-                            args.@"struct".repr.keys[0] != .i32 or
-                            args.@"struct".repr.keys[0].i32 != 0)
+                            args.@"struct".repr.keys[0] != .i64 or
+                            args.@"struct".repr.keys[0].i64 != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        if (!args.@"struct".repr.reprs[0].equal(repr))
-                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args.@"struct".repr.reprs[0] } });
-                        c.value_stack.append(args.@"struct".values[0]) catch oom();
+                        const from_repr = args.@"struct".repr.reprs[0];
+                        const from_value = args.@"struct".values[0];
+                        if (from_repr.equal(to_repr)) {
+                            c.value_stack.append(from_value) catch oom();
+                        } else if (from_repr == .i64 and to_repr == .u32) {
+                            if (std.math.cast(u32, from_value.i64)) |converted| {
+                                c.value_stack.append(.{ .u32 = converted }) catch oom();
+                            } else {
+                                return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
+                            }
+                        } else {
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        }
                     },
                     .@"struct" => {
-                        if (!args.reprOf().equal(repr))
-                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args.reprOf() } });
+                        if (!args.reprOf().equal(to_repr))
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = args.reprOf() } });
                         c.value_stack.append(args) catch oom();
                     },
                     .@"union", .fun, .only, .ref => return fail(c, .todo),
@@ -458,9 +482,9 @@ pub fn evalExpr(
         .if_begin => {},
         .if_then => {
             const cond = c.value_stack.pop();
-            if (cond != .i32)
+            if (cond != .i64)
                 return fail(c, .{ .not_a_bool = cond });
-            if (cond.i32 == 0)
+            if (cond.i64 == 0)
                 skipExpr(c, .if_else);
         },
         .if_else => {
@@ -473,9 +497,9 @@ pub fn evalExpr(
         },
         .while_body => {
             const cond = c.value_stack.pop();
-            if (cond != .i32)
+            if (cond != .i64)
                 return fail(c, .{ .not_a_bool = cond });
-            if (cond.i32 == 0) {
+            if (cond.i64 == 0) {
                 _ = c.while_stack.pop();
                 c.value_stack.append(Value.emptyStruct()) catch oom();
                 skipExpr(c, .while_end);
@@ -515,7 +539,7 @@ fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
     }
 }
 
-fn boundsCheck(c: *Compiler, op: anytype, address: i32, repr: Repr) error{EvalError}!usize {
+fn boundsCheck(c: *Compiler, op: anytype, address: i64, repr: Repr) error{EvalError}!usize {
     if (address < 0)
         return fail(c, .{ .out_of_bounds = .{
             .op = .load,
@@ -544,6 +568,10 @@ pub const EvalErrorData = union(enum) {
     type_error: struct {
         expected: Repr,
         found: Repr,
+    },
+    convert_error: struct {
+        expected: Repr,
+        found: Value,
     },
     key_not_found: struct {
         object: Value,
@@ -574,7 +602,7 @@ pub const EvalErrorData = union(enum) {
     out_of_bounds: struct {
         op: enum { load, store },
         repr: Repr,
-        address: i32,
+        address: i64,
     },
     todo,
 };

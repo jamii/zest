@@ -26,8 +26,8 @@ pub const LocalData = struct {
 pub const Expr = struct { id: usize };
 
 pub const ExprData = union(enum) {
-    i32: i32,
-    f32: f32,
+    i64: i64,
+    f64: f64,
     string: []const u8,
     closure,
     arg: Arg,
@@ -58,8 +58,10 @@ pub const ExprData = union(enum) {
     call_builtin_begin: BuiltinTyped,
     call_builtin_end,
     make_begin,
-    make_end: struct {
-        to: Repr,
+    make_end: enum {
+        nop_scalar,
+        nop_compound,
+        i64_to_u32,
     },
     block_begin,
     block_last,
@@ -78,24 +80,27 @@ pub const ExprData = union(enum) {
 
 pub const BuiltinTyped = union(enum) {
     dummy, // should never be generated
-    equal_i32,
-    less_than_i32,
-    less_than_or_equal_i32,
-    more_than_i32,
-    more_than_or_equal_i32,
-    add_i32,
-    subtract_i32,
-    multiply_i32,
+    equal_i64,
+    less_than_i64,
+    less_than_or_equal_i64,
+    more_than_i64,
+    more_than_or_equal_i64,
+    add_u32,
+    add_i64,
+    subtract_u32,
+    subtract_i64,
+    multiply_u32,
+    multiply_i64,
     memory_size,
     memory_grow,
     heap_start,
-    size_of: i32,
+    size_of: u32,
     load: Repr,
     store,
 
     pub fn hasSideEffects(builtin: BuiltinTyped) bool {
         return switch (builtin) {
-            .dummy, .equal_i32, .less_than_i32, .less_than_or_equal_i32, .more_than_i32, .more_than_or_equal_i32, .add_i32, .subtract_i32, .multiply_i32, .memory_size, .heap_start, .size_of => false,
+            .dummy, .equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_u32, .add_i64, .subtract_u32, .subtract_i64, .multiply_u32, .multiply_i64, .memory_size, .heap_start, .size_of => false,
             .memory_grow, .load, .store => true,
         };
     }

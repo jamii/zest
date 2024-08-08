@@ -113,15 +113,13 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         // global_shadow
         emitEnum(c, wasm.Valtype.i32);
         emitByte(c, 0x01); // mutable
-        emitEnum(c, wasm.Opcode.i32_const);
-        emitLebI32(c, @intCast(stack_top));
+        emitU32Const(c, stack_top);
         emitEnum(c, wasm.Opcode.end);
 
         // global_heap_start
         emitEnum(c, wasm.Valtype.i32);
         emitByte(c, 0x00); // const
-        emitEnum(c, wasm.Opcode.i32_const);
-        emitLebI32(c, @intCast(stack_top));
+        emitU32Const(c, stack_top);
         emitEnum(c, wasm.Opcode.end);
     }
 
@@ -161,8 +159,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             if (f.shadow_offset_max > 0) {
                 emitEnum(c, wasm.Opcode.global_get);
                 emitLebU32(c, global_shadow);
-                emitEnum(c, wasm.Opcode.i32_const);
-                emitLebI32(c, @intCast(f.shadow_offset_max));
+                emitU32Const(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_sub);
                 if (f.is_leaf) {
                     // Don't need to set global_shadow in leaf functions.
@@ -182,8 +179,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             if (f.shadow_offset_max > 0 and !f.is_leaf) {
                 emitEnum(c, wasm.Opcode.local_get);
                 emitLebU32(c, wasmLocal(c, &f, .shadow));
-                emitEnum(c, wasm.Opcode.i32_const);
-                emitLebI32(c, @intCast(f.shadow_offset_max));
+                emitU32Const(c, @intCast(f.shadow_offset_max));
                 emitEnum(c, wasm.Opcode.i32_add);
                 emitEnum(c, wasm.Opcode.global_set);
                 emitLebU32(c, global_shadow);
@@ -240,7 +236,7 @@ fn genExprOrNull(
                     .heap => {
                         loadPtrTo(c, f, result);
                         return .{ .value_at = .{
-                            .ptr = c.box(wir.Walue{ .stack = .i32 }),
+                            .ptr = c.box(wir.Walue{ .stack = .u32 }),
                             .repr = repr,
                         } };
                     },
@@ -264,8 +260,8 @@ fn genExprInner(
 ) error{GenerateError}!?wir.Walue {
     const expr_data = take(c, tir_f);
     switch (expr_data) {
-        .i32 => |i| {
-            return .{ .i32 = i };
+        .i64 => |i| {
+            return .{ .i64 = i };
         },
         .closure => {
             if (c.inlining) |inlining| {
@@ -466,7 +462,12 @@ fn genExprInner(
                     _ = try genExpr(c, f, tir_f, .nowhere);
                 }
                 _ = take(c, tir_f).call_builtin_end;
-                return .{ .i32 = 0 };
+                return switch (builtin) {
+                    .dummy => panic("Uninitialized builtin", .{}),
+                    .add_u32, .subtract_u32, .multiply_u32 => .{ .u32 = 0 },
+                    .equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64 => .{ .i64 = 0 },
+                    .memory_size, .memory_grow, .heap_start, .size_of, .load, .store => .{ .u32 = 0 },
+                };
             }
             switch (builtin) {
                 .store => {
@@ -484,60 +485,77 @@ fn genExprInner(
             _ = take(c, tir_f).call_builtin_end;
             switch (builtin) {
                 .dummy => panic("Uninitialized builtin", .{}),
-                .equal_i32 => {
-                    emitEnum(f, wasm.Opcode.i32_eq);
-                    return .{ .stack = .i32 };
+                .equal_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_eq);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
                 },
-                .less_than_i32 => {
-                    emitEnum(f, wasm.Opcode.i32_lt_s);
-                    return .{ .stack = .i32 };
+                .less_than_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_lt_s);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
                 },
-                .less_than_or_equal_i32 => {
-                    emitEnum(f, wasm.Opcode.i32_le_s);
-                    return .{ .stack = .i32 };
+                .less_than_or_equal_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_le_s);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
                 },
-                .more_than_i32 => {
-                    emitEnum(f, wasm.Opcode.i32_gt_s);
-                    return .{ .stack = .i32 };
+                .more_than_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_gt_s);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
                 },
-                .more_than_or_equal_i32 => {
-                    emitEnum(f, wasm.Opcode.i32_ge_s);
-                    return .{ .stack = .i32 };
+                .more_than_or_equal_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_ge_s);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
                 },
-                .add_i32 => {
+                .add_u32 => {
                     emitEnum(f, wasm.Opcode.i32_add);
-                    return .{ .stack = .i32 };
+                    return .{ .stack = .u32 };
                 },
-                .subtract_i32 => {
+                .add_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_add);
+                    return .{ .stack = .i64 };
+                },
+                .subtract_u32 => {
                     emitEnum(f, wasm.Opcode.i32_sub);
-                    return .{ .stack = .i32 };
+                    return .{ .stack = .u32 };
                 },
-                .multiply_i32 => {
+                .subtract_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_sub);
+                    return .{ .stack = .i64 };
+                },
+                .multiply_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_mul);
+                    return .{ .stack = .i64 };
+                },
+                .multiply_u32 => {
                     emitEnum(f, wasm.Opcode.i32_mul);
-                    return .{ .stack = .i32 };
+                    return .{ .stack = .u32 };
                 },
                 .memory_size => {
                     emitEnum(f, wasm.Opcode.memory_size);
                     emitLebU32(f, 0); // memory
-                    return .{ .stack = .i32 };
+                    return .{ .stack = .u32 };
                 },
                 .memory_grow => {
                     emitEnum(f, wasm.Opcode.memory_grow);
                     emitLebU32(f, 0); // memory
-                    return .{ .stack = .i32 };
+                    return .{ .stack = .u32 };
                 },
                 .heap_start => {
                     // TODO Could add heap_start to Walue to avoid an extra local here.
                     emitEnum(f, wasm.Opcode.global_get);
                     emitLebU32(f, global_heap_start);
-                    return .{ .stack = .i32 };
+                    return .{ .stack = .u32 };
                 },
                 .size_of => |size_of| {
-                    return .{ .i32 = size_of };
+                    return .{ .u32 = size_of };
                 },
                 .load => |repr| {
                     return wir.Walue{ .value_at = .{
-                        .ptr = c.box(wir.Walue{ .stack = .i32 }),
+                        .ptr = c.box(wir.Walue{ .stack = .u32 }),
                         .repr = repr,
                     } };
                 },
@@ -548,11 +566,20 @@ fn genExprInner(
             // TODO This is a silly blocker of dest.
             const args = try genExpr(c, f, tir_f, .anywhere);
             const make_end = take(c, tir_f).make_end;
-            return switch (make_end.to) {
-                .i32, .string, .repr, .repr_kind => args.@"struct".values[0],
-                .@"struct" => args,
-                .@"union", .fun, .only, .ref => panic("TODO", .{}),
-            };
+            switch (make_end) {
+                .nop_scalar => {
+                    return args.@"struct".values[0];
+                },
+                .nop_compound => {
+                    return args;
+                },
+                .i64_to_u32 => {
+                    // TODO Check for under/overflow.
+                    load(c, f, args.@"struct".values[0]);
+                    emitEnum(f, wasm.Opcode.i32_wrap_i64);
+                    return .{ .stack = .u32 };
+                },
+            }
         },
         .block_begin => {
             // TODO reset shadow
@@ -590,12 +617,12 @@ fn genExprInner(
         .if_begin => |repr| {
             const cond = try genExpr(c, f, tir_f, .anywhere);
 
-            if (cond == .i32) {
+            if (cond == .i64) {
                 var value: ?wir.Walue = null;
                 _ = take(c, tir_f).if_then;
-                if (cond.i32 == 0) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
+                if (cond.i64 == 0) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
                 _ = take(c, tir_f).if_else;
-                if (cond.i32 != 0) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
+                if (cond.i64 != 0) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
                 _ = take(c, tir_f).if_end;
                 return value.?;
             }
@@ -643,18 +670,18 @@ fn genExprInner(
             emitByte(f, wasm.block_empty);
 
             const cond = try genExpr(c, f, tir_f, .anywhere);
-            if (cond == .i32 and cond.i32 == 0) {
+            if (cond == .i64 and cond.i64 == 0) {
                 _ = take(c, tir_f).while_body;
                 skipTree(c, tir_f);
                 _ = take(c, tir_f).while_end;
                 emitEnum(f, wasm.Opcode.end);
                 emitEnum(f, wasm.Opcode.end);
                 return wir.Walue.emptyStruct();
-            } else if (cond == .i32 and cond.i32 == 1) {
+            } else if (cond == .i64 and cond.i64 == 1) {
                 // Don't bother with branch.
             } else {
                 load(c, f, cond);
-                emitEnum(f, wasm.Opcode.i32_eqz);
+                emitEnum(f, wasm.Opcode.i64_eqz);
                 emitEnum(f, wasm.Opcode.br_if);
                 emitLebU32(f, 1);
             }
@@ -685,7 +712,7 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {
     const offset = f.shadow_offset_next;
     f.shadow_offset_next += repr.sizeOf();
     if (f.shadow_offset_next > 0 and f.local_shadow == null)
-        f.local_shadow = f.local_data.append(.{ .repr = .{ .ref = c.box(repr) } });
+        f.local_shadow = f.local_data.append(.{ .repr = .u32 });
     f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
     return .{ .add = .{
         .walue = c.box(wir.Walue{ .shadow = {} }),
@@ -708,23 +735,20 @@ fn asAdd(c: *Compiler, walue: wir.Walue) std.meta.FieldType(wir.Walue, .add) {
 
 fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue) void {
     switch (from_value) {
-        .closure, .arg, .@"return", .local, .shadow, .stack => {
-            var from_local = from_value;
-            const valtype = switch (from_local) {
-                .closure, .arg, .@"return", .shadow => .i32,
-                .local => |local| wasmRepr(f.local_data.get(local).repr).primitive,
-                .stack => |repr| valtype: {
-                    from_local = .{ .local = getShuffler(f, repr) };
-                    emitEnum(f, wasm.Opcode.local_set);
-                    emitLebU32(f, wasmLocal(c, f, from_local));
-                    break :valtype wasmRepr(repr).primitive;
-                },
-                else => unreachable,
-            };
-            storePrimitive(c, f, from_local, to_ptr, valtype);
+        .closure, .arg, .@"return", .local, .shadow => {
+            storePrimitive(c, f, from_value, to_ptr, wasmAbi(walueRepr(c, f, from_value)));
         },
-        .i32, .add => {
+        .stack => |repr| {
+            const local = getShuffler(f, repr);
+            emitEnum(f, wasm.Opcode.local_set);
+            emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
+            storePrimitive(c, f, .{ .local = local }, to_ptr, wasmAbi(repr));
+        },
+        .u32, .add => {
             storePrimitive(c, f, from_value, to_ptr, .i32);
+        },
+        .i64 => {
+            storePrimitive(c, f, from_value, to_ptr, .i64);
         },
         .@"struct" => |@"struct"| {
             const to_ptr_spilled = spillStack(c, f, to_ptr);
@@ -750,8 +774,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             if (byte_count > 64) {
                 load(c, f, to_ptr);
                 load(c, f, from_ptr);
-                emitEnum(f, wasm.Opcode.i32_const);
-                emitLebI32(f, @intCast(byte_count));
+                emitU32Const(f, @intCast(byte_count));
                 emitEnum(f, wasm.Opcode.misc_prefix);
                 emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
                 emitLebU32(f, 0); // memory from
@@ -793,14 +816,13 @@ fn storePrimitive(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: 
     const to_add = asAdd(c, to_ptr);
     load(c, f, to_add.walue.*);
     load(c, f, from_value);
-    switch (valtype) {
-        .i32 => {
-            emitEnum(f, wasm.Opcode.i32_store);
-            emitLebU32(f, 0); // align
-            emitLebU32(f, to_add.offset);
-        },
+    emitEnum(f, switch (valtype) {
+        .i32 => wasm.Opcode.i32_store,
+        .i64 => wasm.Opcode.i64_store,
         else => panic("Unimplemented", .{}),
-    }
+    });
+    emitLebU32(f, 0); // align
+    emitLebU32(f, to_add.offset);
 }
 
 fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
@@ -810,29 +832,30 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             emitLebU32(f, wasmLocal(c, f, from_value));
         },
         .stack => {},
-        .i32 => |i| {
-            emitEnum(f, wasm.Opcode.i32_const);
-            emitLebI32(f, i);
+        .u32 => |i| {
+            emitU32Const(f, i);
+        },
+        .i64 => |i| {
+            emitEnum(f, wasm.Opcode.i64_const);
+            emitLebI64(f, i);
         },
         .@"struct", .fun => panic("Can't load from {}", .{from_value}),
         .value_at => |value_at| {
             const from_add = asAdd(c, value_at.ptr.*);
             load(c, f, from_add.walue.*);
-            switch (value_at.repr) {
-                .i32, .ref => {
-                    emitEnum(f, wasm.Opcode.i32_load);
-                    emitLebU32(f, 0); // align
-                    emitLebU32(f, from_add.offset);
-                },
+            emitEnum(f, switch (value_at.repr) {
+                .u32, .ref => wasm.Opcode.i32_load,
+                .i64 => wasm.Opcode.i64_load,
                 else => panic("Can't load repr {}", .{value_at.repr}),
-            }
+            });
+            emitLebU32(f, 0); // align
+            emitLebU32(f, from_add.offset);
         },
         .add => |add| {
             const from_add = asAdd(c, from_value);
             load(c, f, from_add.walue.*);
             if (add.offset != 0) {
-                emitEnum(f, wasm.Opcode.i32_const);
-                emitLebI32(f, @intCast(add.offset));
+                emitU32Const(f, add.offset);
                 emitEnum(f, wasm.Opcode.i32_add);
             }
         },
@@ -844,15 +867,14 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
         .closure, .arg, .@"return", .local, .shadow => {
             panic("Can't point to local: {}", .{from_value});
         },
-        .stack, .i32, .@"struct", .fun => {
+        .stack, .u32, .i64, .@"struct", .fun => {
             const repr = walueRepr(c, f, from_value);
             const ptr = copyToShadow(c, f, from_value, repr);
             load(c, f, ptr);
         },
         .value_at => |value_at| {
             if (value_at.repr.sizeOf() == 0) {
-                emitEnum(f, wasm.Opcode.i32_const);
-                emitLebI32(f, 0);
+                emitU32Const(f, 0);
             } else {
                 load(c, f, value_at.ptr.*);
             }
@@ -876,7 +898,7 @@ fn copy(c: *Compiler, f: *wir.FunData, value_at: std.meta.FieldType(wir.Walue, .
 
 fn copyToShadow(c: *Compiler, f: *wir.FunData, value: wir.Walue, repr: Repr) wir.Walue {
     if (repr.sizeOf() == 0) {
-        return .{ .i32 = 0 };
+        return .{ .u32 = 0 };
     } else {
         const tmp = shadowPush(c, f, repr);
         store(c, f, value, tmp);
@@ -893,12 +915,13 @@ fn getShuffler(f: *wir.FunData, repr: Repr) wir.Local {
 
 fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .i32, .@"struct", .fun => return walue,
-        .stack => |valtype| {
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .@"struct", .fun => return walue,
+        .stack => |repr| {
             emitEnum(f, wasm.Opcode.drop);
-            return switch (valtype) {
-                .i32 => .{ .i32 = 0 },
-                else => panic("TODO {}", .{valtype}),
+            return switch (repr) {
+                .u32, .ref => .{ .u32 = 0 },
+                .i64 => .{ .i64 = 0 },
+                else => panic("TODO {}", .{repr}),
             };
         },
         .value_at => |value_at| {
@@ -918,7 +941,7 @@ fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
 
 fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .i32 => {
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64 => {
             return walue;
         },
         .stack => |repr| {
@@ -953,16 +976,17 @@ const WasmRepr = union(enum) {
 
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
-        .i32, .ref => .{ .primitive = wasmAbi(repr) },
+        .u32, .i64, .ref => .{ .primitive = wasmAbi(repr) },
         .string, .@"struct", .@"union", .fun, .only, .repr, .repr_kind => .heap,
     };
 }
 
 fn wasmAbi(repr: Repr) wasm.Valtype {
     return switch (repr) {
-        .i32, .ref => .i32,
-        // Pointer to heap.
-        .string, .@"struct", .@"union", .fun, .only, .repr, .repr_kind => .i32,
+        .u32 => .i32,
+        .i64 => .i64,
+        // Pointers.
+        .string, .@"struct", .@"union", .fun, .only, .ref, .repr, .repr_kind => .i32,
     };
 }
 
@@ -973,14 +997,15 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
         .@"return" => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len - 1),
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .i32, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
+        .stack, .u32, .i64, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
     };
 }
 
 fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
-    _ = c;
     return switch (walue) {
-        .closure, .arg, .@"return", .shadow, .i32, .add => .i32,
+        .arg => |arg| c.tir_fun_data.get(f.tir_fun).key.arg_reprs[arg.id],
+        .closure, .@"return", .shadow, .u32, .add => .u32,
+        .i64 => .i64,
         .stack => |repr| repr,
         .local => |local| f.local_data.get(local).repr,
         .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
@@ -1031,6 +1056,12 @@ fn emitEnum(c: anytype, e: anytype) void {
         else => @compileError(@typeName(@TypeOf(e))),
     }
     c.wasm.append(@intFromEnum(e)) catch oom();
+}
+
+fn emitU32Const(c: anytype, i: u32) void {
+    emitEnum(c, wasm.Opcode.i32_const);
+    // Want i32 encoding, but cast to i64 to avoid overflow.
+    emitLebI64(c, @intCast(i));
 }
 
 fn emitBytes(c: anytype, bs: []const u8) void {

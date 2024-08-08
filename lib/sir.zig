@@ -6,9 +6,8 @@ const Builtin = zest.Builtin;
 pub const Expr = struct { id: usize };
 
 pub const ExprData = union(enum) {
-    // TODO Replace i32/f32 with bigInt/bigDec
-    i32: i32,
-    f32: f32,
+    i64: i64,
+    f64: f64,
     string: []const u8,
     name: struct {
         name: []const u8,

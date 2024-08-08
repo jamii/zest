@@ -21,7 +21,8 @@ pub const Walue = union(enum) {
     local: Local,
     shadow,
     stack: Repr, // must be primitive
-    i32: i32,
+    u32: u32,
+    i64: i64,
     @"struct": struct {
         repr: ReprStruct,
         values: []Walue, // may not contain .stack

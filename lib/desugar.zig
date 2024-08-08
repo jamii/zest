@@ -43,9 +43,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
         .name, .get_begin, .ref_to_begin => {
             try desugarPath(c, f);
         },
-        .i32 => |i| {
-            _ = take(c).i32;
-            emit(c, f, .{ .i32 = i });
+        .i64 => |i| {
+            _ = take(c).i64;
+            emit(c, f, .{ .i64 = i });
         },
         .string => |string| {
             _ = take(c).string;

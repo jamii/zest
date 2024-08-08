@@ -8,7 +8,8 @@ const deepEqual = zest.deepEqual;
 const dir = zest.dir;
 
 pub const Repr = union(enum) {
-    i32,
+    u32,
+    i64,
     string,
     @"struct": ReprStruct,
     @"union": ReprUnion,
@@ -47,7 +48,8 @@ pub const Repr = union(enum) {
 
     pub fn sizeOf(self: Repr) usize {
         return switch (self) {
-            .i32 => 4,
+            .u32 => 4,
+            .i64 => 8,
             .string => panic("TODO {}", .{self}),
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
@@ -69,7 +71,7 @@ pub const Repr = union(enum) {
                 .{ .fun = .{ .repr = fun, .closure = closure.values } }
             else
                 null,
-            .i32, .string, .@"union", .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .@"union", .ref, .repr, .repr_kind => null,
         };
     }
 
@@ -78,7 +80,7 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.print("{s}", .{@tagName(self)});
         switch (self) {
-            .i32, .string, .repr => {},
+            .u32, .i64, .string, .repr => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var positional = true;
@@ -86,7 +88,7 @@ pub const Repr = union(enum) {
                     if (i != 0) {
                         try writer.writeAll(", ");
                     }
-                    if (positional and key == .i32 and key.i32 == i) {
+                    if (positional and key == .i64 and key.i64 == i) {
                         try writer.print("{}", .{repr});
                     } else {
                         positional = false;
@@ -110,7 +112,7 @@ pub const Repr = union(enum) {
 
     pub fn hasRef(self: Repr, kind: enum { any, visible }) bool {
         return switch (self) {
-            .i32, .string => {
+            .u32, .i64, .string => {
                 return false;
             },
             .@"struct" => |@"struct"| {
@@ -192,7 +194,7 @@ pub const ReprUnion = struct {
     pub fn sizeOf(self: ReprUnion) usize {
         var size: usize = 0;
         for (self.reprs) |repr| size = @max(size, repr.sizeOf());
-        size += 4; // An i32 tag.
+        size += 4; // A u32 tag.
         return size;
     }
 };

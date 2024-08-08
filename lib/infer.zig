@@ -132,8 +132,8 @@ fn inferExpr(
     expr_data: dir.ExprData,
 ) error{InferError}!void {
     switch (expr_data) {
-        .i32 => |i| {
-            emit(c, f, .{ .i32 = i }, .i32);
+        .i64 => |i| {
+            emit(c, f, .{ .i64 = i }, .i64);
         },
         //.string => {
         //    emit(c, f, .{ .string = data }, .string);
@@ -187,7 +187,7 @@ fn inferExpr(
             emit(c, f, .{ .local_let_end = local }, null);
         },
         .ref_init_begin => {
-            emit(c, f, .{ .ref_init_begin = Repr.i32 }, null);
+            emit(c, f, .{ .ref_init_begin = Repr.i64 }, null);
             c.fixup_stack.append(f.expr_data.lastKey().?) catch oom();
         },
         .ref_init_end => {
@@ -208,7 +208,7 @@ fn inferExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .i32, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
             }
             c.repr_stack.append(value) catch oom();
         },
@@ -271,88 +271,102 @@ fn inferExpr(
                 .equal => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
 
-                    f.expr_data.getPtr(begin).call_builtin_begin = .equal_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    f.expr_data.getPtr(begin).call_builtin_begin = .equal_i64;
+                    emit(c, f, .call_builtin_end, .i64);
                 },
                 .less_than => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .less_than_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    f.expr_data.getPtr(begin).call_builtin_begin = .less_than_i64;
+                    emit(c, f, .call_builtin_end, .i64);
                 },
                 .less_than_or_equal => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_i64;
+                    emit(c, f, .call_builtin_end, .i64);
                 },
                 .more_than => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .more_than_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    f.expr_data.getPtr(begin).call_builtin_begin = .more_than_i64;
+                    emit(c, f, .call_builtin_end, .i64);
                 },
                 .more_than_or_equal => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_i64;
+                    emit(c, f, .call_builtin_end, .i64);
                 },
                 .add => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .add_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .add_u32;
+                        emit(c, f, .call_builtin_end, .u32);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .add_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    }
                 },
                 .subtract => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .subtract_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .subtract_u32;
+                        emit(c, f, .call_builtin_end, .u32);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .subtract_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    }
                 },
                 .multiply => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i32 or arg1 != .i32)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .multiply_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .multiply_u32;
+                        emit(c, f, .call_builtin_end, .u32);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .multiply_i32;
-                    emit(c, f, .call_builtin_end, .i32);
+                    }
                 },
-                // TODO Should use u32 for all memory builtins.
                 .@"memory-size" => {
                     f.expr_data.getPtr(begin).call_builtin_begin = .memory_size;
-                    emit(c, f, .call_builtin_end, .i32);
+                    emit(c, f, .call_builtin_end, .u32);
                 },
                 .@"memory-grow" => {
                     const grow_page_count = c.repr_stack.pop();
-                    if (grow_page_count != .i32)
+                    if (grow_page_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{grow_page_count}) } });
                     f.expr_data.getPtr(begin).call_builtin_begin = .memory_grow;
-                    emit(c, f, .call_builtin_end, .i32);
+                    emit(c, f, .call_builtin_end, .u32);
                 },
                 .@"heap-start" => {
                     f.expr_data.getPtr(begin).call_builtin_begin = .heap_start;
-                    emit(c, f, .call_builtin_end, .i32);
+                    emit(c, f, .call_builtin_end, .u32);
                 },
                 .load => {
                     const repr = try popValue(c);
                     const address = c.repr_stack.pop();
-                    if (address != .i32 or repr != .repr)
+                    if (address != .u32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, repr.reprOf() }) } });
                     f.expr_data.getPtr(begin).call_builtin_begin = .{ .load = repr.repr };
                     emit(c, f, .call_builtin_end, repr.repr);
@@ -360,7 +374,7 @@ fn inferExpr(
                 .store => {
                     const value = c.repr_stack.pop();
                     const address = c.repr_stack.pop();
-                    if (address != .i32)
+                    if (address != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, value }) } });
                     f.expr_data.getPtr(begin).call_builtin_begin = .store;
                     emit(c, f, .call_builtin_end, Repr.emptyStruct());
@@ -370,7 +384,7 @@ fn inferExpr(
                     if (repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{repr.reprOf()}) } });
                     f.expr_data.getPtr(begin).call_builtin_begin = .{ .size_of = @intCast(repr.repr.sizeOf()) };
-                    emit(c, f, .call_builtin_end, .i32);
+                    emit(c, f, .call_builtin_end, .u32);
                 },
                 else => return fail(c, .todo),
             }
@@ -382,20 +396,26 @@ fn inferExpr(
             const args = c.repr_stack.pop();
             const head = try popValue(c);
             switch (head) {
-                .repr => |repr| switch (repr) {
-                    .i32, .string, .repr, .repr_kind => {
+                .repr => |to_repr| switch (to_repr) {
+                    .u32, .i64, .string, .repr, .repr_kind => {
                         if (args.@"struct".keys.len != 1 or
-                            args.@"struct".keys[0] != .i32 or
-                            args.@"struct".keys[0].i32 != 0)
+                            args.@"struct".keys[0] != .i64 or
+                            args.@"struct".keys[0].i64 != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        if (!args.@"struct".reprs[0].equal(repr))
-                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args.@"struct".reprs[0] } });
-                        emit(c, f, .{ .make_end = .{ .to = repr } }, repr);
+                        const from_repr = args.@"struct".reprs[0];
+                        if (from_repr.equal(to_repr)) {
+                            emit(c, f, .{ .make_end = .nop_scalar }, to_repr);
+                        } else if (from_repr == .i64 and to_repr == .u32) {
+                            // TODO We should only allow this cast when from is a constant walue.
+                            emit(c, f, .{ .make_end = .i64_to_u32 }, to_repr);
+                        } else {
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        }
                     },
                     .@"struct" => {
-                        if (!args.equal(repr))
-                            return fail(c, .{ .type_error = .{ .expected = repr, .found = args } });
-                        emit(c, f, .{ .make_end = .{ .to = repr } }, repr);
+                        if (!args.equal(to_repr))
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = args } });
+                        emit(c, f, .{ .make_end = .nop_compound }, to_repr);
                     },
                     .@"union", .fun, .only, .ref => panic("TODO {}", .{head}),
                 },
@@ -428,7 +448,7 @@ fn inferExpr(
             emit(c, f, .return_end, null);
         },
         .if_begin => {
-            emit(c, f, .{ .if_begin = Repr.i32 }, null);
+            emit(c, f, .{ .if_begin = Repr.i64 }, null);
             c.fixup_stack.append(f.expr_data.lastKey().?) catch oom();
         },
         .if_then => {
@@ -441,7 +461,7 @@ fn inferExpr(
             const @"else" = c.repr_stack.pop();
             const then = c.repr_stack.pop();
             const cond = c.repr_stack.pop();
-            if (cond != .i32)
+            if (cond != .i64)
                 return fail(c, .{ .not_a_bool = cond });
             if (!then.equal(@"else"))
                 return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
@@ -457,7 +477,7 @@ fn inferExpr(
         .while_end => {
             _ = c.repr_stack.pop();
             const cond = c.repr_stack.pop();
-            if (cond != .i32)
+            if (cond != .i64)
                 return fail(c, .{ .not_a_bool = cond });
             emit(c, f, .while_end, Repr.emptyStruct());
         },
@@ -494,7 +514,7 @@ fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr 
 
 fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {
     switch (object) {
-        .i32, .string, .repr, .repr_kind, .fun, .only => return fail(c, .{ .expected_object = object }),
+        .u32, .i64, .string, .repr, .repr_kind, .fun, .only => return fail(c, .{ .expected_object = object }),
         .@"struct" => |@"struct"| {
             const ix = @"struct".get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });

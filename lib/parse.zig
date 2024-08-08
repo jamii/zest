@@ -204,7 +204,7 @@ fn parseCallSlash(c: *Compiler, left: sir.ExprData) error{ParseError}!void {
     defer emit(c, .object_end);
 
     try expect(c, .@"(");
-    emit(c, .{ .i32 = 0 });
+    emit(c, .{ .i64 = 0 });
     emit(c, left);
     try parseArgsInner(c, .@")", 1);
     try expect(c, .@")");
@@ -254,19 +254,19 @@ fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
         const range0 = c.token_to_source.get(.{ .id = c.token_next.id - 3 });
         const range1 = c.token_to_source.get(.{ .id = c.token_next.id - 1 });
         const text = c.source[range0[0]..range1[1]];
-        const num = std.fmt.parseFloat(f32, text) catch |err|
-            return fail(c, .{ .parse_f32 = switch (err) {
+        const num = std.fmt.parseFloat(f64, text) catch |err|
+            return fail(c, .{ .parse_f64 = switch (err) {
             error.InvalidCharacter => .invalid_character,
         } });
-        emit(c, .{ .f32 = num });
+        emit(c, .{ .f64 = num });
     } else {
         const text = lastTokenText(c);
-        const num = std.fmt.parseInt(i32, text, 10) catch |err|
-            return fail(c, .{ .parse_i32 = switch (err) {
+        const num = std.fmt.parseInt(i64, text, 10) catch |err|
+            return fail(c, .{ .parse_i64 = switch (err) {
             error.Overflow => .overflow,
             error.InvalidCharacter => .invalid_character,
         } });
-        emit(c, .{ .i32 = num });
+        emit(c, .{ .i64 = num });
     }
 }
 
@@ -313,7 +313,7 @@ fn parseNegate(c: *Compiler) error{ParseError}!void {
     defer emit(c, .call_builtin_end);
 
     try expect(c, .@"-");
-    emit(c, .{ .i32 = 0 });
+    emit(c, .{ .i64 = 0 });
     try parseExprAtom(c, .{});
 }
 
@@ -357,11 +357,11 @@ fn parseArgs(c: *Compiler, end: TokenData) error{ParseError}!void {
     try parseArgsInner(c, end, 0);
 }
 
-fn parseArgsInner(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}!void {
+fn parseArgsInner(c: *Compiler, end: TokenData, start_ix: i64) error{ParseError}!void {
     allowNewline(c);
 
     // ix set to null when positional args are no longer allowed
-    var ix: ?i32 = start_ix;
+    var ix: ?i64 = start_ix;
     while (peek(c) != end) {
         if (takeIf(c, .@":")) {
             // Looks like `:name`
@@ -381,7 +381,7 @@ fn parseArgsInner(c: *Compiler, end: TokenData, start_ix: i32) error{ParseError}
                 // Looks like `value`, desugar to `{ix}: value`
                 if (ix) |key| {
                     const value = cutBufferAfter(c, buffer_start);
-                    emit(c, .{ .i32 = key });
+                    emit(c, .{ .i64 = key });
                     emit(c, value);
                     ix = key + 1;
                 } else {
@@ -495,7 +495,7 @@ pub const ParseErrorData = union(enum) {
     ambiguous_precedence: [2]Builtin,
     invalid_string_escape: u8,
     positional_args_after_keyed_args,
-    parse_i32: enum { overflow, invalid_character },
-    parse_f32: enum { invalid_character },
+    parse_i64: enum { overflow, invalid_character },
+    parse_f64: enum { invalid_character },
     not_a_builtin: []const u8,
 };

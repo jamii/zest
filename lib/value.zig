@@ -15,7 +15,8 @@ const ReprKind = zest.ReprKind;
 const deepEqual = zest.deepEqual;
 
 pub const Value = union(enum) {
-    i32: i32,
+    u32: u32,
+    i64: i64,
     string: []const u8,
     @"struct": ValueStruct,
     @"union": ValueUnion,
@@ -27,7 +28,8 @@ pub const Value = union(enum) {
 
     pub fn reprOf(value: Value) Repr {
         switch (value) {
-            .i32 => return .i32,
+            .u32 => return .u32,
+            .i64 => return .i64,
             .string => return .string,
             .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
             .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
@@ -53,7 +55,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .i32, .string, .fun, .only, .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => panic("TODO", .{}),
         };
@@ -61,7 +63,7 @@ pub const Value = union(enum) {
 
     pub fn getMut(self: *Value, key: Value) ?*Value {
         return switch (self.*) {
-            .i32, .string, .fun, .only, .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
             .@"union" => panic("TODO", .{}),
         };
@@ -71,7 +73,7 @@ pub const Value = union(enum) {
         _ = fmt;
         _ = options;
         switch (self) {
-            .i32 => |i| try writer.print("{}", .{i}),
+            inline .u32, .i64 => |i| try writer.print("{}", .{i}),
             .string => |string| try writer.print("'{s}'", .{string}), // TODO escape
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
@@ -80,7 +82,7 @@ pub const Value = union(enum) {
                     if (i != 0) {
                         try writer.writeAll(", ");
                     }
-                    if (positional and key == .i32 and key.i32 == i) {
+                    if (positional and key == .i64 and key.i64 == i) {
                         try writer.print("{}", .{value});
                     } else {
                         positional = false;
@@ -101,7 +103,7 @@ pub const Value = union(enum) {
 
     pub fn copy(self: Value, allocator: Allocator) Value {
         return switch (self) {
-            .i32 => self,
+            .u32, .i64 => self,
             .string => |string| .{
                 .string = allocator.dupe(u8, string) catch oom(),
             },
@@ -139,8 +141,11 @@ pub const Value = union(enum) {
 
     pub fn load(allocator: Allocator, bytes: []const u8, repr: Repr) Value {
         switch (repr) {
-            .i32 => {
-                return .{ .i32 = std.mem.readInt(i32, bytes[0..@sizeOf(i32)], .little) };
+            .u32 => {
+                return .{ .u32 = std.mem.readInt(u32, bytes[0..@sizeOf(u32)], .little) };
+            },
+            .i64 => {
+                return .{ .i64 = std.mem.readInt(i64, bytes[0..@sizeOf(i64)], .little) };
             },
             .@"struct" => |@"struct"| {
                 const values = allocator.alloc(Value, @"struct".keys.len) catch oom();
@@ -157,8 +162,11 @@ pub const Value = union(enum) {
 
     pub fn store(self: Value, bytes: []u8) void {
         switch (self) {
-            .i32 => |i| {
-                std.mem.writeInt(i32, bytes[0..@sizeOf(i32)], i, .little);
+            .u32 => |i| {
+                std.mem.writeInt(u32, bytes[0..@sizeOf(u32)], i, .little);
+            },
+            .i64 => |i| {
+                std.mem.writeInt(i64, bytes[0..@sizeOf(i64)], i, .little);
             },
             .@"struct" => |@"struct"| {
                 var offset: usize = 0;

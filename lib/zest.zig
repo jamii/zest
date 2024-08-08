@@ -369,8 +369,8 @@ pub const Compiler = struct {
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("{s}", .{@tagName(expr_data)});
                         switch (expr_data) {
-                            .i32 => |i| try writer.print(" {}", .{i}),
-                            .f32 => |i| try writer.print(" {}", .{i}),
+                            .i64 => |i| try writer.print(" {}", .{i}),
+                            .f64 => |i| try writer.print(" {}", .{i}),
                             .string => |s| try writer.print(" {s}", .{s}),
                             .arg => |arg| try writer.print(" a{}", .{arg.id}),
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
@@ -407,8 +407,8 @@ pub const Compiler = struct {
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("{s}", .{@tagName(expr_data)});
                         switch (expr_data) {
-                            .i32 => |i| try writer.print(" {}", .{i}),
-                            .f32 => |i| try writer.print(" {}", .{i}),
+                            .i64 => |i| try writer.print(" {}", .{i}),
+                            .f64 => |i| try writer.print(" {}", .{i}),
                             .string => |s| try writer.print(" {s}", .{s}),
                             .arg => |arg| try writer.print(" a{}", .{arg.id}),
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
@@ -418,7 +418,7 @@ pub const Compiler = struct {
                             .ref_set_end => {},
                             .call_end => |fun| try writer.print(" f{}", .{fun.id}),
                             .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
-                            .make_end => |make_end| try writer.print(" to={}", .{make_end.to}),
+                            .make_end => |make_end| try writer.print(" {}", .{make_end}),
                             .struct_init_end => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
                             .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" /{}", .{repr}),
                             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
@@ -446,8 +446,8 @@ pub const Compiler = struct {
                 try c.printSir(writer, expr_data.indirect, indent);
             } else {
                 switch (expr_data) {
-                    .i32 => |i| try writer.print(" {}", .{i}),
-                    .f32 => |i| try writer.print(" {}", .{i}),
+                    .i64 => |i| try writer.print(" {}", .{i}),
+                    .f64 => |i| try writer.print(" {}", .{i}),
                     .string => |s| try writer.print(" {s}", .{s}),
                     .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
                     .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
@@ -500,8 +500,8 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .ambiguous_precedence => |data| format(c, "At {}: ambigious precedence between {} and {}", .{ source_offset[0], data[0], data[1] }),
                     .invalid_string_escape => |data| format(c, "At {}: invalid string escape \\{}", .{ source_offset[0], data }),
                     .positional_args_after_keyed_args => format(c, "At {}: all positional args must appear before all keyed args", .{source_offset[0]}),
-                    .parse_i32 => |data| format(c, "At {}: invalid i32: {}", .{ source_offset[0], data }),
-                    .parse_f32 => |data| format(c, "At {}: invalid f32: {}", .{ source_offset[0], data }),
+                    .parse_i64 => |data| format(c, "At {}: invalid i64: {}", .{ source_offset[0], data }),
+                    .parse_f64 => |data| format(c, "At {}: invalid f64: {}", .{ source_offset[0], data }),
                     .not_a_builtin => |data| format(c, "At {}: invalid builtin: {s}", .{ source_offset[0], data }),
                 };
             },
@@ -523,6 +523,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
                 return switch (err.data) {
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
+                    .convert_error => |data| format(c, "Can't convert {} to {}", .{ data.found, data.expected }),
                     .key_not_found => |data| format(c, "Key {} not found in {}", .{ data.key, data.object }),
                     .wrong_number_of_keys => |data| format(c, "Expected {} keys, found {} keys", .{ data.expected, data.actual }),
                     .expected_object => |data| format(c, "Expected an object, found: {}", .{data}),

@@ -31,9 +31,10 @@ pub fn fuzz(source: []const u8) void {
         const lax_trimmed = std.mem.trim(u8, lax, "\n");
         const strict_trimmed = std.mem.trim(u8, strict, "\n");
 
+        const result_repr = compiler.tir_fun_data.get(compiler.tir_fun_main.?).return_repr.one;
         if (
-        // Currently can only print i32 from strict - anything else will print 'undefined'.
-        compiler.tir_fun_data.get(compiler.tir_fun_main.?).return_repr.one == .i32 and
+        // Currently can only print integers from strict - anything else will print 'undefined'.
+        (result_repr == .u32 or result_repr == .i64) and
             // Some intrinsics have observably different behaviour depending on the backend.
             std.mem.indexOf(u8, source, "%memory-size(") == null and
             std.mem.indexOf(u8, source, "%memory-grow(") == null and

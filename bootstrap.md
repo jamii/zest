@@ -267,7 +267,7 @@ a(1)
 
 Expected an object, found: 1
 
-Expected an object, found: i32
+Expected an object, found: i64
 ```
 
 ```
@@ -467,9 +467,9 @@ a mut = [x: 1, y: 2]
 a@ = 3
 a
 
-Expected struct['x': i32, 'y': i32], found i32
+Expected struct['x': i64, 'y': i64], found i64
 
-Expected struct['x': i32, 'y': i32], found i32
+Expected struct['x': i64, 'y': i64], found i64
 ```
 
 ```
@@ -477,9 +477,9 @@ a mut = [x: 1, y: 2]
 a.x@ = a
 a.x.x
 
-Expected i32, found struct['x': i32, 'y': i32]
+Expected i64, found struct['x': i64, 'y': i64]
 
-Expected i32, found struct['x': i32, 'y': i32]
+Expected i64, found struct['x': i64, 'y': i64]
 ```
 
 ```
@@ -537,18 +537,18 @@ Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
 a mut = 1
 a@
 
-Expected a value containing no mutable references, found: ref[i32][1]
+Expected a value containing no mutable references, found: ref[i64][1]
 
-Expected a value containing no mutable references, found: ref[i32]
+Expected a value containing no mutable references, found: ref[i64]
 ```
 
 ```
 a mut = 1
 [a@]
 
-Expected a value containing no mutable references, found: [ref[i32][1]]
+Expected a value containing no mutable references, found: [ref[i64][1]]
 
-Expected a value containing no mutable references, found: struct[ref[i32]]
+Expected a value containing no mutable references, found: struct[ref[i64]]
 ```
 
 
@@ -556,18 +556,18 @@ Expected a value containing no mutable references, found: struct[ref[i32]]
 a mut = 1
 b = a@
 
-Expected a value containing no mutable references, found: ref[i32][1]
+Expected a value containing no mutable references, found: ref[i64][1]
 
-Expected a value containing no mutable references, found: ref[i32]
+Expected a value containing no mutable references, found: ref[i64]
 ```
 
 ```
 a mut = 1
 b = [a@]
 
-Expected a value containing no mutable references, found: [ref[i32][1]]
+Expected a value containing no mutable references, found: [ref[i64][1]]
 
-Expected a value containing no mutable references, found: struct[ref[i32]]
+Expected a value containing no mutable references, found: struct[ref[i64]]
 ```
 
 ```
@@ -575,9 +575,9 @@ f = (x) x
 a mut = 1
 f(a@)
 
-Expected a value containing no mutable references, found: ref[i32][1]
+Expected a value containing no mutable references, found: ref[i64][1]
 
-Expected a value containing no mutable references, found: ref[i32]
+Expected a value containing no mutable references, found: ref[i64]
 ```
 
 
@@ -588,7 +588,7 @@ f(a)
 
 Expected a mutable reference, found: 1
 
-Expected a mutable reference, found: i32
+Expected a mutable reference, found: i64
 ```
 
 ```
@@ -807,7 +807,7 @@ a
 
 Cannot call zest.Builtin.add with these args: { 1, [2] }
 
-Cannot call zest.Builtin.add with these args: { i32, struct[i32] }
+Cannot call zest.Builtin.add with these args: { i64, struct[i64] }
 ```
 
 ```
@@ -971,9 +971,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
+Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i32]]]
+Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]
 ```
 
 ```
@@ -992,9 +992,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]['a': ref[i32][42]]
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
 
-Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i32]]]
+Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i64]]]
 ```
 
 ```
@@ -1106,26 +1106,26 @@ f(:opts)
 ```
 
 ```
-i32
+i64
 string
 repr
 42
 
 42
 
-TODO infer: dir.ExprData{ .repr_i32 = void }
+TODO infer: dir.ExprData{ .repr_i64 = void }
 ```
 
 ```
-i32 = 1
+i64 = 1
 
-Name already bound: i32
+Name already bound: i64
 
-Name already bound: i32
+Name already bound: i64
 ```
 
 ```
-[i32: 101].i32
+[i64: 101].i64
 
 101
 
@@ -1133,7 +1133,7 @@ Name already bound: i32
 ```
 
 ```
-[{i32}: 101].{i32}
+[{i64}: 101].{i64}
 
 101
 
@@ -1141,12 +1141,12 @@ Name already bound: i32
 ```
 
 ```
-f = (i32) 42
+f = (i64) 42
 f(0)
 
-Name already bound: i32
+Name already bound: i64
 
-Name already bound: i32
+Name already bound: i64
 ```
 
 ```
@@ -1160,7 +1160,7 @@ TODO infer: dir.ExprData{ .repr_kind_struct = void }
 ```
 
 ```
-i32[42]
+i64[42]
 
 42
 
@@ -1168,7 +1168,7 @@ i32[42]
 ```
 
 ```
-a = struct[x: i32, y: i32][x: 42, y: 101]
+a = struct[x: i64, y: i64][x: 42, y: 101]
 a.y
 
 101
@@ -1177,36 +1177,36 @@ a.y
 ```
 
 ```
-a = struct[x: i32, y: i32][x: 42, y: []]
+a = struct[x: i64, y: i64][x: 42, y: []]
 a.y
 
-Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': struct[]]
+Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
 
-Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': struct[]]
+Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
 ```
 
 ```
-a = struct[x: i32, y: i32][x: 42, z: 101]
+a = struct[x: i64, y: i64][x: 42, z: 101]
 a.y
 
-Expected struct['x': i32, 'y': i32], found struct['x': i32, 'z': i32]
+Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
 
-Expected struct['x': i32, 'y': i32], found struct['x': i32, 'z': i32]
+Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
 ```
 
 ```
-a = struct[x: i32, y: i32][x: 42, y: 101, z: 0]
+a = struct[x: i64, y: i64][x: 42, y: 101, z: 0]
 a.y
 
-Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': i32, 'z': i32]
+Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
 
-Expected struct['x': i32, 'y': i32], found struct['x': i32, 'y': i32, 'z': i32]
+Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
 ```
 
 ```
 a mut = [42]
 // Pointless copy here because make expr blocks dest
-b = struct[struct[i32]][a]
+b = struct[struct[i64]][a]
 b.0.0
 
 42
@@ -1231,7 +1231,7 @@ b.0.0
 ```
 
 ```
-%memory-grow(3)
+%memory-grow(u32[3])
 
 0
 
@@ -1239,8 +1239,8 @@ b.0.0
 ```
 
 ```
-%memory-grow(3)
-%memory-grow(4)
+%memory-grow(u32[3])
+%memory-grow(u32[4])
 
 3
 
@@ -1248,8 +1248,8 @@ b.0.0
 ```
 
 ```
-%memory-grow(3)
-%memory-grow(4)
+%memory-grow(u32[3])
+%memory-grow(u32[4])
 %memory-size()
 
 7
@@ -1266,24 +1266,24 @@ b.0.0
 ```
 
 ```
-%size-of(i32)
+%size-of(i64)
 
-4
+8
 
-4
+8
 ```
 
 ```
-%size-of(struct[i32, struct[i32, i32]])
+%size-of(struct[i64, struct[u32, i64]])
 
-12
+20
 
-12
+20
 ```
 
 ```
-%memory-grow(1)
-%load(%heap-start() + 0, i32)
+%memory-grow(u32[1])
+%load(%heap-start() + u32[0], i64)
 
 0
 
@@ -1291,10 +1291,10 @@ b.0.0
 ```
 
 ```
-%memory-grow(1)
-%store(%heap-start() + 0, 42)
-%store(%heap-start() + %size-of(i32), 101)
-%load(%heap-start() + 0, i32)
+%memory-grow(u32[1])
+%store(%heap-start() + u32[0], 42)
+%store(%heap-start() + %size-of(i64), 101)
+%load(%heap-start() + u32[0], i64)
 
 42
 
@@ -1302,10 +1302,10 @@ b.0.0
 ```
 
 ```
-%memory-grow(1)
-%store(%heap-start() + 0, 42)
-%store(%heap-start() + %size-of(i32), 101)
-%load(%heap-start() + %size-of(i32), i32)
+%memory-grow(u32[1])
+%store(%heap-start() + u32[0], 42)
+%store(%heap-start() + %size-of(i64), 101)
+%load(%heap-start() + %size-of(i64), i64)
 
 101
 
@@ -1313,9 +1313,9 @@ b.0.0
 ```
 
 ```
-%memory-grow(1)
-%store(%heap-start() + 1, 42)
-%load(%heap-start() + 0, i32)
+%memory-grow(u32[1])
+%store(%heap-start() + u32[1], 42)
+%load(%heap-start() + u32[0], i64)
 
 10752
 
@@ -1323,9 +1323,9 @@ b.0.0
 ```
 
 ```
-%memory-grow(1)
+%memory-grow(u32[1])
 %store(%heap-start(), [0,[1,2]])
-x = %load(%heap-start(), struct[i32, struct[i32, i32]])
+x = %load(%heap-start(), struct[i64, struct[i64, i64]])
 x.0
 
 0
@@ -1334,9 +1334,9 @@ x.0
 ```
 
 ```
-%memory-grow(1)
+%memory-grow(u32[1])
 %store(%heap-start(), [0,[1,2]])
-x = %load(%heap-start(), struct[i32, struct[i32, i32]])
+x = %load(%heap-start(), struct[i64, struct[i64, i64]])
 x.1.0
 
 1
@@ -1345,9 +1345,9 @@ x.1.0
 ```
 
 ```
-%memory-grow(1)
+%memory-grow(u32[1])
 %store(%heap-start(), [0,[1,2]])
-x = %load(%heap-start(), struct[i32, struct[i32, i32]])
+x = %load(%heap-start(), struct[i64, struct[i64, i64]])
 x.1.1
 
 2
