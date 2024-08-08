@@ -574,10 +574,14 @@ fn genExprInner(
                     return args;
                 },
                 .i64_to_u32 => {
-                    // TODO Check for under/overflow.
-                    load(c, f, args.@"struct".values[0]);
-                    emitEnum(f, wasm.Opcode.i32_wrap_i64);
-                    return .{ .stack = .u32 };
+                    if (args.@"struct".values[0] == .i64) {
+                        return .{ .u32 = @intCast(args.@"struct".values[0].i64) };
+                    } else {
+                        // TODO Check for under/overflow.
+                        load(c, f, args.@"struct".values[0]);
+                        emitEnum(f, wasm.Opcode.i32_wrap_i64);
+                        return .{ .stack = .u32 };
+                    }
                 },
             }
         },
