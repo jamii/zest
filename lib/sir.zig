@@ -44,8 +44,3 @@ pub const ExprData = union(enum) {
     while_body,
     while_end,
 };
-
-pub const Next = struct {
-    expr: Expr,
-    ends_remaining: usize,
-};
