@@ -547,7 +547,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, bindings: *ArrayList(dir.Bindin
             while (key == .indirect) {
                 key = c.sir_expr_data.get(key.indirect);
             }
-            if (key != .i64 and key.i64 != 0) return fail(c, .invalid_pattern);
+            if (key != .i64 or key.i64 != 0) return fail(c, .invalid_pattern);
             try desugarPattern(c, f, bindings, .{ .make = .{ .head = head_expr, .input = c.box(input) } }, context);
             if (take(c) != .object_end) return fail(c, .invalid_pattern);
 
