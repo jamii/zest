@@ -136,4 +136,6 @@ pub const Frame = struct {
     key: FunKey,
     fun: Fun,
     expr: dir.Expr,
+    ends_remaining: usize,
+    mode: enum { infer, unstage },
 };

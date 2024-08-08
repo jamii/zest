@@ -1473,3 +1473,13 @@ Expected struct[i64, i64], found struct[i64, i64, i64]
 
 Expected struct[i64, i64], found struct[i64, i64, i64]
 ```
+
+```
+x = 0
+f = () [x][]
+f()
+
+Cannot make [0]
+
+Cannot unstage value: i64
+```

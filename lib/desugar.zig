@@ -403,13 +403,14 @@ fn desugarKey(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
 }
 
 fn stageExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
+    emit(c, f, .stage_begin);
+    defer emit(c, f, .stage_end);
+
     const already_staged = c.scope.staged_until_len != null;
     if (!already_staged) {
-        emit(c, f, .stage_begin);
         c.scope.staged_until_len = c.scope.bindings.items.len;
     }
     defer if (!already_staged) {
-        emit(c, f, .stage_end);
         c.scope.staged_until_len = null;
     };
 
@@ -417,13 +418,8 @@ fn stageExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
 }
 
 fn stageString(c: *Compiler, f: *dir.FunData, string: []const u8) void {
-    const already_staged = c.scope.staged_until_len != null;
-    if (!already_staged) {
-        emit(c, f, .stage_begin);
-    }
-    defer if (!already_staged) {
-        emit(c, f, .stage_end);
-    };
+    emit(c, f, .stage_begin);
+    defer emit(c, f, .stage_end);
 
     emit(c, f, .{ .string = string });
 }

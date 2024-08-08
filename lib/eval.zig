@@ -16,6 +16,8 @@ const Builtin = zest.Builtin;
 const dir = zest.dir;
 const tir = zest.tir;
 
+const infer = @import("./infer.zig");
+
 pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     assert(c.dir_frame_stack.items.len == 0);
     defer c.dir_frame_stack.shrinkRetainingCapacity(0);
@@ -48,7 +50,7 @@ pub fn popFun(c: *Compiler) dir.Frame {
     return frame;
 }
 
-pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_reprs: []Repr, closure_repr: Repr) error{EvalError}!Value {
+pub fn evalStaged(c: *Compiler) error{ EvalError, InferError }!Value {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
     assert(f.expr_data.get(frame.expr) == .stage_begin);
@@ -74,24 +76,27 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_reprs: []Repr, closure_
                 const return_value = try eval(c);
                 c.value_stack.append(return_value) catch oom();
             },
-            // TODO This is a simple version.
-            //      To make things like `stage(repr-of(a.b.c))` work we'd need to switch back to infer.
-            //      Also have to limit to exprs with no side-effects or panics.
             .unstage_begin => {
-                frame.expr.id += 1;
-                const value = switch (f.expr_data.get(frame.expr)) {
-                    .local_get => |local| value: {
-                        const local_repr = tir_f.local_data.get(.{ .id = local.id }).repr.one;
-                        break :value local_repr.valueOf() orelse
-                            return fail(c, .{ .cannot_unstage_value = local_repr });
-                    },
-                    .arg => |arg| arg_reprs[arg.id].valueOf() orelse
-                        return fail(c, .{ .cannot_unstage_value = arg_reprs[arg.id] }),
-                    .closure => closure_repr.valueOf() orelse
-                        return fail(c, .{ .cannot_unstage_value = closure_repr }),
-                    else => |other| panic("Invalid unstaged expr: {}", .{other}),
-                };
+                const repr_count = c.repr_stack.items.len;
+                c.tir_frame_stack.append(.{
+                    .key = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].key,
+                    .fun = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].fun,
+                    .expr = frame.expr,
+                    .ends_remaining = 0,
+                    .mode = .unstage,
+                }) catch oom();
+                const tir_frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+                switch (try infer.inferTree(c, tir_frame)) {
+                    .call => panic("Should not find call inside unstage", .{}),
+                    .@"return" => {},
+                }
+                const repr = c.repr_stack.pop();
+                const value = repr.valueOf() orelse return fail(c, .{ .cannot_unstage_value = repr });
                 c.value_stack.append(value) catch oom();
+                frame.expr = tir_frame.expr;
+                assert(f.expr_data.get(frame.expr) == .unstage_end);
+                _ = c.tir_frame_stack.pop();
+                assert(c.repr_stack.items.len == repr_count);
             },
             .unstage_end => {},
             .stage_begin => {
@@ -99,10 +104,8 @@ pub fn evalStaged(c: *Compiler, tir_f: *tir.FunData, arg_reprs: []Repr, closure_
             },
             .stage_end => {
                 ends_remaining -= 1;
-                if (ends_remaining == 0) {
-                    assert(c.value_stack.items.len == 1);
+                if (ends_remaining == 0)
                     return c.value_stack.pop();
-                }
             },
             .return_end, .arg, .closure => {
                 return fail(c, .cannot_stage_expr);

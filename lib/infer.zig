@@ -6,6 +6,7 @@ const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
 const oom = zest.oom;
+const treePart = zest.treePart;
 const Compiler = zest.Compiler;
 const Value = zest.Value;
 const Repr = zest.Repr;
@@ -39,13 +40,13 @@ fn pushFun(c: *Compiler, key: tir.FunKey) tir.Fun {
             .is_tmp = dir_local_data.is_tmp,
         });
     }
-    c.tir_frame_stack.append(.{ .key = key, .fun = fun, .expr = .{ .id = 0 } }) catch oom();
+    c.tir_frame_stack.append(.{ .key = key, .fun = fun, .expr = .{ .id = 0 }, .ends_remaining = 0, .mode = .infer }) catch oom();
     return fun;
 }
 
 fn infer(c: *Compiler) error{ EvalError, InferError }!void {
     while (true) {
-        const direction = try inferFrame(
+        const direction = try inferTree(
             c,
             &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1],
         );
@@ -67,10 +68,10 @@ fn infer(c: *Compiler) error{ EvalError, InferError }!void {
     }
 }
 
-fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!enum { call, @"return" } {
+pub fn inferTree(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!enum { call, @"return" } {
     const dir_f = c.dir_fun_data.get(frame.key.fun);
     const f = c.tir_fun_data.getPtr(frame.fun);
-    while (frame.expr.id <= dir_f.expr_data.lastKey().?.id) : (frame.expr.id += 1) {
+    while (true) {
         const expr_data = dir_f.expr_data.get(frame.expr);
         switch (expr_data) {
             .call_begin => {
@@ -104,26 +105,32 @@ fn inferFrame(c: *Compiler, frame: *tir.Frame) error{ EvalError, InferError }!en
                 }
             },
             .stage_begin => {
-                assert(c.dir_frame_stack.items.len == 0);
-                assert(c.value_stack.items.len == 0);
                 eval.pushFun(c, .{
                     .fun = frame.key.fun,
                     .expr = frame.expr,
                     .args = &.{},
                     .closure = Value.emptyStruct(),
                 });
-                const return_value = try eval.evalStaged(c, f, frame.key.arg_reprs, frame.key.closure_repr);
+                const return_value = try eval.evalStaged(c);
                 const eval_frame = eval.popFun(c);
                 frame.expr = eval_frame.expr;
+                assert(dir_f.expr_data.get(frame.expr) == .stage_end);
+                frame.expr.id -= 1;
                 c.repr_stack.append(.{ .only = c.box(return_value) }) catch oom();
             },
-            .stage_end => {},
+            .stage_end, .unstage_begin, .unstage_end => {},
             else => {
                 try inferExpr(c, f, expr_data);
             },
         }
+        switch (treePart(expr_data)) {
+            .branch_begin => frame.ends_remaining += 1,
+            .branch_end => frame.ends_remaining -= 1,
+            .leaf => {},
+        }
+        if (frame.ends_remaining == 0) return .@"return";
+        frame.expr.id += 1;
     }
-    return .@"return";
 }
 
 fn inferExpr(
@@ -473,7 +480,7 @@ fn inferExpr(
                 return fail(c, .{ .not_a_bool = cond });
             emit(c, f, .while_end, Repr.emptyStruct());
         },
-        .call_begin, .call_end, .stage_begin, .stage_end, .unstage_begin, .unstage_end => panic("Should be handled in inferFrame, not inferExpr", .{}),
+        .call_begin, .call_end, .stage_begin, .stage_end, .unstage_begin, .unstage_end => panic("Should be handled in inferTree, not inferExpr", .{}),
         inline else => |_, tag| {
             if (comptime std.mem.endsWith(u8, @tagName(tag), "_begin")) {
                 emit(c, f, @unionInit(tir.ExprData, @tagName(tag), {}), null);
@@ -527,7 +534,9 @@ fn popValue(c: *Compiler) error{InferError}!Value {
 }
 
 fn emit(c: *Compiler, f: *tir.FunData, expr: tir.ExprData, repr: ?Repr) void {
-    _ = f.expr_data.append(expr);
+    const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+    if (frame.mode == .infer)
+        _ = f.expr_data.append(expr);
     if (repr != null) c.repr_stack.append(repr.?) catch oom();
 }
 
