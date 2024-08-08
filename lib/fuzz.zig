@@ -30,8 +30,17 @@ pub fn fuzz(source: []const u8) void {
     if (lax_or_err) |lax| {
         const lax_trimmed = std.mem.trim(u8, lax, "\n");
         const strict_trimmed = std.mem.trim(u8, strict, "\n");
+
+        if (
         // Currently can only print i32 from strict - anything else will print 'undefined'.
-        if (compiler.tir_fun_data.get(compiler.tir_fun_main.?).return_repr.one == .i32) {
+        compiler.tir_fun_data.get(compiler.tir_fun_main.?).return_repr.one == .i32 and
+            // Some intrinsics have observably different behaviour depending on the backend.
+            std.mem.indexOf(u8, source, "%memory-size(") == null and
+            std.mem.indexOf(u8, source, "%memory-grow(") == null and
+            std.mem.indexOf(u8, source, "%heap-start(") == null and
+            std.mem.indexOf(u8, source, "%load(") == null and
+            std.mem.indexOf(u8, source, "%store(") == null)
+        {
             if (!std.mem.eql(u8, lax_trimmed, strict_trimmed)) {
                 std.debug.print(
                     \\--- wat ---
@@ -47,8 +56,7 @@ pub fn fuzz(source: []const u8) void {
             }
         }
     } else |_| {
-        // There are currently no runtime errors, but eventually we'll want to check that lax and strict produce the same error.
-        panic("Lax err: {s}", .{zest.formatError(&compiler)});
+        // TODO Eventually we'll want to check that lax and strict produce the same error.
     }
 }
 
