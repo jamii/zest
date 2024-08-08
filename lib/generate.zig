@@ -99,8 +99,8 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         emitLebU32(c, 1);
         // No maximum.
         emitByte(c, 0x00);
-        // At minimum enough space for stack.
-        emitLebU32(c, @divExact(stack_top, wasm.page_size));
+        // At minimum enough space for stack and constant data.
+        emitLebU32(c, std.math.divCeil(u32, stack_top + @as(u32, @intCast(c.constant_data.items.len)), wasm.page_size) catch unreachable);
     }
 
     {
@@ -119,7 +119,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         // global_heap_start
         emitEnum(c, wasm.Valtype.i32);
         emitByte(c, 0x00); // const
-        emitU32Const(c, stack_top);
+        emitU32Const(c, stack_top + @as(u32, @intCast(c.constant_data.items.len)));
         emitEnum(c, wasm.Opcode.end);
     }
 
@@ -137,6 +137,13 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         emitName(c, "memory");
         emitEnum(c, wasm.ExternalKind.memory);
         emitLebU32(c, 0);
+    }
+
+    if (c.constant_data.items.len > 0) {
+        const section = emitSectionStart(c, wasm.Section.data_count);
+        defer emitSectionEnd(c, section);
+
+        emitLebU32(c, 1); // 1 data section
     }
 
     {
@@ -187,6 +194,19 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
             emitEnum(c, wasm.Opcode.end);
         }
+    }
+
+    if (c.constant_data.items.len > 0) {
+        const section = emitSectionStart(c, wasm.Section.data);
+        defer emitSectionEnd(c, section);
+
+        emitLebU32(c, 1); // 1 data section
+
+        emitLebU32(c, 0); // active
+        emitU32Const(c, stack_top); // write to memory after stack_top
+        emitEnum(c, wasm.Opcode.end);
+        emitLebU32(c, @intCast(c.constant_data.items.len));
+        c.wasm.appendSlice(c.constant_data.items) catch oom();
     }
 }
 

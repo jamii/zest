@@ -268,6 +268,8 @@ pub const Compiler = struct {
         arg: wir.Walue,
         local_offset: usize,
     },
+    constant_memo: Map(Value, u32),
+    constant_data: ArrayList(u8),
     wasm: ArrayList(u8),
 
     error_data: ?ErrorData,
@@ -311,6 +313,8 @@ pub const Compiler = struct {
             .tir_expr_next = .{ .id = 0 },
             .local_walue = fieldType(Compiler, .local_walue).init(allocator),
             .inlining = null,
+            .constant_memo = fieldType(Compiler, .constant_memo).init(allocator),
+            .constant_data = fieldType(Compiler, .constant_data).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
             .error_data = null,
