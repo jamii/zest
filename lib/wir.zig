@@ -70,7 +70,7 @@ pub const Block = struct {
 pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
-    type: wasm.Valtype,
+    repr: Repr,
 };
 
 pub const Fun = struct { id: usize };

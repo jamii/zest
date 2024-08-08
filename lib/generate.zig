@@ -154,7 +154,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             emitLebU32(c, @intCast(f.local_data.count()));
             for (f.local_data.items()) |l| {
                 emitLebU32(c, 1);
-                emitEnum(c, l.type);
+                emitEnum(c, wasmRepr(l.repr).primitive);
             }
 
             // Frame push
@@ -315,9 +315,9 @@ fn genExprInner(
                 .value_at => |value_at| {
                     switch (wasmRepr(value_at.repr)) {
                         .heap => {},
-                        .primitive => |valtype| {
+                        .primitive => {
                             // We could leave this on the heap, but it's usually better to eagerly load the value so the wasm backend can see that it's constant. A wasted load if the local is never used though.
-                            const wir_local = f.local_data.append(.{ .type = valtype });
+                            const wir_local = f.local_data.append(.{ .repr = value_at.repr });
                             const tmp = wir.Walue{ .local = wir_local };
                             load(c, f, value);
                             emitEnum(f, wasm.Opcode.local_set);
@@ -685,7 +685,7 @@ fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {
     const offset = f.shadow_offset_next;
     f.shadow_offset_next += repr.sizeOf();
     if (f.shadow_offset_next > 0 and f.local_shadow == null)
-        f.local_shadow = f.local_data.append(.{ .type = .i32 });
+        f.local_shadow = f.local_data.append(.{ .repr = .{ .ref = c.box(repr) } });
     f.shadow_offset_max = @max(f.shadow_offset_max, f.shadow_offset_next);
     return .{ .add = .{
         .walue = c.box(wir.Walue{ .shadow = {} }),
@@ -712,13 +712,12 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             var from_local = from_value;
             const valtype = switch (from_local) {
                 .closure, .arg, .@"return", .shadow => .i32,
-                .local => |local| f.local_data.get(local).type,
+                .local => |local| wasmRepr(f.local_data.get(local).repr).primitive,
                 .stack => |repr| valtype: {
-                    const stack_valtype = wasmRepr(repr).primitive;
-                    from_local = .{ .local = getShuffler(f, stack_valtype) };
+                    from_local = .{ .local = getShuffler(f, repr) };
                     emitEnum(f, wasm.Opcode.local_set);
                     emitLebU32(f, wasmLocal(c, f, from_local));
-                    break :valtype stack_valtype;
+                    break :valtype wasmRepr(repr).primitive;
                 },
                 else => unreachable,
             };
@@ -885,9 +884,10 @@ fn copyToShadow(c: *Compiler, f: *wir.FunData, value: wir.Walue, repr: Repr) wir
     }
 }
 
-fn getShuffler(f: *wir.FunData, typ: wasm.Valtype) wir.Local {
-    const shuffler = f.local_shufflers.getPtr(typ);
-    if (shuffler.* == null) shuffler.* = f.local_data.append(.{ .type = typ });
+fn getShuffler(f: *wir.FunData, repr: Repr) wir.Local {
+    const valtype = wasmRepr(repr).primitive;
+    const shuffler = f.local_shufflers.getPtr(valtype);
+    if (shuffler.* == null) shuffler.* = f.local_data.append(.{ .repr = repr });
     return shuffler.*.?;
 }
 
@@ -922,7 +922,7 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
             return walue;
         },
         .stack => |repr| {
-            const local = f.local_data.append(.{ .type = wasmRepr(repr).primitive });
+            const local = f.local_data.append(.{ .repr = repr });
             emitEnum(f, wasm.Opcode.local_set);
             emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
             return .{ .local = local };
@@ -982,17 +982,10 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
     return switch (walue) {
         .closure, .arg, .@"return", .shadow, .i32, .add => .i32,
         .stack => |repr| repr,
-        .local => |local| valtypeRepr(f.local_data.get(local).type),
+        .local => |local| f.local_data.get(local).repr,
         .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
         .fun => |fun| .{ .fun = fun.repr },
         .value_at => |value_at| value_at.repr,
-    };
-}
-
-fn valtypeRepr(valtype: wasm.Valtype) Repr {
-    return switch (valtype) {
-        .i32 => .i32,
-        else => panic("TODO", .{}),
     };
 }
 
