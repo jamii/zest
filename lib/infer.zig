@@ -396,28 +396,20 @@ fn inferExpr(
             const args = c.repr_stack.pop();
             const head = try popValue(c);
             switch (head) {
-                .repr => |to_repr| switch (to_repr) {
-                    .u32, .i64, .string, .repr, .repr_kind => {
-                        if (args.@"struct".keys.len != 1 or
-                            args.@"struct".keys[0] != .i64 or
-                            args.@"struct".keys[0].i64 != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        const from_repr = args.@"struct".reprs[0];
-                        if (from_repr.equal(to_repr)) {
-                            emit(c, f, .{ .make_end = .nop_scalar }, to_repr);
-                        } else if (from_repr == .i64 and to_repr == .u32) {
-                            // TODO We should only allow this cast when from is a constant walue.
-                            emit(c, f, .{ .make_end = .i64_to_u32 }, to_repr);
-                        } else {
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        }
-                    },
-                    .@"struct" => {
-                        if (!args.equal(to_repr))
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = args } });
-                        emit(c, f, .{ .make_end = .nop_compound }, to_repr);
-                    },
-                    .@"union", .fun, .only, .ref => panic("TODO {}", .{head}),
+                .repr => |to_repr| {
+                    if (args.@"struct".keys.len != 1 or
+                        args.@"struct".keys[0] != .i64 or
+                        args.@"struct".keys[0].i64 != 0)
+                        return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                    const from_repr = args.@"struct".reprs[0];
+                    if (from_repr.equal(to_repr)) {
+                        emit(c, f, .{ .make_end = .nop }, to_repr);
+                    } else if (from_repr == .i64 and to_repr == .u32) {
+                        // TODO We should only allow this cast when from is a constant walue.
+                        emit(c, f, .{ .make_end = .i64_to_u32 }, to_repr);
+                    } else {
+                        return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                    }
                 },
                 .repr_kind => panic("TODO {}", .{head}),
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),

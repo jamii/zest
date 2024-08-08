@@ -1168,7 +1168,7 @@ i64[42]
 ```
 
 ```
-a = struct[x: i64, y: i64][x: 42, y: 101]
+a = struct[x: i64, y: i64][[x: 42, y: 101]]
 a.y
 
 101
@@ -1177,7 +1177,7 @@ a.y
 ```
 
 ```
-a = struct[x: i64, y: i64][x: 42, y: []]
+a = struct[x: i64, y: i64][[x: 42, y: []]]
 a.y
 
 Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
@@ -1186,7 +1186,7 @@ Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
 ```
 
 ```
-a = struct[x: i64, y: i64][x: 42, z: 101]
+a = struct[x: i64, y: i64][[x: 42, z: 101]]
 a.y
 
 Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
@@ -1195,7 +1195,7 @@ Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
 ```
 
 ```
-a = struct[x: i64, y: i64][x: 42, y: 101, z: 0]
+a = struct[x: i64, y: i64][[x: 42, y: 101, z: 0]]
 a.y
 
 Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
@@ -1206,7 +1206,7 @@ Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
 ```
 a mut = [42]
 // Pointless copy here because make expr blocks dest
-b = struct[struct[i64]][a]
+b = struct[struct[i64]][[a]]
 b.0.0
 
 42
@@ -1383,8 +1383,6 @@ x
 
 2
 ```
-
-
 
 ```
 x mut = [1]

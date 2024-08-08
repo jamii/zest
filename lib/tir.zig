@@ -59,8 +59,7 @@ pub const ExprData = union(enum) {
     call_builtin_end,
     make_begin,
     make_end: enum {
-        nop_scalar,
-        nop_compound,
+        nop,
         i64_to_u32,
     },
     block_begin,

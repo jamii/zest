@@ -566,19 +566,18 @@ fn genExprInner(
             // TODO This is a silly blocker of dest.
             const args = try genExpr(c, f, tir_f, .anywhere);
             const make_end = take(c, tir_f).make_end;
+
+            const arg = args.@"struct".values[0];
             switch (make_end) {
-                .nop_scalar => {
-                    return args.@"struct".values[0];
-                },
-                .nop_compound => {
-                    return args;
+                .nop => {
+                    return arg;
                 },
                 .i64_to_u32 => {
-                    if (args.@"struct".values[0] == .i64) {
-                        return .{ .u32 = @intCast(args.@"struct".values[0].i64) };
+                    if (arg == .i64) {
+                        return .{ .u32 = @intCast(arg.i64) };
                     } else {
                         // TODO Check for under/overflow.
-                        load(c, f, args.@"struct".values[0]);
+                        load(c, f, arg);
                         emitEnum(f, wasm.Opcode.i32_wrap_i64);
                         return .{ .stack = .u32 };
                     }

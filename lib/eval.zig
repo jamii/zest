@@ -420,32 +420,24 @@ pub fn evalExpr(
             const args = c.value_stack.pop();
             const head = c.value_stack.pop();
             switch (head) {
-                .repr => |to_repr| switch (to_repr) {
-                    .u32, .i64, .string, .repr, .repr_kind => {
-                        if (args.@"struct".repr.keys.len != 1 or
-                            args.@"struct".repr.keys[0] != .i64 or
-                            args.@"struct".repr.keys[0].i64 != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        const from_repr = args.@"struct".repr.reprs[0];
-                        const from_value = args.@"struct".values[0];
-                        if (from_repr.equal(to_repr)) {
-                            c.value_stack.append(from_value) catch oom();
-                        } else if (from_repr == .i64 and to_repr == .u32) {
-                            if (std.math.cast(u32, from_value.i64)) |converted| {
-                                c.value_stack.append(.{ .u32 = converted }) catch oom();
-                            } else {
-                                return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
-                            }
+                .repr => |to_repr| {
+                    if (args.@"struct".repr.keys.len != 1 or
+                        args.@"struct".repr.keys[0] != .i64 or
+                        args.@"struct".repr.keys[0].i64 != 0)
+                        return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                    const from_repr = args.@"struct".repr.reprs[0];
+                    const from_value = args.@"struct".values[0];
+                    if (from_repr.equal(to_repr)) {
+                        c.value_stack.append(from_value) catch oom();
+                    } else if (from_repr == .i64 and to_repr == .u32) {
+                        if (std.math.cast(u32, from_value.i64)) |converted| {
+                            c.value_stack.append(.{ .u32 = converted }) catch oom();
                         } else {
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
                         }
-                    },
-                    .@"struct" => {
-                        if (!args.reprOf().equal(to_repr))
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = args.reprOf() } });
-                        c.value_stack.append(args) catch oom();
-                    },
-                    .@"union", .fun, .only, .ref => return fail(c, .todo),
+                    } else {
+                        return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                    }
                 },
                 .repr_kind => |repr_kind| switch (repr_kind) {
                     .@"struct" => {
