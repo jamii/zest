@@ -192,8 +192,8 @@ fn parseMake(c: *Compiler, left: sir.ExprData) error{ParseError}!void {
 }
 
 fn parseCallSlash(c: *Compiler, left: sir.ExprData) error{ParseError}!void {
-    emit(c, .call_slash_begin);
-    defer emit(c, .call_slash_end);
+    emit(c, .call_begin);
+    defer emit(c, .call_end);
 
     try expect(c, .@"/");
     allowNewline(c);
