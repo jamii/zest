@@ -1509,3 +1509,21 @@ x.1
 
 undefined
 ```
+
+```
+%print('foo')
+42
+
+foo42
+
+foo42
+```
+
+```
+x = [{%print('foo')}: 42]
+x.{%print('bar')}
+
+foobar42
+
+42
+```

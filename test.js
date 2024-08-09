@@ -7,7 +7,10 @@ let wasmInstance;
 try {
   wasmInstance = new WebAssembly.Instance(wasmModule, {
     env: {
-      print: function (ptr, len) {},
+      print: function (ptr, len) {
+        let str = new Uint8Array(memory.buffer, ptr, len);
+        Deno.writeAllSync(Deno.stdout, str);
+      },
     },
   });
 } catch (error) {

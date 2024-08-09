@@ -359,6 +359,7 @@ fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
         .load,
         .store,
         .@"size-of",
+        .print,
     }) |builtin| {
         if (std.mem.eql(u8, @tagName(builtin), name))
             return builtin;

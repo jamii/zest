@@ -392,6 +392,13 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .{ .size_of = @intCast(repr.repr.sizeOf()) };
                     emit(c, f, .call_builtin_end, .u32);
                 },
+                .print => {
+                    const string = c.repr_stack.pop();
+                    if (string != .string)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{string}) } });
+                    f.expr_data.getPtr(begin).call_builtin_begin = .print_string;
+                    emit(c, f, .call_builtin_end, .u32);
+                },
                 else => return fail(c, .todo),
             }
         },

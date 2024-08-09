@@ -169,11 +169,12 @@ pub const Builtin = enum {
     load,
     store,
     @"size-of",
+    print,
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start" => 0,
-            .not, .@"memory-grow", .@"size-of" => 1,
+            .not, .@"memory-grow", .@"size-of", .print => 1,
             .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
         };
     }
@@ -247,6 +248,7 @@ pub const Compiler = struct {
     while_stack: ArrayList(dir.Expr),
     block_value_count_stack: ArrayList(usize),
     memory: ArrayList(u8),
+    printed: ArrayList(u8),
 
     // infer
     tir_fun_data: List(tir.Fun, tir.FunData),
@@ -301,6 +303,7 @@ pub const Compiler = struct {
             .while_stack = fieldType(Compiler, .while_stack).init(allocator),
             .block_value_count_stack = fieldType(Compiler, .block_value_count_stack).init(allocator),
             .memory = fieldType(Compiler, .memory).init(allocator),
+            .printed = fieldType(Compiler, .printed).init(allocator),
 
             .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
             .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),

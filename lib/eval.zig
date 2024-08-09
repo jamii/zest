@@ -416,6 +416,13 @@ pub fn evalExpr(
                     const size = repr.repr.sizeOf();
                     c.value_stack.append(.{ .u32 = @intCast(size) }) catch oom();
                 },
+                .print => {
+                    const string = c.value_stack.pop();
+                    if (string != .string)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{string}) } });
+                    c.printed.appendSlice(string.string) catch oom();
+                    c.value_stack.append(Value.emptyStruct()) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },

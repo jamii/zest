@@ -22,7 +22,7 @@ pub fn evalLax(
 ) ![]const u8 {
     try zest.compileLax(compiler);
     const value = try zest.evalMain(compiler);
-    return std.fmt.allocPrint(allocator, "{}", .{value});
+    return std.fmt.allocPrint(allocator, "{s}{}", .{ compiler.printed.items, value });
 }
 
 pub fn evalStrict(

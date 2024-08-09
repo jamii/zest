@@ -515,6 +515,7 @@ fn genExprInner(
                     .add_u32, .subtract_u32, .multiply_u32 => .{ .u32 = 0 },
                     .equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64 => .{ .i64 = 0 },
                     .memory_size, .memory_grow, .heap_start, .size_of, .load, .store => .{ .u32 = 0 },
+                    .print_string => wir.Walue.emptyStruct(),
                 };
             }
             switch (builtin) {
@@ -608,6 +609,17 @@ fn genExprInner(
                     } };
                 },
                 .store => unreachable, // handled above
+                .print_string => {
+                    // TODO Codegen is poor because we don't have a Walue.string_innards or WasmRepr.primitives yet.
+                    var ptr_ptr = spillStack(c, f, wir.Walue{ .stack = .u32 });
+                    var len_ptr = wir.Walue{ .add = .{ .walue = &ptr_ptr, .offset = @sizeOf(u32) } };
+                    load(c, f, .{ .value_at = .{ .ptr = &ptr_ptr, .repr = .u32 } });
+                    load(c, f, .{ .value_at = .{ .ptr = &len_ptr, .repr = .u32 } });
+                    emitEnum(f, wasm.Opcode.call);
+                    assert(std.mem.eql(u8, imports[0].name, "print"));
+                    emitLebU32(f, 0);
+                    return wir.Walue.emptyStruct();
+                },
             }
         },
         .make_begin => {
