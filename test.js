@@ -6,7 +6,9 @@ let memory = undefined;
 let wasmInstance;
 try {
   wasmInstance = new WebAssembly.Instance(wasmModule, {
-    env: {},
+    env: {
+      print: function (ptr, len) {},
+    },
   });
 } catch (error) {
   console.error(error);

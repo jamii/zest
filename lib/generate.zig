@@ -20,6 +20,14 @@ const global_heap_start = 1;
 const stack_pages = 128;
 const stack_top = stack_pages * wasm.page_size; // 8mb
 
+const imports = .{
+    .{
+        .name = "print",
+        .arg_types = &[_]wasm.Valtype{ .i32, .i32 },
+        .return_types = &.{},
+    },
+};
+
 pub fn generate(c: *Compiler) error{GenerateError}!void {
     for (0.., c.tir_fun_data.items()) |tir_fun_id, tir_f| {
         const tir_fun = tir.Fun{ .id = tir_fun_id };
@@ -39,20 +47,23 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
                 .primitive => |valtype| return_types.append(valtype) catch oom(),
                 .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
             }
-            const fun_type_data = wir.FunTypeData{
+            const fun_type = memoFunType(c, .{
                 .arg_types = arg_types.toOwnedSlice() catch oom(),
                 .return_types = return_types.toOwnedSlice() catch oom(),
-            };
-            var fun_type: ?wir.FunType = c.fun_type_memo.get(fun_type_data);
-            if (fun_type == null) {
-                fun_type = c.fun_type_data.append(fun_type_data);
-                c.fun_type_memo.put(fun_type_data, fun_type.?) catch oom();
-            }
+            });
 
             // Make wir fun.
-            const wir_fun = c.wir_fun_data.append(wir.FunData.init(c.allocator, tir_fun, fun_type.?));
+            const wir_fun = c.wir_fun_data.append(wir.FunData.init(c.allocator, tir_fun, fun_type));
             c.wir_fun_by_tir.put(tir_fun, wir_fun) catch oom();
         }
+    }
+
+    var import_types: [imports.len]wir.FunType = undefined;
+    inline for (imports, 0..) |import, i| {
+        import_types[i] = memoFunType(c, .{
+            .arg_types = c.dupe(wasm.Valtype, import.arg_types),
+            .return_types = c.dupe(wasm.Valtype, import.return_types),
+        });
     }
 
     for (c.wir_fun_data.items()) |*f| {
@@ -79,6 +90,19 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
             for (fun_type_data.return_types) |return_type| {
                 emitEnum(c, return_type);
             }
+        }
+    }
+
+    {
+        const section = emitSectionStart(c, wasm.Section.import);
+        defer emitSectionEnd(c, section);
+
+        emitLebU32(c, imports.len);
+        inline for (imports, 0..) |import, i| {
+            emitName(c, "env");
+            emitName(c, import.name);
+            emitEnum(c, wasm.ExternalKind.function);
+            emitLebU32(c, @intCast(import_types[i].id));
         }
     }
 
@@ -133,7 +157,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
         emitName(c, "main");
         emitEnum(c, wasm.ExternalKind.function);
-        emitLebU32(c, @intCast(c.tir_fun_main.?.id));
+        emitLebU32(c, @intCast(imports.len + c.wir_fun_by_tir.get(c.tir_fun_main.?).?.id));
 
         emitName(c, "memory");
         emitEnum(c, wasm.ExternalKind.memory);
@@ -476,7 +500,7 @@ fn genExprInner(
                     .heap => if (output_repr.sizeOf() > 0) loadPtrTo(c, f, output),
                 }
                 emitEnum(f, wasm.Opcode.call);
-                emitLebU32(f, @intCast(c.wir_fun_by_tir.get(tir_fun).?.id));
+                emitLebU32(f, @intCast(imports.len + c.wir_fun_by_tir.get(tir_fun).?.id));
                 return output;
             }
         },
@@ -1005,7 +1029,17 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     }
 }
 
-fn ptrToConstant(c: anytype, value: Value) u32 {
+fn memoFunType(c: *Compiler, fun_type_data: wir.FunTypeData) wir.FunType {
+    if (c.fun_type_memo.get(fun_type_data)) |fun_type| {
+        return fun_type;
+    } else {
+        const fun_type = c.fun_type_data.append(fun_type_data);
+        c.fun_type_memo.put(fun_type_data, fun_type) catch oom();
+        return fun_type;
+    }
+}
+
+fn ptrToConstant(c: *Compiler, value: Value) u32 {
     if (c.constant_memo.get(value)) |offset| {
         return stack_top + offset;
     } else {
