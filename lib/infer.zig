@@ -142,10 +142,9 @@ fn inferExpr(
         .i64 => |i| {
             emit(c, f, .{ .i64 = i }, .i64);
         },
-        //.string => {
-        //    emit(c, f, .{ .string = data }, .string);
-        //    return .string;
-        //},
+        .string => |string| {
+            emit(c, f, .{ .string = string }, .string);
+        },
         .struct_init_end => |count| {
             const keys = c.allocator.alloc(Value, count) catch oom();
             const reprs = c.allocator.alloc(Repr, count) catch oom();

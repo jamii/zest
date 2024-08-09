@@ -11,6 +11,7 @@ const deepEqual = zest.deepEqual;
 const treePart = zest.treePart;
 const Compiler = zest.Compiler;
 const Repr = zest.Repr;
+const Value = zest.Value;
 const tir = zest.tir;
 const wir = zest.wir;
 
@@ -282,6 +283,9 @@ fn genExprInner(
     switch (expr_data) {
         .i64 => |i| {
             return .{ .i64 = i };
+        },
+        .string => |string| {
+            return .{ .string = string };
         },
         .closure => {
             if (c.inlining) |inlining| {
@@ -773,6 +777,15 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
         .i64 => {
             storePrimitive(c, f, from_value, to_ptr, .i64);
         },
+        .string => |string| {
+            const ptr = ptrToConstant(c, .{ .string = string });
+            var values = [_]wir.Walue{ .{ .u32 = ptr }, .{ .u32 = @intCast(string.len) } };
+            const innards = wir.Walue{ .@"struct" = .{
+                .repr = c.string_innards,
+                .values = &values,
+            } };
+            store(c, f, innards, to_ptr);
+        },
         .@"struct" => |@"struct"| {
             const to_ptr_spilled = spillStack(c, f, to_ptr);
             for (@"struct".values, 0..) |value, i| {
@@ -862,7 +875,7 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             emitEnum(f, wasm.Opcode.i64_const);
             emitLebI64(f, i);
         },
-        .@"struct", .fun => panic("Can't load from {}", .{from_value}),
+        .string, .@"struct", .fun => panic("Can't load from {}", .{from_value}),
         .value_at => |value_at| {
             const from_add = asAdd(c, value_at.ptr.*);
             load(c, f, from_add.walue.*);
@@ -890,7 +903,7 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
         .closure, .arg, .@"return", .local, .shadow => {
             panic("Can't point to local: {}", .{from_value});
         },
-        .stack, .u32, .i64, .@"struct", .fun => {
+        .stack, .u32, .i64, .string, .@"struct", .fun => {
             const repr = walueRepr(c, f, from_value);
             const ptr = copyToShadow(c, f, from_value, repr);
             load(c, f, ptr);
@@ -938,7 +951,7 @@ fn getShuffler(f: *wir.FunData, repr: Repr) wir.Local {
 
 fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .@"struct", .fun => return walue,
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .@"struct", .fun => return walue,
         .stack => |repr| {
             emitEnum(f, wasm.Opcode.drop);
             return switch (repr) {
@@ -964,7 +977,7 @@ fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
 
 fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .u32, .i64 => {
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string => {
             return walue;
         },
         .stack => |repr| {
@@ -989,6 +1002,20 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
                 .offset = add.offset,
             } };
         },
+    }
+}
+
+fn ptrToConstant(c: anytype, value: Value) u32 {
+    if (c.constant_memo.get(value)) |offset| {
+        return stack_top + offset;
+    } else {
+        const offset = @as(u32, @intCast(c.constant_data.items.len));
+        switch (value) {
+            .string => |string| c.constant_data.appendSlice(string) catch oom(),
+            else => panic("TODO {}", .{value}),
+        }
+        c.constant_memo.put(value, offset) catch oom();
+        return stack_top + offset;
     }
 }
 
@@ -1020,7 +1047,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
         .@"return" => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len - 1),
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .u32, .i64, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
+        .stack, .u32, .i64, .string, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
     };
 }
 
@@ -1029,6 +1056,7 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
         .arg => |arg| c.tir_fun_data.get(f.tir_fun).key.arg_reprs[arg.id],
         .closure, .@"return", .shadow, .u32, .add => .u32,
         .i64 => .i64,
+        .string => .string,
         .stack => |repr| repr,
         .local => |local| f.local_data.get(local).repr,
         .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },

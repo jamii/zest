@@ -272,6 +272,9 @@ pub const Compiler = struct {
     constant_data: ArrayList(u8),
     wasm: ArrayList(u8),
 
+    // constants
+    string_innards: ReprStruct,
+
     error_data: ?ErrorData,
 
     pub fn init(allocator: Allocator, source: []const u8) Compiler {
@@ -316,6 +319,11 @@ pub const Compiler = struct {
             .constant_memo = fieldType(Compiler, .constant_memo).init(allocator),
             .constant_data = fieldType(Compiler, .constant_data).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
+
+            .string_innards = ReprStruct{
+                .keys = allocator.dupe(Value, &[_]Value{ .{ .string = "ptr" }, .{ .string = "len" } }) catch oom(),
+                .reprs = allocator.dupe(Repr, &[_]Repr{ .u32, .u32 }) catch oom(),
+            },
 
             .error_data = null,
         };

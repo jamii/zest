@@ -128,7 +128,7 @@ a.x
 
 1
 
-TODO infer: dir.ExprData{ .string = { 120 } }
+Cannot unstage value: string
 ```
 
 ```
@@ -149,7 +149,7 @@ a.x
 
 1
 
-TODO infer: dir.ExprData{ .string = { 120 } }
+Cannot unstage value: fun[id: 0, closure: struct['k': string]]
 ```
 
 ```
@@ -1482,4 +1482,30 @@ f()
 Cannot make [0]
 
 Cannot unstage value: i64
+```
+
+```
+'foo'
+
+'foo'
+
+undefined
+```
+
+```
+'bar'
+'foo'
+
+'foo'
+
+undefined
+```
+
+```
+x = ['bar','foo']
+x.1
+
+'foo'
+
+undefined
 ```

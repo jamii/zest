@@ -50,7 +50,7 @@ pub const Repr = union(enum) {
         return switch (self) {
             .u32 => 4,
             .i64 => 8,
-            .string => panic("TODO {}", .{self}),
+            .string => 8, // struct[ptr: u32, len: u32]
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
             .fun => |fun| fun.sizeOf(),
