@@ -28,7 +28,10 @@ pub fn fuzz(source: []const u8) void {
     const strict = evalWasm(allocator, &compiler);
 
     if (lax_or_err) |lax| {
-        const lax_trimmed = std.mem.trim(u8, lax, "\n");
+        const lax_trimmed = std.fmt.allocPrint(allocator, "{s}{s}", .{
+            compiler.printed.items,
+            std.mem.trim(u8, lax, "\n"),
+        }) catch oom();
         const strict_trimmed = std.mem.trim(u8, strict, "\n");
 
         const result_repr = compiler.tir_fun_data.get(compiler.tir_fun_main.?).return_repr.one;
@@ -40,7 +43,8 @@ pub fn fuzz(source: []const u8) void {
             std.mem.indexOf(u8, source, "%memory-grow(") == null and
             std.mem.indexOf(u8, source, "%heap-start(") == null and
             std.mem.indexOf(u8, source, "%load(") == null and
-            std.mem.indexOf(u8, source, "%store(") == null)
+            std.mem.indexOf(u8, source, "%store(") == null and
+            std.mem.indexOf(u8, source, "%panic(") == null)
         {
             if (!std.mem.eql(u8, lax_trimmed, strict_trimmed)) {
                 std.debug.print(

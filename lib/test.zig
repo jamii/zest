@@ -22,7 +22,7 @@ pub fn evalLax(
 ) ![]const u8 {
     try zest.compileLax(compiler);
     const value = try zest.evalMain(compiler);
-    return std.fmt.allocPrint(allocator, "{s}{}", .{ compiler.printed.items, value });
+    return std.fmt.allocPrint(allocator, "{}", .{value});
 }
 
 pub fn evalStrict(
@@ -134,7 +134,16 @@ pub fn main() !void {
 
             var compiler = Compiler.init(allocator, source);
             const lax_or_err = evalLax(allocator, &compiler);
-            const actual_lax = std.mem.trim(u8, lax_or_err catch zest.formatError(&compiler), "\n");
+            const actual_lax =
+                std.fmt.allocPrint(allocator, "{s}{s}", .{
+                compiler.printed.items,
+                std.mem.trim(
+                    u8,
+                    lax_or_err catch
+                        zest.formatError(&compiler),
+                    "\n",
+                ),
+            }) catch oom();
             const should_run_strict = if (lax_or_err) |_| true else |err| switch (err) {
                 error.EvalError => true,
                 else => false,
