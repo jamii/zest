@@ -1527,3 +1527,31 @@ foobar42
 
 42
 ```
+
+```
+%panic()
+
+panic
+
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/4fca02d6:1:120)
+    at file:///home/jamie/zest/test.js:23:39
+```
+
+```
+panic = (message) {
+  %print(message)
+  %print('\n')
+  %panic()
+}
+panic('Oh no')
+
+Oh no
+panic
+
+Oh no
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/6862bcf2:1:240)
+    at <anonymous> (wasm://wasm/6862bcf2:1:162)
+    at file:///home/jamie/zest/test.js:23:39
+```

@@ -399,6 +399,11 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .print_string;
                     emit(c, f, .call_builtin_end, .u32);
                 },
+                .panic => {
+                    f.expr_data.getPtr(begin).call_builtin_begin = .panic;
+                    // TODO Use empty union to indicate that this doesn't return.
+                    emit(c, f, .call_builtin_end, Repr.emptyStruct());
+                },
                 else => return fail(c, .todo),
             }
         },

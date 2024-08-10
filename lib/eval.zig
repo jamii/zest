@@ -423,6 +423,9 @@ pub fn evalExpr(
                     c.printed.appendSlice(string.string) catch oom();
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
+                .panic => {
+                    return fail(c, .panic);
+                },
                 else => return fail(c, .todo),
             }
         },
@@ -606,5 +609,6 @@ pub const EvalErrorData = union(enum) {
         repr: Repr,
         address: i64,
     },
+    panic,
     todo,
 };

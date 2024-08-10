@@ -170,10 +170,11 @@ pub const Builtin = enum {
     store,
     @"size-of",
     print,
+    panic,
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
-            .@"memory-size", .@"heap-start" => 0,
+            .@"memory-size", .@"heap-start", .panic => 0,
             .not, .@"memory-grow", .@"size-of", .print => 1,
             .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
         };
@@ -552,6 +553,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
                     .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
                     .out_of_bounds => |data| format(c, "Out of bounds {s} of {} at {}", .{ @tagName(data.op), data.repr, data.address }),
+                    .panic => format(c, "panic", .{}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },

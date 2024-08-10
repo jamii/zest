@@ -360,6 +360,7 @@ fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
         .store,
         .@"size-of",
         .print,
+        .panic,
     }) |builtin| {
         if (std.mem.eql(u8, @tagName(builtin), name))
             return builtin;
