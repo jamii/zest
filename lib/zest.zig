@@ -165,6 +165,7 @@ pub const Builtin = enum {
     not,
     @"memory-size",
     @"memory-grow",
+    @"memory-fill",
     @"memory-copy",
     @"heap-start",
     load,
@@ -178,7 +179,7 @@ pub const Builtin = enum {
             .@"memory-size", .@"heap-start", .panic => 0,
             .not, .@"memory-grow", .@"size-of", .print => 1,
             .equal, .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
-            .@"memory-copy" => 3,
+            .@"memory-fill", .@"memory-copy" => 3,
         };
     }
 };

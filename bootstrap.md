@@ -1367,6 +1367,18 @@ x.1.1
 ```
 %memory-grow(u32[1])
 %store(%heap-start(), [1,2,3,4])
+%memory-fill(%heap-start() + %size-of(i64), u32[0], u32[2] * %size-of(i64))
+x = %load(%heap-start(), struct[i64,i64,i64,i64])
+x.0 + x.1 + x.2 + x.3
+
+5
+
+5
+```
+
+```
+%memory-grow(u32[1])
+%store(%heap-start(), [1,2,3,4])
 %memory-copy(%heap-start() + {u32[2] * %size-of(i64)}, %heap-start(), u32[4] * %size-of(i64))
 x = %load(%heap-start(), struct[i64,i64,i64,i64])
 x.0 + x.1 + x.2 + x.3

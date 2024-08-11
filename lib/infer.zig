@@ -365,6 +365,15 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .memory_grow;
                     emit(c, f, .call_builtin_end, .u32);
                 },
+                .@"memory-fill" => {
+                    const byte_count = c.repr_stack.pop();
+                    const value = c.repr_stack.pop();
+                    const to_ptr = c.repr_stack.pop();
+                    if (to_ptr != .u32 or value != .u32 or byte_count != .u32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ to_ptr, value, byte_count }) } });
+                    f.expr_data.getPtr(begin).call_builtin_begin = .memory_fill;
+                    emit(c, f, .call_builtin_end, Repr.emptyStruct());
+                },
                 .@"memory-copy" => {
                     const byte_count = c.repr_stack.pop();
                     const from_ptr = c.repr_stack.pop();

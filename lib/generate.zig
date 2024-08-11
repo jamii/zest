@@ -515,7 +515,7 @@ fn genExprInner(
                     .add_u32, .subtract_u32, .multiply_u32 => .{ .u32 = 0 },
                     .equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64 => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of => .{ .u32 = 0 },
-                    .memory_grow, .memory_copy, .load, .store, .print_string, .panic => unreachable,
+                    .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_string, .panic => unreachable,
                 };
             }
             switch (builtin) {
@@ -592,6 +592,12 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.memory_grow);
                     emitLebU32(f, 0); // memory
                     return .{ .stack = .u32 };
+                },
+                .memory_fill => {
+                    emitEnum(f, wasm.Opcode.misc_prefix);
+                    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_fill));
+                    emitLebU32(f, 0); // memory
+                    return wir.Walue.emptyStruct();
                 },
                 .memory_copy => {
                     emitEnum(f, wasm.Opcode.misc_prefix);
