@@ -388,6 +388,27 @@ pub fn evalExpr(
                     c.memory.appendNTimes(0, @as(usize, @intCast(grow_page_count.u32)) * std.wasm.page_size) catch oom();
                     c.value_stack.append(.{ .u32 = @intCast(page_count) }) catch oom();
                 },
+                .@"memory-copy" => {
+                    const byte_count = c.value_stack.pop();
+                    const from_ptr = c.value_stack.pop();
+                    const to_ptr = c.value_stack.pop();
+                    if (to_ptr != .u32 or from_ptr != .u32 or byte_count != .u32)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ to_ptr, from_ptr, byte_count }) } });
+                    if (to_ptr.u32 < from_ptr.u32) {
+                        std.mem.copyForwards(
+                            u8,
+                            c.memory.items[@intCast(to_ptr.u32)..],
+                            c.memory.items[@intCast(from_ptr.u32)..][0..@intCast(byte_count.u32)],
+                        );
+                    } else {
+                        std.mem.copyBackwards(
+                            u8,
+                            c.memory.items[@intCast(to_ptr.u32)..],
+                            c.memory.items[@intCast(from_ptr.u32)..][0..@intCast(byte_count.u32)],
+                        );
+                    }
+                    c.value_stack.append(Value.emptyStruct()) catch oom();
+                },
                 .@"heap-start" => {
                     c.value_stack.append(.{ .u32 = 0 }) catch oom();
                 },

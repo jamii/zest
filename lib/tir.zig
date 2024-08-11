@@ -92,6 +92,7 @@ pub const BuiltinTyped = union(enum) {
     multiply_i64,
     memory_size,
     memory_grow,
+    memory_copy,
     heap_start,
     size_of: u32,
     load: Repr,
@@ -102,7 +103,7 @@ pub const BuiltinTyped = union(enum) {
     pub fn hasSideEffects(builtin: BuiltinTyped) bool {
         return switch (builtin) {
             .dummy, .equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_u32, .add_i64, .subtract_u32, .subtract_i64, .multiply_u32, .multiply_i64, .memory_size, .heap_start, .size_of => false,
-            .memory_grow, .load, .store, .print_string, .panic => true,
+            .memory_grow, .memory_copy, .load, .store, .print_string, .panic => true,
         };
     }
 };
