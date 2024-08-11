@@ -1579,3 +1579,11 @@ RuntimeError: unreachable
     at <anonymous> (wasm://wasm/6862bcf2:1:162)
     at file:///home/jamie/zest/test.js:23:39
 ```
+
+```
+%less-than(3, 7)
+
+1
+
+1
+```

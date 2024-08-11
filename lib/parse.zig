@@ -108,10 +108,10 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
                 const op: Builtin = switch (token) {
                     .@"==" => .equal,
                     .@"~=" => .equivalent,
-                    .@"<" => .less_than,
-                    .@"<=" => .less_than_or_equal,
-                    .@">" => .more_than,
-                    .@">=" => .more_than_or_equal,
+                    .@"<" => .@"less-than",
+                    .@"<=" => .@"less-than-or-equal",
+                    .@">" => .@"more-than",
+                    .@">=" => .@"more-than-or-equal",
                     .@"+" => .add,
                     .@"-" => .subtract,
                     .@"*" => .multiply,
@@ -352,19 +352,9 @@ fn parseBuiltinCall(c: *Compiler) error{ParseError}!void {
 fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
     try expect(c, .name);
     const name = lastTokenText(c);
-    for ([_]Builtin{
-        .@"memory-size",
-        .@"memory-grow",
-        .@"memory-copy",
-        .@"heap-start",
-        .load,
-        .store,
-        .@"size-of",
-        .print,
-        .panic,
-    }) |builtin| {
-        if (std.mem.eql(u8, @tagName(builtin), name))
-            return builtin;
+    inline for (@typeInfo(Builtin).Enum.fields) |field| {
+        if (std.mem.eql(u8, field.name, name))
+            return @enumFromInt(field.value);
     }
     return fail(c, .{ .not_a_builtin = name });
 }

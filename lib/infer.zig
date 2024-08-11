@@ -283,7 +283,7 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .equal_i64;
                     emit(c, f, .call_builtin_end, .i64);
                 },
-                .less_than => {
+                .@"less-than" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)
@@ -291,7 +291,7 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .less_than_i64;
                     emit(c, f, .call_builtin_end, .i64);
                 },
-                .less_than_or_equal => {
+                .@"less-than-or-equal" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)
@@ -299,7 +299,7 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_i64;
                     emit(c, f, .call_builtin_end, .i64);
                 },
-                .more_than => {
+                .@"more-than" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)
@@ -307,7 +307,7 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .more_than_i64;
                     emit(c, f, .call_builtin_end, .i64);
                 },
-                .more_than_or_equal => {
+                .@"more-than-or-equal" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)

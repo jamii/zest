@@ -314,28 +314,28 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
                 },
-                .less_than => {
+                .@"less-than" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i64 = if (arg0.i64 < arg1.i64) 1 else 0 }) catch oom();
                 },
-                .less_than_or_equal => {
+                .@"less-than-or-equal" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i64 = if (arg0.i64 <= arg1.i64) 1 else 0 }) catch oom();
                 },
-                .more_than => {
+                .@"more-than" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i64 = if (arg0.i64 > arg1.i64) 1 else 0 }) catch oom();
                 },
-                .more_than_or_equal => {
+                .@"more-than-or-equal" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
                     if (arg0 != .i64 or arg1 != .i64)

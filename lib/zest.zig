@@ -152,10 +152,10 @@ pub const Builtin = enum {
     // binary ops
     equal,
     equivalent,
-    less_than,
-    less_than_or_equal,
-    more_than,
-    more_than_or_equal,
+    @"less-than",
+    @"less-than-or-equal",
+    @"more-than",
+    @"more-than-or-equal",
     add,
     subtract,
     multiply,
@@ -177,7 +177,7 @@ pub const Builtin = enum {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic => 0,
             .not, .@"memory-grow", .@"size-of", .print => 1,
-            .equal, .equivalent, .less_than, .less_than_or_equal, .more_than, .more_than_or_equal, .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
+            .equal, .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
             .@"memory-copy" => 3,
         };
     }
