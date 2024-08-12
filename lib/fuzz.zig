@@ -13,7 +13,7 @@ const evalWasm = @import("../lib/test.zig").evalWasm;
 const readWat = @import("../lib/test.zig").readWat;
 
 pub fn fuzz(source: []const u8) void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
     const allocator = arena.allocator();
