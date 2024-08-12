@@ -70,6 +70,19 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         try genFun(c, f);
     }
 
+    {
+        // This must be kept in sync with ./runtime.zs
+        const wasm_page_bytes_log = std.math.log2(wasm.page_size);
+        const class_bytes_log_min = 8;
+        const class_count_small = wasm_page_bytes_log - class_bytes_log_min;
+        const class_count_all = 32 - class_bytes_log_min;
+        // Need space for:
+        //   alloc_next_ptr: array[class_count_small, u32]
+        //   alloc_free_ptr: array[class_count_all, u32]
+        // This must be the last entry in constant_data so that we can use %heap-start to find the this data.
+        c.constant_data.appendNTimes(0, class_count_small + class_count_all) catch oom();
+    }
+
     emitBytes(c, &wasm.magic);
     emitBytes(c, &wasm.version);
 

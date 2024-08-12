@@ -1236,7 +1236,7 @@ b.0.0
 
 0
 
-128
+129
 ```
 
 ```
@@ -1244,7 +1244,7 @@ b.0.0
 
 0
 
-128
+129
 ```
 
 ```
@@ -1253,7 +1253,7 @@ b.0.0
 
 3
 
-131
+132
 ```
 
 ```
@@ -1263,7 +1263,7 @@ b.0.0
 
 7
 
-135
+136
 ```
 
 ```
@@ -1271,7 +1271,7 @@ b.0.0
 
 0
 
-8388608
+8388640
 ```
 
 ```
@@ -1580,7 +1580,7 @@ foobar42
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/4fca02d6:1:120)
+    at <anonymous> (wasm://wasm/81e70f6a:1:127)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1597,8 +1597,8 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/6862bcf2:1:240)
-    at <anonymous> (wasm://wasm/6862bcf2:1:162)
+    at <anonymous> (wasm://wasm/0850f0d2:1:240)
+    at <anonymous> (wasm://wasm/0850f0d2:1:162)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
