@@ -616,10 +616,19 @@ fn genExprInner(
                     return .{ .u32 = size_of };
                 },
                 .load => |repr| {
-                    return wir.Walue{ .value_at = .{
+                    const value = wir.Walue{ .value_at = .{
                         .ptr = c.box(wir.Walue{ .stack = .u32 }),
                         .repr = repr,
                     } };
+                    switch (dest) {
+                        .nowhere, .stack, .value_at => {
+                            return value;
+                        },
+                        .anywhere => {
+                            // Must make a copy to avoid passing around an aliased walue
+                            return copy(c, f, value.value_at);
+                        },
+                    }
                 },
                 .store => unreachable, // handled above
                 .print_string => {
@@ -860,10 +869,12 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             if (from_ptr.equal(to_ptr))
                 return;
 
+            const from_ptr_spilled = spillStack(c, f, from_ptr);
+
             const byte_count = value_at.repr.sizeOf();
             if (byte_count > 64) {
                 load(c, f, to_ptr);
-                load(c, f, from_ptr);
+                load(c, f, from_ptr_spilled);
                 emitU32Const(f, @intCast(byte_count));
                 emitEnum(f, wasm.Opcode.misc_prefix);
                 emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
@@ -872,7 +883,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             } else {
                 var offset: u32 = 0;
                 const to_add = asAdd(c, to_ptr);
-                const from_add = asAdd(c, from_ptr);
+                const from_add = asAdd(c, from_ptr_spilled);
                 while (offset < byte_count) {
                     const remaining = byte_count - offset;
                     inline for (.{
