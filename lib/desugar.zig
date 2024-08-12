@@ -38,7 +38,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
             try desugarExpr(c, f);
-            c.sir_expr_next = .{ .id = next.id + 1 };
+            c.sir_expr_next.id = next.id + 1;
         },
         .name, .get_begin, .ref_to_begin => {
             try desugarPath(c, f);
@@ -282,7 +282,7 @@ fn desugarPath(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
             try desugarPath(c, f);
-            c.sir_expr_next = .{ .id = next.id + 1 };
+            c.sir_expr_next.id = next.id + 1;
         },
         .ref_to_begin => {
             _ = try desugarPathPart(c, f, true);
@@ -306,7 +306,7 @@ fn desugarPathPart(c: *Compiler, f: *dir.FunData, must_be_mut: bool) error{Desug
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
             const is_mut = try desugarPathPart(c, f, must_be_mut);
-            c.sir_expr_next = .{ .id = next.id + 1 };
+            c.sir_expr_next.id = next.id + 1;
             return is_mut;
         },
         .name => |name| {
@@ -390,7 +390,7 @@ fn desugarKey(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
             try desugarKey(c, f);
-            c.sir_expr_next = .{ .id = next.id + 1 };
+            c.sir_expr_next.id = next.id + 1;
         },
         .name => |name| {
             _ = take(c).name;
@@ -446,7 +446,7 @@ fn desugarPattern(c: *Compiler, f: *dir.FunData, bindings: *ArrayList(dir.Bindin
             const next = c.sir_expr_next;
             c.sir_expr_next = expr;
             try desugarPattern(c, f, bindings, input, context);
-            c.sir_expr_next = .{ .id = next.id + 1 };
+            c.sir_expr_next.id = next.id + 1;
         },
         .name => |name| {
             _ = take(c).name;

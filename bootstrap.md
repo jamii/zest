@@ -1503,6 +1503,26 @@ Expected i64, found u32
 ```
 
 ```
+f = (:x/i64) x + 1
+x = 1
+f(:x/i64)
+
+2
+
+2
+```
+
+```
+f = (:x/i64) x + 1
+x = 1/u32
+f(:x/u32)
+
+Expected i64, found u32
+
+Expected i64, found u32
+```
+
+```
 f = (struct[i64, i64][x]) x.1
 f([101,42])
 

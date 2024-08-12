@@ -142,6 +142,10 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
 fn parseExprTight(c: *Compiler) error{ParseError}!void {
     const buffer_start = bufferLen(c);
     try parseExprAtom(c, .{});
+    try parseExprTightTail(c, buffer_start);
+}
+
+fn parseExprTightTail(c: *Compiler, buffer_start: usize) error{ParseError}!void {
     while (true) {
         if (peekSpace(c)) break;
         switch (peek(c)) {
@@ -378,7 +382,9 @@ fn parseArgsInner(c: *Compiler, end: TokenData, start_ix: i64) error{ParseError}
             try expect(c, .name);
             const name = lastTokenText(c);
             emit(c, .{ .name = .{ .name = name, .mut = false } });
+            const buffer_start = bufferLen(c);
             emit(c, .{ .name = .{ .name = name, .mut = false } });
+            try parseExprTightTail(c, buffer_start);
         } else {
             const buffer_start = bufferLen(c);
             try parseExpr(c);

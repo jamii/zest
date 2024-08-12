@@ -461,7 +461,7 @@ pub const Compiler = struct {
             try writer.writeByteNTimes(' ', indent * 2);
             try writer.print("{s}", .{@tagName(expr_data)});
             if (expr_data == .indirect) {
-                try writer.print("\n", .{});
+                try writer.print(" {}\n", .{expr_data.indirect.id});
                 try c.printSir(writer, expr_data.indirect, indent);
             } else {
                 switch (expr_data) {
