@@ -73,7 +73,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
     {
         // This must be kept in sync with ./runtime.zs
         const wasm_page_byte_count_log = 16;
-        const class_min_byte_count_log = 8;
+        const class_min_byte_count_log = 3;
         const class_count = 32 - class_min_byte_count_log;
         const class_small_count = wasm_page_byte_count_log - class_min_byte_count_log;
         // Need space for:
