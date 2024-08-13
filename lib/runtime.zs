@@ -7,9 +7,10 @@ panic = (message) {
 wasm-page-len-log = u32[16] // log2(64 * 1024)
 wasm-page-len = u32[1] << wasm-page-len-log
 
-// Allocations are divided into `class-count-all` size classes, with sizes ranging form `2 ^ class-min-len-log` to `2 ^ 32` bytes.
+// Allocations are divided into `class-count` size classes, with sizes ranging form `2 ^ class-min-len-log` to `2 ^ class-max-len-log` bytes.
 class-min-len-log = u32[3] // enough for 4 bytes plus a u32 freelist pointer
-class-count = u32[32] - class-min-len-log
+class-max-len-log = u32[32] // enough for entire wasm32 address space
+class-count = class-max-len-log - class-min-len-log
 class-small-count = wasm-page-len-log - class-min-len-log
 
 // Each wasm page is dedicated to one size class and is never reused in a different size class.
@@ -66,16 +67,14 @@ free = (:class/u32, :ptr/u32) { // /struct[]
 
 len-to-class = (len/u32) { // /u32
     len-with-free-ptr = len + %size-of(u32)
-    lower-len-log = 32 - %clz(len-with-free-ptr)
-    upper-len-log = if {{u32[1] << lower-log} == len-with-free-ptr} lower-len-log else lower-len-log + 1
-    if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else 0
+    lower-len-log = u32[31] - %clz(len-with-free-ptr)
+    upper-len-log = if {{u32[1] << lower-len-log} == len-with-free-ptr} lower-len-log else lower-len-log + u32[1]
+    if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else u32[0]
 }
 
 class-to-len = (class/u32) { // /u32
     {u32[1] << {class + class-min-len-log}} - %size-of(u32)
 }
-
-class-to-len(0)
 
 //alloc-bytes = (:len/u32) /slice[u8] {
 //    if {len == u32[0]} {
@@ -90,7 +89,7 @@ class-to-len(0)
 //    }
 //}
 
-//free-bytes = (:bytes/slice[u8]) /struct[] {
+//free-bytes = (bytes/slice[u8]) /struct[] {
 //    innards = %to-innards(bytes)
 //    free(class: len-to-class(innards.len), ptr: innards.ptr - %size-of(u32))
 //}
