@@ -114,9 +114,11 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
             .@"-" => .subtract,
             .@"*" => .multiply,
             .@"/" => .divide,
+            .@"%" => .remainder,
             else => break,
         };
         _ = take(c);
+
         if (prev_op != null and prev_op != op) {
             return fail(c, .{ .ambiguous_precedence = .{ prev_op.?, op } });
         }

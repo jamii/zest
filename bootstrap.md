@@ -1647,3 +1647,45 @@ RuntimeError: unreachable
 
 1
 ```
+
+```
+42 % 0
+
+Division by zero
+
+RuntimeError: remainder by zero
+    at <anonymous> (wasm://wasm/8d761cba:1:132)
+    at file:///home/jamie/zest/test.js:23:39
+```
+
+```
+1 % 3
+
+1
+
+1
+```
+
+```
+7 % 3
+
+1
+
+1
+```
+
+```
+-1 % 3
+
+-1
+
+-1
+```
+
+```
+-4 % 3
+
+-1
+
+-1
+```

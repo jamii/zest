@@ -363,6 +363,19 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     }
                 },
+                .remainder => {
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .remainder_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .remainder_u32;
+                        emit(c, f, .call_builtin_end, .u32);
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
+                    }
+                },
                 .@"memory-size" => {
                     f.expr_data.getPtr(begin).call_builtin_begin = .memory_size;
                     emit(c, f, .call_builtin_end, .u32);

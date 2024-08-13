@@ -382,6 +382,19 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     }
                 },
+                .remainder => {
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        if (arg1.i64 == 0) return fail(c, .division_by_zero);
+                        c.value_stack.append(.{ .i64 = @rem(arg0.i64, arg1.i64) }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        if (arg1.u32 == 0) return fail(c, .division_by_zero);
+                        c.value_stack.append(.{ .u32 = @rem(arg0.u32, arg1.u32) }) catch oom();
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
+                    }
+                },
                 .@"memory-size" => {
                     const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
                     c.value_stack.append(.{ .u32 = @intCast(page_count) }) catch oom();
@@ -649,6 +662,7 @@ pub const EvalErrorData = union(enum) {
         repr: Repr,
         address: i64,
     },
+    division_by_zero,
     panic,
     todo,
 };

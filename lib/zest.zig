@@ -162,6 +162,7 @@ pub const Builtin = enum {
     subtract,
     multiply,
     divide,
+    remainder,
     @"and",
     @"or",
     not,
@@ -180,7 +181,7 @@ pub const Builtin = enum {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic => 0,
             .not, .@"memory-grow", .@"size-of", .print => 1,
-            .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
+            .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"and", .@"or", .load, .store => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };
     }
@@ -558,6 +559,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
                     .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
                     .out_of_bounds => |data| format(c, "Out of bounds {s} of {} at {}", .{ @tagName(data.op), data.repr, data.address }),
+                    .division_by_zero => format(c, "Division by zero", .{}),
                     .panic => format(c, "panic", .{}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
