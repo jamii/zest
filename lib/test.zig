@@ -62,12 +62,13 @@ pub fn evalWasm(
 }
 
 pub fn readWat(allocator: Allocator) []const u8 {
+    const wasm_filename = wasmFilename(allocator);
     if (std.process.Child.run(.{
         .allocator = allocator,
-        .argv = &.{ "wasm2wat", "--no-check", "-f", wasmFilename(allocator) },
+        .argv = &.{ "wasm2wat", "--no-check", "-f", wasm_filename },
         .max_output_bytes = std.math.maxInt(usize),
     })) |result| {
-        return std.mem.concat(allocator, u8, &.{ result.stdout, result.stderr }) catch oom();
+        return std.mem.concat(allocator, u8, &.{ wasm_filename, "\n", result.stdout, result.stderr }) catch oom();
     } else |err| {
         panic("Error running wasm2wat: {}", .{err});
     }
