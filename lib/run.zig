@@ -57,7 +57,7 @@ pub fn main() !void {
                         try stdout.print("{s}", .{
                             zest.formatError(&compiler),
                         });
-                        return;
+                        break;
                     };
                     const strict_or_err = evalStrict(allocator, &compiler);
                     try stdout.print("{s}", .{
