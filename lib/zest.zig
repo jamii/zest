@@ -514,9 +514,22 @@ pub const ErrorData = union(enum) {
 };
 
 const Location = struct {
+    source: []const u8,
     line: usize,
     column: usize,
     range: [2]usize,
+
+    pub fn format(self: Location, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("At {}:{}:\n{s}\n", .{
+            self.line,
+            self.column,
+            self.source[self.range[0]..self.range[1]],
+        });
+        try writer.writeByteNTimes(' ', self.column);
+        try writer.writeByte('^');
+    }
 };
 
 fn locate(c: *Compiler, pos: usize) Location {
@@ -524,6 +537,7 @@ fn locate(c: *Compiler, pos: usize) Location {
     const start = if (std.mem.lastIndexOfScalar(u8, c.source[0..pos], '\n')) |i| i + 1 else 0;
     const end = std.mem.indexOfScalarPos(u8, c.source, pos, '\n') orelse c.source.len;
     return .{
+        .source = c.source,
         .line = line,
         .column = pos - start,
         .range = .{ start, end },
@@ -535,26 +549,20 @@ pub fn formatError(c: *Compiler) []const u8 {
         switch (error_data) {
             .tokenize => |err| {
                 const location = locate(c, err.pos);
-                const spaces = c.allocator.alloc(u8, location.column) catch oom();
-                @memset(spaces, ' ');
-                return format(c, "Could not tokenize at {}:{}:\n{s}\n{s}^", .{
-                    location.line,
-                    location.column,
-                    c.source[location.range[0]..location.range[1]],
-                    spaces,
-                });
+                return format(c, "Tokenize error\n{}", .{location});
             },
             .parse => |err| {
-                const source_offset = c.token_to_source.get(c.token_next);
+                const pos = c.token_to_source.get(c.token_next)[0];
+                const location = locate(c, pos);
                 return switch (err) {
-                    .unexpected => |data| format(c, "At {}: expected {s}, found {}", .{ source_offset[0], data.expected, data.found }),
-                    .unexpected_space => format(c, "At {}: unexpected space", .{source_offset[0]}),
-                    .ambiguous_precedence => |data| format(c, "At {}: ambigious precedence between {} and {}", .{ source_offset[0], data[0], data[1] }),
-                    .invalid_string_escape => |data| format(c, "At {}: invalid string escape \\{}", .{ source_offset[0], data }),
-                    .positional_args_after_keyed_args => format(c, "At {}: all positional args must appear before all keyed args", .{source_offset[0]}),
-                    .parse_i64 => |data| format(c, "At {}: invalid i64: {}", .{ source_offset[0], data }),
-                    .parse_f64 => |data| format(c, "At {}: invalid f64: {}", .{ source_offset[0], data }),
-                    .not_a_builtin => |data| format(c, "At {}: invalid builtin: {s}", .{ source_offset[0], data }),
+                    .unexpected => |data| format(c, "Parse error: expected {s}, found {}\n{}", .{ data.expected, data.found, location }),
+                    .unexpected_space => format(c, "Parse error: unexpected space\n{}", .{location}),
+                    .ambiguous_precedence => |data| format(c, "Parse error: ambigious precedence between {} and {}\n{}", .{ data[0], data[1], location }),
+                    .invalid_string_escape => |data| format(c, "Parse error: invalid string escape \\{}\n{}", .{ data, location }),
+                    .positional_args_after_keyed_args => format(c, "Parse error: all positional args must appear before all keyed args\n{}", .{location}),
+                    .parse_i64 => |data| format(c, "Parse error: invalid i64: {}\n{}", .{ data, location }),
+                    .parse_f64 => |data| format(c, "Parse error: invalid f64: {}\n{}", .{ data, location }),
+                    .not_a_builtin => |data| format(c, "Parse error: invalid builtin: {s}\n{}", .{ data, location }),
                 };
             },
             .desugar => |err| {

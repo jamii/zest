@@ -1713,3 +1713,19 @@ u32[1] << u32[32]
 
 1
 ```
+
+```
+foo = () {
+  bad grammar
+}
+
+Parse error: expected }, found zest.TokenData.name
+At 2:13:
+  bad grammar
+             ^
+
+Parse error: expected }, found zest.TokenData.name
+At 2:13:
+  bad grammar
+             ^
+```
