@@ -20,7 +20,7 @@ alloc-free-ptr-ptr = %heap-start() - class-count
 
 // For size classes smaller than `wasm-page-len` we allocate an entire page and track the next free slot within the page.
 // If the next slot points to the start of a wasm page then we need to allocate a new page.
-alloc-next-ptr-ptr = alloc-free-ptr - class-small-count
+alloc-next-ptr-ptr = alloc-free-ptr-ptr - class-small-count
 
 alloc-pages = (:page-count/u32) { // /u32
     page-ptr = %memory-grow(page-count)
@@ -41,7 +41,7 @@ alloc = (:class/u32) { // /u32
     } else if {class < class-small-count} {
         next-ptr-ptr = alloc-next-ptr-ptr + {class * %size-of(u32)}
         next-ptr = %load(u32, next-ptr-ptr)
-        alloc-ptr = if (next-ptr % wasm-page-len == 0) alloc-pages(1) else next-ptr
+        alloc-ptr = if {{next-ptr % wasm-page-len} == 0} alloc-pages(1) else next-ptr
         len-log = class + class-min-len-log
         len = u32[1] << len-log
         %store(next-ptr-ptr, alloc-ptr + len)
@@ -74,7 +74,7 @@ free = (:class/u32, :ptr/u32) { // /struct[]
 //}
 
 //alloc-bytes = (:len/u32) /slice[u8] {
-//    if (len == 0) {
+//    if {len == 0} {
 //        %from-innards(slice[u8], [ptr: 0, len: 0])
 //    } else {
 //        class = len-to-class(len)

@@ -27,8 +27,6 @@ pub fn main() !void {
     var args = try std.process.argsAlloc(allocator);
     args = args[1..];
 
-    const stdout = std.io.getStdOut().writer();
-
     var mode: ?Mode = null;
     for (args) |arg| {
         if (std.mem.eql(u8, arg, "--lax")) {
@@ -46,7 +44,7 @@ pub fn main() !void {
             switch (mode orelse panic("Specify --lax or --strict", .{})) {
                 .lax => {
                     const lax_or_err = evalLax(allocator, &compiler);
-                    try stdout.print("{s}{s}", .{
+                    std.debug.print("{s}{s}", .{
                         compiler.printed.items,
                         lax_or_err catch
                             zest.formatError(&compiler),
@@ -54,13 +52,13 @@ pub fn main() !void {
                 },
                 .strict => {
                     zest.compileLax(&compiler) catch {
-                        try stdout.print("{s}", .{
+                        std.debug.print("{s}", .{
                             zest.formatError(&compiler),
                         });
                         break;
                     };
                     const strict_or_err = evalStrict(allocator, &compiler);
-                    try stdout.print("{s}", .{
+                    std.debug.print("{s}", .{
                         strict_or_err catch
                             zest.formatError(&compiler),
                     });
