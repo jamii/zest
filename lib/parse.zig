@@ -102,40 +102,36 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
     var prev_op: ?Builtin = null;
     while (true) {
         if (!peekSpace(c)) break;
-        switch (peek(c)) {
-            .@"==", .@"~=", .@"<", .@">", .@"<=", .@">=", .@"+", .@"-", .@"/", .@"*" => {
-                const token = take(c);
-                const op: Builtin = switch (token) {
-                    .@"==" => .equal,
-                    .@"~=" => .equivalent,
-                    .@"<" => .@"less-than",
-                    .@"<=" => .@"less-than-or-equal",
-                    .@">" => .@"more-than",
-                    .@">=" => .@"more-than-or-equal",
-                    .@"+" => .add,
-                    .@"-" => .subtract,
-                    .@"*" => .multiply,
-                    .@"/" => .divide,
-                    else => unreachable,
-                };
-                if (prev_op != null and prev_op != op) {
-                    return fail(c, .{ .ambiguous_precedence = .{ prev_op.?, op } });
-                }
-                prev_op = op;
-
-                try expectSpaceOrNewline(c);
-                allowNewline(c);
-
-                const left = cutBufferAfter(c, buffer_start);
-
-                emit(c, .{ .call_builtin_begin = op });
-                defer emit(c, .call_builtin_end);
-
-                emit(c, left);
-                try parseExprTight(c);
-            },
+        const op: Builtin = switch (peek(c)) {
+            .@"==" => .equal,
+            .@"!=" => .@"not-equal",
+            .@"~=" => .equivalent,
+            .@"<" => .@"less-than",
+            .@"<=" => .@"less-than-or-equal",
+            .@">" => .@"more-than",
+            .@">=" => .@"more-than-or-equal",
+            .@"+" => .add,
+            .@"-" => .subtract,
+            .@"*" => .multiply,
+            .@"/" => .divide,
             else => break,
+        };
+        _ = take(c);
+        if (prev_op != null and prev_op != op) {
+            return fail(c, .{ .ambiguous_precedence = .{ prev_op.?, op } });
         }
+        prev_op = op;
+
+        try expectSpaceOrNewline(c);
+        allowNewline(c);
+
+        const left = cutBufferAfter(c, buffer_start);
+
+        emit(c, .{ .call_builtin_begin = op });
+        defer emit(c, .call_builtin_end);
+
+        emit(c, left);
+        try parseExprTight(c);
     }
 }
 

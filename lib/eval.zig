@@ -314,6 +314,13 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
                 },
+                .@"not-equal" => {
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
+                    if (arg0 != .i64 or arg1 != .i64)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
+                    c.value_stack.append(.{ .i64 = if (arg0.i64 != arg1.i64) 1 else 0 }) catch oom();
+                },
                 .@"less-than" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();

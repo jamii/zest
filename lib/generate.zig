@@ -526,7 +526,7 @@ fn genExprInner(
                 return switch (builtin) {
                     .dummy => panic("Uninitialized builtin", .{}),
                     .add_u32, .subtract_u32, .multiply_u32 => .{ .u32 = 0 },
-                    .equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64 => .{ .i64 = 0 },
+                    .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64 => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of => .{ .u32 = 0 },
                     .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_string, .panic => unreachable,
                 };
@@ -549,6 +549,11 @@ fn genExprInner(
                 .dummy => panic("Uninitialized builtin", .{}),
                 .equal_i64 => {
                     emitEnum(f, wasm.Opcode.i64_eq);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
+                .not_equal_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_ne);
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
                     return .{ .stack = .i64 };
                 },

@@ -36,6 +36,14 @@ pub fn tokenize(c: *Compiler) !void {
                     break :token .@"=";
                 }
             },
+            '!' => token: {
+                if (i < source.len and source[i] == '=') {
+                    i += 1;
+                    break :token .@"!=";
+                } else {
+                    return fail(c, start);
+                }
+            },
             '~' => token: {
                 if (i < source.len and source[i] == '=') {
                     i += 1;

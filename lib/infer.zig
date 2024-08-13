@@ -283,6 +283,15 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .equal_i64;
                     emit(c, f, .call_builtin_end, .i64);
                 },
+                .@"not-equal" => {
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
+                    if (arg0 != .i64 or arg1 != .i64)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
+
+                    f.expr_data.getPtr(begin).call_builtin_begin = .not_equal_i64;
+                    emit(c, f, .call_builtin_end, .i64);
+                },
                 .@"less-than" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();

@@ -133,6 +133,7 @@ pub const TokenData = enum {
     @"%",
     @"=",
     @"==",
+    @"!=",
     @"~=",
     @"<",
     @"<=",
@@ -151,6 +152,7 @@ pub const TokenData = enum {
 pub const Builtin = enum {
     // binary ops
     equal,
+    @"not-equal",
     equivalent,
     @"less-than",
     @"less-than-or-equal",
@@ -178,7 +180,7 @@ pub const Builtin = enum {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic => 0,
             .not, .@"memory-grow", .@"size-of", .print => 1,
-            .equal, .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
+            .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .@"and", .@"or", .load, .store => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };
     }
