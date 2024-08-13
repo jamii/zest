@@ -526,8 +526,8 @@ fn genExprInner(
                 return switch (builtin) {
                     .dummy => panic("Uninitialized builtin", .{}),
                     .add_u32, .subtract_u32, .multiply_u32, .remainder_u32 => .{ .u32 = 0 },
-                    .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64 => .{ .i64 = 0 },
-                    .memory_size, .heap_start, .size_of => .{ .u32 = 0 },
+                    .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64 => .{ .i64 = 0 },
+                    .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
                     .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_string, .panic => unreachable,
                 };
             }
@@ -547,8 +547,18 @@ fn genExprInner(
             _ = take(c, tir_f).call_builtin_end;
             switch (builtin) {
                 .dummy => panic("Uninitialized builtin", .{}),
+                .equal_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_eq);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
                 .equal_i64 => {
                     emitEnum(f, wasm.Opcode.i64_eq);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
+                .not_equal_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_ne);
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
                     return .{ .stack = .i64 };
                 },
@@ -557,8 +567,18 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
                     return .{ .stack = .i64 };
                 },
+                .less_than_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_lt_u);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
                 .less_than_i64 => {
                     emitEnum(f, wasm.Opcode.i64_lt_s);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
+                .less_than_or_equal_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_le_u);
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
                     return .{ .stack = .i64 };
                 },
@@ -567,8 +587,18 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
                     return .{ .stack = .i64 };
                 },
+                .more_than_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_gt_u);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
                 .more_than_i64 => {
                     emitEnum(f, wasm.Opcode.i64_gt_s);
+                    emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                    return .{ .stack = .i64 };
+                },
+                .more_than_or_equal_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_ge_u);
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
                     return .{ .stack = .i64 };
                 },
@@ -593,21 +623,25 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.i64_sub);
                     return .{ .stack = .i64 };
                 },
+                .multiply_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_mul);
+                    return .{ .stack = .u32 };
+                },
                 .multiply_i64 => {
                     emitEnum(f, wasm.Opcode.i64_mul);
                     return .{ .stack = .i64 };
                 },
-                .multiply_u32 => {
-                    emitEnum(f, wasm.Opcode.i32_mul);
+                .remainder_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_rem_u);
                     return .{ .stack = .u32 };
                 },
                 .remainder_i64 => {
                     emitEnum(f, wasm.Opcode.i64_rem_s);
                     return .{ .stack = .i64 };
                 },
-                .remainder_u32 => {
-                    emitEnum(f, wasm.Opcode.i32_rem_u);
-                    return .{ .stack = .u32 };
+                .bit_shift_left_u32 => {
+                    emitEnum(f, wasm.Opcode.i32_shl);
+                    return .{ .stack = .i64 };
                 },
                 .memory_size => {
                     emitEnum(f, wasm.Opcode.memory_size);

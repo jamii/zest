@@ -115,6 +115,7 @@ fn parseExprLoose(c: *Compiler) error{ParseError}!void {
             .@"*" => .multiply,
             .@"/" => .divide,
             .@"%" => .remainder,
+            .@"<<" => .@"bit-shift-left",
             else => break,
         };
         _ = take(c);

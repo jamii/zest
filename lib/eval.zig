@@ -310,44 +310,68 @@ pub fn evalExpr(
                 .equal => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .i64 = if (arg0.u32 == arg1.u32) 1 else 0 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
+                    }
                 },
                 .@"not-equal" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = if (arg0.i64 != arg1.i64) 1 else 0 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .i64 = if (arg0.u32 != arg1.u32) 1 else 0 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (arg0.i64 != arg1.i64) 1 else 0 }) catch oom();
+                    }
                 },
                 .@"less-than" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = if (arg0.i64 < arg1.i64) 1 else 0 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .i64 = if (arg0.u32 < arg1.u32) 1 else 0 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (arg0.i64 < arg1.i64) 1 else 0 }) catch oom();
+                    }
                 },
                 .@"less-than-or-equal" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = if (arg0.i64 <= arg1.i64) 1 else 0 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .i64 = if (arg0.u32 <= arg1.u32) 1 else 0 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (arg0.i64 <= arg1.i64) 1 else 0 }) catch oom();
+                    }
                 },
                 .@"more-than" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = if (arg0.i64 > arg1.i64) 1 else 0 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .i64 = if (arg0.u32 > arg1.u32) 1 else 0 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (arg0.i64 > arg1.i64) 1 else 0 }) catch oom();
+                    }
                 },
                 .@"more-than-or-equal" => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        c.value_stack.append(.{ .i64 = if (arg0.i64 >= arg1.i64) 1 else 0 }) catch oom();
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .i64 = if (arg0.u32 >= arg1.u32) 1 else 0 }) catch oom();
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (arg0.i64 >= arg1.i64) 1 else 0 }) catch oom();
+                    }
                 },
                 .add => {
                     const arg1 = c.value_stack.pop();
@@ -391,6 +415,15 @@ pub fn evalExpr(
                     } else if (arg0 == .u32 and arg1 == .u32) {
                         if (arg1.u32 == 0) return fail(c, .division_by_zero);
                         c.value_stack.append(.{ .u32 = @rem(arg0.u32, arg1.u32) }) catch oom();
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
+                    }
+                },
+                .@"bit-shift-left" => {
+                    const arg1 = c.value_stack.pop();
+                    const arg0 = c.value_stack.pop();
+                    if (arg0 == .u32 and arg1 == .u32) {
+                        c.value_stack.append(.{ .u32 = arg0.u32 << @truncate(arg1.u32) }) catch oom();
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     }

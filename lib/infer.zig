@@ -277,52 +277,80 @@ fn inferExpr(
                 .equal => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .equal_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .equal_u32;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-
-                    f.expr_data.getPtr(begin).call_builtin_begin = .equal_i64;
-                    emit(c, f, .call_builtin_end, .i64);
+                    }
                 },
                 .@"not-equal" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .not_equal_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .not_equal_u32;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-
-                    f.expr_data.getPtr(begin).call_builtin_begin = .not_equal_i64;
-                    emit(c, f, .call_builtin_end, .i64);
+                    }
                 },
                 .@"less-than" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_u32;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .less_than_i64;
-                    emit(c, f, .call_builtin_end, .i64);
+                    }
                 },
                 .@"less-than-or-equal" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_u32;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_i64;
-                    emit(c, f, .call_builtin_end, .i64);
+                    }
                 },
                 .@"more-than" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_u32;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .more_than_i64;
-                    emit(c, f, .call_builtin_end, .i64);
+                    }
                 },
                 .@"more-than-or-equal" => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
-                    if (arg0 != .i64 or arg1 != .i64)
+                    if (arg0 == .i64 and arg1 == .i64) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_i64;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_u32;
+                        emit(c, f, .call_builtin_end, .i64);
+                    } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_i64;
-                    emit(c, f, .call_builtin_end, .i64);
+                    }
                 },
                 .add => {
                     const arg1 = c.repr_stack.pop();
@@ -371,6 +399,16 @@ fn inferExpr(
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
                         f.expr_data.getPtr(begin).call_builtin_begin = .remainder_u32;
+                        emit(c, f, .call_builtin_end, .u32);
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
+                    }
+                },
+                .@"bit-shift-left" => {
+                    const arg1 = c.repr_stack.pop();
+                    const arg0 = c.repr_stack.pop();
+                    if (arg0 == .u32 and arg1 == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .bit_shift_left_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });

@@ -56,7 +56,11 @@ pub fn tokenize(c: *Compiler) !void {
                 if (i < source.len and source[i] == '=') {
                     i += 1;
                     break :token .@"<=";
-                } else {
+                } else if (i < source.len and source[i] == '<') {
+                    i += 1;
+                    break :token .@"<<";
+                }
+                {
                     break :token .@"<";
                 }
             },

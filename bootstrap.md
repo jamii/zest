@@ -1689,3 +1689,27 @@ RuntimeError: remainder by zero
 
 -1
 ```
+
+```
+u32[1] << u32[10]
+
+1024
+
+1024
+```
+
+```
+1 << 10
+
+Cannot call zest.Builtin.bit-shift-left with these args: { 1, 10 }
+
+Cannot call zest.Builtin.bit-shift-left with these args: { i64, i64 }
+```
+
+```
+u32[1] << u32[32]
+
+1
+
+1
+```
