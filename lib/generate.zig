@@ -641,7 +641,7 @@ fn genExprInner(
                 },
                 .bit_shift_left_u32 => {
                     emitEnum(f, wasm.Opcode.i32_shl);
-                    return .{ .stack = .i64 };
+                    return .{ .stack = .u32 };
                 },
                 .memory_size => {
                     emitEnum(f, wasm.Opcode.memory_size);
