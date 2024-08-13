@@ -4,9 +4,10 @@ panic = (message) {
   %panic()
 }
 
-// Allocations are divided into `class-count-all` size classes, with sizes ranging from from `2 ^ class-min-len-log` to `2 ^ 32` bytes.
 wasm-page-len-log = u32[16] // log2(64 * 1024)
 wasm-page-len = u32[1] << wasm-page-len-log
+
+// Allocations are divided into `class-count-all` size classes, with sizes ranging form `2 ^ class-min-len-log` to `2 ^ 32` bytes.
 class-min-len-log = u32[3] // enough for 4 bytes plus a u32 freelist pointer
 class-count = u32[32] - class-min-len-log
 class-small-count = wasm-page-len-log - class-min-len-log
@@ -25,7 +26,7 @@ alloc-pages = (:page-count/u32) { // /u32
     page-ptr = %memory-grow(page-count)
     // %memory-grow returns i32[-1] on oom
     if {page-ptr == 4294967295} {
-        panic("Out of memory")
+        panic('Out of memory')
     } else {
         page-ptr
     }

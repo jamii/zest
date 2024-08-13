@@ -513,9 +513,37 @@ pub const ErrorData = union(enum) {
     },
 };
 
+const Location = struct {
+    line: usize,
+    column: usize,
+    range: [2]usize,
+};
+
+fn locate(c: *Compiler, pos: usize) Location {
+    const line = 1 + std.mem.count(u8, c.source[0..pos], "\n");
+    const start = if (std.mem.lastIndexOfScalar(u8, c.source[0..pos], '\n')) |i| i + 1 else 0;
+    const end = std.mem.indexOfScalarPos(u8, c.source, pos, '\n') orelse c.source.len;
+    return .{
+        .line = line,
+        .column = pos - start,
+        .range = .{ start, end },
+    };
+}
+
 pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
         switch (error_data) {
+            .tokenize => |err| {
+                const location = locate(c, err.pos);
+                const spaces = c.allocator.alloc(u8, location.column) catch oom();
+                @memset(spaces, ' ');
+                return format(c, "Could not tokenize at {}:{}:\n{s}\n{s}^", .{
+                    location.line,
+                    location.column,
+                    c.source[location.range[0]..location.range[1]],
+                    spaces,
+                });
+            },
             .parse => |err| {
                 const source_offset = c.token_to_source.get(c.token_next);
                 return switch (err) {
@@ -589,7 +617,6 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .todo => format(c, "TODO generate", .{}),
                 };
             },
-            else => return format(c, "{}", .{c.error_data.?}),
         }
     else
         return "ok";
