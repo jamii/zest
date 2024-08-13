@@ -64,16 +64,18 @@ free = (:class/u32, :ptr/u32) { // /struct[]
     %memory-fill(ptr + %size-of(u32), u32[0], len - %size-of(u32))
 }
 
-//len-to-class = (len/u32) /u32 {
-//    len-with-free-ptr = len + %size-of(u32)
-//    lower-len-log = 32 - %clz(len-with-free-ptr)
-//    upper-len-log = if {{u32[1] << lower-log} == len-with-free-ptr} lower-len-log else lower-len-log + 1
-//    if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else 0
-//}
+len-to-class = (len/u32) { // /u32
+    len-with-free-ptr = len + %size-of(u32)
+    lower-len-log = 32 - %clz(len-with-free-ptr)
+    upper-len-log = if {{u32[1] << lower-log} == len-with-free-ptr} lower-len-log else lower-len-log + 1
+    if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else 0
+}
 
-//class-to-len = (class/u32) /u32 {
-//    {u32[1] << {class + class-min-len-log}} - %size-of(u32)
-//}
+class-to-len = (class/u32) { // /u32
+    {u32[1] << {class + class-min-len-log}} - %size-of(u32)
+}
+
+class-to-len(0)
 
 //alloc-bytes = (:len/u32) /slice[u8] {
 //    if {len == u32[0]} {

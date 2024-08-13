@@ -100,6 +100,7 @@ pub const BuiltinTyped = union(enum) {
     remainder_u32,
     remainder_i64,
     bit_shift_left_u32,
+    clz_u32,
     memory_size,
     memory_grow,
     memory_fill,
@@ -113,7 +114,7 @@ pub const BuiltinTyped = union(enum) {
 
     pub fn hasSideEffects(builtin: BuiltinTyped) bool {
         return switch (builtin) {
-            .dummy, .equal_u32, .equal_i64, .not_equal_u32, .not_equal_i64, .less_than_u32, .less_than_i64, .less_than_or_equal_u32, .less_than_or_equal_i64, .more_than_u32, .more_than_i64, .more_than_or_equal_u32, .more_than_or_equal_i64, .add_u32, .add_i64, .subtract_u32, .subtract_i64, .multiply_u32, .multiply_i64, .remainder_u32, .remainder_i64, .bit_shift_left_u32, .memory_size, .heap_start, .size_of => false,
+            .dummy, .equal_u32, .equal_i64, .not_equal_u32, .not_equal_i64, .less_than_u32, .less_than_i64, .less_than_or_equal_u32, .less_than_or_equal_i64, .more_than_u32, .more_than_i64, .more_than_or_equal_u32, .more_than_or_equal_i64, .add_u32, .add_i64, .subtract_u32, .subtract_i64, .multiply_u32, .multiply_i64, .remainder_u32, .remainder_i64, .bit_shift_left_u32, .clz_u32, .memory_size, .heap_start, .size_of => false,
             .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_string, .panic => true,
         };
     }

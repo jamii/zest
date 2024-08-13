@@ -414,6 +414,15 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     }
                 },
+                .clz => {
+                    const arg = c.repr_stack.pop();
+                    if (arg == .u32) {
+                        f.expr_data.getPtr(begin).call_builtin_begin = .clz_u32;
+                        emit(c, f, .call_builtin_end, .u32);
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } });
+                    }
+                },
                 .@"memory-size" => {
                     f.expr_data.getPtr(begin).call_builtin_begin = .memory_size;
                     emit(c, f, .call_builtin_end, .u32);

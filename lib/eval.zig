@@ -428,6 +428,14 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     }
                 },
+                .clz => {
+                    const arg = c.value_stack.pop();
+                    if (arg == .u32) {
+                        c.value_stack.append(.{ .u32 = @clz(arg.u32) }) catch oom();
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{arg}) } });
+                    }
+                },
                 .@"memory-size" => {
                     const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
                     c.value_stack.append(.{ .u32 = @intCast(page_count) }) catch oom();
