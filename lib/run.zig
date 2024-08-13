@@ -58,6 +58,11 @@ pub fn main() !void {
                         break;
                     };
                     const strict_or_err = evalStrict(allocator, &compiler);
+                    std.debug.print(
+                        \\--- wat ---
+                        \\{s}
+                        \\
+                    , .{readWat(allocator)});
                     std.debug.print("{s}", .{
                         strict_or_err catch
                             zest.formatError(&compiler),
