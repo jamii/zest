@@ -23,13 +23,14 @@ alloc-free-ptr-ptr = %heap-start() - class-count
 alloc-next-ptr-ptr = alloc-free-ptr-ptr - class-small-count
 
 alloc-pages = (page-count/u32) { // /u32
-    page-ptr = %memory-grow(page-count)
+    %print('alloc-pages\n')
+    page-count-prev = %memory-grow(page-count)
     // %memory-grow returns i32[-1] on oom
-    if {page-ptr == u32[4294967295]} {
+    if {page-count-prev == u32[4294967295]} {
         panic('Out of memory')
         u32[0] // TODO Fix type inference for functions that don't return.
     } else {
-        page-ptr
+        page-count-prev * wasm-page-len
     }
 }
 
@@ -48,7 +49,7 @@ alloc = (:class/u32) { // /u32
         %store(next-ptr-ptr, alloc-ptr + len)
         alloc-ptr
     } else {
-        page-count = class - class-small-count
+        page-count = u32[1] << {class - class-small-count}
         alloc-pages(page-count)
     }
 }
@@ -60,12 +61,8 @@ free = (:class/u32, :ptr/u32) { // /struct[]
     %store(free-ptr-ptr, ptr)
     len-log = class + class-min-len-log
     len = u32[1] << len-log
-    %memory-fill(ptr + %size-of(u32), 0, len - %size-of(u32))
+    %memory-fill(ptr + %size-of(u32), u32[0], len - %size-of(u32))
 }
-
-%load(alloc-pages(1) + u32[4], u32)
-//ptr = alloc(class: 0)
-//free(class: 0, ptr: ptr)
 
 //len-to-class = (len/u32) /u32 {
 //    len-with-free-ptr = len + %size-of(u32)

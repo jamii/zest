@@ -289,7 +289,7 @@ pub const Compiler = struct {
     error_data: ?ErrorData,
 
     pub fn init(allocator: Allocator, source: []const u8) Compiler {
-        return .{
+        var c = Compiler{
             .allocator = allocator,
             .source = source,
 
@@ -339,6 +339,9 @@ pub const Compiler = struct {
 
             .error_data = null,
         };
+        // Need at least one page of memory for the allocator.
+        c.memory.appendNTimes(0, std.wasm.page_size) catch oom();
+        return c;
     }
 
     pub fn box(c: *Compiler, value: anytype) *@TypeOf(value) {

@@ -475,7 +475,15 @@ pub fn evalExpr(
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
                 .@"heap-start" => {
-                    c.value_stack.append(.{ .u32 = 0 }) catch oom();
+                    // This must be kept in sync with ./runtime.zs
+                    const wasm_page_byte_count_log = 16;
+                    const class_min_byte_count_log = 3;
+                    const class_count = 32 - class_min_byte_count_log;
+                    const class_small_count = wasm_page_byte_count_log - class_min_byte_count_log;
+                    // Need space for:
+                    //   alloc_free_ptr: array[class_count, u32]
+                    //   alloc_next_ptr: array[class_small_count, u32]
+                    c.value_stack.append(.{ .u32 = class_count + class_small_count }) catch oom();
                 },
                 .load => {
                     const repr = c.value_stack.pop();
