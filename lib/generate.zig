@@ -785,6 +785,7 @@ fn genExprInner(
             };
 
             load(c, f, cond);
+            emitEnum(f, wasm.Opcode.i32_wrap_i64);
             emitEnum(f, wasm.Opcode.@"if");
             switch (branch_dest) {
                 .nowhere, .value_at => {

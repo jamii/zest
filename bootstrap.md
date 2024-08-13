@@ -956,6 +956,16 @@ x
 ```
 
 ```
+x mut = 0
+y mut = 1
+if {x == y} 42 else 101
+
+101
+
+101
+```
+
+```
 a mut = 42
 x = {
   // block returns []
