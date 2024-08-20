@@ -1798,19 +1798,20 @@ Expected union[], found i64
 ```
 
 ```
-union[some: i64, none: struct[]][[some: 42]]
-union[some: i64, none: struct[]][[none: []]]
-1
-
-1
-
-TODO generate
-```
-
-```
 union[4][4]
 
 Cannot make union with these args: [4]
 
 Cannot make union with these args: [4]
+```
+
+```
+a mut = union[some: i64, none: struct[]][[some: 42]]
+b mut = union[some: i64, none: struct[]][[none: []]]
+c mut = 101
+1
+
+1
+
+1
 ```

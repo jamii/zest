@@ -733,8 +733,8 @@ fn genExprInner(
                         return .{ .stack = .u32 };
                     }
                 },
-                .union_init => {
-                    return fail(c, .todo);
+                .union_init => |union_init| {
+                    return .{ .@"union" = .{ .repr = union_init.repr, .tag = union_init.tag, .value = c.box(args) } };
                 },
             }
         },
@@ -928,6 +928,10 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
                 store(c, f, value, to_field_ptr);
             }
         },
+        .@"union" => |@"union"| {
+            storePrimitive(c, f, .{ .u32 = @"union".tag }, to_ptr, .i32);
+            store(c, f, @"union".value.*, .{ .add = .{ .walue = c.box(to_ptr), .offset = @sizeOf(u32) } });
+        },
         .fun => |fun| {
             store(c, f, fun.closure.*, to_ptr);
         },
@@ -1008,7 +1012,7 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             emitEnum(f, wasm.Opcode.i64_const);
             emitLebI64(f, i);
         },
-        .string, .@"struct", .fun => panic("Can't load from {}", .{from_value}),
+        .string, .@"struct", .@"union", .fun => panic("Can't load from {}", .{from_value}),
         .value_at => |value_at| {
             const from_add = asAdd(c, value_at.ptr.*);
             load(c, f, from_add.walue.*);
@@ -1036,7 +1040,7 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
         .closure, .arg, .@"return", .local, .shadow => {
             panic("Can't point to local: {}", .{from_value});
         },
-        .stack, .u32, .i64, .string, .@"struct", .fun => {
+        .stack, .u32, .i64, .string, .@"struct", .@"union", .fun => {
             const repr = walueRepr(c, f, from_value);
             const ptr = copyToShadow(c, f, from_value, repr);
             load(c, f, ptr);
@@ -1084,7 +1088,7 @@ fn getShuffler(f: *wir.FunData, repr: Repr) wir.Local {
 
 fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .@"struct", .fun => return walue,
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .@"struct", .@"union", .fun => return walue,
         .stack => |repr| {
             emitEnum(f, wasm.Opcode.drop);
             return switch (repr) {
@@ -1119,7 +1123,7 @@ fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
             emitLebU32(f, wasmLocal(c, f, .{ .local = local }));
             return .{ .local = local };
         },
-        .@"struct", .fun => {
+        .@"struct", .@"union", .fun => {
             // Not allowed to contain .stack
             return walue;
         },
@@ -1190,7 +1194,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
         .@"return" => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len - 1),
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .u32, .i64, .string, .@"struct", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
+        .stack, .u32, .i64, .string, .@"struct", .@"union", .fun, .value_at, .add => panic("Not a local: {}", .{walue}),
     };
 }
 
@@ -1203,6 +1207,7 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
         .stack => |repr| repr,
         .local => |local| f.local_data.get(local).repr,
         .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
+        .@"union" => |@"union"| .{ .@"union" = @"union".repr },
         .fun => |fun| .{ .fun = fun.repr },
         .value_at => |value_at| value_at.repr,
     };

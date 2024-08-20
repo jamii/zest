@@ -521,7 +521,7 @@ fn inferExpr(
                             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                         if (!repr.equal(to_repr.@"union".reprs[tag]))
                             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        emit(c, f, .{ .make_end = .{ .union_init = .{ .repr = to_repr.@"union", .tag = tag } } }, to_repr);
+                        emit(c, f, .{ .make_end = .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } } }, to_repr);
                     } else {
                         return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                     }

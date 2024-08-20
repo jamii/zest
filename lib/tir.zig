@@ -59,12 +59,13 @@ pub const ExprData = union(enum) {
     call_builtin_begin: BuiltinTyped,
     call_builtin_end,
     make_begin,
+    // TODO Can remove this ugly union by allowing infer to edit make_begin into something else.
     make_end: union(enum) {
         nop,
         i64_to_u32,
         union_init: struct {
             repr: ReprUnion,
-            tag: usize,
+            tag: u32,
         },
     },
     block_begin,

@@ -116,7 +116,11 @@ pub const Value = union(enum) {
                 .repr = @"struct".repr,
                 .values = Value.copySlice(@"struct".values, allocator),
             } },
-            .@"union" => panic("TODO", .{}),
+            .@"union" => |@"union"| .{ .@"union" = .{
+                .repr = @"union".repr,
+                .tag = @"union".tag,
+                .value = Value.copyBox(@"union".value, allocator),
+            } },
             .only => |only| .{
                 .only = Value.copyBox(only, allocator),
             },

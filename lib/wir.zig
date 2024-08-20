@@ -11,6 +11,7 @@ const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
+const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
 const tir = zest.tir;
 
@@ -27,6 +28,11 @@ pub const Walue = union(enum) {
     @"struct": struct {
         repr: ReprStruct,
         values: []Walue, // may not contain .stack
+    },
+    @"union": struct {
+        repr: ReprUnion,
+        tag: u32,
+        value: *Walue, // may not contain .stack
     },
     fun: struct {
         repr: ReprFun,
