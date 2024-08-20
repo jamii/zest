@@ -99,6 +99,9 @@ pub const Value = union(enum) {
             .ref => |ref| {
                 try writer.print("{}[{}]", .{ self.reprOf(), ref.value.* });
             },
+            inline .repr, .repr_kind => |data| {
+                try writer.print("{}", .{data});
+            },
             else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }

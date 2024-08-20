@@ -8,6 +8,7 @@ const fieldType = zest.fieldType;
 const List = zest.List;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
+const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
 const Value = zest.Value;
 const FlatLattice = zest.FlatLattice;
@@ -58,9 +59,13 @@ pub const ExprData = union(enum) {
     call_builtin_begin: BuiltinTyped,
     call_builtin_end,
     make_begin,
-    make_end: enum {
+    make_end: union(enum) {
         nop,
         i64_to_u32,
+        union_init: struct {
+            repr: ReprUnion,
+            tag: usize,
+        },
     },
     block_begin,
     block_last,

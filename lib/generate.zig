@@ -733,6 +733,9 @@ fn genExprInner(
                         return .{ .stack = .u32 };
                     }
                 },
+                .union_init => {
+                    return fail(c, .todo);
+                },
             }
         },
         .block_begin => {

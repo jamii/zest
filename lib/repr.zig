@@ -80,11 +80,27 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.print("{s}", .{@tagName(self)});
         switch (self) {
-            .u32, .i64, .string, .repr => {},
+            .u32, .i64, .string, .repr, .repr_kind => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var positional = true;
                 for (@"struct".keys, @"struct".reprs, 0..) |key, repr, i| {
+                    if (i != 0) {
+                        try writer.writeAll(", ");
+                    }
+                    if (positional and key == .i64 and key.i64 == i) {
+                        try writer.print("{}", .{repr});
+                    } else {
+                        positional = false;
+                        try writer.print("{}: {}", .{ key, repr });
+                    }
+                }
+                try writer.writeAll("]");
+            },
+            .@"union" => |@"union"| {
+                try writer.writeAll("[");
+                var positional = true;
+                for (@"union".keys, @"union".reprs, 0..) |key, repr, i| {
                     if (i != 0) {
                         try writer.writeAll(", ");
                     }
@@ -124,7 +140,15 @@ pub const Repr = union(enum) {
                 }
                 return false;
             },
-            .@"union" => panic("TODO {}", .{self}),
+            .@"union" => |@"union"| {
+                for (@"union".keys) |key| {
+                    if (key.reprOf().hasRef(kind)) return true;
+                }
+                for (@"union".reprs) |repr| {
+                    if (repr.hasRef(kind)) return true;
+                }
+                return false;
+            },
             .fun => |fun| {
                 switch (kind) {
                     .any => return (Repr{ .@"struct" = fun.closure }).hasRef(kind),
@@ -194,8 +218,17 @@ pub const ReprUnion = struct {
     pub fn sizeOf(self: ReprUnion) usize {
         var size: usize = 0;
         for (self.reprs) |repr| size = @max(size, repr.sizeOf());
-        size += 4; // A u32 tag.
+        // A u32 tag.
+        // TODO Switch tag size depending on number of keys.
+        size += 4;
         return size;
+    }
+
+    pub fn get(self: ReprUnion, key: Value) ?usize {
+        for (0.., self.keys) |i, self_key| {
+            if (key.equal(self_key)) return i;
+        }
+        return null;
     }
 };
 
@@ -210,5 +243,12 @@ pub const ReprFun = struct {
 
 pub const ReprKind = enum {
     @"struct",
+    @"union",
     only,
+
+    pub fn format(self: ReprKind, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("{s}", .{@tagName(self)});
+    }
 };

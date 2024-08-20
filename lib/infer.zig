@@ -512,6 +512,16 @@ fn inferExpr(
                     } else if (from_repr == .i64 and to_repr == .u32) {
                         // TODO We should only allow this cast when from is a constant walue.
                         emit(c, f, .{ .make_end = .i64_to_u32 }, to_repr);
+                    } else if (to_repr == .@"union" and from_repr == .@"struct") {
+                        if (from_repr.@"struct".keys.len != 1)
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        const key = from_repr.@"struct".keys[0];
+                        const repr = from_repr.@"struct".reprs[0];
+                        const tag = to_repr.@"union".get(key) orelse
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        if (!repr.equal(to_repr.@"union".reprs[tag]))
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        emit(c, f, .{ .make_end = .{ .union_init = .{ .repr = to_repr.@"union", .tag = tag } } }, to_repr);
                     } else {
                         return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                     }

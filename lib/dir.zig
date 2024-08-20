@@ -35,6 +35,7 @@ pub const ExprData = union(enum) {
     repr_string,
     repr_repr,
     repr_kind_struct,
+    repr_kind_union,
     repr_kind_only,
     arg: Arg,
     closure,
@@ -120,11 +121,12 @@ pub const FunData = struct {
     }
 };
 
-pub const predefined_bindings: [6]Binding = .{
+pub const predefined_bindings: [7]Binding = .{
     .{ .name = "u32", .value = .{ .constant = .repr_u32 }, .mut = false },
     .{ .name = "i64", .value = .{ .constant = .repr_i64 }, .mut = false },
     .{ .name = "string", .value = .{ .constant = .repr_string }, .mut = false },
     .{ .name = "struct", .value = .{ .constant = .repr_kind_struct }, .mut = false },
+    .{ .name = "union", .value = .{ .constant = .repr_kind_union }, .mut = false },
     .{ .name = "only", .value = .{ .constant = .repr_kind_only }, .mut = false },
     .{ .name = "repr", .value = .{ .constant = .repr_repr }, .mut = false },
 };

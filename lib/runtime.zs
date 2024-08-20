@@ -76,11 +76,11 @@ class-to-len = (class/u32) { // /u32
     {u32[1] << {class + class-min-len-log}} - %size-of(u32)
 }
 
-//alloc-bytes = (:len/u32) /slice[u8] {
-//    if {len == u32[0]} {
+//alloc-bytes = (:len-min/u32) { // /slice[u8]
+//    if {len-min == u32[0]} {
 //        %from-innards(slice[u8], [ptr: 0, len: 0])
 //    } else {
-//        class = len-to-class(len)
+//        class = len-to-class(len-min)
 //        ptr = alloc(:class)
 //        %from-innards(slice[u8], [
 //            ptr: ptr + %size-of(u32),
@@ -89,7 +89,10 @@ class-to-len = (class/u32) { // /u32
 //    }
 //}
 
-//free-bytes = (bytes/slice[u8]) /struct[] {
+//free-bytes = (bytes/slice[u8]) { // /struct[]
 //    innards = %to-innards(bytes)
-//    free(class: len-to-class(innards.len), ptr: innards.ptr - %size-of(u32))
+//    free(
+//        class: len-to-class(innards.len),
+//        ptr: innards.ptr - %size-of(u32),
+//    )
 //}

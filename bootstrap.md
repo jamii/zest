@@ -1787,3 +1787,30 @@ u32[4294967295]
 
 30
 ```
+
+```
+union[][4]
+1
+
+Expected union[], found i64
+
+Expected union[], found i64
+```
+
+```
+union[some: i64, none: struct[]][[some: 42]]
+union[some: i64, none: struct[]][[none: []]]
+1
+
+1
+
+TODO generate
+```
+
+```
+union[4][4]
+
+Cannot make union with these args: [4]
+
+Cannot make union with these args: [4]
+```

@@ -185,6 +185,9 @@ pub fn evalExpr(
         .repr_kind_struct => {
             c.value_stack.append(.{ .repr_kind = .@"struct" }) catch oom();
         },
+        .repr_kind_union => {
+            c.value_stack.append(.{ .repr_kind = .@"union" }) catch oom();
+        },
         .repr_kind_only => {
             c.value_stack.append(.{ .repr_kind = .only }) catch oom();
         },
@@ -550,6 +553,16 @@ pub fn evalExpr(
                         } else {
                             return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
                         }
+                    } else if (to_repr == .@"union" and from_repr == .@"struct") {
+                        if (from_repr.@"struct".keys.len != 1)
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        const key = from_repr.@"struct".keys[0];
+                        const value = args.@"struct".values[0].@"struct".values[0];
+                        const tag = to_repr.@"union".get(key) orelse
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        c.value_stack.append(.{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } }) catch oom();
                     } else {
                         return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                     }
@@ -563,6 +576,15 @@ pub fn evalExpr(
                             repr.* = value.repr;
                         }
                         c.value_stack.append(.{ .repr = .{ .@"struct" = .{ .keys = args.@"struct".repr.keys, .reprs = reprs } } }) catch oom();
+                    },
+                    .@"union" => {
+                        const reprs = c.allocator.alloc(Repr, args.@"struct".values.len) catch oom();
+                        for (reprs, args.@"struct".values) |*repr, value| {
+                            if (value != .repr)
+                                return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                            repr.* = value.repr;
+                        }
+                        c.value_stack.append(.{ .repr = .{ .@"union" = .{ .keys = args.@"struct".repr.keys, .reprs = reprs } } }) catch oom();
                     },
                     .only => return fail(c, .todo),
                 },
