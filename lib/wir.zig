@@ -31,8 +31,8 @@ pub const Walue = union(enum) {
     },
     @"union": struct {
         repr: ReprUnion,
-        tag: u32,
-        value: *Walue, // may not contain .stack
+        tag: ?u32,
+        value: ?*Walue, // may not contain .stack
     },
     fun: struct {
         repr: ReprFun,
@@ -54,6 +54,10 @@ pub const Walue = union(enum) {
 
     pub fn emptyStruct() Walue {
         return .{ .@"struct" = .{ .repr = Repr.emptyStruct().@"struct", .values = &.{} } };
+    }
+
+    pub fn emptyUnion() Walue {
+        return .{ .@"union" = .{ .repr = Repr.emptyUnion().@"union", .tag = null, .value = null } };
     }
 };
 

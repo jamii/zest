@@ -1628,7 +1628,7 @@ foobar42
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/6c47e5f2:1:127)
+    at <anonymous> (wasm://wasm/2030c61a:1:128)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1645,8 +1645,8 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/e1e21d7e:1:240)
-    at <anonymous> (wasm://wasm/e1e21d7e:1:162)
+    at <anonymous> (wasm://wasm/27cf303a:1:252)
+    at <anonymous> (wasm://wasm/27cf303a:1:164)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1901,7 +1901,7 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5225{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5226{ .count = 1 } }
 
-TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5225{ .count = 1 } }
+TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5226{ .count = 1 } }
 ```

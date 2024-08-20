@@ -492,8 +492,7 @@ fn inferExpr(
                 },
                 .panic => {
                     f.expr_data.getPtr(begin).call_builtin_begin = .panic;
-                    // TODO Use empty union to indicate that this doesn't return.
-                    emit(c, f, .call_builtin_end, Repr.emptyStruct());
+                    emit(c, f, .call_builtin_end, Repr.emptyUnion());
                 },
                 else => return fail(c, .todo),
             }

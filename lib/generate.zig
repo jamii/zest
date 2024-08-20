@@ -434,8 +434,8 @@ fn genExprInner(
                     return @"struct".values[object_get.index];
                 },
                 .@"union" => |@"union"| {
-                    if (@"union".tag == object_get.index) {
-                        return @"union".value.*;
+                    if (@"union".tag != null and @"union".tag.? == object_get.index) {
+                        return @"union".value.?.*;
                     } else {
                         emitEnum(f, wasm.Opcode.@"unreachable");
                         // TODO Is this typesafe? Do we need a poison Walue?
@@ -752,8 +752,7 @@ fn genExprInner(
                 },
                 .panic => {
                     emitEnum(f, wasm.Opcode.@"unreachable");
-                    // TODO Return empty union to indicate that this can't return.
-                    return wir.Walue.emptyStruct();
+                    return wir.Walue.emptyUnion();
                 },
             }
         },
@@ -990,8 +989,9 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             }
         },
         .@"union" => |@"union"| {
-            storePrimitive(c, f, .{ .u32 = @"union".tag }, to_ptr, .i32);
-            store(c, f, @"union".value.*, .{ .add = .{ .walue = c.box(to_ptr), .offset = @sizeOf(u32) } });
+            if (@"union".tag == null) return;
+            storePrimitive(c, f, .{ .u32 = @"union".tag.? }, to_ptr, .i32);
+            store(c, f, @"union".value.?.*, .{ .add = .{ .walue = c.box(to_ptr), .offset = @sizeOf(u32) } });
         },
         .fun => |fun| {
             store(c, f, fun.closure.*, to_ptr);
