@@ -442,7 +442,7 @@ pub const Compiler = struct {
                             .local_get => |local| try writer.print(" l{}", .{local.id}),
                             .local_let_end => |local| try writer.print(" l{}", .{local.id}),
                             .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),
-                            .ref_get_end => |ref_get| try writer.print(" offset={}", .{ref_get.offset}),
+                            .ref_get_end => |ref_get| try writer.print(" {}", .{ref_get}),
                             .ref_set_end => {},
                             .call_end => |fun| try writer.print(" f{}", .{fun.id}),
                             .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),

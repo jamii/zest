@@ -215,12 +215,17 @@ pub const ReprUnion = struct {
         return .{ .keys = keys, .reprs = reprs };
     }
 
+    pub fn tagSizeOf(self: ReprUnion) u32 {
+        _ = self;
+        // A u32 tag.
+        // TODO Switch tag size depending on number of keys.
+        return @sizeOf(u32);
+    }
+
     pub fn sizeOf(self: ReprUnion) usize {
         var size: usize = 0;
         for (self.reprs) |repr| size = @max(size, repr.sizeOf());
-        // A u32 tag.
-        // TODO Switch tag size depending on number of keys.
-        size += 4;
+        size += self.tagSizeOf();
         return size;
     }
 

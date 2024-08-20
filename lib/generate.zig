@@ -402,20 +402,50 @@ fn genExprInner(
             const object_get = take(c, tir_f).object_get_end;
             switch (object) {
                 .value_at => |value_at| {
-                    const offset = value_at.repr.@"struct".offsetOf(object_get.index);
-                    const repr = value_at.repr.@"struct".reprs[object_get.index];
-                    return .{ .value_at = .{
-                        .ptr = c.box(wir.Walue{ .add = .{
-                            .walue = value_at.ptr,
-                            .offset = @intCast(offset),
-                        } }),
-                        .repr = repr,
-                    } };
+                    switch (value_at.repr) {
+                        .@"struct" => |@"struct"| {
+                            const offset = @"struct".offsetOf(object_get.index);
+                            const repr = @"struct".reprs[object_get.index];
+                            return .{ .value_at = .{
+                                .ptr = c.box(wir.Walue{ .add = .{
+                                    .walue = value_at.ptr,
+                                    .offset = @intCast(offset),
+                                } }),
+                                .repr = repr,
+                            } };
+                        },
+                        .@"union" => |@"union"| {
+                            const ptr_spilled = spillStack(c, f, value_at.ptr.*);
+                            assertTag(c, f, ptr_spilled, @intCast(object_get.index));
+                            const offset = @"union".tagSizeOf();
+                            const repr = @"union".reprs[object_get.index];
+                            return .{ .value_at = .{
+                                .ptr = c.box(wir.Walue{ .add = .{
+                                    .walue = c.box(ptr_spilled),
+                                    .offset = @intCast(offset),
+                                } }),
+                                .repr = repr,
+                            } };
+                        },
+                        else => panic("Can't represent object with {}", .{object}),
+                    }
                 },
                 .@"struct" => |@"struct"| {
                     return @"struct".values[object_get.index];
                 },
-                else => panic("Can't represent struct with {}", .{object}),
+                .@"union" => |@"union"| {
+                    if (@"union".tag == object_get.index) {
+                        return @"union".value.*;
+                    } else {
+                        emitEnum(f, wasm.Opcode.@"unreachable");
+                        // TODO Is this typesafe? Do we need a poison Walue?
+                        return .{ .value_at = .{
+                            .ptr = c.box(wir.Walue{ .u32 = 0 }),
+                            .repr = walueRepr(c, f, object).@"union".reprs[object_get.index],
+                        } };
+                    }
+                },
+                else => panic("Can't represent object with {}", .{object}),
             }
         },
         .ref_init_begin => |repr| {
@@ -427,10 +457,24 @@ fn genExprInner(
         .ref_get_begin => {
             const ref = try genExpr(c, f, tir_f, if (dest == .nowhere) .nowhere else .anywhere);
             const ref_get = take(c, tir_f).ref_get_end;
-            return .{ .add = .{
-                .walue = c.box(ref),
-                .offset = ref_get.offset,
-            } };
+            switch (ref_get) {
+                .struct_offset => |offset| {
+                    return .{ .add = .{
+                        .walue = c.box(ref),
+                        .offset = offset,
+                    } };
+                },
+                .union_tag => |tag| {
+                    const ref_spilled = spillStack(c, f, ref);
+                    assertTag(c, f, ref_spilled, tag);
+                    return .{
+                        .add = .{
+                            .walue = c.box(ref_spilled),
+                            .offset = @sizeOf(u32), // TODO Use ReprUnion.tagSizeOf
+                        },
+                    };
+                },
+            }
         },
         .ref_set_begin => {
             const ref = try genExpr(c, f, tir_f, .anywhere);
@@ -734,7 +778,11 @@ fn genExprInner(
                     }
                 },
                 .union_init => |union_init| {
-                    return .{ .@"union" = .{ .repr = union_init.repr, .tag = union_init.tag, .value = c.box(args) } };
+                    return .{ .@"union" = .{
+                        .repr = union_init.repr,
+                        .tag = union_init.tag,
+                        .value = c.box(arg.@"struct".values[0]),
+                    } };
                 },
             }
         },
@@ -864,6 +912,19 @@ fn genExprInner(
             }
         },
     }
+}
+
+fn assertTag(c: *Compiler, f: *wir.FunData, ptr: wir.Walue, index: u32) void {
+    assert(ptr != .stack);
+    emitEnum(f, wasm.Opcode.block);
+    emitByte(f, wasm.block_empty);
+    load(c, f, .{ .value_at = .{ .ptr = c.box(ptr), .repr = .u32 } });
+    load(c, f, .{ .u32 = index });
+    emitEnum(f, wasm.Opcode.i32_eq);
+    emitEnum(f, wasm.Opcode.br_if);
+    emitLebU32(f, 0);
+    emitEnum(f, wasm.Opcode.@"unreachable");
+    emitEnum(f, wasm.Opcode.end);
 }
 
 fn shadowPush(c: *Compiler, f: *wir.FunData, repr: Repr) wir.Walue {

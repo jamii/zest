@@ -1815,3 +1815,93 @@ c mut = 101
 
 1
 ```
+
+```
+a = union[some: i64, none: struct[]][[some: 42]]
+a.some
+
+42
+
+42
+```
+
+```
+a = union[some: i64, none: struct[]][[some: 42]]
+a.none
+
+Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
+
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/6c47e5f2:1:127)
+    at file:///home/jamie/zest/test.js:23:39
+```
+
+```
+a mut = union[some: i64, none: struct[]][[some: 42]]
+a.some
+
+42
+
+42
+```
+
+```
+a mut = union[some: i64, none: struct[]][[some: 42]]
+a.none
+
+Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
+
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/a3045512:1:162)
+    at file:///home/jamie/zest/test.js:23:39
+```
+
+```
+a = union[some: i64, none: struct[]][[none: []]]
+a.some
+
+Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
+
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/161c060a:1:128)
+    at file:///home/jamie/zest/test.js:23:39
+```
+
+```
+a = union[some: i64, none: struct[]][[none: []]]
+a.none
+
+[]
+
+undefined
+```
+
+```
+a mut = union[some: i64, none: struct[]][[none: []]]
+a.some
+
+Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
+
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/85a5de3e:1:156)
+    at file:///home/jamie/zest/test.js:23:39
+```
+
+```
+a mut = union[some: i64, none: struct[]][[none: []]]
+a.none
+
+[]
+
+undefined
+```
+
+```
+// TODO How should infallible patterns treat unions?
+f = ([some: x]) x
+f(union[some: i64, none: struct[]][[some: 42]])
+
+TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5225{ .count = 1 } }
+
+TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5225{ .count = 1 } }
+```

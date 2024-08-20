@@ -250,7 +250,11 @@ fn inferExpr(
             const ref = c.repr_stack.pop();
             const get = try objectGet(c, ref.ref.*, key);
             const repr = Repr{ .ref = c.box(get.repr) };
-            emit(c, f, .{ .ref_get_end = .{ .offset = get.offset } }, repr);
+            emit(c, f, .{ .ref_get_end = switch (ref.ref.*) {
+                .@"struct" => .{ .struct_offset = get.offset },
+                .@"union" => .{ .union_tag = @intCast(get.index) },
+                else => unreachable,
+            } }, repr);
         },
         .ref_set_end => {
             const value = c.repr_stack.pop();
@@ -631,7 +635,15 @@ fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { 
                 .offset = @intCast(@"struct".offsetOf(ix)),
             };
         },
-        .@"union" => return fail(c, .todo),
+        .@"union" => |@"union"| {
+            const ix = @"union".get(key) orelse
+                return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
+            return .{
+                .index = ix,
+                .repr = @"union".reprs[ix],
+                .offset = @intCast(@"union".tagSizeOf()),
+            };
+        },
         .ref => unreachable, // always passes through ref_deref first
     }
 }

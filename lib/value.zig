@@ -57,7 +57,7 @@ pub const Value = union(enum) {
         return switch (self) {
             .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind => null,
             .@"struct" => |@"struct"| @"struct".get(key),
-            .@"union" => panic("TODO", .{}),
+            .@"union" => |@"union"| @"union".get(key),
         };
     }
 
@@ -65,7 +65,7 @@ pub const Value = union(enum) {
         return switch (self.*) {
             .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
-            .@"union" => panic("TODO", .{}),
+            .@"union" => |*@"union"| @"union".getMut(key),
         };
     }
 
@@ -92,6 +92,13 @@ pub const Value = union(enum) {
                     }
                 }
                 try writer.writeAll("]");
+            },
+            .@"union" => |@"union"| {
+                try writer.print("{}[[{}: {}]]", .{
+                    Repr{ .@"union" = @"union".repr },
+                    @"union".repr.keys[@"union".tag],
+                    @"union".value.*,
+                });
             },
             .fun => |fun| {
                 try writer.print("{}{}", .{ self.reprOf(), Value{ .@"struct" = .{ .repr = fun.repr.closure, .values = fun.closure } } });
@@ -200,14 +207,20 @@ pub const ValueStruct = struct {
     pub fn getMut(self: *ValueStruct, key: Value) ?*Value {
         return if (self.repr.get(key)) |i| &self.values[i] else null;
     }
-
-    // TODO init function that sorts
 };
 
 pub const ValueUnion = struct {
     repr: ReprUnion,
     tag: usize,
     value: *Value,
+
+    pub fn get(self: ValueUnion, key: Value) ?Value {
+        return if (self.repr.get(key)) |i| if (self.tag == i) self.value.* else null else null;
+    }
+
+    pub fn getMut(self: *ValueUnion, key: Value) ?*Value {
+        return if (self.repr.get(key)) |i| if (self.tag == i) self.value else null else null;
+    }
 };
 
 pub const ValueFun = struct {
