@@ -1905,3 +1905,13 @@ TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5226
 
 TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5226{ .count = 1 } }
 ```
+
+```
+a mut = union[some: i64, none: struct[]][[some: 42]]
+a.some@ = a.some + 1
+a.some
+
+43
+
+43
+```
