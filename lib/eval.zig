@@ -531,6 +531,15 @@ pub fn evalExpr(
                 .panic => {
                     return fail(c, .panic);
                 },
+                .@"union-has-key" => {
+                    const key = c.value_stack.pop();
+                    const object = c.value_stack.pop();
+                    if (object != .@"union")
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ object, key }) } });
+                    const index = object.@"union".repr.get(key) orelse
+                        return fail(c, .{ .union_never_has_key = .{ .object = object, .key = key } });
+                    c.value_stack.append(.{ .i64 = if (object.@"union".tag == index) 1 else 0 }) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },
@@ -735,5 +744,9 @@ pub const EvalErrorData = union(enum) {
     },
     division_by_zero,
     panic,
+    union_never_has_key: struct {
+        object: Value,
+        key: Value,
+    },
     todo,
 };

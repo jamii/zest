@@ -570,7 +570,7 @@ fn genExprInner(
                 return switch (builtin) {
                     .dummy => panic("Uninitialized builtin", .{}),
                     .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32 => .{ .u32 = 0 },
-                    .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64 => .{ .i64 = 0 },
+                    .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
                     .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_string, .panic => unreachable,
                 };
@@ -582,6 +582,23 @@ fn genExprInner(
                     _ = take(c, tir_f).call_builtin_end;
                     store(c, f, value, address);
                     return wir.Walue.emptyStruct();
+                },
+                .union_has_key => |index| {
+                    const object = try genExpr(c, f, tir_f, .anywhere);
+                    _ = take(c, tir_f).call_builtin_end;
+                    switch (object) {
+                        .@"union" => |@"union"| {
+                            return .{ .i64 = if (@"union".tag == index) 1 else 0 };
+                        },
+                        .value_at => |value_at| {
+                            load(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .u32 } });
+                            load(c, f, .{ .u32 = index });
+                            emitEnum(f, wasm.Opcode.i32_eq);
+                            emitEnum(f, wasm.Opcode.i64_extend_i32_u);
+                            return .{ .stack = .i64 };
+                        },
+                        else => panic("Can't represent union with {}", .{object}),
+                    }
                 },
                 else => {},
             }
@@ -738,7 +755,6 @@ fn genExprInner(
                         },
                     }
                 },
-                .store => unreachable, // handled above
                 .print_string => {
                     // TODO Codegen is poor because we don't have a Walue.string_innards or WasmRepr.primitives yet.
                     var ptr_ptr = spillStack(c, f, wir.Walue{ .stack = .u32 });
@@ -754,6 +770,7 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.@"unreachable");
                     return wir.Walue.emptyUnion();
                 },
+                .store, .union_has_key => unreachable, // handled above
             }
         },
         .make_begin => {

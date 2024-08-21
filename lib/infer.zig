@@ -494,6 +494,16 @@ fn inferExpr(
                     f.expr_data.getPtr(begin).call_builtin_begin = .panic;
                     emit(c, f, .call_builtin_end, Repr.emptyUnion());
                 },
+                .@"union-has-key" => {
+                    const key = try popValue(c);
+                    const object = c.repr_stack.pop();
+                    if (object != .@"union")
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ object, key.reprOf() }) } });
+                    const index = object.@"union".get(key) orelse
+                        return fail(c, .{ .union_never_has_key = .{ .object = object, .key = key } });
+                    f.expr_data.getPtr(begin).call_builtin_begin = .{ .union_has_key = @intCast(index) };
+                    emit(c, f, .call_builtin_end, .i64);
+                },
                 else => return fail(c, .todo),
             }
         },
@@ -694,6 +704,10 @@ pub const InferErrorData = union(enum) {
     },
     cannot_make_head: struct {
         head: Value,
+    },
+    union_never_has_key: struct {
+        object: Repr,
+        key: Value,
     },
     todo,
 };

@@ -1929,3 +1929,48 @@ a.none
 
 42
 ```
+
+```
+a = union[some: i64, none: struct[]][[some: 42]]
+%union-has-key(a, 'some')
+
+1
+
+1
+```
+
+```
+a = union[some: i64, none: struct[]][[some: 42]]
+%union-has-key(a, 'none')
+
+0
+
+0
+```
+
+```
+a = union[some: i64, none: struct[]][[some: 42]]
+%union-has-key(a, 'many')
+
+Can never find key 'many' in union['some': i64, 'none': struct[]][['some': 42]]
+
+Can never find key 'many' in union['some': i64, 'none': struct[]]
+```
+
+```
+a mut = union[some: i64, none: struct[]][[some: 42]]
+%union-has-key(a, 'some')
+
+1
+
+1
+```
+
+```
+a mut = union[some: i64, none: struct[]][[some: 42]]
+%union-has-key(a, 'none')
+
+0
+
+0
+```
