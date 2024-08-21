@@ -1915,3 +1915,17 @@ a.some
 
 43
 ```
+
+```
+// TODO Borrow check shouldn't allow this.
+a mut = union[some: i64, none: i64][[some: 42]]
+a.some@ = {
+  a@ = union[some: i64, none: i64][[none: 101]]
+  42
+}
+a.none
+
+101
+
+42
+```
