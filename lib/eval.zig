@@ -107,6 +107,30 @@ pub fn evalStaged(c: *Compiler) error{ EvalError, InferError }!Value {
                 if (ends_remaining == 0)
                     return c.value_stack.pop();
             },
+            .repr_of_begin => {
+                const repr_count = c.repr_stack.items.len;
+                frame.expr.id += 1;
+                c.tir_frame_stack.append(.{
+                    .key = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].key,
+                    .fun = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].fun,
+                    .expr = frame.expr,
+                    .ends_remaining = 0,
+                    .mode = .unstage,
+                }) catch oom();
+                const tir_frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+                switch (try infer.inferTree(c, tir_frame)) {
+                    .call => panic("Should not find call inside unstage", .{}),
+                    .@"return" => {},
+                }
+                const repr = c.repr_stack.pop();
+                c.value_stack.append(.{ .repr = repr }) catch oom();
+                frame.expr = tir_frame.expr;
+                frame.expr.id += 1;
+                assert(f.expr_data.get(frame.expr) == .repr_of_end);
+                _ = c.tir_frame_stack.pop();
+                assert(c.repr_stack.items.len == repr_count);
+            },
+            .repr_of_end => {},
             .return_end, .arg, .closure => {
                 return fail(c, .cannot_stage_expr);
             },
@@ -542,6 +566,10 @@ pub fn evalExpr(
                 },
                 else => return fail(c, .todo),
             }
+        },
+        .repr_of_end => {
+            const arg = c.value_stack.pop();
+            c.value_stack.append(.{ .repr = arg.reprOf() }) catch oom();
         },
         .make_end => {
             const args = c.value_stack.pop();

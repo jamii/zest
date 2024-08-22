@@ -272,20 +272,24 @@ fn inferExpr(
             emit(c, f, .{ .ref_deref_end = repr }, repr);
         },
         .call_builtin_begin => {
-            const begin = f.expr_data.append(.{ .call_builtin_begin = .dummy });
-            c.fixup_stack.append(begin) catch oom();
+            const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+            if (frame.mode == .infer) {
+                const begin = f.expr_data.append(.{ .call_builtin_begin = .dummy });
+                c.fixup_stack.append(begin) catch oom();
+            }
         },
         .call_builtin_end => |builtin| {
-            const begin = c.fixup_stack.pop();
+            const frame = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
+            var builtin_typed: ?tir.BuiltinTyped = null;
             switch (builtin) {
                 .equal => {
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .equal_i64;
+                        builtin_typed = .equal_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .equal_u32;
+                        builtin_typed = .equal_u32;
                         emit(c, f, .call_builtin_end, .i64);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -295,10 +299,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .not_equal_i64;
+                        builtin_typed = .not_equal_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .not_equal_u32;
+                        builtin_typed = .not_equal_u32;
                         emit(c, f, .call_builtin_end, .i64);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -308,10 +312,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_i64;
+                        builtin_typed = .less_than_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_u32;
+                        builtin_typed = .less_than_u32;
                         emit(c, f, .call_builtin_end, .i64);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -321,10 +325,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_i64;
+                        builtin_typed = .less_than_or_equal_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .less_than_or_equal_u32;
+                        builtin_typed = .less_than_or_equal_u32;
                         emit(c, f, .call_builtin_end, .i64);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -334,10 +338,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_i64;
+                        builtin_typed = .more_than_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_u32;
+                        builtin_typed = .more_than_u32;
                         emit(c, f, .call_builtin_end, .i64);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -347,10 +351,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_i64;
+                        builtin_typed = .more_than_or_equal_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .more_than_or_equal_u32;
+                        builtin_typed = .more_than_or_equal_u32;
                         emit(c, f, .call_builtin_end, .i64);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -360,10 +364,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .add_i64;
+                        builtin_typed = .add_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .add_u32;
+                        builtin_typed = .add_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -373,10 +377,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .subtract_i64;
+                        builtin_typed = .subtract_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .subtract_u32;
+                        builtin_typed = .subtract_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -386,10 +390,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .multiply_i64;
+                        builtin_typed = .multiply_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .multiply_u32;
+                        builtin_typed = .multiply_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -399,10 +403,10 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .i64 and arg1 == .i64) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .remainder_i64;
+                        builtin_typed = .remainder_i64;
                         emit(c, f, .call_builtin_end, .i64);
                     } else if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .remainder_u32;
+                        builtin_typed = .remainder_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -412,7 +416,7 @@ fn inferExpr(
                     const arg1 = c.repr_stack.pop();
                     const arg0 = c.repr_stack.pop();
                     if (arg0 == .u32 and arg1 == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .bit_shift_left_u32;
+                        builtin_typed = .bit_shift_left_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
@@ -421,21 +425,21 @@ fn inferExpr(
                 .clz => {
                     const arg = c.repr_stack.pop();
                     if (arg == .u32) {
-                        f.expr_data.getPtr(begin).call_builtin_begin = .clz_u32;
+                        builtin_typed = .clz_u32;
                         emit(c, f, .call_builtin_end, .u32);
                     } else {
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } });
                     }
                 },
                 .@"memory-size" => {
-                    f.expr_data.getPtr(begin).call_builtin_begin = .memory_size;
+                    builtin_typed = .memory_size;
                     emit(c, f, .call_builtin_end, .u32);
                 },
                 .@"memory-grow" => {
                     const grow_page_count = c.repr_stack.pop();
                     if (grow_page_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{grow_page_count}) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .memory_grow;
+                    builtin_typed = .memory_grow;
                     emit(c, f, .call_builtin_end, .u32);
                 },
                 .@"memory-fill" => {
@@ -444,7 +448,7 @@ fn inferExpr(
                     const to_ptr = c.repr_stack.pop();
                     if (to_ptr != .u32 or value != .u32 or byte_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ to_ptr, value, byte_count }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .memory_fill;
+                    builtin_typed = .memory_fill;
                     emit(c, f, .call_builtin_end, Repr.emptyStruct());
                 },
                 .@"memory-copy" => {
@@ -453,11 +457,11 @@ fn inferExpr(
                     const to_ptr = c.repr_stack.pop();
                     if (to_ptr != .u32 or from_ptr != .u32 or byte_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ to_ptr, from_ptr, byte_count }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .memory_copy;
+                    builtin_typed = .memory_copy;
                     emit(c, f, .call_builtin_end, Repr.emptyStruct());
                 },
                 .@"heap-start" => {
-                    f.expr_data.getPtr(begin).call_builtin_begin = .heap_start;
+                    builtin_typed = .heap_start;
                     emit(c, f, .call_builtin_end, .u32);
                 },
                 .load => {
@@ -465,7 +469,7 @@ fn inferExpr(
                     const address = c.repr_stack.pop();
                     if (address != .u32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, repr.reprOf() }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .{ .load = repr.repr };
+                    builtin_typed = .{ .load = repr.repr };
                     emit(c, f, .call_builtin_end, repr.repr);
                 },
                 .store => {
@@ -473,25 +477,25 @@ fn inferExpr(
                     const address = c.repr_stack.pop();
                     if (address != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, value }) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .store;
+                    builtin_typed = .store;
                     emit(c, f, .call_builtin_end, Repr.emptyStruct());
                 },
                 .@"size-of" => {
                     const repr = try popValue(c);
                     if (repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{repr.reprOf()}) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .{ .size_of = @intCast(repr.repr.sizeOf()) };
+                    builtin_typed = .{ .size_of = @intCast(repr.repr.sizeOf()) };
                     emit(c, f, .call_builtin_end, .u32);
                 },
                 .print => {
                     const string = c.repr_stack.pop();
                     if (string != .string)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{string}) } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .print_string;
+                    builtin_typed = .print_string;
                     emit(c, f, .call_builtin_end, .u32);
                 },
                 .panic => {
-                    f.expr_data.getPtr(begin).call_builtin_begin = .panic;
+                    builtin_typed = .panic;
                     emit(c, f, .call_builtin_end, Repr.emptyUnion());
                 },
                 .@"union-has-key" => {
@@ -501,11 +505,17 @@ fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ object, key.reprOf() }) } });
                     const index = object.@"union".get(key) orelse
                         return fail(c, .{ .union_never_has_key = .{ .object = object, .key = key } });
-                    f.expr_data.getPtr(begin).call_builtin_begin = .{ .union_has_key = @intCast(index) };
+                    builtin_typed = .{ .union_has_key = @intCast(index) };
                     emit(c, f, .call_builtin_end, .i64);
                 },
                 else => return fail(c, .todo),
             }
+            if (frame.mode == .infer) f.expr_data.getPtr(c.fixup_stack.pop()).call_builtin_begin = builtin_typed.?;
+        },
+        .repr_of_begin => {},
+        .repr_of_end => {
+            // TODO Need to be able to emit repr in wasm.
+            return fail(c, .todo);
         },
         .make_begin => {
             emit(c, f, .make_begin, null);

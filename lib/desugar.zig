@@ -135,6 +135,14 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             _ = take(c).call_builtin_end;
             emit(c, f, .{ .call_builtin_end = builtin });
         },
+        .repr_of_begin => {
+            emit(c, f, .repr_of_begin);
+            defer emit(c, f, .repr_of_end);
+
+            _ = take(c).repr_of_begin;
+            try desugarExpr(c, f);
+            _ = take(c).repr_of_end;
+        },
         .make_begin => {
             emit(c, f, .make_begin);
             defer emit(c, f, .make_end);

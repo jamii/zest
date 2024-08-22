@@ -1974,3 +1974,54 @@ a mut = union[some: i64, none: struct[]][[some: 42]]
 
 0
 ```
+
+```
+a = 42
+%repr-of(a)
+101
+
+101
+
+TODO infer: dir.ExprData{ .repr_of_end = void }
+```
+
+```
+a = 42
+%repr-of(a + 1)
+101
+
+101
+
+TODO infer: dir.ExprData{ .repr_of_end = void }
+```
+
+```
+a = 42
+b = [{%repr-of(a); 'x'}: 101]
+b.x
+
+101
+
+101
+```
+
+```
+a = 42
+b = [{%repr-of(a + 1); 'x'}: 101]
+b.x
+
+101
+
+101
+```
+
+```
+// TODO Don't allow side-effects in staged eval.
+a = 42
+b = [{%print('surprise')}: 101]
+b.{[]}
+
+surprise101
+
+101
+```

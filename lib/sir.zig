@@ -28,6 +28,8 @@ pub const ExprData = union(enum) {
     call_end,
     call_builtin_begin: Builtin,
     call_builtin_end,
+    repr_of_begin,
+    repr_of_end,
     make_begin,
     make_end,
     block_begin,

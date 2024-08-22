@@ -77,6 +77,8 @@ pub const ExprData = union(enum) {
     },
     call_builtin_begin,
     call_builtin_end: Builtin,
+    repr_of_begin,
+    repr_of_end,
     make_begin,
     make_end,
     block_begin,
