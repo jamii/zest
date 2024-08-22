@@ -15,9 +15,9 @@ pub const Repr = union(enum) {
     @"union": ReprUnion,
     fun: ReprFun,
     only: *Value,
-    ref: *Repr,
     repr,
     repr_kind,
+    ref: *Repr,
 
     pub fn emptyStruct() Repr {
         return .{ .@"struct" = .{

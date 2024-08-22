@@ -564,6 +564,17 @@ pub fn evalExpr(
                         return fail(c, .{ .union_never_has_key = .{ .object = object, .key = key } });
                     c.value_stack.append(.{ .i64 = if (object.@"union".tag == index) 1 else 0 }) catch oom();
                 },
+                .reflect => {
+                    const value = c.value_stack.pop();
+                    if (value != .repr)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
+                    const tag = @intFromEnum(std.meta.activeTag(value.repr));
+                    c.value_stack.append(.{ .@"union" = .{
+                        .repr = c.reflection,
+                        .tag = tag,
+                        .value = c.box(Value.emptyStruct()),
+                    } }) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },

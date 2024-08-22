@@ -1901,9 +1901,9 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5226{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5231{ .count = 1 } }
 
-TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5226{ .count = 1 } }
+TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5231{ .count = 1 } }
 ```
 
 ```
@@ -2024,4 +2024,12 @@ b.{[]}
 surprise101
 
 101
+```
+
+```
+%union-has-key(%reflect(%repr-of(42)), 'i64')
+
+1
+
+TODO infer: dir.ExprData{ .repr_of_end = void }
 ```

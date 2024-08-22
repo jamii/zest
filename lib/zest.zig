@@ -180,11 +180,12 @@ pub const Builtin = enum {
     panic,
     @"union-has-key",
     @"repr-of",
+    reflect,
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic => 0,
-            .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of" => 1,
+            .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect => 1,
             .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"bit-shift-left", .@"and", .@"or", .load, .store, .@"union-has-key" => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };
@@ -286,6 +287,7 @@ pub const Compiler = struct {
     wasm: ArrayList(u8),
 
     // constants
+    reflection: ReprUnion,
     string_innards: ReprStruct,
 
     error_data: ?ErrorData,
@@ -334,6 +336,31 @@ pub const Compiler = struct {
             .constant_data = fieldType(Compiler, .constant_data).init(allocator),
             .wasm = fieldType(Compiler, .wasm).init(allocator),
 
+            .reflection = ReprUnion{
+                .keys = allocator.dupe(Value, &[_]Value{
+                    .{ .string = "u32" },
+                    .{ .string = "i64" },
+                    .{ .string = "string" },
+                    .{ .string = "struct" },
+                    .{ .string = "union" },
+                    .{ .string = "fun" },
+                    .{ .string = "only" },
+                    .{ .string = "repr" },
+                    .{ .string = "repr-kind" },
+                }) catch oom(),
+                // TODO Need lists for most useful values.
+                .reprs = allocator.dupe(Repr, &[_]Repr{
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                    Repr.emptyStruct(),
+                }) catch oom(),
+            },
             .string_innards = ReprStruct{
                 .keys = allocator.dupe(Value, &[_]Value{ .{ .string = "ptr" }, .{ .string = "len" } }) catch oom(),
                 .reprs = allocator.dupe(Repr, &[_]Repr{ .u32, .u32 }) catch oom(),
