@@ -1299,7 +1299,7 @@ b.0.0
 
 42
 
-8388650
+8388776
 ```
 
 ```
@@ -1628,7 +1628,7 @@ foobar42
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/2030c61a:1:128)
+    at <anonymous> (wasm://wasm/8cf5a872:1:121)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1645,8 +1645,8 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/27cf303a:1:252)
-    at <anonymous> (wasm://wasm/27cf303a:1:164)
+    at <anonymous> (wasm://wasm/27d910ca:1:252)
+    at <anonymous> (wasm://wasm/27d910ca:1:164)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1664,7 +1664,7 @@ RuntimeError: unreachable
 Division by zero
 
 RuntimeError: remainder by zero
-    at <anonymous> (wasm://wasm/8d761cba:1:132)
+    at <anonymous> (wasm://wasm/84f2f60e:1:125)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1832,7 +1832,7 @@ a.none
 Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/6c47e5f2:1:127)
+    at <anonymous> (wasm://wasm/22f726f6:1:120)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1852,7 +1852,7 @@ a.none
 Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/a3045512:1:162)
+    at <anonymous> (wasm://wasm/c1622006:1:155)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1863,7 +1863,7 @@ a.some
 Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/161c060a:1:128)
+    at <anonymous> (wasm://wasm/6dd17b62:1:121)
     at file:///home/jamie/zest/test.js:23:39
 ```
 
@@ -1883,7 +1883,7 @@ a.some
 Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/85a5de3e:1:156)
+    at <anonymous> (wasm://wasm/cfa3eff2:1:149)
     at file:///home/jamie/zest/test.js:23:39
 ```
 

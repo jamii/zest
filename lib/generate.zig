@@ -29,6 +29,19 @@ const imports = .{
 };
 
 pub fn generate(c: *Compiler) error{GenerateError}!void {
+
+    // This must be kept in sync with ./runtime.zs
+    const allocator_byte_count = n: {
+        const wasm_page_byte_count_log = 16;
+        const class_min_byte_count_log = 3;
+        const class_count = 32 - class_min_byte_count_log;
+        const class_small_count = wasm_page_byte_count_log - class_min_byte_count_log;
+        // Need space for:
+        //   alloc_free_ptr: array[class_count, u32]
+        //   alloc_next_ptr: array[class_small_count, u32]
+        break :n (class_count + class_small_count) * @sizeOf(u32);
+    };
+
     for (0.., c.tir_fun_data.items()) |tir_fun_id, tir_f| {
         const tir_fun = tir.Fun{ .id = tir_fun_id };
         const dir_f = c.dir_fun_data.get(tir_f.key.fun);
@@ -68,19 +81,6 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
     for (c.wir_fun_data.items()) |*f| {
         try genFun(c, f);
-    }
-
-    {
-        // This must be kept in sync with ./runtime.zs
-        const wasm_page_byte_count_log = 16;
-        const class_min_byte_count_log = 3;
-        const class_count = 32 - class_min_byte_count_log;
-        const class_small_count = wasm_page_byte_count_log - class_min_byte_count_log;
-        // Need space for:
-        //   alloc_free_ptr: array[class_count, u32]
-        //   alloc_next_ptr: array[class_small_count, u32]
-        // This must be the last entry in constant_data so that we can use %heap-start to find the this data.
-        c.constant_data.appendNTimes(0, class_small_count + class_count) catch oom();
     }
 
     emitBytes(c, &wasm.magic);
@@ -138,7 +138,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         // No maximum.
         emitByte(c, 0x00);
         // At minimum enough space for stack and constant data.
-        emitLebU32(c, std.math.divCeil(u32, stack_top + @as(u32, @intCast(c.constant_data.items.len)), wasm.page_size) catch unreachable);
+        emitLebU32(c, std.math.divCeil(u32, stack_top + @as(u32, @intCast(c.constant_data.items.len + allocator_byte_count)), wasm.page_size) catch unreachable);
     }
 
     {
@@ -157,7 +157,7 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         // global_heap_start
         emitEnum(c, wasm.Valtype.i32);
         emitByte(c, 0x00); // const
-        emitU32Const(c, stack_top + @as(u32, @intCast(c.constant_data.items.len)));
+        emitU32Const(c, stack_top + @as(u32, @intCast(c.constant_data.items.len + allocator_byte_count)));
         emitEnum(c, wasm.Opcode.end);
     }
 
