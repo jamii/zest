@@ -2033,3 +2033,13 @@ surprise101
 
 TODO infer: dir.ExprData{ .repr_of_end = void }
 ```
+
+```
+// No type error from false branch because condition is comptime-known
+a = only[1][]
+if a 42 else 'oh no'
+
+42
+
+42
+```

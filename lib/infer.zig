@@ -525,28 +525,34 @@ fn inferExpr(
             const head = try popValue(c);
             switch (head) {
                 .repr => |to_repr| {
-                    if (args.@"struct".keys.len != 1 or
-                        args.@"struct".keys[0] != .i64 or
-                        args.@"struct".keys[0].i64 != 0)
-                        return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                    const from_repr = args.@"struct".reprs[0];
-                    if (from_repr.equal(to_repr)) {
-                        emit(c, f, .{ .make_end = .nop }, to_repr);
-                    } else if (from_repr == .i64 and to_repr == .u32) {
-                        // TODO We should only allow this cast when from is a constant walue.
-                        emit(c, f, .{ .make_end = .i64_to_u32 }, to_repr);
-                    } else if (to_repr == .@"union" and from_repr == .@"struct") {
-                        if (from_repr.@"struct".keys.len != 1)
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        const key = from_repr.@"struct".keys[0];
-                        const repr = from_repr.@"struct".reprs[0];
-                        const tag = to_repr.@"union".get(key) orelse
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        if (!repr.equal(to_repr.@"union".reprs[tag]))
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        emit(c, f, .{ .make_end = .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } } }, to_repr);
+                    if (to_repr == .only) {
+                        if (args.@"struct".keys.len != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        emit(c, f, .{ .make_end = .{ .only_init = to_repr.only } }, to_repr);
                     } else {
-                        return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        if (args.@"struct".keys.len != 1 or
+                            args.@"struct".keys[0] != .i64 or
+                            args.@"struct".keys[0].i64 != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        const from_repr = args.@"struct".reprs[0];
+                        if (from_repr.equal(to_repr)) {
+                            emit(c, f, .{ .make_end = .nop }, to_repr);
+                        } else if (from_repr == .i64 and to_repr == .u32) {
+                            // TODO We should only allow this cast when from is a constant walue.
+                            emit(c, f, .{ .make_end = .i64_to_u32 }, to_repr);
+                        } else if (to_repr == .@"union" and from_repr == .@"struct") {
+                            if (from_repr.@"struct".keys.len != 1)
+                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            const key = from_repr.@"struct".keys[0];
+                            const repr = from_repr.@"struct".reprs[0];
+                            const tag = to_repr.@"union".get(key) orelse
+                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            if (!repr.equal(to_repr.@"union".reprs[tag]))
+                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            emit(c, f, .{ .make_end = .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } } }, to_repr);
+                        } else {
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        }
                     }
                 },
                 .repr_kind => panic("TODO {}", .{head}),

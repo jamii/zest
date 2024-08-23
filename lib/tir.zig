@@ -68,6 +68,7 @@ pub const ExprData = union(enum) {
             repr: ReprUnion,
             tag: u32,
         },
+        only_init: *Value,
     },
     block_begin,
     block_last,

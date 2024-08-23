@@ -109,7 +109,9 @@ pub const Value = union(enum) {
             inline .repr, .repr_kind => |data| {
                 try writer.print("{}", .{data});
             },
-            else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
+            .only => |only| {
+                try writer.print("only[{}][]", .{only});
+            },
         }
     }
 

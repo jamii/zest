@@ -119,10 +119,12 @@ pub const Repr = union(enum) {
                     Repr{ .@"struct" = fun.closure },
                 });
             },
+            .only => |only| {
+                try writer.print("[{}]", .{only});
+            },
             .ref => |ref| {
                 try writer.print("[{}]", .{ref.*});
             },
-            else => try writer.print("TODO {}", .{std.meta.activeTag(self)}),
         }
     }
 

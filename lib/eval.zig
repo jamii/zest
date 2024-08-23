@@ -587,32 +587,38 @@ pub fn evalExpr(
             const head = c.value_stack.pop();
             switch (head) {
                 .repr => |to_repr| {
-                    if (args.@"struct".repr.keys.len != 1 or
-                        args.@"struct".repr.keys[0] != .i64 or
-                        args.@"struct".repr.keys[0].i64 != 0)
-                        return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                    const from_repr = args.@"struct".repr.reprs[0];
-                    const from_value = args.@"struct".values[0];
-                    if (from_repr.equal(to_repr)) {
-                        c.value_stack.append(from_value) catch oom();
-                    } else if (from_repr == .i64 and to_repr == .u32) {
-                        if (std.math.cast(u32, from_value.i64)) |converted| {
-                            c.value_stack.append(.{ .u32 = converted }) catch oom();
-                        } else {
-                            return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
-                        }
-                    } else if (to_repr == .@"union" and from_repr == .@"struct") {
-                        if (from_repr.@"struct".keys.len != 1)
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        const key = from_repr.@"struct".keys[0];
-                        const value = args.@"struct".values[0].@"struct".values[0];
-                        const tag = to_repr.@"union".get(key) orelse
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        c.value_stack.append(.{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } }) catch oom();
+                    if (to_repr == .only) {
+                        if (args.@"struct".repr.keys.len != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        c.value_stack.append(.{ .only = to_repr.only }) catch oom();
                     } else {
-                        return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        if (args.@"struct".repr.keys.len != 1 or
+                            args.@"struct".repr.keys[0] != .i64 or
+                            args.@"struct".repr.keys[0].i64 != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        const from_repr = args.@"struct".repr.reprs[0];
+                        const from_value = args.@"struct".values[0];
+                        if (from_repr.equal(to_repr)) {
+                            c.value_stack.append(from_value) catch oom();
+                        } else if (from_repr == .i64 and to_repr == .u32) {
+                            if (std.math.cast(u32, from_value.i64)) |converted| {
+                                c.value_stack.append(.{ .u32 = converted }) catch oom();
+                            } else {
+                                return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
+                            }
+                        } else if (to_repr == .@"union" and from_repr == .@"struct") {
+                            if (from_repr.@"struct".keys.len != 1)
+                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            const key = from_repr.@"struct".keys[0];
+                            const value = args.@"struct".values[0].@"struct".values[0];
+                            const tag = to_repr.@"union".get(key) orelse
+                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
+                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            c.value_stack.append(.{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } }) catch oom();
+                        } else {
+                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                        }
                     }
                 },
                 .repr_kind => |repr_kind| switch (repr_kind) {
@@ -634,7 +640,14 @@ pub fn evalExpr(
                         }
                         c.value_stack.append(.{ .repr = .{ .@"union" = .{ .keys = args.@"struct".repr.keys, .reprs = reprs } } }) catch oom();
                     },
-                    .only => return fail(c, .todo),
+                    .only => {
+                        if (args.@"struct".repr.keys.len != 1 or
+                            args.@"struct".repr.keys[0] != .i64 or
+                            args.@"struct".repr.keys[0].i64 != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        const value = args.@"struct".values[0];
+                        c.value_stack.append(.{ .repr = .{ .only = c.box(value) } }) catch oom();
+                    },
                 },
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
             }

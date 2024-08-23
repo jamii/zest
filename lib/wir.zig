@@ -13,6 +13,7 @@ const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
+const Value = zest.Value;
 const tir = zest.tir;
 
 pub const Walue = union(enum) {
@@ -37,6 +38,9 @@ pub const Walue = union(enum) {
     fun: struct {
         repr: ReprFun,
         closure: *Walue, // may not contain .stack
+    },
+    only: struct {
+        value: *Value,
     },
     value_at: struct {
         ptr: *Walue,
