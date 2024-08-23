@@ -1628,8 +1628,8 @@ foobar42
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/8cf5a872:1:121)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/35b19c0a:1:164)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -1645,9 +1645,9 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/27d910ca:1:252)
-    at <anonymous> (wasm://wasm/27d910ca:1:164)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/1b3d34b2:1:295)
+    at <anonymous> (wasm://wasm/1b3d34b2:1:207)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -1664,8 +1664,8 @@ RuntimeError: unreachable
 Division by zero
 
 RuntimeError: remainder by zero
-    at <anonymous> (wasm://wasm/84f2f60e:1:125)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/d225f87e:1:172)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -1832,8 +1832,8 @@ a.none
 Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/22f726f6:1:120)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/52ede526:1:167)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -1852,8 +1852,8 @@ a.none
 Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/c1622006:1:155)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/cbcde46e:1:202)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -1863,8 +1863,8 @@ a.some
 Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/6dd17b62:1:121)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/3efd2dd2:1:168)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -1883,8 +1883,8 @@ a.some
 Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/cfa3eff2:1:149)
-    at file:///home/jamie/zest/test.js:23:39
+    at <anonymous> (wasm://wasm/9eee9f4a:1:196)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```
@@ -2084,20 +2084,42 @@ if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
 ```
 
 ```
+%print(42)
+101
+
+42101
+
+42101
+```
+
+```
 print = (x) {
-    t = only[%reflect(%repr-of(x))][]
-    if {only[%union-has-key(%from-only(t), 'string')][]} {
-      %print('\'')
-      %print(x)
-      %print('\'')
-    } else {
-      %panic()
-    }
+  t = only[%reflect(%repr-of(x))][]
+  if {only[%union-has-key(%from-only(t), 'u32')][]} {
+    %print(x)
+  } else if {only[%union-has-key(%from-only(t), 'i64')][]} {
+    %print(x)
+  } else if {only[%union-has-key(%from-only(t), 'string')][]} {
+    %print('\'')
+    %print(x)
+    %print('\'')
+  } else {
+    %panic()
+  }
+  %print('\n')
 }
+print(u32[42])
+print(4294967295)
 print('foo')
+101
+
 42
+4294967295
+'foo'
+101
 
-'foo'42
-
-'foo'42
+42
+4294967295
+'foo'
+101
 ```

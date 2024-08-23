@@ -22,7 +22,17 @@ const stack_top = stack_pages * wasm.page_size; // 8mb
 
 const imports = .{
     .{
-        .name = "print",
+        .name = "print_u32",
+        .arg_types = &[_]wasm.Valtype{.i32},
+        .return_types = &.{},
+    },
+    .{
+        .name = "print_i64",
+        .arg_types = &[_]wasm.Valtype{.i64},
+        .return_types = &.{},
+    },
+    .{
+        .name = "print_string",
         .arg_types = &[_]wasm.Valtype{ .i32, .i32 },
         .return_types = &.{},
     },
@@ -572,7 +582,7 @@ fn genExprInner(
                     .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32 => .{ .u32 = 0 },
                     .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
-                    .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_string, .panic => unreachable,
+                    .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_u32, .print_i64, .print_string, .panic => unreachable,
                 };
             }
             switch (builtin) {
@@ -755,6 +765,20 @@ fn genExprInner(
                         },
                     }
                 },
+                .print_u32 => {
+                    emitEnum(f, wasm.Opcode.call);
+                    const import_ix: usize = 0;
+                    assert(std.mem.eql(u8, imports[import_ix].name, "print_u32"));
+                    emitLebU32(f, import_ix);
+                    return wir.Walue.emptyStruct();
+                },
+                .print_i64 => {
+                    emitEnum(f, wasm.Opcode.call);
+                    const import_ix: usize = 1;
+                    assert(std.mem.eql(u8, imports[import_ix].name, "print_i64"));
+                    emitLebU32(f, import_ix);
+                    return wir.Walue.emptyStruct();
+                },
                 .print_string => {
                     // TODO Codegen is poor because we don't have a Walue.string_innards or WasmRepr.primitives yet.
                     var ptr_ptr = spillStack(c, f, wir.Walue{ .stack = .u32 });
@@ -762,8 +786,9 @@ fn genExprInner(
                     load(c, f, .{ .value_at = .{ .ptr = &ptr_ptr, .repr = .u32 } });
                     load(c, f, .{ .value_at = .{ .ptr = &len_ptr, .repr = .u32 } });
                     emitEnum(f, wasm.Opcode.call);
-                    assert(std.mem.eql(u8, imports[0].name, "print"));
-                    emitLebU32(f, 0);
+                    const import_ix: usize = 2;
+                    assert(std.mem.eql(u8, imports[import_ix].name, "print_string"));
+                    emitLebU32(f, import_ix);
                     return wir.Walue.emptyStruct();
                 },
                 .panic => {

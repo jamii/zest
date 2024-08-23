@@ -488,10 +488,13 @@ fn inferExpr(
                     emit(c, f, .call_builtin_end, .u32);
                 },
                 .print => {
-                    const string = c.repr_stack.pop();
-                    if (string != .string)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{string}) } });
-                    builtin_typed = .print_string;
+                    const repr = c.repr_stack.pop();
+                    switch (repr) {
+                        .u32 => builtin_typed = .print_u32,
+                        .i64 => builtin_typed = .print_i64,
+                        .string => builtin_typed = .print_string,
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{repr}) } }),
+                    }
                     emit(c, f, .call_builtin_end, Repr.emptyStruct());
                 },
                 .panic => {

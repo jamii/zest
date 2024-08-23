@@ -554,10 +554,13 @@ pub fn evalExpr(
                     c.value_stack.append(.{ .u32 = @intCast(size) }) catch oom();
                 },
                 .print => {
-                    const string = c.value_stack.pop();
-                    if (string != .string)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{string}) } });
-                    c.printed.appendSlice(string.string) catch oom();
+                    const value = c.value_stack.pop();
+                    switch (value) {
+                        .u32 => |u| c.printed.writer().print("{}", .{u}) catch oom(),
+                        .i64 => |i| c.printed.writer().print("{}", .{i}) catch oom(),
+                        .string => |string| c.printed.appendSlice(string) catch oom(),
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } }),
+                    }
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
                 .panic => {
