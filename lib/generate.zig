@@ -1363,7 +1363,6 @@ fn emitEnum(c: anytype, e: anytype) void {
 
 fn emitU32Const(c: anytype, i: u32) void {
     emitEnum(c, wasm.Opcode.i32_const);
-    // Want i32 encoding, but cast to i64 to avoid overflow.
     emitLebI(c, @as(i32, @bitCast(i)));
 }
 

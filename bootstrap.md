@@ -2082,3 +2082,22 @@ if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
 
 202
 ```
+
+```
+print = (x) {
+    t = only[%reflect(%repr-of(x))][]
+    if {only[%union-has-key(%from-only(t), 'string')][]} {
+      %print('\'')
+      %print(x)
+      %print('\'')
+    } else {
+      %panic()
+    }
+}
+print('foo')
+42
+
+'foo'42
+
+'foo'42
+```

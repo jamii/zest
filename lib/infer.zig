@@ -492,7 +492,7 @@ fn inferExpr(
                     if (string != .string)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{string}) } });
                     builtin_typed = .print_string;
-                    emit(c, f, .call_builtin_end, .u32);
+                    emit(c, f, .call_builtin_end, Repr.emptyStruct());
                 },
                 .panic => {
                     builtin_typed = .panic;
