@@ -62,7 +62,7 @@ pub const Repr = union(enum) {
 
     pub fn valueOf(self: Repr) ?Value {
         return switch (self) {
-            .only => |value| value.*,
+            .only => |value| .{ .only = value },
             .@"struct" => |@"struct"| if (@"struct".valueOf()) |value|
                 .{ .@"struct" = value }
             else

@@ -181,11 +181,12 @@ pub const Builtin = enum {
     @"union-has-key",
     @"repr-of",
     reflect,
+    @"from-only",
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic => 0,
-            .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect => 1,
+            .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-only" => 1,
             .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"bit-shift-left", .@"and", .@"or", .load, .store, .@"union-has-key" => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };

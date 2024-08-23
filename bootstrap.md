@@ -2043,3 +2043,42 @@ if a 42 else 'oh no'
 
 42
 ```
+
+```
+// No type error from true branch because condition is comptime-known
+a = only[0][]
+if a 'oh no' else 101
+
+101
+
+101
+```
+
+```
+a = only[42][]
+i64[a]
+
+42
+
+42
+```
+
+```
+a = [x: 42]
+t = only[%reflect(%repr-of(a))][]
+if {only[%union-has-key(%from-only(t), 'struct')][]} 101 else 202
+
+101
+
+101
+```
+
+```
+a = [x: 42]
+t = only[%reflect(%repr-of(a))][]
+if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
+
+202
+
+202
+```

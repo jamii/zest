@@ -103,9 +103,13 @@ pub fn evalStaged(c: *Compiler) error{ EvalError, InferError }!Value {
                 ends_remaining += 1;
             },
             .stage_end => {
+                const value = c.value_stack.pop();
                 ends_remaining -= 1;
-                if (ends_remaining == 0)
-                    return c.value_stack.pop();
+                if (ends_remaining == 0) {
+                    return value;
+                } else {
+                    c.value_stack.append(.{ .only = c.box(value) }) catch oom();
+                }
             },
             .repr_of_begin => {
                 const repr_count = c.repr_stack.items.len;
@@ -173,7 +177,11 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
                     continue :fun;
                 },
-                .stage_end, .unstage_end => {},
+                .stage_end => {
+                    const value = c.value_stack.pop();
+                    c.value_stack.append(.{ .only = c.box(value) }) catch oom();
+                },
+                .unstage_end => {},
                 else => {
                     try evalExpr(c, expr_data);
                 },
@@ -222,7 +230,7 @@ pub fn evalExpr(
             for (0..count) |i| {
                 const ix = count - 1 - i;
                 values[ix] = c.value_stack.pop();
-                keys[ix] = c.value_stack.pop();
+                keys[ix] = c.value_stack.pop().only.*;
                 reprs[ix] = values[ix].reprOf();
             }
             // TODO sort
@@ -294,7 +302,7 @@ pub fn evalExpr(
             c.value_stack.append(value) catch oom();
         },
         .object_get_end => {
-            const key = c.value_stack.pop();
+            const key = c.value_stack.pop().only.*;
             const object = c.value_stack.pop();
             const value = object.get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
@@ -319,7 +327,7 @@ pub fn evalExpr(
             ref.ref.value.* = value.copy(c.allocator);
         },
         .ref_get_end => {
-            const key = c.value_stack.pop();
+            const key = c.value_stack.pop().only.*;
             const ref = c.value_stack.pop();
             const value_ptr = ref.ref.value.getMut(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = ref.ref.value.*, .key = key } });
@@ -521,7 +529,7 @@ pub fn evalExpr(
                     c.value_stack.append(.{ .u32 = class_count + class_small_count }) catch oom();
                 },
                 .load => {
-                    const repr = c.value_stack.pop();
+                    const repr = c.value_stack.pop().only.*;
                     const address = c.value_stack.pop();
                     if (address != .u32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
@@ -539,7 +547,7 @@ pub fn evalExpr(
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
                 .@"size-of" => {
-                    const repr = c.value_stack.pop();
+                    const repr = c.value_stack.pop().only.*;
                     if (repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{repr}) } });
                     const size = repr.repr.sizeOf();
@@ -556,7 +564,7 @@ pub fn evalExpr(
                     return fail(c, .panic);
                 },
                 .@"union-has-key" => {
-                    const key = c.value_stack.pop();
+                    const key = c.value_stack.pop().only.*;
                     const object = c.value_stack.pop();
                     if (object != .@"union")
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ object, key }) } });
@@ -575,6 +583,12 @@ pub fn evalExpr(
                         .value = c.box(Value.emptyStruct()),
                     } }) catch oom();
                 },
+                .@"from-only" => {
+                    const value = c.value_stack.pop();
+                    if (value != .only)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
+                    c.value_stack.append(value.only.copy(c.allocator)) catch oom();
+                },
                 else => return fail(c, .todo),
             }
         },
@@ -584,7 +598,7 @@ pub fn evalExpr(
         },
         .make_end => {
             const args = c.value_stack.pop();
-            const head = c.value_stack.pop();
+            const head = c.value_stack.pop().only.*;
             switch (head) {
                 .repr => |to_repr| {
                     if (to_repr == .only) {
@@ -616,6 +630,8 @@ pub fn evalExpr(
                             if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                             c.value_stack.append(.{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } }) catch oom();
+                        } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
+                            c.value_stack.append(from_repr.only.copy(c.allocator)) catch oom();
                         } else {
                             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                         }

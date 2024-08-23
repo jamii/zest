@@ -528,7 +528,7 @@ fn inferExpr(
                     if (to_repr == .only) {
                         if (args.@"struct".keys.len != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        emit(c, f, .{ .make_end = .{ .only_init = to_repr.only } }, to_repr);
+                        emit(c, f, .{ .make_end = .{ .to_only = to_repr.only } }, to_repr);
                     } else {
                         if (args.@"struct".keys.len != 1 or
                             args.@"struct".keys[0] != .i64 or
@@ -550,6 +550,8 @@ fn inferExpr(
                             if (!repr.equal(to_repr.@"union".reprs[tag]))
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                             emit(c, f, .{ .make_end = .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } } }, to_repr);
+                        } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
+                            emit(c, f, .{ .make_end = .{ .from_only = from_repr.only } }, to_repr);
                         } else {
                             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                         }
@@ -602,17 +604,19 @@ fn inferExpr(
             switch (cond) {
                 .true => {
                     f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = then;
+                    emit(c, f, .if_end, then);
                 },
                 .false => {
                     f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = @"else";
+                    emit(c, f, .if_end, @"else");
                 },
                 .unknown => {
                     if (!then.equal(@"else"))
                         return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
                     f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = then;
+                    emit(c, f, .if_end, then);
                 },
             }
-            emit(c, f, .if_end, then);
         },
         .while_begin => {
             emit(c, f, .while_begin, null);
@@ -685,7 +689,9 @@ fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { 
 
 fn popValue(c: *Compiler) error{InferError}!Value {
     const repr = c.repr_stack.pop();
-    return repr.valueOf() orelse fail(c, .{ .value_not_staged = repr });
+    const value = repr.valueOf() orelse
+        return fail(c, .{ .value_not_staged = repr });
+    return value.only.*;
 }
 
 fn emit(c: *Compiler, f: *tir.FunData, expr: tir.ExprData, repr: ?Repr) void {

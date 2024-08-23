@@ -802,8 +802,14 @@ fn genExprInner(
                         .value = c.box(arg.@"struct".values[0]),
                     } };
                 },
-                .only_init => |value| {
+                .to_only => |value| {
                     return .{ .only = .{ .value = value } };
+                },
+                .from_only => |value| {
+                    switch (value.*) {
+                        .i64 => |i| return .{ .i64 = i },
+                        else => return fail(c, .todo),
+                    }
                 },
             }
         },
@@ -844,14 +850,21 @@ fn genExprInner(
             const cond = try genExpr(c, f, tir_f, .anywhere);
 
             if (cond == .i64 or cond == .only) {
-                const cond_true = (cond == .i64 and cond.i64 == 1) or (cond == .only and cond.only.value.*.i64 == 1);
-                var value: ?wir.Walue = null;
-                _ = take(c, tir_f).if_then;
-                if (!cond_true) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
-                _ = take(c, tir_f).if_else;
-                if (cond_true) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
-                _ = take(c, tir_f).if_end;
-                return value.?;
+                if ((cond == .i64 and cond.i64 == 0) or (cond == .only and cond.only.value.*.i64 == 0)) {
+                    _ = take(c, tir_f).if_then;
+                    skipTree(c, tir_f);
+                    _ = take(c, tir_f).if_else;
+                    const value = try genExpr(c, f, tir_f, dest);
+                    _ = take(c, tir_f).if_end;
+                    return value;
+                } else {
+                    _ = take(c, tir_f).if_then;
+                    const value = try genExpr(c, f, tir_f, dest);
+                    _ = take(c, tir_f).if_else;
+                    skipTree(c, tir_f);
+                    _ = take(c, tir_f).if_end;
+                    return value;
+                }
             }
 
             const branch_dest: wir.Destination = if (dest != .anywhere) dest else
