@@ -671,10 +671,10 @@ pub fn evalExpr(
         },
         .if_begin => {},
         .if_then => {
-            const cond = c.value_stack.pop();
-            if (cond != .i64)
-                return fail(c, .{ .not_a_bool = cond });
-            if (cond.i64 == 0)
+            const cond_value = c.value_stack.pop();
+            const cond = cond_value.asBool() orelse
+                return fail(c, .{ .not_a_bool = cond_value });
+            if (!cond)
                 skipExpr(c, .if_else);
         },
         .if_else => {
@@ -686,10 +686,10 @@ pub fn evalExpr(
             c.while_stack.append(frame.expr) catch oom();
         },
         .while_body => {
-            const cond = c.value_stack.pop();
-            if (cond != .i64)
-                return fail(c, .{ .not_a_bool = cond });
-            if (cond.i64 == 0) {
+            const cond_value = c.value_stack.pop();
+            const cond = cond_value.asBool() orelse
+                return fail(c, .{ .not_a_bool = cond_value });
+            if (!cond) {
                 _ = c.while_stack.pop();
                 c.value_stack.append(Value.emptyStruct()) catch oom();
                 skipExpr(c, .while_end);

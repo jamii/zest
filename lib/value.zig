@@ -196,6 +196,18 @@ pub const Value = union(enum) {
             .string, .@"union", .only, .fun, .ref, .repr, .repr_kind => panic("TODO store: {}", .{self}),
         }
     }
+
+    pub fn asBool(self: Value) ?bool {
+        return switch (self) {
+            .i64 => |i| switch (i) {
+                0 => false,
+                1 => true,
+                else => null,
+            },
+            .only => |value| value.asBool(),
+            else => null,
+        };
+    }
 };
 
 pub const ValueStruct = struct {

@@ -596,12 +596,22 @@ fn inferExpr(
         .if_end => {
             const @"else" = c.repr_stack.pop();
             const then = c.repr_stack.pop();
-            const cond = c.repr_stack.pop();
-            if (cond != .i64)
-                return fail(c, .{ .not_a_bool = cond });
-            if (!then.equal(@"else"))
-                return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
-            f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = then;
+            const cond_repr = c.repr_stack.pop();
+            const cond = cond_repr.asBoolish() orelse
+                return fail(c, .{ .not_a_bool = cond_repr });
+            switch (cond) {
+                .true => {
+                    f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = then;
+                },
+                .false => {
+                    f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = @"else";
+                },
+                .unknown => {
+                    if (!then.equal(@"else"))
+                        return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
+                    f.expr_data.getPtr(c.fixup_stack.pop()).if_begin = then;
+                },
+            }
             emit(c, f, .if_end, then);
         },
         .while_begin => {
@@ -612,9 +622,9 @@ fn inferExpr(
         },
         .while_end => {
             _ = c.repr_stack.pop();
-            const cond = c.repr_stack.pop();
-            if (cond != .i64)
-                return fail(c, .{ .not_a_bool = cond });
+            const cond_repr = c.repr_stack.pop();
+            _ = cond_repr.asBoolish() orelse
+                return fail(c, .{ .not_a_bool = cond_repr });
             emit(c, f, .while_end, Repr.emptyStruct());
         },
         .call_begin, .call_end, .stage_begin, .stage_end, .unstage_begin, .unstage_end => panic("Should be handled in inferTree, not inferExpr", .{}),

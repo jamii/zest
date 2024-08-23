@@ -168,6 +168,20 @@ pub const Repr = union(enum) {
             },
         };
     }
+
+    pub fn asBoolish(self: Repr) ?Boolish {
+        return switch (self) {
+            .i64 => .unknown,
+            .only => |value| if (value.asBool()) |b|
+                switch (b) {
+                    true => .true,
+                    false => .false,
+                }
+            else
+                null,
+            else => null,
+        };
+    }
 };
 
 pub const ReprStruct = struct {
@@ -258,4 +272,10 @@ pub const ReprKind = enum {
         _ = options;
         try writer.print("{s}", .{@tagName(self)});
     }
+};
+
+pub const Boolish = enum {
+    true,
+    false,
+    unknown,
 };

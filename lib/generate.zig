@@ -778,12 +778,13 @@ fn genExprInner(
             const args = try genExpr(c, f, tir_f, .anywhere);
             const make_end = take(c, tir_f).make_end;
 
-            const arg = args.@"struct".values[0];
             switch (make_end) {
                 .nop => {
+                    const arg = args.@"struct".values[0];
                     return arg;
                 },
                 .i64_to_u32 => {
+                    const arg = args.@"struct".values[0];
                     if (arg == .i64) {
                         return .{ .u32 = @intCast(arg.i64) };
                     } else {
@@ -794,6 +795,7 @@ fn genExprInner(
                     }
                 },
                 .union_init => |union_init| {
+                    const arg = args.@"struct".values[0];
                     return .{ .@"union" = .{
                         .repr = union_init.repr,
                         .tag = union_init.tag,
@@ -841,12 +843,13 @@ fn genExprInner(
         .if_begin => |repr| {
             const cond = try genExpr(c, f, tir_f, .anywhere);
 
-            if (cond == .i64) {
+            if (cond == .i64 or cond == .only) {
+                const cond_true = (cond == .i64 and cond.i64 == 1) or (cond == .only and cond.only.value.*.i64 == 1);
                 var value: ?wir.Walue = null;
                 _ = take(c, tir_f).if_then;
-                if (cond.i64 == 0) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
+                if (!cond_true) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
                 _ = take(c, tir_f).if_else;
-                if (cond.i64 != 0) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
+                if (cond_true) skipTree(c, tir_f) else value = try genExpr(c, f, tir_f, dest);
                 _ = take(c, tir_f).if_end;
                 return value.?;
             }
@@ -895,7 +898,7 @@ fn genExprInner(
             emitByte(f, wasm.block_empty);
 
             const cond = try genExpr(c, f, tir_f, .anywhere);
-            if (cond == .i64 and cond.i64 == 0) {
+            if ((cond == .i64 and cond.i64 == 0) or (cond == .only and cond.only.value.*.i64 == 0)) {
                 _ = take(c, tir_f).while_body;
                 skipTree(c, tir_f);
                 _ = take(c, tir_f).while_end;

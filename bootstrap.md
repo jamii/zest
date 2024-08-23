@@ -1901,9 +1901,9 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5231{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5235{ .count = 1 } }
 
-TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5231{ .count = 1 } }
+TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5235{ .count = 1 } }
 ```
 
 ```
