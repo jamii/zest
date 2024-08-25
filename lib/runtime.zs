@@ -8,7 +8,7 @@ wasm-page-len-log = u32[16] // log2(64 * 1024)
 wasm-page-len = u32[1] << wasm-page-len-log
 
 // Allocations are divided into `class-count` size classes, with sizes ranging form `2 ^ class-min-len-log` to `2 ^ class-max-len-log` bytes.
-class-min-len-log = u32[3] // enough for 4 bytes plus a u32 freelist pointer
+class-min-len-log = u32[2] // smallest size class that can fit a freelist pointer
 class-max-len-log = u32[32] // enough for entire wasm32 address space
 class-count = class-max-len-log - class-min-len-log
 class-small-count = wasm-page-len-log - class-min-len-log
@@ -36,6 +36,7 @@ alloc-pages = (page-count/u32) { // /u32
 }
 
 alloc = (:class/u32) { // /u32
+    if {class >= class-count} panic('Class is too large') else {}
     free-ptr-ptr = alloc-free-ptr-ptr + {class * %size-of(u32)}
     free-ptr = %load(free-ptr-ptr, u32)
     if {free-ptr != u32[0]} {
@@ -56,6 +57,7 @@ alloc = (:class/u32) { // /u32
 }
 
 free = (:class/u32, :ptr/u32) { // /struct[]
+    if {class >= class-count} panic('Class is too large') else {}
     free-ptr-ptr = alloc-free-ptr-ptr + {class * %size-of(u32)}
     free-ptr = %load(free-ptr-ptr, u32)
     %store(ptr, free-ptr)
@@ -66,14 +68,15 @@ free = (:class/u32, :ptr/u32) { // /struct[]
 }
 
 len-to-class = (len/u32) { // /u32
-    len-with-free-ptr = len + %size-of(u32)
-    lower-len-log = u32[31] - %clz(len-with-free-ptr)
-    upper-len-log = if {{u32[1] << lower-len-log} == len-with-free-ptr} lower-len-log else lower-len-log + u32[1]
+    if {len == 0} panic('Cannot alloc zero bytes') else {}
+    lower-len-log = u32[31] - %clz(len)
+    upper-len-log = if {{u32[1] << lower-len-log} == len} lower-len-log else lower-len-log + u32[1]
     if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else u32[0]
 }
 
 class-to-len = (class/u32) { // /u32
-    {u32[1] << {class + class-min-len-log}} - %size-of(u32)
+    if {class >= class-count} panic('Class is too large') else {}
+    u32[1] << {class + class-min-len-log}
 }
 
 //alloc-bytes = (:len-min/u32) { // /slice[u8]

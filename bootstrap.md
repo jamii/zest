@@ -2101,6 +2101,7 @@ print = (x) {
     %print(x)
   } else if {only[%union-has-key(%from-only(t), 'string')][]} {
     %print('\'')
+    // TODO escape
     %print(x)
     %print('\'')
   } else {
