@@ -677,7 +677,7 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
     c.print(.tokens, std.io.getStdErr().writer()) catch unreachable;
 
     try parse(c);
-    assert(c.token_next.id == c.token_data.count());
+    assert(c.token_next.id == c.token_data.count() - 1);
     c.print(.sir, std.io.getStdErr().writer()) catch unreachable;
 
     try desugar(c);

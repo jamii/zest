@@ -435,6 +435,10 @@ fn take(c: *Compiler) TokenData {
         c.token_next.id += 1;
         switch (token) {
             .space, .comment => {},
+            .eof => {
+                c.token_next.id -= 1;
+                return token;
+            },
             else => return token,
         }
     }
