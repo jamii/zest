@@ -341,14 +341,14 @@ fn parseBuiltinCall(c: *Compiler) error{ParseError}!void {
 
     const builtin = try parseBuiltin(c);
 
-    if (builtin == .@"repr-of")
-        emit(c, .repr_of_begin)
-    else
-        emit(c, .{ .call_builtin_begin = builtin });
-    defer if (builtin == .@"repr-of")
-        emit(c, .repr_of_end)
-    else
-        emit(c, .call_builtin_end);
+    emit(c, switch (builtin) {
+        .@"repr-of" => .repr_of_begin,
+        else => .{ .call_builtin_begin = builtin },
+    });
+    defer emit(c, switch (builtin) {
+        .@"repr-of" => .repr_of_end,
+        else => .call_builtin_end,
+    });
 
     try expect(c, .@"(");
     while (peek(c) != .@")") {
