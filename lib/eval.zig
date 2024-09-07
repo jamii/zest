@@ -33,7 +33,7 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     return eval(c);
 }
 
-pub fn pushFun(c: *Compiler, frame: dir.Frame) void {
+fn pushFun(c: *Compiler, frame: dir.Frame) void {
     c.dir_frame_stack.append(frame) catch oom();
     c.local_stack.appendNTimes(
         Value.emptyStruct(),
@@ -41,7 +41,7 @@ pub fn pushFun(c: *Compiler, frame: dir.Frame) void {
     ) catch oom();
 }
 
-pub fn popFun(c: *Compiler) dir.Frame {
+fn popFun(c: *Compiler) dir.Frame {
     const frame = c.dir_frame_stack.pop();
     c.local_stack.shrinkRetainingCapacity(
         c.local_stack.items.len -
@@ -50,13 +50,22 @@ pub fn popFun(c: *Compiler) dir.Frame {
     return frame;
 }
 
-pub fn evalStaged(c: *Compiler) error{ EvalError, InferError }!Value {
-    const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-    const f = c.dir_fun_data.get(frame.fun);
-    assert(f.expr_data.get(frame.expr) == .stage_begin);
+pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ EvalError, InferError }!Value {
+    pushFun(c, .{
+        .fun = tir_f.key.fun,
+        .expr = tir_f.dir_expr_next,
+        .args = &.{},
+        .closure = Value.emptyStruct(),
+    });
+
+    {
+        const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+        assert(f.expr_data.get(frame.expr) == .stage_begin);
+    }
 
     var ends_remaining: usize = 0;
     while (true) {
+        const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
         const expr_data = f.expr_data.get(frame.expr);
         switch (expr_data) {
             .call_end => |call_end| {
@@ -77,26 +86,11 @@ pub fn evalStaged(c: *Compiler) error{ EvalError, InferError }!Value {
                 c.value_stack.append(return_value) catch oom();
             },
             .unstage_begin => {
-                const repr_count = c.repr_stack.items.len;
-                c.tir_frame_stack.append(.{
-                    .key = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].key,
-                    .fun = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].fun,
-                    .expr = frame.expr,
-                    .ends_remaining = 0,
-                    .mode = .unstage,
-                }) catch oom();
-                const tir_frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-                switch (try infer.inferTree(c, tir_frame)) {
-                    .call => panic("Should not find call inside unstage", .{}),
-                    .@"return" => {},
-                }
-                const repr = c.repr_stack.pop();
+                tir_f.dir_expr_next = frame.expr;
+                const repr = try infer.inferExpr(c, tir_f, f);
                 const value = repr.valueOf() orelse return fail(c, .{ .cannot_unstage_value = repr });
                 c.value_stack.append(value) catch oom();
-                frame.expr = tir_frame.expr;
-                assert(f.expr_data.get(frame.expr) == .unstage_end);
-                _ = c.tir_frame_stack.pop();
-                assert(c.repr_stack.items.len == repr_count);
+                frame.expr = tir_f.dir_expr_next;
             },
             .unstage_end => {},
             .stage_begin => {
@@ -106,33 +100,20 @@ pub fn evalStaged(c: *Compiler) error{ EvalError, InferError }!Value {
                 const value = c.value_stack.pop();
                 ends_remaining -= 1;
                 if (ends_remaining == 0) {
+                    tir_f.dir_expr_next = frame.expr;
+                    _ = popFun(c);
                     return value;
                 } else {
                     c.value_stack.append(.{ .only = c.box(value) }) catch oom();
                 }
             },
             .repr_of_begin => {
-                const repr_count = c.repr_stack.items.len;
                 frame.expr.id += 1;
-                c.tir_frame_stack.append(.{
-                    .key = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].key,
-                    .fun = c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1].fun,
-                    .expr = frame.expr,
-                    .ends_remaining = 0,
-                    .mode = .unstage,
-                }) catch oom();
-                const tir_frame = &c.tir_frame_stack.items[c.tir_frame_stack.items.len - 1];
-                switch (try infer.inferTree(c, tir_frame)) {
-                    .call => panic("Should not find call inside unstage", .{}),
-                    .@"return" => {},
-                }
-                const repr = c.repr_stack.pop();
+                tir_f.dir_expr_next = frame.expr;
+                const repr = try infer.inferExpr(c, tir_f, f);
                 c.value_stack.append(.{ .repr = repr }) catch oom();
-                frame.expr = tir_frame.expr;
-                frame.expr.id += 1;
+                frame.expr = tir_f.dir_expr_next;
                 assert(f.expr_data.get(frame.expr) == .repr_of_end);
-                _ = c.tir_frame_stack.pop();
-                assert(c.repr_stack.items.len == repr_count);
             },
             .repr_of_end => {},
             .return_end, .arg, .closure => {

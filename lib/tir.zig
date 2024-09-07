@@ -34,8 +34,6 @@ pub const ExprData = union(enum) {
     arg: Arg,
     local_get: Local,
 
-    nop_begin,
-    nop_end,
     struct_init_begin,
     struct_init_end: ReprStruct,
     local_let_begin,
@@ -145,24 +143,15 @@ pub const FunData = struct {
     local_data: List(Local, LocalData),
     expr_data: List(Expr, ExprData),
     return_repr: FlatLattice(Repr),
+    dir_expr_next: dir.Expr,
 
     pub fn init(allocator: Allocator, key: FunKey) FunData {
         return .{
             .key = key,
-
             .local_data = fieldType(FunData, .local_data).init(allocator),
-
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
-
             .return_repr = .zero,
+            .dir_expr_next = .{ .id = 0 },
         };
     }
-};
-
-pub const Frame = struct {
-    key: FunKey,
-    fun: Fun,
-    expr: dir.Expr,
-    ends_remaining: usize,
-    mode: enum { infer, unstage },
 };

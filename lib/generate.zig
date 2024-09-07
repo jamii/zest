@@ -866,11 +866,6 @@ fn genExprInner(
                 return null;
             }
         },
-        .nop_begin => {
-            const value = try genExpr(c, f, tir_f, dest);
-            _ = take(c, tir_f).nop_end;
-            return value;
-        },
         .if_begin => |repr| {
             const cond = try genExpr(c, f, tir_f, .anywhere);
 
@@ -963,13 +958,8 @@ fn genExprInner(
 
             return wir.Walue.emptyStruct();
         },
-        inline else => |_, tag| {
-            if (comptime std.mem.endsWith(u8, @tagName(tag), "_begin")) {
-                @compileError("Unhandled branch begin: " ++ @tagName(tag));
-            } else {
-                std.debug.print("TODO generate {}\n", .{expr_data});
-                return fail(c, .todo);
-            }
+        else => {
+            return fail(c, .todo);
         },
     }
 }

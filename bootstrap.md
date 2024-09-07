@@ -1645,8 +1645,8 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/1b3d34b2:1:295)
-    at <anonymous> (wasm://wasm/1b3d34b2:1:207)
+    at <anonymous> (wasm://wasm/54fb876a:1:234)
+    at <anonymous> (wasm://wasm/54fb876a:1:277)
     at file:///home/jamie/zest/test.js:31:39
 ```
 
@@ -1901,9 +1901,9 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5235{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5062{ .count = 1 } }
 
-TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5235{ .count = 1 } }
+TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5062{ .count = 1 } }
 ```
 
 ```
@@ -1982,7 +1982,7 @@ a = 42
 
 101
 
-TODO infer: dir.ExprData{ .repr_of_end = void }
+TODO infer: dir.ExprData{ .repr_of_begin = void }
 ```
 
 ```
@@ -1992,7 +1992,7 @@ a = 42
 
 101
 
-TODO infer: dir.ExprData{ .repr_of_end = void }
+TODO infer: dir.ExprData{ .repr_of_begin = void }
 ```
 
 ```
@@ -2031,7 +2031,7 @@ surprise101
 
 1
 
-TODO infer: dir.ExprData{ .repr_of_end = void }
+TODO infer: dir.ExprData{ .repr_of_begin = void }
 ```
 
 ```

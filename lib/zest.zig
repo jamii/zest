@@ -28,7 +28,7 @@ pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
-pub const inferMain = @import("./infer.zig").inferMain;
+pub const infer = @import("./infer.zig").infer;
 pub const generate = @import("./generate.zig").generate;
 
 pub fn oom() noreturn {
@@ -267,9 +267,8 @@ pub const Compiler = struct {
     tir_fun_data: List(tir.Fun, tir.FunData),
     tir_fun_by_key: Map(tir.FunKey, tir.Fun),
     tir_fun_main: ?tir.Fun,
-    tir_frame_stack: ArrayList(tir.Frame),
-    repr_stack: ArrayList(Repr),
-    fixup_stack: ArrayList(tir.Expr),
+    tir_fun_data_next: ?*tir.FunData,
+    infer_mode: enum { infer, unstage },
 
     // generate
     wir_fun_data: List(wir.Fun, wir.FunData),
@@ -322,9 +321,8 @@ pub const Compiler = struct {
             .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
             .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
             .tir_fun_main = null,
-            .tir_frame_stack = fieldType(Compiler, .tir_frame_stack).init(allocator),
-            .repr_stack = fieldType(Compiler, .repr_stack).init(allocator),
-            .fixup_stack = fieldType(Compiler, .fixup_stack).init(allocator),
+            .tir_fun_data_next = null,
+            .infer_mode = .infer,
 
             .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
             .wir_fun_by_tir = fieldType(Compiler, .wir_fun_by_tir).init(allocator),
@@ -537,7 +535,6 @@ pub const ErrorData = union(enum) {
     },
     infer: struct {
         key: tir.FunKey,
-        fun: tir.Fun,
         expr: dir.Expr,
         data: InferErrorData,
     },
@@ -688,7 +685,7 @@ pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }
 pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }!void {
     assert(c.dir_fun_main != null);
 
-    try inferMain(c);
+    try infer(c);
     assert(c.tir_fun_main != null);
     c.print(.tir, std.io.getStdErr().writer()) catch unreachable;
 
