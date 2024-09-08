@@ -452,35 +452,12 @@ pub const Compiler = struct {
                         try writer.print(", a{}", .{arg_id});
                     }
                     try writer.print(")\n", .{});
-                    var indent: usize = 1;
+                    const indent = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.one });
                     }
-                    for (f.expr_data.items()) |expr_data| {
-                        if (treePart(expr_data) == .branch_end) indent -= 1;
-                        try writer.writeByteNTimes(' ', indent * 2);
-                        try writer.print("{s}", .{@tagName(expr_data)});
-                        switch (expr_data) {
-                            .i64 => |i| try writer.print(" {}", .{i}),
-                            .f64 => |i| try writer.print(" {}", .{i}),
-                            .string => |s| try writer.print(" {s}", .{s}),
-                            .arg => |arg| try writer.print(" a{}", .{arg.id}),
-                            .local_get => |local| try writer.print(" l{}", .{local.id}),
-                            .local_let_end => |local| try writer.print(" l{}", .{local.id}),
-                            .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),
-                            .ref_get_end => |ref_get| try writer.print(" {}", .{ref_get}),
-                            .ref_set_end => {},
-                            .call_end => |fun| try writer.print(" f{}", .{fun.id}),
-                            .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
-                            .make_end => |make_end| try writer.print(" {}", .{make_end}),
-                            .struct_init_end => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
-                            .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" /{}", .{repr}),
-                            inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
-                        }
-                        try writer.print("\n", .{});
-                        if (treePart(expr_data) == .branch_begin) indent += 1;
-                    }
+                    try c.printTir(writer, f, f.expr_main.?, indent);
                 }
                 try writer.print("---\n", .{});
             },
@@ -508,6 +485,44 @@ pub const Compiler = struct {
                     .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
                     .indirect => unreachable,
                     inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
+                }
+                try writer.print("\n", .{});
+            }
+            if (treePart(expr_data) == .branch_begin) indent += 1;
+            if (indent == start_indent) break;
+            expr.id += 1;
+        }
+    }
+
+    fn printTir(c: *Compiler, writer: anytype, f: tir.FunData, start_expr: tir.Expr, start_indent: usize) @TypeOf(writer.print("", .{})) {
+        var expr = start_expr;
+        var indent = start_indent;
+        while (true) {
+            const expr_data = f.expr_data.get(expr);
+            if (treePart(expr_data) == .branch_end) indent -= 1;
+            try writer.writeByteNTimes(' ', indent * 2);
+            try writer.print("{s}", .{@tagName(expr_data)});
+            if (expr_data == .indirect) {
+                try writer.print(" {}\n", .{expr_data.indirect.id});
+                try c.printTir(writer, f, expr_data.indirect, indent);
+            } else {
+                switch (expr_data) {
+                    .i64 => |i| try writer.print(" {}", .{i}),
+                    .f64 => |i| try writer.print(" {}", .{i}),
+                    .string => |s| try writer.print(" {s}", .{s}),
+                    .arg => |arg| try writer.print(" a{}", .{arg.id}),
+                    .local_get => |local| try writer.print(" l{}", .{local.id}),
+                    .local_let_end => |local| try writer.print(" l{}", .{local.id}),
+                    .object_get_end => |object_get| try writer.print(" index={}", .{object_get.index}),
+                    .ref_get_end => |ref_get| try writer.print(" {}", .{ref_get}),
+                    .ref_set_end => {},
+                    .call_end => |fun| try writer.print(" f{}", .{fun.id}),
+                    .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
+                    .make_end => |make_end| try writer.print(" {}", .{make_end}),
+                    .struct_init_end => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
+                    .ref_init_begin, .if_begin, .ref_deref_end => |repr| try writer.print(" /{}", .{repr}),
+                    .indirect => unreachable,
+                    inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
                 }
                 try writer.print("\n", .{});
             }

@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
 const fieldType = zest.fieldType;
@@ -33,6 +34,8 @@ pub const ExprData = union(enum) {
     closure,
     arg: Arg,
     local_get: Local,
+
+    indirect: Expr,
 
     struct_init_begin,
     struct_init_end: ReprStruct,
@@ -85,7 +88,6 @@ pub const ExprData = union(enum) {
 };
 
 pub const BuiltinTyped = union(enum) {
-    dummy, // should never be generated
     equal_u32,
     equal_i64,
     not_equal_u32,
@@ -124,7 +126,7 @@ pub const BuiltinTyped = union(enum) {
 
     pub fn hasSideEffects(builtin: BuiltinTyped) bool {
         return switch (builtin) {
-            .dummy, .equal_u32, .equal_i64, .not_equal_u32, .not_equal_i64, .less_than_u32, .less_than_i64, .less_than_or_equal_u32, .less_than_or_equal_i64, .more_than_u32, .more_than_i64, .more_than_or_equal_u32, .more_than_or_equal_i64, .add_u32, .add_i64, .subtract_u32, .subtract_i64, .multiply_u32, .multiply_i64, .remainder_u32, .remainder_i64, .bit_shift_left_u32, .clz_u32, .memory_size, .heap_start, .size_of, .union_has_key => false,
+            .equal_u32, .equal_i64, .not_equal_u32, .not_equal_i64, .less_than_u32, .less_than_i64, .less_than_or_equal_u32, .less_than_or_equal_i64, .more_than_u32, .more_than_i64, .more_than_or_equal_u32, .more_than_or_equal_i64, .add_u32, .add_i64, .subtract_u32, .subtract_i64, .multiply_u32, .multiply_i64, .remainder_u32, .remainder_i64, .bit_shift_left_u32, .clz_u32, .memory_size, .heap_start, .size_of, .union_has_key => false,
             .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_u32, .print_i64, .print_string, .panic => true,
         };
     }
@@ -142,6 +144,8 @@ pub const FunData = struct {
     key: FunKey,
     local_data: List(Local, LocalData),
     expr_data: List(Expr, ExprData),
+    expr_data_buffer: ArrayList(ExprData),
+    expr_main: ?Expr,
     return_repr: FlatLattice(Repr),
     dir_expr_next: dir.Expr,
 
@@ -150,6 +154,8 @@ pub const FunData = struct {
             .key = key,
             .local_data = fieldType(FunData, .local_data).init(allocator),
             .expr_data = fieldType(FunData, .expr_data).init(allocator),
+            .expr_data_buffer = fieldType(FunData, .expr_data_buffer).init(allocator),
+            .expr_main = null,
             .return_repr = .zero,
             .dir_expr_next = .{ .id = 0 },
         };

@@ -43,12 +43,14 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
     c.tir_fun_data_next = &f;
     defer c.tir_fun_data_next = tir_fun_data_next;
 
-    _ = try inferExpr(c, &f, dir_f);
+    _, const indirect = try inferExprIndirect(c, &f, dir_f);
+    f.expr_main = indirect.?.indirect;
     switch (f.return_repr) {
         .zero => f.return_repr = .{ .one = Repr.emptyUnion() },
         .one => {},
         .many => panic("Unreachable - should have errored earlier", .{}),
     }
+
     const fun = c.tir_fun_data.append(f);
     c.tir_fun_by_key.put(key, fun) catch oom();
     return fun;
@@ -124,11 +126,10 @@ pub fn inferExpr(
             return Repr.emptyStruct();
         },
         .ref_init_begin => {
-            const begin = if (c.infer_mode == .infer) f.expr_data.append(.{ .ref_init_begin = Repr.i64 }) else null;
-            const value = try inferExpr(c, f, dir_f);
-            if (c.infer_mode == .infer)
-                f.expr_data.getPtr(begin.?).ref_init_begin = value;
+            const value, const value_indirect = try inferExprIndirect(c, f, dir_f);
             _ = take(f, dir_f).ref_init_end;
+            emit(c, f, .{ .ref_init_begin = value });
+            emit(c, f, value_indirect);
             emit(c, f, .ref_init_end);
             return .{ .ref = c.box(value) };
         },
@@ -233,13 +234,14 @@ pub fn inferExpr(
             return c.tir_fun_data.get(tir_fun).return_repr.one;
         },
         .call_builtin_begin => {
-            const begin = if (c.infer_mode == .infer) f.expr_data.append(.{ .call_builtin_begin = .dummy }) else null;
             var args = ArrayList(Repr).init(c.allocator);
+            var arg_indirects = ArrayList(?tir.ExprData).init(c.allocator);
             while (peek(f, dir_f) != .call_builtin_end) {
-                args.append(try inferExpr(c, f, dir_f)) catch oom();
+                const arg, const arg_indirect = try inferExprIndirect(c, f, dir_f);
+                args.append(arg) catch oom();
+                arg_indirects.append(arg_indirect) catch oom();
             }
             const builtin = take(f, dir_f).call_builtin_end;
-            emit(c, f, .call_builtin_end);
             var builtin_typed: ?tir.BuiltinTyped = null;
             var result: ?Repr = null;
             switch (builtin) {
@@ -474,7 +476,9 @@ pub fn inferExpr(
                 },
                 else => return fail(c, .todo),
             }
-            if (c.infer_mode == .infer) f.expr_data.getPtr(begin.?).call_builtin_begin = builtin_typed.?;
+            emit(c, f, .{ .call_builtin_begin = builtin_typed.? });
+            for (arg_indirects.items) |arg_indirect| emit(c, f, arg_indirect);
+            emit(c, f, .call_builtin_end);
             return result.?;
         },
         .repr_of_begin => {
@@ -557,31 +561,44 @@ pub fn inferExpr(
             return Repr.emptyStruct();
         },
         .if_begin => {
-            const begin = if (c.infer_mode == .infer) f.expr_data.append(.{ .if_begin = Repr.i64 }) else null;
-            const cond_repr = try inferExpr(c, f, dir_f);
+            const cond_repr, const cond_indirect = try inferExprIndirect(c, f, dir_f);
             const cond = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
-            _ = take(f, dir_f).if_then;
-            emit(c, f, .if_then);
-            const then = try inferExpr(c, f, dir_f);
-            _ = take(f, dir_f).if_else;
-            emit(c, f, .if_else);
-            const @"else" = try inferExpr(c, f, dir_f);
-            _ = take(f, dir_f).if_end;
-            emit(c, f, .if_end);
             switch (cond) {
                 .true => {
-                    if (c.infer_mode == .infer) f.expr_data.getPtr(begin.?).if_begin = then;
-                    return then;
+                    _ = take(f, dir_f).if_then;
+                    const result = try inferExpr(c, f, dir_f);
+                    _ = take(f, dir_f).if_else;
+                    skipTree(f, dir_f);
+                    _ = take(f, dir_f).if_end;
+                    return result;
                 },
                 .false => {
-                    if (c.infer_mode == .infer) f.expr_data.getPtr(begin.?).if_begin = @"else";
-                    return @"else";
+                    _ = take(f, dir_f).if_then;
+                    skipTree(f, dir_f);
+                    _ = take(f, dir_f).if_else;
+                    const result = try inferExpr(c, f, dir_f);
+                    _ = take(f, dir_f).if_end;
+                    return result;
                 },
                 .unknown => {
+                    _ = take(f, dir_f).if_then;
+                    const then, const then_indirect = try inferExprIndirect(c, f, dir_f);
+                    _ = take(f, dir_f).if_else;
+                    const @"else", const else_indirect = try inferExprIndirect(c, f, dir_f);
+                    _ = take(f, dir_f).if_end;
+
                     if (!then.equal(@"else"))
                         return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
-                    if (c.infer_mode == .infer) f.expr_data.getPtr(begin.?).if_begin = then;
+
+                    emit(c, f, .{ .if_begin = then });
+                    emit(c, f, cond_indirect);
+                    emit(c, f, .if_then);
+                    emit(c, f, then_indirect);
+                    emit(c, f, .if_else);
+                    emit(c, f, else_indirect);
+                    emit(c, f, .if_end);
+
                     return then;
                 },
             }
@@ -617,6 +634,17 @@ pub fn inferExpr(
             return fail(c, .todo);
         },
     }
+}
+
+pub fn inferExprIndirect(
+    c: *Compiler,
+    f: *tir.FunData,
+    dir_f: dir.FunData,
+) error{ InferError, EvalError }!struct { Repr, ?tir.ExprData } {
+    const buffer_start = f.expr_data_buffer.items.len;
+    const repr = try inferExpr(c, f, dir_f);
+    const expr_data = cutBufferAfter(f, buffer_start);
+    return .{ repr, expr_data };
 }
 
 fn unstage(c: *Compiler, repr: Repr) !Value {
@@ -680,9 +708,31 @@ fn take(f: *tir.FunData, dir_f: dir.FunData) dir.ExprData {
     return expr_data;
 }
 
-fn emit(c: *Compiler, f: *tir.FunData, expr_data: tir.ExprData) void {
+fn emit(c: *Compiler, f: *tir.FunData, expr_data: ?tir.ExprData) void {
     if (c.infer_mode == .infer)
-        _ = f.expr_data.append(expr_data);
+        if (expr_data != null)
+            f.expr_data_buffer.append(expr_data.?) catch oom();
+}
+
+fn cutBufferAfter(f: *tir.FunData, buffer_start: usize) ?tir.ExprData {
+    if (buffer_start == f.expr_data_buffer.items.len)
+        return null;
+    const indirect_start = f.expr_data.count();
+    f.expr_data.appendSlice(f.expr_data_buffer.items[buffer_start..]);
+    f.expr_data_buffer.shrinkRetainingCapacity(buffer_start);
+    return .{ .indirect = .{ .id = indirect_start } };
+}
+
+fn skipTree(f: *tir.FunData, dir_f: dir.FunData) void {
+    var ends_remaining: usize = 0;
+    while (true) {
+        switch (treePart(take(f, dir_f))) {
+            .branch_begin => ends_remaining += 1,
+            .branch_end => ends_remaining -= 1,
+            .leaf => {},
+        }
+        if (ends_remaining == 0) break;
+    }
 }
 
 fn fail(c: *Compiler, data: InferErrorData) error{InferError} {

@@ -266,7 +266,7 @@ fn genFun(c: *Compiler, f: *wir.FunData) error{GenerateError}!void {
     defer c.local_walue.data.shrinkRetainingCapacity(0);
     c.local_walue.appendNTimes(null, tir_f.local_data.count());
 
-    c.tir_expr_next.id = 0;
+    c.tir_expr_next = tir_f.expr_main.?;
     _ = try genExprOrNull(c, f, tir_f, .nowhere);
 }
 
@@ -328,6 +328,13 @@ fn genExprInner(
 ) error{GenerateError}!?wir.Walue {
     const expr_data = take(c, tir_f);
     switch (expr_data) {
+        .indirect => |expr| {
+            const tir_expr_next = c.tir_expr_next;
+            c.tir_expr_next = expr;
+            const result = try genExpr(c, f, tir_f, dest);
+            c.tir_expr_next = tir_expr_next;
+            return result;
+        },
         .i64 => |i| {
             return .{ .i64 = i };
         },
@@ -578,7 +585,6 @@ fn genExprInner(
                 }
                 _ = take(c, tir_f).call_builtin_end;
                 return switch (builtin) {
-                    .dummy => panic("Uninitialized builtin", .{}),
                     .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32 => .{ .u32 = 0 },
                     .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
@@ -617,7 +623,6 @@ fn genExprInner(
             }
             _ = take(c, tir_f).call_builtin_end;
             switch (builtin) {
-                .dummy => panic("Uninitialized builtin", .{}),
                 .equal_u32 => {
                     emitEnum(f, wasm.Opcode.i32_eq);
                     emitEnum(f, wasm.Opcode.i64_extend_i32_u);
