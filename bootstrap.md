@@ -2124,3 +2124,11 @@ print('foo')
 'foo'
 101
 ```
+
+```
+if {%print('ok'); only[1][]} 42 else 101
+
+ok42
+
+ok42
+```

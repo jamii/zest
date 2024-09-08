@@ -562,35 +562,35 @@ pub fn inferExpr(
         },
         .if_begin => {
             const cond_repr, const cond_indirect = try inferExprIndirect(c, f, dir_f);
+            _ = take(f, dir_f).if_then;
+            const then, const then_indirect = try inferExprIndirect(c, f, dir_f);
+            _ = take(f, dir_f).if_else;
+            const @"else", const else_indirect = try inferExprIndirect(c, f, dir_f);
+            _ = take(f, dir_f).if_end;
             const cond = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
             switch (cond) {
                 .true => {
-                    _ = take(f, dir_f).if_then;
-                    const result = try inferExpr(c, f, dir_f);
-                    _ = take(f, dir_f).if_else;
-                    skipTree(f, dir_f);
-                    _ = take(f, dir_f).if_end;
-                    return result;
+                    emit(c, f, .block_begin);
+                    // Still have to emit cond in case it causes side-effects.
+                    emit(c, f, cond_indirect);
+                    emit(c, f, .block_last);
+                    emit(c, f, then_indirect);
+                    emit(c, f, .block_end);
+                    return then;
                 },
                 .false => {
-                    _ = take(f, dir_f).if_then;
-                    skipTree(f, dir_f);
-                    _ = take(f, dir_f).if_else;
-                    const result = try inferExpr(c, f, dir_f);
-                    _ = take(f, dir_f).if_end;
-                    return result;
+                    emit(c, f, .block_begin);
+                    // Still have to emit cond in case it causes side-effects.
+                    emit(c, f, cond_indirect);
+                    emit(c, f, .block_last);
+                    emit(c, f, else_indirect);
+                    emit(c, f, .block_end);
+                    return @"else";
                 },
                 .unknown => {
-                    _ = take(f, dir_f).if_then;
-                    const then, const then_indirect = try inferExprIndirect(c, f, dir_f);
-                    _ = take(f, dir_f).if_else;
-                    const @"else", const else_indirect = try inferExprIndirect(c, f, dir_f);
-                    _ = take(f, dir_f).if_end;
-
                     if (!then.equal(@"else"))
                         return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
-
                     emit(c, f, .{ .if_begin = then });
                     emit(c, f, cond_indirect);
                     emit(c, f, .if_then);
@@ -598,7 +598,6 @@ pub fn inferExpr(
                     emit(c, f, .if_else);
                     emit(c, f, else_indirect);
                     emit(c, f, .if_end);
-
                     return then;
                 },
             }
