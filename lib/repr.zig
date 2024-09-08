@@ -14,6 +14,7 @@ pub const Repr = union(enum) {
     @"struct": ReprStruct,
     @"union": ReprUnion,
     fun: ReprFun,
+    // TODO Replace with @"enum" and a syntax for one-value enum.
     only: *Value,
     repr,
     repr_kind,
