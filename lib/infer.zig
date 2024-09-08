@@ -227,6 +227,7 @@ pub fn inferExpr(
                 .closure_repr = .{ .@"struct" = fun.fun.closure },
                 .arg_reprs = args.items,
             };
+            // TODO Once we have type asserts on return, we'll want to trust that and queue fun for later to avoid stack overflows.
             const tir_fun = try inferFun(c, key);
             _ = take(f, dir_f).call_end;
             emit(c, f, .{ .call_end = tir_fun });
