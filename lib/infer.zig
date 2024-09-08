@@ -603,15 +603,30 @@ pub fn inferExpr(
             }
         },
         .while_begin => {
-            emit(c, f, .while_begin);
-            const cond_repr = try inferExpr(c, f, dir_f);
-            _ = cond_repr.asBoolish() orelse
-                return fail(c, .{ .not_a_bool = cond_repr });
+            const cond_repr, const cond_indirect = try inferExprIndirect(c, f, dir_f);
             _ = take(f, dir_f).while_body;
-            emit(c, f, .while_body);
-            _ = try inferExpr(c, f, dir_f);
+            _, const body_indirect = try inferExprIndirect(c, f, dir_f);
             _ = take(f, dir_f).while_end;
-            emit(c, f, .while_end);
+
+            const cond = cond_repr.asBoolish() orelse
+                return fail(c, .{ .not_a_bool = cond_repr });
+            switch (cond) {
+                .false => {
+                    emit(c, f, .block_begin);
+                    emit(c, f, cond_indirect);
+                    emit(c, f, .block_last);
+                    emit(c, f, .struct_init_begin);
+                    emit(c, f, .{ .struct_init_end = Repr.emptyStruct().@"struct" });
+                    emit(c, f, .block_end);
+                },
+                .true, .unknown => {
+                    emit(c, f, .while_begin);
+                    emit(c, f, cond_indirect);
+                    emit(c, f, .while_body);
+                    emit(c, f, body_indirect);
+                    emit(c, f, .while_end);
+                },
+            }
             return Repr.emptyStruct();
         },
         .stage_begin => {
