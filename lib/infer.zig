@@ -715,12 +715,16 @@ fn emit(c: *Compiler, f: *tir.FunData, expr_data: ?tir.ExprData) void {
 }
 
 fn cutBufferAfter(f: *tir.FunData, buffer_start: usize) ?tir.ExprData {
-    if (buffer_start == f.expr_data_buffer.items.len)
-        return null;
-    const indirect_start = f.expr_data.count();
-    f.expr_data.appendSlice(f.expr_data_buffer.items[buffer_start..]);
-    f.expr_data_buffer.shrinkRetainingCapacity(buffer_start);
-    return .{ .indirect = .{ .id = indirect_start } };
+    switch (f.expr_data_buffer.items.len - buffer_start) {
+        0 => return null,
+        1 => return f.expr_data_buffer.pop(),
+        else => {
+            const indirect_start = f.expr_data.count();
+            f.expr_data.appendSlice(f.expr_data_buffer.items[buffer_start..]);
+            f.expr_data_buffer.shrinkRetainingCapacity(buffer_start);
+            return .{ .indirect = .{ .id = indirect_start } };
+        },
+    }
 }
 
 fn skipTree(f: *tir.FunData, dir_f: dir.FunData) void {

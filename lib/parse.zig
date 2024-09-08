@@ -495,10 +495,16 @@ fn bufferLen(c: *Compiler) usize {
 }
 
 fn cutBufferAfter(c: *Compiler, buffer_start: usize) sir.ExprData {
-    const indirect_start = c.sir_expr_data.count();
-    c.sir_expr_data.appendSlice(c.sir_expr_data_buffer.items[buffer_start..]);
-    c.sir_expr_data_buffer.shrinkRetainingCapacity(buffer_start);
-    return .{ .indirect = .{ .id = indirect_start } };
+    switch (c.sir_expr_data_buffer.items.len - buffer_start) {
+        0 => panic("Empty cut", .{}),
+        1 => return c.sir_expr_data_buffer.pop(),
+        else => {
+            const indirect_start = c.sir_expr_data.count();
+            c.sir_expr_data.appendSlice(c.sir_expr_data_buffer.items[buffer_start..]);
+            c.sir_expr_data_buffer.shrinkRetainingCapacity(buffer_start);
+            return .{ .indirect = .{ .id = indirect_start } };
+        },
+    }
 }
 
 fn emit(c: *Compiler, expr_data: sir.ExprData) void {
