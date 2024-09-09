@@ -334,6 +334,10 @@ fn genExprInner(
         .string => |string| {
             return .{ .string = string };
         },
+        .only => |value| {
+            _ = try genExpr(c, f, tir_f, .nowhere);
+            return .{ .only = .{ .value = value } };
+        },
         .closure => {
             if (c.inlining) |inlining| {
                 return inlining.closure;
@@ -372,6 +376,16 @@ fn genExprInner(
             return .{ .@"struct" = .{
                 .repr = struct_repr,
                 .values = values,
+            } };
+        },
+        .union_init => |union_init| {
+            // TODO Can pass dest if we do alias analysis.
+            const child_dest: wir.Destination = if (dest == .nowhere) .nowhere else .anywhere;
+            const arg = try genExpr(c, f, tir_f, child_dest);
+            return .{ .@"union" = .{
+                .repr = union_init.repr,
+                .tag = union_init.tag,
+                .value = c.box(arg.@"struct".values[0]),
             } };
         },
         .local_let => |local| {
@@ -559,7 +573,7 @@ fn genExprInner(
                     _ = try genExpr(c, f, tir_f, .nowhere);
                 }
                 return switch (builtin) {
-                    .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32 => .{ .u32 = 0 },
+                    .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32, .i64_to_u32 => .{ .u32 = 0 },
                     .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
                     .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_u32, .print_i64, .print_string, .panic => unreachable,
@@ -586,6 +600,17 @@ fn genExprInner(
                             return .{ .stack = .i64 };
                         },
                         else => panic("Can't represent union with {}", .{object}),
+                    }
+                },
+                .i64_to_u32 => {
+                    const arg = try genExpr(c, f, tir_f, .anywhere);
+                    if (arg == .i64) {
+                        return .{ .u32 = @intCast(arg.i64) };
+                    } else {
+                        // TODO Check for under/overflow.
+                        load(c, f, arg);
+                        emitEnum(f, wasm.Opcode.i32_wrap_i64);
+                        return .{ .stack = .u32 };
                     }
                 },
                 else => {},
@@ -771,45 +796,14 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.@"unreachable");
                     return wir.Walue.emptyUnion();
                 },
-                .store, .union_has_key => unreachable, // handled above
+                .store, .union_has_key, .i64_to_u32 => unreachable, // handled above
             }
         },
-        .make => |make| {
-            // TODO The single struct argument is a silly blocker of dest.
-            const args = try genExpr(c, f, tir_f, .anywhere);
-            switch (make) {
-                .nop => {
-                    const arg = args.@"struct".values[0];
-                    return arg;
-                },
-                .i64_to_u32 => {
-                    const arg = args.@"struct".values[0];
-                    if (arg == .i64) {
-                        return .{ .u32 = @intCast(arg.i64) };
-                    } else {
-                        // TODO Check for under/overflow.
-                        load(c, f, arg);
-                        emitEnum(f, wasm.Opcode.i32_wrap_i64);
-                        return .{ .stack = .u32 };
-                    }
-                },
-                .union_init => |union_init| {
-                    const arg = args.@"struct".values[0];
-                    return .{ .@"union" = .{
-                        .repr = union_init.repr,
-                        .tag = union_init.tag,
-                        .value = c.box(arg.@"struct".values[0]),
-                    } };
-                },
-                .to_only => |value| {
-                    return .{ .only = .{ .value = value } };
-                },
-                .from_only => |value| {
-                    switch (value.*) {
-                        .i64 => |i| return .{ .i64 = i },
-                        else => return fail(c, .todo),
-                    }
-                },
+        .from_only => |value| {
+            _ = try genExpr(c, f, tir_f, .nowhere);
+            switch (value.*) {
+                .i64 => |i| return .{ .i64 = i },
+                else => return fail(c, .todo),
             }
         },
         .block => |block| {

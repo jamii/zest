@@ -482,18 +482,19 @@ pub fn inferExpr(
                     if (to_repr == .only) {
                         if (args.@"struct".keys.len != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        emit(c, f, .{ .make = .{ .to_only = to_repr.only } });
+                        emit(c, f, .{ .only = to_repr.only });
                     } else {
                         if (args.@"struct".keys.len != 1 or
                             args.@"struct".keys[0] != .i64 or
                             args.@"struct".keys[0].i64 != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        emit(c, f, .{ .object_get = .{ .index = 0 } });
                         const from_repr = args.@"struct".reprs[0];
                         if (from_repr.equal(to_repr)) {
-                            emit(c, f, .{ .make = .nop });
+                            // nop
                         } else if (from_repr == .i64 and to_repr == .u32) {
                             // TODO We should only allow this cast when from is a constant walue.
-                            emit(c, f, .{ .make = .i64_to_u32 });
+                            emit(c, f, .{ .call_builtin = .i64_to_u32 });
                         } else if (to_repr == .@"union" and from_repr == .@"struct") {
                             if (from_repr.@"struct".keys.len != 1)
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
@@ -503,9 +504,9 @@ pub fn inferExpr(
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                             if (!repr.equal(to_repr.@"union".reprs[tag]))
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            emit(c, f, .{ .make = .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } } });
+                            emit(c, f, .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } });
                         } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
-                            emit(c, f, .{ .make = .{ .from_only = from_repr.only } });
+                            emit(c, f, .{ .from_only = from_repr.only });
                         } else {
                             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                         }
