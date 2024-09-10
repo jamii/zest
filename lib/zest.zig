@@ -1,3 +1,5 @@
+const zest = @This();
+
 const std = @import("std");
 const panic = std.debug.panic;
 const assert = std.debug.assert;
@@ -224,6 +226,11 @@ pub fn convertPostorderToPreorder(
     post: List(Expr, ExprData),
     pre: *List(Expr, ExprData),
 ) void {
+    //{
+    //    zest.p(.@"---");
+    //    for (post.data.items) |item| zest.p(item);
+    //    zest.p(.@"---");
+    //}
     const count = post.count();
     if (count == 0) return;
     pre.data.ensureTotalCapacity(count) catch oom();
@@ -246,11 +253,33 @@ fn convertExpr(
 ) void {
     post_expr.id -= 1;
     const expr_data = post.get(post_expr.*);
+    //zest.p(.{ expr_data, expr_data.childCount(c) });
+    const pre_tree_end = pre_expr.*;
+    const post_tree_end = post_expr.*;
     for (0..expr_data.childCount(c)) |_| {
         convertExpr(c, Expr, ExprData, post, pre, post_expr, pre_expr);
     }
     pre_expr.id -= 1;
     pre.getPtr(pre_expr.*).* = expr_data;
+    const pre_tree_start = pre_expr.*;
+    const post_tree_start = post_expr.*;
+    if (Expr == dir.Expr) {
+        switch (expr_data) {
+            .stage => {
+                pre.getPtr(pre_tree_start).stage.mapping = post_tree_start;
+                post.getPtr(post_tree_end).stage.mapping = pre_tree_end;
+            },
+            .unstage => {
+                post.getPtr(post_tree_start).unstage_begin.mapping = .{ .id = pre_tree_start.id + 1 };
+                pre.getPtr(.{ .id = pre_tree_start.id + 1 }).unstage_begin.mapping = post_tree_end;
+            },
+            .repr_of => {
+                post.getPtr(post_tree_start).repr_of_begin.mapping = .{ .id = pre_tree_start.id + 1 };
+                pre.getPtr(.{ .id = pre_tree_start.id + 1 }).repr_of_begin.mapping = post_tree_end;
+            },
+            else => {},
+        }
+    }
 }
 
 pub fn FlatLattice(comptime T: type) type {
@@ -295,7 +324,6 @@ pub const Compiler = struct {
     value_stack: ArrayList(Value),
     local_stack: ArrayList(Value),
     while_stack: ArrayList(dir.Expr),
-    block_value_count_stack: ArrayList(usize),
     memory: ArrayList(u8),
     printed: ArrayList(u8),
 
@@ -350,7 +378,6 @@ pub const Compiler = struct {
             .value_stack = fieldType(Compiler, .value_stack).init(allocator),
             .local_stack = fieldType(Compiler, .local_stack).init(allocator),
             .while_stack = fieldType(Compiler, .while_stack).init(allocator),
-            .block_value_count_stack = fieldType(Compiler, .block_value_count_stack).init(allocator),
             .memory = fieldType(Compiler, .memory).init(allocator),
             .printed = fieldType(Compiler, .printed).init(allocator),
 
@@ -450,32 +477,13 @@ pub const Compiler = struct {
                         try writer.print(", a{}", .{arg_id});
                     }
                     try writer.print(")\n", .{});
+                    var expr = dir.Expr{ .id = 0 };
                     var indent: usize = 1;
                     for (0..f.local_data.count()) |local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
                         try writer.print("local l{}\n", .{local_id});
                     }
-                    for (f.expr_data.items()) |expr_data| {
-                        if (treePart(expr_data) == .branch_end) indent -= 1;
-                        try writer.writeByteNTimes(' ', indent * 2);
-                        try writer.print("{s}", .{@tagName(expr_data)});
-                        switch (expr_data) {
-                            .i64 => |i| try writer.print(" {}", .{i}),
-                            .f64 => |i| try writer.print(" {}", .{i}),
-                            .string => |s| try writer.print(" {s}", .{s}),
-                            .arg => |arg| try writer.print(" a{}", .{arg.id}),
-                            .local_get => |local| try writer.print(" l{}", .{local.id}),
-                            .local_let_end => |local| try writer.print(" l{}", .{local.id}),
-                            .struct_init_end => |count| try writer.print(" count={}", .{count}),
-                            .fun_init_end => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
-                            .assert_object_end => |assert_object| try writer.print(" count={}", .{assert_object.count}),
-                            .call_end => |call_end| try writer.print(" arg_count={}", .{call_end.arg_count}),
-                            .call_builtin_end => |builtin| try writer.print(" {}", .{builtin}),
-                            inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
-                        }
-                        try writer.print("\n", .{});
-                        if (treePart(expr_data) == .branch_begin) indent += 1;
-                    }
+                    try c.printDir(writer, f, &expr, &indent);
                 }
                 try writer.print("---\n", .{});
             },
@@ -531,6 +539,37 @@ pub const Compiler = struct {
         }
     }
 
+    fn printDir(c: *Compiler, writer: anytype, f: dir.FunData, expr: *dir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
+        const expr_data = f.expr_data_pre.get(expr.*);
+        expr.id += 1;
+
+        try writer.writeByteNTimes(' ', indent.* * 2);
+        try writer.print("{s}", .{@tagName(expr_data)});
+        switch (expr_data) {
+            .i64 => |i| try writer.print(" {}", .{i}),
+            .f64 => |i| try writer.print(" {}", .{i}),
+            .string => |s| try writer.print(" {s}", .{s}),
+            .arg => |arg| try writer.print(" a{}", .{arg.id}),
+            .local_get => |local| try writer.print(" l{}", .{local.id}),
+            .local_let => |local| try writer.print(" l{}", .{local.id}),
+            .struct_init => |count| try writer.print(" count={}", .{count}),
+            .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
+            .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
+            .call => |call| try writer.print(" arg_count={}", .{call.arg_count}),
+            .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
+            .block => |block| try writer.print(" {}", .{block.count}),
+            .stage, .repr_of_begin, .unstage_begin => |data| try writer.print(" {}", .{data.mapping}),
+            inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
+        }
+        try writer.print("\n", .{});
+
+        indent.* += 1;
+        for (0..expr_data.childCount(c)) |_| {
+            try c.printDir(writer, f, expr, indent);
+        }
+        indent.* -= 1;
+    }
+
     fn printTir(c: *Compiler, writer: anytype, f: tir.FunData, expr: *tir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
         const expr_data = f.expr_data_pre.get(expr.*);
         expr.id += 1;
@@ -553,7 +592,7 @@ pub const Compiler = struct {
             .struct_init => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
             .union_init => |union_init| try writer.print(" /{} tag={}", .{ Repr{ .@"union" = union_init.repr }, union_init.tag }),
             .ref_init, .@"if", .ref_deref => |repr| try writer.print(" /{}", .{repr}),
-            .block => {},
+            .block => |block| try writer.print(" {}", .{block.count}),
             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
         }
         try writer.print("\n", .{});
@@ -658,7 +697,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 };
             },
             .eval => |err| {
-                const expr_data = c.dir_fun_data.get(err.fun).expr_data.get(err.expr);
+                const expr_data = c.dir_fun_data.get(err.fun).expr_data_post.get(err.expr);
                 return switch (err.data) {
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),
                     .convert_error => |data| format(c, "Can't convert {} to {}", .{ data.found, data.expected }),
@@ -682,7 +721,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                 };
             },
             .infer => |err| {
-                const expr_data = c.dir_fun_data.get(err.key.fun).expr_data.get(err.expr);
+                const expr_data = c.dir_fun_data.get(err.key.fun).expr_data_pre.get(err.expr);
                 return switch (err.data) {
                     .value_not_staged => |data| format(c, "Value not staged: {}", .{data}),
                     .type_error => |data| format(c, "Expected {}, found {}", .{ data.expected, data.found }),

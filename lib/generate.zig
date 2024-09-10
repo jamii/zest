@@ -1284,10 +1284,9 @@ fn take(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
 
 fn skipTree(c: *Compiler, tir_f: tir.FunData) void {
     var children_remaining: usize = 1;
-    while (true) {
+    while (children_remaining > 0) {
         children_remaining += take(c, tir_f).childCount(c);
         children_remaining -= 1;
-        if (children_remaining == 0) break;
     }
 }
 

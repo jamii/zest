@@ -53,25 +53,20 @@ fn popFun(c: *Compiler) dir.Frame {
 pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ EvalError, InferError }!Value {
     pushFun(c, .{
         .fun = tir_f.key.fun,
-        .expr = tir_f.dir_expr_next,
+        .expr = f.expr_data_pre.get(tir_f.dir_expr_next).stage.mapping,
         .args = &.{},
         .closure = Value.emptyStruct(),
     });
-
-    {
-        const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-        assert(f.expr_data.get(frame.expr) == .stage_begin);
-    }
-
-    var ends_remaining: usize = 0;
+    var stages_nested: usize = 0;
     while (true) {
         const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-        const expr_data = f.expr_data.get(frame.expr);
+        const expr_data = f.expr_data_post.get(frame.expr);
+        //zest.p(.{ .eval_staged = expr_data });
         switch (expr_data) {
-            .call_end => |call_end| {
-                const args = c.allocator.alloc(Value, call_end.arg_count) catch oom();
-                for (0..call_end.arg_count) |i| {
-                    const ix = call_end.arg_count - 1 - i;
+            .call => |call| {
+                const args = c.allocator.alloc(Value, call.arg_count) catch oom();
+                for (0..call.arg_count) |i| {
+                    const ix = call.arg_count - 1 - i;
                     args[ix] = c.value_stack.pop();
                 }
                 const fun = c.value_stack.pop();
@@ -85,38 +80,40 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 const return_value = try eval(c);
                 c.value_stack.append(return_value) catch oom();
             },
-            .unstage_begin => {
-                tir_f.dir_expr_next = frame.expr;
-                const repr = try infer.inferExpr(c, tir_f, f);
-                const value = repr.valueOf() orelse return fail(c, .{ .cannot_unstage_value = repr });
-                c.value_stack.append(value) catch oom();
-                frame.expr = tir_f.dir_expr_next;
-            },
-            .unstage_end => {},
             .stage_begin => {
-                ends_remaining += 1;
+                stages_nested += 1;
             },
-            .stage_end => {
+            .stage => |stage| {
                 const value = c.value_stack.pop();
-                ends_remaining -= 1;
-                if (ends_remaining == 0) {
-                    tir_f.dir_expr_next = frame.expr;
+                stages_nested -= 1;
+                if (stages_nested == 0) {
+                    tir_f.dir_expr_next = stage.mapping;
                     _ = popFun(c);
                     return value;
                 } else {
                     c.value_stack.append(.{ .only = c.box(value) }) catch oom();
                 }
             },
-            .repr_of_begin => {
+            .unstage_begin => |unstage_begin| {
+                tir_f.dir_expr_next = unstage_begin.mapping;
+                tir_f.dir_expr_next.id += 1;
+                const repr = try infer.inferExpr(c, tir_f, f);
+                const value = repr.valueOf() orelse return fail(c, .{ .cannot_unstage_value = repr });
+                c.value_stack.append(value) catch oom();
+                frame.expr = f.expr_data_pre.get(unstage_begin.mapping).unstage_begin.mapping;
+            },
+            .unstage => {},
+            .repr_of_begin => |repr_of_begin| {
                 frame.expr.id += 1;
-                tir_f.dir_expr_next = frame.expr;
+                tir_f.dir_expr_next = repr_of_begin.mapping;
+                tir_f.dir_expr_next.id += 1;
                 const repr = try infer.inferExpr(c, tir_f, f);
                 c.value_stack.append(.{ .repr = repr }) catch oom();
-                frame.expr = tir_f.dir_expr_next;
-                assert(f.expr_data.get(frame.expr) == .repr_of_end);
+                frame.expr = f.expr_data_pre.get(repr_of_begin.mapping).repr_of_begin.mapping;
+                assert(f.expr_data_post.get(frame.expr) == .repr_of);
             },
-            .repr_of_end => {},
-            .return_end, .arg, .closure => {
+            .repr_of => {},
+            .@"return", .arg, .closure => {
                 return fail(c, .cannot_stage_expr);
             },
             else => {
@@ -133,12 +130,13 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
         const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
         const f = c.dir_fun_data.get(frame.fun);
         while (true) {
-            const expr_data = f.expr_data.get(frame.expr);
+            const expr_data = f.expr_data_post.get(frame.expr);
+            //zest.p(.{ .eval = expr_data });
             switch (expr_data) {
-                .call_end => |call_end| {
-                    const args = c.allocator.alloc(Value, call_end.arg_count) catch oom();
-                    for (0..call_end.arg_count) |i| {
-                        const ix = call_end.arg_count - 1 - i;
+                .call => |call| {
+                    const args = c.allocator.alloc(Value, call.arg_count) catch oom();
+                    for (0..call.arg_count) |i| {
+                        const ix = call.arg_count - 1 - i;
                         args[ix] = c.value_stack.pop();
                     }
                     const fun = c.value_stack.pop();
@@ -151,18 +149,26 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     });
                     continue :fun;
                 },
-                .return_end => {
+                .@"return" => {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop();
                     c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
                     continue :fun;
                 },
-                .stage_end => {
+                .stage_begin => {},
+                .stage => {
                     const value = c.value_stack.pop();
                     c.value_stack.append(.{ .only = c.box(value) }) catch oom();
                 },
-                .unstage_end => {},
+                .repr_of => {
+                    const arg = c.value_stack.pop();
+                    c.value_stack.append(.{ .repr = arg.reprOf() }) catch oom();
+                },
+                .repr_of_begin,
+                .unstage,
+                .unstage_begin,
+                => {},
                 else => {
                     try evalExpr(c, expr_data);
                 },
@@ -204,12 +210,12 @@ pub fn evalExpr(
         .repr_kind_only => {
             c.value_stack.append(.{ .repr_kind = .only }) catch oom();
         },
-        .struct_init_end => |count| {
-            const keys = c.allocator.alloc(Value, count) catch oom();
-            const reprs = c.allocator.alloc(Repr, count) catch oom();
-            const values = c.allocator.alloc(Value, count) catch oom();
-            for (0..count) |i| {
-                const ix = count - 1 - i;
+        .struct_init => |struct_init| {
+            const keys = c.allocator.alloc(Value, struct_init.count) catch oom();
+            const reprs = c.allocator.alloc(Repr, struct_init.count) catch oom();
+            const values = c.allocator.alloc(Value, struct_init.count) catch oom();
+            for (0..struct_init.count) |i| {
+                const ix = struct_init.count - 1 - i;
                 values[ix] = c.value_stack.pop();
                 keys[ix] = c.value_stack.pop().only.*;
                 reprs[ix] = values[ix].reprOf();
@@ -223,7 +229,7 @@ pub fn evalExpr(
                 .values = values,
             } }) catch oom();
         },
-        .fun_init_end => |fun_init| {
+        .fun_init => |fun_init| {
             const closure = c.value_stack.pop();
             c.value_stack.append(.{ .fun = .{
                 .repr = .{
@@ -245,11 +251,12 @@ pub fn evalExpr(
             const value = c.local_stack.items[c.local_stack.items.len - 1 - local.id];
             c.value_stack.append(value) catch oom();
         },
-        .local_let_end => |local| {
+        .local_let => |local| {
             const value = c.value_stack.pop();
             c.local_stack.items[c.local_stack.items.len - 1 - local.id] = value;
+            c.value_stack.append(Value.emptyStruct()) catch oom();
         },
-        .assert_object_end => |assert_object| {
+        .assert_object => |assert_object| {
             const value = c.value_stack.pop();
             switch (value) {
                 .@"struct" => |@"struct"| {
@@ -264,39 +271,39 @@ pub fn evalExpr(
             }
             c.value_stack.append(value) catch oom();
         },
-        .assert_is_ref_end => {
+        .assert_is_ref => {
             const value = c.value_stack.pop();
             if (value != .ref)
                 return fail(c, .{ .expected_is_ref = value });
             c.value_stack.append(value) catch oom();
         },
-        .assert_has_no_ref_end => {
+        .assert_has_no_ref => {
             const value = c.value_stack.pop();
             if (value.reprOf().hasRef(.any))
                 return fail(c, .{ .expected_has_no_ref = value });
             c.value_stack.append(value) catch oom();
         },
-        .assert_has_no_ref_visible_end => {
+        .assert_has_no_ref_visible => {
             const value = c.value_stack.pop();
             if (value.reprOf().hasRef(.visible))
                 return fail(c, .{ .expected_has_no_ref = value });
             c.value_stack.append(value) catch oom();
         },
-        .object_get_end => {
+        .object_get => {
             const key = c.value_stack.pop().only.*;
             const object = c.value_stack.pop();
             const value = object.get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
             c.value_stack.append(value) catch oom();
         },
-        .ref_init_end => {
+        .ref_init => {
             const value = c.value_stack.pop();
             c.value_stack.append(.{ .ref = .{
                 .repr = c.box(value.reprOf()),
                 .value = c.box(value.copy(c.allocator)),
             } }) catch oom();
         },
-        .ref_set_end => {
+        .ref_set => {
             const value = c.value_stack.pop();
             const ref = c.value_stack.pop();
             const input_repr = value.reprOf();
@@ -306,8 +313,9 @@ pub fn evalExpr(
                     .found = input_repr,
                 } });
             ref.ref.value.* = value.copy(c.allocator);
+            c.value_stack.append(Value.emptyStruct()) catch oom();
         },
-        .ref_get_end => {
+        .ref_get => {
             const key = c.value_stack.pop().only.*;
             const ref = c.value_stack.pop();
             const value_ptr = ref.ref.value.getMut(key) orelse
@@ -317,11 +325,11 @@ pub fn evalExpr(
                 .value = value_ptr,
             } }) catch oom();
         },
-        .ref_deref_end => {
+        .ref_deref => {
             const ref = c.value_stack.pop();
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
-        .call_builtin_end => |builtin| {
+        .call_builtin => |builtin| {
             switch (builtin) {
                 .equal => {
                     const arg1 = c.value_stack.pop();
@@ -576,11 +584,7 @@ pub fn evalExpr(
                 else => return fail(c, .todo),
             }
         },
-        .repr_of_end => {
-            const arg = c.value_stack.pop();
-            c.value_stack.append(.{ .repr = arg.reprOf() }) catch oom();
-        },
-        .make_end => {
+        .make => {
             const args = c.value_stack.pop();
             const head = c.value_stack.pop().only.*;
             switch (head) {
@@ -652,35 +656,28 @@ pub fn evalExpr(
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
             }
         },
-        .block_begin => {
-            c.block_value_count_stack.append(c.value_stack.items.len) catch oom();
-        },
-        .block_last => {
-            const value_count_at_begin = c.block_value_count_stack.items[c.block_value_count_stack.items.len - 1];
-            for (value_count_at_begin..c.value_stack.items.len) |_| {
-                _ = c.value_stack.pop();
+        .block => |block| {
+            if (block.count == 0) {
+                c.value_stack.append(Value.emptyStruct()) catch oom();
+            } else {
+                const value = c.value_stack.pop();
+                for (0..block.count - 1) |_| {
+                    _ = c.value_stack.pop();
+                }
+                c.value_stack.append(value) catch oom();
             }
         },
-        .block_end => {
-            const value_count_at_begin = c.block_value_count_stack.pop();
-            switch (c.value_stack.items.len - value_count_at_begin) {
-                0 => c.value_stack.append(Value.emptyStruct()) catch oom(),
-                1 => {},
-                else => panic("More than one value returned from block", .{}),
-            }
-        },
-        .if_begin => {},
         .if_then => {
             const cond_value = c.value_stack.pop();
             const cond = cond_value.asBool() orelse
                 return fail(c, .{ .not_a_bool = cond_value });
             if (!cond)
-                skipExpr(c, .if_else);
+                skipTree(c, .if_else, .if_then);
         },
         .if_else => {
-            skipExpr(c, .if_end);
+            skipTree(c, .@"if", .if_else);
         },
-        .if_end => {},
+        .@"if" => {},
         .while_begin => {
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             c.while_stack.append(frame.expr) catch oom();
@@ -692,39 +689,32 @@ pub fn evalExpr(
             if (!cond) {
                 _ = c.while_stack.pop();
                 c.value_stack.append(Value.emptyStruct()) catch oom();
-                skipExpr(c, .while_end);
+                skipTree(c, .@"while", .while_body);
             }
         },
-        .while_end => {
+        .@"while" => {
             _ = c.value_stack.pop();
             const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             frame.expr = c.while_stack.items[c.while_stack.items.len - 1];
         },
-        .call_end, .return_end => panic("Can't eval control flow expr: {}", .{expr_data}),
-        .nop_end => {},
-        else => {
-            if (treePart(expr_data) != .branch_begin)
-                return fail(c, .todo);
-        },
+        .call, .@"return", .stage, .stage_begin, .repr_of, .repr_of_begin, .unstage, .unstage_begin => panic("Can't eval control flow expr: {}", .{expr_data}),
+        .f64 => return fail(c, .todo),
     }
 }
 
-fn skipExpr(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData)) void {
+fn skipTree(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData), ignore_after: std.meta.Tag(dir.ExprData)) void {
     const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
     const f = c.dir_fun_data.get(frame.fun);
-    var ends_remaining: usize = 0;
+    var ignores: usize = 0;
     while (true) {
         frame.expr.id += 1;
-        const expr_data = f.expr_data.get(frame.expr);
-        switch (treePart(expr_data)) {
-            .branch_begin => ends_remaining += 1,
-            .branch_end => ends_remaining -= 1,
-            .leaf => {},
+        const expr_data = f.expr_data_post.get(frame.expr);
+        if (expr_data == expect_next) {
+            if (ignores == 0) break;
+            ignores -= 1;
         }
-        if (ends_remaining == 0) {
-            frame.expr.id += 1;
-            assert(std.meta.activeTag(f.expr_data.get(frame.expr)) == expect_next);
-            break;
+        if (expr_data == ignore_after) {
+            ignores += 1;
         }
     }
 }

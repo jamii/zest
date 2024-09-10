@@ -149,7 +149,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[id: 0, closure: struct['k': string]]
+Cannot unstage value: fun[id: 1, closure: struct['k': string]]
 ```
 
 ```
@@ -528,9 +528,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[fun[id: 0, closure: struct[]][]: 1]
+[fun[id: 1, closure: struct[]][]: 1]
 
-Cannot unstage value: ref[fun[id: 0, closure: struct[]]]
+Cannot unstage value: ref[fun[id: 1, closure: struct[]]]
 ```
 
 ```
@@ -999,9 +999,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
+Expected a value containing no mutable references, found: fun[id: 3, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]
+Expected a value containing no mutable references, found: fun[id: 3, closure: struct['a': ref[i64]]]
 ```
 
 ```
@@ -1020,9 +1020,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
+Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
 
-Expected a value containing no mutable references, found: fun[id: 0, closure: struct['a': ref[i64]]]
+Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]
 ```
 
 ```
@@ -1901,9 +1901,9 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5066{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData.ExprData__struct_5072{ .count = 1 } }
 
-TODO infer: dir.ExprData{ .assert_object_end = dir.ExprData.ExprData__struct_5066{ .count = 1 } }
+TODO infer: dir.ExprData{ .i64 = 0 }
 ```
 
 ```
@@ -1982,7 +1982,7 @@ a = 42
 
 101
 
-TODO infer: dir.ExprData{ .repr_of_begin = void }
+TODO infer: dir.ExprData{ .repr_of = void }
 ```
 
 ```
@@ -1992,7 +1992,7 @@ a = 42
 
 101
 
-TODO infer: dir.ExprData{ .repr_of_begin = void }
+TODO infer: dir.ExprData{ .repr_of = void }
 ```
 
 ```
@@ -2031,7 +2031,7 @@ surprise101
 
 1
 
-TODO infer: dir.ExprData{ .repr_of_begin = void }
+TODO infer: dir.ExprData{ .call_builtin = zest.Builtin.reflect }
 ```
 
 ```

@@ -12,6 +12,7 @@ const Map = zest.Map;
 const Value = zest.Value;
 const Builtin = zest.Builtin;
 const TreePart = zest.TreePart;
+const Compiler = zest.Compiler;
 
 pub const Arg = struct { id: usize };
 
@@ -41,64 +42,67 @@ pub const ExprData = union(enum) {
     closure,
     local_get: Local,
 
-    nop_begin,
-    nop_end,
-    struct_init_begin,
-    struct_init_end: usize,
-    fun_init_begin,
-    fun_init_end: struct {
-        fun: Fun,
-    },
-    local_let_begin,
-    local_let_end: Local,
-    assert_object_begin,
-    assert_object_end: struct {
+    struct_init: struct {
         count: usize,
     },
-    assert_is_ref_begin,
-    assert_is_ref_end,
-    assert_has_no_ref_visible_begin,
-    assert_has_no_ref_visible_end,
-    assert_has_no_ref_begin,
-    assert_has_no_ref_end,
-    object_get_begin,
-    object_get_end,
-    ref_init_begin,
-    ref_init_end,
-    ref_get_begin,
-    ref_get_end,
-    ref_set_begin,
-    ref_set_end,
-    ref_deref_begin,
-    ref_deref_end,
-    call_begin,
-    call_end: struct {
+    fun_init: struct {
+        fun: Fun,
+    },
+    local_let: Local,
+    assert_object: struct {
+        count: usize,
+    },
+    assert_is_ref,
+    assert_has_no_ref_visible,
+    assert_has_no_ref,
+    object_get,
+    ref_init,
+    ref_get,
+    ref_set,
+    ref_deref,
+    call: struct {
         arg_count: usize,
     },
-    call_builtin_begin,
-    call_builtin_end: Builtin,
-    repr_of_begin,
-    repr_of_end,
-    make_begin,
-    make_end,
-    block_begin,
-    block_last,
-    block_end,
-    return_begin,
-    return_end,
+    call_builtin: Builtin,
+    make,
+    block: struct {
+        count: usize,
+    },
+    @"if",
+    @"while",
+    @"return",
+    stage: Mapping,
+    unstage,
+    repr_of,
 
-    if_begin,
+    // Placeholders to help eval remember what it is doing.
     if_then,
     if_else,
-    if_end,
     while_begin,
     while_body,
-    while_end,
-
     stage_begin,
-    stage_end,
-    unstage_begin,
-    unstage_end,
+    unstage_begin: Mapping,
+    repr_of_begin: Mapping,
+
+    pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
+        _ = c;
+        return switch (expr_data) {
+            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_only, .arg, .closure, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
+            .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref_visible, .assert_has_no_ref, .ref_init, .ref_deref, .@"return" => 1,
+            .object_get, .ref_get, .ref_set, .make, .stage, .unstage, .repr_of => 2,
+            .@"while" => 4,
+            .@"if" => 5,
+            .struct_init => |struct_init| 2 * struct_init.count,
+            .call => |call| 1 + call.arg_count,
+            .call_builtin => |builtin| builtin.argCount(),
+            .block => |block| block.count,
+        };
+    }
+};
+
+// Maps between expr_data_pre and expr_data_post
+pub const Mapping = struct {
+    mapping: Expr,
 };
 
 pub const Fun = struct { id: usize };
@@ -109,7 +113,8 @@ pub const FunData = struct {
     closure_keys: ArrayList([]const u8),
     arg_data: List(Arg, ArgData),
     local_data: List(Local, LocalData),
-    expr_data: List(Expr, ExprData),
+    expr_data_post: List(Expr, ExprData),
+    expr_data_pre: List(Expr, ExprData),
 
     pub fn init(allocator: Allocator) FunData {
         return .{
@@ -118,7 +123,8 @@ pub const FunData = struct {
             .closure_keys = fieldType(FunData, .closure_keys).init(allocator),
             .arg_data = fieldType(FunData, .arg_data).init(allocator),
             .local_data = fieldType(FunData, .local_data).init(allocator),
-            .expr_data = fieldType(FunData, .expr_data).init(allocator),
+            .expr_data_post = fieldType(FunData, .expr_data_post).init(allocator),
+            .expr_data_pre = fieldType(FunData, .expr_data_pre).init(allocator),
         };
     }
 };
