@@ -102,7 +102,7 @@ pub const ExprData = union(enum) {
 
 // Maps between expr_data_pre and expr_data_post
 pub const Mapping = struct {
-    mapping: Expr,
+    mapping: Expr = .{ .id = 0 },
 };
 
 pub const Fun = struct { id: usize };

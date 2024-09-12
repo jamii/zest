@@ -160,6 +160,7 @@ pub const Builtin = enum {
     @"less-than-or-equal",
     @"more-than",
     @"more-than-or-equal",
+    negate,
     add,
     subtract,
     multiply,
@@ -188,7 +189,7 @@ pub const Builtin = enum {
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic => 0,
-            .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-only" => 1,
+            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-only" => 1,
             .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"bit-shift-left", .@"and", .@"or", .load, .store, .@"union-has-key" => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };
@@ -309,9 +310,8 @@ pub const Compiler = struct {
 
     // parse
     token_next: Token,
-    sir_expr_data: List(sir.Expr, sir.ExprData),
-    sir_expr_data_buffer: ArrayList(sir.ExprData),
-    sir_expr_main: ?sir.Expr,
+    sir_expr_data_pre: List(sir.Expr, sir.ExprData),
+    sir_expr_data_post: List(sir.Expr, sir.ExprData),
 
     // desugar
     scope: dir.Scope,
@@ -365,9 +365,8 @@ pub const Compiler = struct {
             .token_to_source = fieldType(Compiler, .token_to_source).init(allocator),
 
             .token_next = .{ .id = 0 },
-            .sir_expr_data = fieldType(Compiler, .sir_expr_data).init(allocator),
-            .sir_expr_data_buffer = fieldType(Compiler, .sir_expr_data_buffer).init(allocator),
-            .sir_expr_main = null,
+            .sir_expr_data_pre = fieldType(Compiler, .sir_expr_data_pre).init(allocator),
+            .sir_expr_data_post = fieldType(Compiler, .sir_expr_data_post).init(allocator),
 
             .scope = fieldType(Compiler, .scope).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
@@ -465,7 +464,9 @@ pub const Compiler = struct {
             },
             .sir => {
                 try writer.print("--- SIR ---\n", .{});
-                try c.printSir(writer, c.sir_expr_main.?, 0);
+                var expr = sir.Expr{ .id = 0 };
+                var indent: usize = 0;
+                try c.printSir(writer, &expr, &indent);
                 try writer.print("---\n", .{});
             },
             .dir => {
@@ -510,33 +511,30 @@ pub const Compiler = struct {
         }
     }
 
-    fn printSir(c: *Compiler, writer: anytype, start_expr: sir.Expr, start_indent: usize) @TypeOf(writer.print("", .{})) {
-        var expr = start_expr;
-        var indent = start_indent;
-        while (true) {
-            const expr_data = c.sir_expr_data.get(expr);
-            if (treePart(expr_data) == .branch_end) indent -= 1;
-            try writer.writeByteNTimes(' ', indent * 2);
-            try writer.print("{s}", .{@tagName(expr_data)});
-            if (expr_data == .indirect) {
-                try writer.print(" {}\n", .{expr_data.indirect.id});
-                try c.printSir(writer, expr_data.indirect, indent);
-            } else {
-                switch (expr_data) {
-                    .i64 => |i| try writer.print(" {}", .{i}),
-                    .f64 => |i| try writer.print(" {}", .{i}),
-                    .string => |s| try writer.print(" {s}", .{s}),
-                    .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
-                    .call_builtin_begin => |builtin| try writer.print(" {}", .{builtin}),
-                    .indirect => unreachable,
-                    inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
-                }
-                try writer.print("\n", .{});
-            }
-            if (treePart(expr_data) == .branch_begin) indent += 1;
-            if (indent == start_indent) break;
-            expr.id += 1;
+    fn printSir(c: *Compiler, writer: anytype, expr: *sir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
+        const expr_data = c.sir_expr_data_pre.get(expr.*);
+        expr.id += 1;
+
+        try writer.writeByteNTimes(' ', indent.* * 2);
+        try writer.print("{s}", .{@tagName(expr_data)});
+        switch (expr_data) {
+            .i64 => |i| try writer.print(" {}", .{i}),
+            .f64 => |i| try writer.print(" {}", .{i}),
+            .string => |s| try writer.print(" {s}", .{s}),
+            .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
+            .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
+            .object => |object| try writer.print(" {}", .{object.count}),
+            .pos_value => |pos| try writer.print(" {}", .{pos}),
+            .block => |block| try writer.print(" {}", .{block.count}),
+            inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
         }
+        try writer.print("\n", .{});
+
+        indent.* += 1;
+        for (0..expr_data.childCount(c)) |_| {
+            try c.printSir(writer, expr, indent);
+        }
+        indent.* -= 1;
     }
 
     fn printDir(c: *Compiler, writer: anytype, f: dir.FunData, expr: *dir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
@@ -552,13 +550,13 @@ pub const Compiler = struct {
             .arg => |arg| try writer.print(" a{}", .{arg.id}),
             .local_get => |local| try writer.print(" l{}", .{local.id}),
             .local_let => |local| try writer.print(" l{}", .{local.id}),
-            .struct_init => |count| try writer.print(" count={}", .{count}),
+            .struct_init => |struct_init| try writer.print(" count={}", .{struct_init.count}),
             .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
             .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
             .call => |call| try writer.print(" arg_count={}", .{call.arg_count}),
             .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
             .block => |block| try writer.print(" {}", .{block.count}),
-            .stage, .repr_of_begin, .unstage_begin => |data| try writer.print(" {}", .{data.mapping}),
+            .stage, .repr_of_begin, .unstage_begin => |data| try writer.print(" expr_id={}", .{data.mapping.id}),
             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
         }
         try writer.print("\n", .{});
@@ -614,7 +612,10 @@ pub const GenerateErrorData = @import("./generate.zig").GenerateErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
     parse: ParseErrorData,
-    desugar: DesugarErrorData,
+    desugar: struct {
+        expr: sir.Expr,
+        data: DesugarErrorData,
+    },
     eval: struct {
         fun: dir.Fun,
         expr: dir.Expr,
@@ -680,11 +681,12 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .parse_i64 => |data| format(c, "Parse error: invalid i64: {}\n{}", .{ data, location }),
                     .parse_f64 => |data| format(c, "Parse error: invalid f64: {}\n{}", .{ data, location }),
                     .not_a_builtin => |data| format(c, "Parse error: invalid builtin: {s}\n{}", .{ data, location }),
+                    .wrong_builtin_arg_count => |data| format(c, "Parse error: expected {} arguments, found {} arguments\n{}", .{ data.expected, data.found, location }),
                 };
             },
             .desugar => |err| {
-                const expr_data = c.sir_expr_data.get(c.sir_expr_next);
-                return switch (err) {
+                const expr_data = c.sir_expr_data_pre.get(err.expr);
+                return switch (err.data) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
                     .name_already_bound => |data| format(c, "Name already bound: {s}", .{data.name}),

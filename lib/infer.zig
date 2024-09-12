@@ -284,6 +284,15 @@ pub fn inferExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ arg0, arg1 }) } });
                     }
                 },
+                .negate => {
+                    const arg = try inferExpr(c, f, dir_f);
+                    if (arg == .i64) {
+                        emit(c, f, .{ .call_builtin = .negate_i64 });
+                        return .i64;
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } });
+                    }
+                },
                 .add => {
                     const arg0 = try inferExpr(c, f, dir_f);
                     const arg1 = try inferExpr(c, f, dir_f);

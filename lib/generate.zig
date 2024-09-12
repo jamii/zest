@@ -574,12 +574,19 @@ fn genExprInner(
                 }
                 return switch (builtin) {
                     .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32, .i64_to_u32 => .{ .u32 = 0 },
-                    .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
+                    .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .negate_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
                     .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_u32, .print_i64, .print_string, .panic => unreachable,
                 };
             }
             switch (builtin) {
+                .negate_i64 => {
+                    emitEnum(f, wasm.Opcode.i64_const);
+                    emitLebI64(f, 0);
+                    _ = try genExpr(c, f, tir_f, .stack);
+                    emitEnum(f, wasm.Opcode.i64_sub);
+                    return .{ .stack = .i64 };
+                },
                 .store => {
                     const address = try genExpr(c, f, tir_f, .anywhere);
                     const value = try genExpr(c, f, tir_f, .anywhere);
@@ -796,7 +803,7 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.@"unreachable");
                     return wir.Walue.emptyUnion();
                 },
-                .store, .union_has_key, .i64_to_u32 => unreachable, // handled above
+                .negate_i64, .store, .union_has_key, .i64_to_u32 => unreachable, // handled above
             }
         },
         .from_only => |value| {

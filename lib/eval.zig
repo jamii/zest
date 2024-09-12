@@ -397,6 +397,14 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
                     }
                 },
+                .negate => {
+                    const arg = c.value_stack.pop();
+                    if (arg == .i64) {
+                        c.value_stack.append(.{ .i64 = -arg.i64 }) catch oom();
+                    } else {
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{arg}) } });
+                    }
+                },
                 .add => {
                     const arg1 = c.value_stack.pop();
                     const arg0 = c.value_stack.pop();

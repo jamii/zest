@@ -1254,9 +1254,15 @@ b.0.0
 ```
 %memory-size(42)
 
-%memory-size expected 0 arguments, found 1
+Parse error: expected 0 arguments, found 1 arguments
+At 1:16:
+%memory-size(42)
+                ^
 
-%memory-size expected 0 arguments, found 1
+Parse error: expected 0 arguments, found 1 arguments
+At 1:16:
+%memory-size(42)
+                ^
 ```
 
 ```
@@ -1551,7 +1557,7 @@ Expected i64, found u32
 ```
 
 ```
-f = (struct[i64, i64][x]) x.1
+f = (x/struct[i64, i64]) x.1
 f([101,42])
 
 42
@@ -1560,7 +1566,7 @@ f([101,42])
 ```
 
 ```
-f = (struct[i64, i64][x]) x.1
+f = (x/struct[i64, i64]) x.1
 f([101,42,32])
 
 Expected struct[i64, i64], found struct[i64, i64, i64]
@@ -1901,7 +1907,7 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData.ExprData__struct_5072{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData.ExprData__struct_5076{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```
@@ -1925,9 +1931,11 @@ a.some@ = {
 }
 a.none
 
-101
+Key 'some' not found in union['some': i64, 'none': i64][['none': 101]]
 
-42
+RuntimeError: unreachable
+    at <anonymous> (wasm://wasm/022cc692:1:218)
+    at file:///home/jamie/zest/test.js:31:39
 ```
 
 ```

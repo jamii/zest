@@ -2,6 +2,7 @@
 
 const zest = @import("./zest.zig");
 const Builtin = zest.Builtin;
+const Compiler = zest.Compiler;
 
 pub const Expr = struct { id: usize };
 
@@ -13,36 +14,35 @@ pub const ExprData = union(enum) {
         name: []const u8,
         mut: bool,
     },
+    object: struct { count: usize },
+    key_value,
+    pos_value: i64,
+    let,
+    get,
+    fun,
+    call,
+    call_slash,
+    call_builtin: Builtin,
+    repr_of,
+    make,
+    make_slash,
+    block: struct {
+        count: usize,
+    },
+    ref_to,
+    @"if",
+    @"while",
 
-    indirect: Expr,
-
-    object_begin,
-    object_end,
-    let_begin, // value, path
-    let_end,
-    get_begin,
-    get_end,
-    fun_begin,
-    fun_end,
-    call_begin,
-    call_end,
-    call_builtin_begin: Builtin,
-    call_builtin_end,
-    repr_of_begin,
-    repr_of_end,
-    make_begin,
-    make_end,
-    block_begin,
-    block_last,
-    block_end,
-    ref_to_begin,
-    ref_to_end,
-
-    if_begin,
-    if_then,
-    if_else,
-    if_end,
-    while_begin,
-    while_body,
-    while_end,
+    pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
+        _ = c;
+        return switch (expr_data) {
+            .i64, .f64, .string, .name => 0,
+            .pos_value, .repr_of, .ref_to => 1,
+            .key_value, .let, .get, .fun, .call, .make, .make_slash, .@"while" => 2,
+            .call_slash, .@"if" => 3,
+            .object => |object| object.count,
+            .block => |block| block.count,
+            .call_builtin => |builtin| builtin.argCount(),
+        };
+    }
 };
