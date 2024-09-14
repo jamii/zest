@@ -7,7 +7,7 @@ panic = (message) {
 wasm-page-len-log = u32[16] // log2(64 * 1024)
 wasm-page-len = u32[1] << wasm-page-len-log
 
-// Allocations are divided into `class-count` size classes, with sizes ranging form `2 ^ class-min-len-log` to `2 ^ class-max-len-log` bytes.
+// Allocations are divided into `class-count` size classes, with sizes ranging from `2 ^ class-min-len-log` to `2 ^ class-max-len-log` bytes.
 class-min-len-log = u32[2] // smallest size class that can fit a freelist pointer
 class-max-len-log = u32[32] // enough for entire wasm32 address space
 class-count = class-max-len-log - class-min-len-log
