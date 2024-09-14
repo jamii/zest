@@ -55,6 +55,8 @@ pub const ExprData = union(enum) {
     ref_deref: Repr,
     call: Fun,
     call_builtin: BuiltinTyped,
+    each_struct: []const Fun,
+    each_union: []const Fun,
     from_only: *Value,
     block: struct {
         count: usize,
@@ -67,7 +69,7 @@ pub const ExprData = union(enum) {
         return switch (expr_data) {
             .i64, .f64, .string, .closure, .arg, .local_get => 0,
             .only, .union_init, .local_let, .object_get, .ref_init, .ref_get, .ref_deref, .from_only, .@"return" => 1,
-            .ref_set, .@"while" => 2,
+            .each_struct, .each_union, .ref_set, .@"while" => 2,
             .@"if" => 3,
             .struct_init => |repr| repr.keys.len,
             .call => |fun| 1 + c.tir_fun_data.get(fun).key.arg_reprs.len,

@@ -592,6 +592,7 @@ pub const Compiler = struct {
             .union_init => |union_init| try writer.print(" /{} tag={}", .{ Repr{ .@"union" = union_init.repr }, union_init.tag }),
             .ref_init, .@"if", .ref_deref => |repr| try writer.print(" /{}", .{repr}),
             .block => |block| try writer.print(" {}", .{block.count}),
+            .each_struct, .each_union => |funs| try writer.print(" {any}", .{funs}),
             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
         }
         try writer.print("\n", .{});

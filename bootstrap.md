@@ -2153,18 +2153,18 @@ while { only[0][] } { %print('ok') }
 ```
 %each(1, (k, v) %print(k))
 
-error
+Cannot call zest.Builtin.each with these args: { 1, fun[id: 1, closure: struct[]][] }
 
-error
+Cannot call zest.Builtin.each with these args: { i64, fun[id: 1, closure: struct[]] }
 ```
 
 ```
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-error
+Cannot call zest.Builtin.each with these args: { 'hello world', fun[id: 1, closure: struct[]][] }
 
-error
+Cannot call zest.Builtin.each with these args: { string, fun[id: 1, closure: struct[]] }
 ```
 
 ```

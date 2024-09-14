@@ -444,6 +444,36 @@ pub fn inferExpr(
                     emit(c, f, .{ .call_builtin = .{ .union_has_key = @intCast(index) } });
                     return .i64;
                 },
+                .each => {
+                    const value = try inferExpr(c, f, dir_f);
+                    const fun = try inferExpr(c, f, dir_f);
+                    if (fun != .fun)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } });
+                    const keys, const reprs = switch (value) {
+                        // TODO Would it be better to generate an each_struct/union instruction and leave it for generate?
+                        .@"struct" => |@"struct"| .{ @"struct".keys, @"struct".reprs },
+                        .@"union" => |@"union"| .{ @"union".keys, @"union".reprs },
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } }),
+                    };
+                    const tir_funs = c.allocator.alloc(tir.Fun, keys.len) catch oom();
+                    for (tir_funs, keys, reprs) |*tir_fun, key, repr| {
+                        const args_repr = Repr{ .@"struct" = .{
+                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, repr }),
+                        } };
+                        tir_fun.* = try inferFun(c, .{
+                            .fun = fun.fun.fun,
+                            .closure_repr = .{ .@"struct" = fun.fun.closure },
+                            .arg_reprs = c.dupe(Repr, &.{args_repr}),
+                        });
+                    }
+                    emit(c, f, switch (value) {
+                        .@"struct" => .{ .each_struct = tir_funs },
+                        .@"union" => .{ .each_union = tir_funs },
+                        else => unreachable,
+                    });
+                    return Repr.emptyStruct();
+                },
                 else => return fail(c, .todo),
             }
         },

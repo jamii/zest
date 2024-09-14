@@ -617,7 +617,7 @@ pub fn evalExpr(
                     const fun = c.value_stack.pop();
                     const value = c.value_stack.pop();
                     if (fun != .fun)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ fun, value }) } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } });
                     switch (value) {
                         .@"struct" => |@"struct"| {
                             if (@"struct".values.len == 0) {
@@ -667,7 +667,7 @@ pub fn evalExpr(
                             });
                             return .call;
                         },
-                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ fun, value }) } }),
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } }),
                     }
                 },
                 else => return fail(c, .todo),
