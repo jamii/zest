@@ -477,6 +477,7 @@ pub fn inferExpr(
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                             if (!repr.equal(to_repr.@"union".reprs[tag]))
                                 return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+                            emit(c, f, .{ .object_get = .{ .index = 0 } });
                             emit(c, f, .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } });
                         } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
                             emit(c, f, .{ .from_only = from_repr.only });

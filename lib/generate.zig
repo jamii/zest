@@ -379,13 +379,20 @@ fn genExprInner(
             } };
         },
         .union_init => |union_init| {
-            // TODO Can pass dest if we do alias analysis.
-            const child_dest: wir.Destination = if (dest == .nowhere) .nowhere else .anywhere;
+            const child_dest = switch (dest) {
+                .value_at => |ptr| wir.Destination{
+                    .value_at = c.box(wir.Walue{ .add = .{
+                        .walue = ptr,
+                        .offset = union_init.repr.tagSizeOf(),
+                    } }),
+                },
+                else => dest,
+            };
             const arg = try genExpr(c, f, tir_f, child_dest);
             return .{ .@"union" = .{
                 .repr = union_init.repr,
                 .tag = union_init.tag,
-                .value = c.box(arg.@"struct".values[0]),
+                .value = c.box(arg),
             } };
         },
         .local_let => |local| {
@@ -993,7 +1000,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
         .@"union" => |@"union"| {
             if (@"union".tag == null) return;
             storePrimitive(c, f, .{ .u32 = @"union".tag.? }, to_ptr, .i32);
-            store(c, f, @"union".value.?.*, .{ .add = .{ .walue = c.box(to_ptr), .offset = @sizeOf(u32) } });
+            store(c, f, @"union".value.?.*, .{ .add = .{ .walue = c.box(to_ptr), .offset = walueRepr(c, f, from_value).@"union".tagSizeOf() } });
         },
         .fun => |fun| {
             store(c, f, fun.closure.*, to_ptr);

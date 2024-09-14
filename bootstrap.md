@@ -1858,7 +1858,7 @@ a.none
 Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/cbcde46e:1:202)
+    at <anonymous> (wasm://wasm/2585c34a:1:202)
     at file:///home/jamie/zest/test.js:31:39
 ```
 
@@ -1934,7 +1934,7 @@ a.none
 Key 'some' not found in union['some': i64, 'none': i64][['none': 101]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/022cc692:1:218)
+    at <anonymous> (wasm://wasm/16729f86:1:218)
     at file:///home/jamie/zest/test.js:31:39
 ```
 
