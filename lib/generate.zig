@@ -368,7 +368,7 @@ fn genExprInner(
         },
         .struct_init => |struct_repr| {
             // TODO Can pass dest if we do alias analysis.
-            const child_dest: wir.Destination = if (dest == .nowhere) .nowhere else .anywhere;
+            const child_dest: wir.Destination = if (struct_repr.keys.len <= 1) dest else if (dest == .nowhere) .nowhere else .anywhere;
             const values = c.allocator.alloc(wir.Walue, struct_repr.keys.len) catch oom();
             for (values) |*value| {
                 value.* = spillStack(c, f, try genExpr(c, f, tir_f, child_dest));
