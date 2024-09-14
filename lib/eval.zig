@@ -117,7 +117,14 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 return fail(c, .cannot_stage_expr);
             },
             else => {
-                try evalExpr(c, expr_data);
+                const action = try evalExpr(c, expr_data);
+                switch (action) {
+                    .next => {},
+                    .call => {
+                        const return_value = try eval(c);
+                        c.value_stack.append(return_value) catch oom();
+                    },
+                }
             },
         }
         frame.expr.id += 1;
@@ -133,22 +140,6 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
             const expr_data = f.expr_data_post.get(frame.expr);
             //zest.p(.{ .eval = expr_data });
             switch (expr_data) {
-                .call => |call| {
-                    const args = c.allocator.alloc(Value, call.arg_count) catch oom();
-                    for (0..call.arg_count) |i| {
-                        const ix = call.arg_count - 1 - i;
-                        args[ix] = c.value_stack.pop();
-                    }
-                    const fun = c.value_stack.pop();
-                    if (fun != .fun)
-                        return fail(c, .{ .not_a_fun = fun });
-                    pushFun(c, .{
-                        .fun = fun.fun.repr.fun,
-                        .closure = .{ .@"struct" = fun.fun.getClosure() },
-                        .args = args,
-                    });
-                    continue :fun;
-                },
                 .@"return" => {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index)
@@ -170,7 +161,11 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                 .unstage_begin,
                 => {},
                 else => {
-                    try evalExpr(c, expr_data);
+                    const action = try evalExpr(c, expr_data);
+                    switch (action) {
+                        .next => {},
+                        .call => continue :fun,
+                    }
                 },
             }
             frame.expr.id += 1;
@@ -178,10 +173,15 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
     }
 }
 
+const EvalAction = enum {
+    next,
+    call,
+};
+
 pub fn evalExpr(
     c: *Compiler,
     expr_data: dir.ExprData,
-) error{EvalError}!void {
+) error{EvalError}!EvalAction {
     switch (expr_data) {
         .i64 => |i| {
             c.value_stack.append(.{ .i64 = i }) catch oom();
@@ -328,6 +328,22 @@ pub fn evalExpr(
         .ref_deref => {
             const ref = c.value_stack.pop();
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
+        },
+        .call => |call| {
+            const args = c.allocator.alloc(Value, call.arg_count) catch oom();
+            for (0..call.arg_count) |i| {
+                const ix = call.arg_count - 1 - i;
+                args[ix] = c.value_stack.pop();
+            }
+            const fun = c.value_stack.pop();
+            if (fun != .fun)
+                return fail(c, .{ .not_a_fun = fun });
+            pushFun(c, .{
+                .fun = fun.fun.repr.fun,
+                .closure = .{ .@"struct" = fun.fun.getClosure() },
+                .args = args,
+            });
+            return .call;
         },
         .call_builtin => |builtin| {
             switch (builtin) {
@@ -705,9 +721,10 @@ pub fn evalExpr(
             const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             frame.expr = c.while_stack.items[c.while_stack.items.len - 1];
         },
-        .call, .@"return", .stage, .stage_begin, .repr_of, .repr_of_begin, .unstage, .unstage_begin => panic("Can't eval control flow expr: {}", .{expr_data}),
+        .@"return", .stage, .stage_begin, .repr_of, .repr_of_begin, .unstage, .unstage_begin => panic("Can't eval control flow expr: {}", .{expr_data}),
         .f64 => return fail(c, .todo),
     }
+    return .next;
 }
 
 fn skipTree(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData), ignore_after: std.meta.Tag(dir.ExprData)) void {
