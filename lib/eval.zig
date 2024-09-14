@@ -144,7 +144,15 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop();
-                    c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
+                    const frame_prev = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+                    const expr_data_prev = c.dir_fun_data.get(frame_prev.fun).expr_data_post.get(frame_prev.expr);
+                    if (expr_data_prev == .call_builtin and expr_data_prev.call_builtin == .each) {
+                        // Pop call result.
+                        _ = c.value_stack.pop();
+                        // Call each again.
+                    } else {
+                        frame_prev.expr.id += 1;
+                    }
                     continue :fun;
                 },
                 .stage_begin => {},
@@ -604,6 +612,63 @@ pub fn evalExpr(
                     if (value != .only)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
                     c.value_stack.append(value.only.copy(c.allocator)) catch oom();
+                },
+                .each => {
+                    const fun = c.value_stack.pop();
+                    const value = c.value_stack.pop();
+                    if (fun != .fun)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ fun, value }) } });
+                    switch (value) {
+                        .@"struct" => |@"struct"| {
+                            if (@"struct".values.len == 0) {
+                                c.value_stack.append(Value.emptyStruct()) catch oom();
+                                return .next;
+                            }
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = @"struct".repr.keys[1..],
+                                    .reprs = @"struct".repr.reprs[1..],
+                                },
+                                .values = @"struct".values[1..],
+                            } }) catch oom();
+                            c.value_stack.append(fun) catch oom();
+                            const key = Value{ .only = c.box(@"struct".repr.keys[0]) };
+                            const val = @"struct".values[0];
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ key, val }),
+                            } };
+                            pushFun(c, .{
+                                .fun = fun.fun.repr.fun,
+                                .closure = .{ .@"struct" = fun.fun.getClosure() },
+                                .args = c.dupe(Value, &.{args}),
+                            });
+                            return .call;
+                        },
+                        .@"union" => |@"union"| {
+                            c.value_stack.append(Value.emptyStruct()) catch oom();
+                            c.value_stack.append(fun) catch oom();
+                            const key = Value{ .only = c.box(@"union".repr.keys[@"union".tag]) };
+                            const val = @"union".value.*;
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ key, val }),
+                            } };
+                            pushFun(c, .{
+                                .fun = fun.fun.repr.fun,
+                                .closure = .{ .@"struct" = fun.fun.getClosure() },
+                                .args = c.dupe(Value, &.{args}),
+                            });
+                            return .call;
+                        },
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ fun, value }) } }),
+                    }
                 },
                 else => return fail(c, .todo),
             }
