@@ -2168,58 +2168,105 @@ Cannot call zest.Builtin.each with these args: { string, fun[id: 1, closure: str
 ```
 
 ```
-%each([a: 1, b: 2], (k, v) {
-  %print(%from-only(k))
-  %print('\n')
+s = [a: 1, b: 2]
+%each(s, (k, v) {
+  //%print(%from-only(k))
+  //%print('\n')
   %print(v)
   %print('\n')
 })
+101
 
-a
 1
-b
 2
-[]
+101
 
-a
 1
-b
 2
-[]
+101
 ```
 
 ```
-%each(union[a: i64, b: i64][[a: 1]], (k, v) {
-  %print(%from-only(k))
-  %print('\n')
+s mut = [a: 1, b: 2]
+%each(s, (k, v) {
   %print(v)
   %print('\n')
 })
+101
 
-a
 1
-[]
+2
+101
 
-a
 1
-[]
+2
+101
 ```
 
-
-
 ```
-%each(union[a: i64, b: i64][[b: 2]], (k, v) {
-  %print(%from-only(k))
-  %print('\n')
+u = union[a: i64, b: i64][[a: 1]]
+%each(u, (k, v) {
+  //%print(%from-only(k))
+  //%print('\n')
   %print(v)
   %print('\n')
 })
+101
 
-b
-2
-[]
+1
+101
 
-b
+1
+101
+```
+
+```
+u = union[a: i64, b: i64][[b: 2]]
+%each(u, (k, v) {
+  //%print(%from-only(k))
+  //%print('\n')
+  %print(v)
+  %print('\n')
+})
+101
+
 2
-[]
+101
+
+2
+101
+```
+
+```
+u mut = union[a: i64, b: i64][[a: 1]]
+%each(u, (k, v) {
+  //%print(%from-only(k))
+  //%print('\n')
+  %print(v)
+  %print('\n')
+})
+101
+
+1
+101
+
+1
+101
+```
+
+```
+u mut = union[a: i64, b: i64][[b: 2]]
+%each(u, (k, v) {
+  //%print(%from-only(k))
+  //%print('\n')
+  %print(v)
+  %print('\n')
+})
+101
+
+2
+101
+
+2
+101
 ```

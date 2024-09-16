@@ -32,6 +32,7 @@ pub const Walue = union(enum) {
     },
     @"union": struct {
         repr: ReprUnion,
+        // tag and value are null iff repr.keys.len == 0
         tag: ?u32,
         value: ?*Walue, // may not contain .stack
     },
