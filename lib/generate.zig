@@ -523,32 +523,12 @@ fn genExprInner(
         .call => |tir_fun| {
             f.is_leaf = false;
             const callee_tir_f = c.tir_fun_data.get(tir_fun);
-            // TODO This is a hack - should move inlining into a separate pass.
             if (c.dir_fun_data.get(callee_tir_f.key.fun).@"inline") {
                 const closure = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-
-                assert(callee_tir_f.key.arg_reprs.len == 1);
                 const arg = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-
-                const inlining = c.inlining;
-                c.inlining = .{
-                    .closure = closure,
-                    .arg = arg,
-                    .local_offset = c.local_walue.count(),
-                };
-                defer c.inlining = inlining;
-
-                c.local_walue.appendNTimes(null, callee_tir_f.local_data.count());
-                defer c.local_walue.data.shrinkRetainingCapacity(c.inlining.?.local_offset);
-
-                const expr_next = c.tir_expr_next;
-                c.tir_expr_next = .{ .id = 0 };
-                defer c.tir_expr_next = expr_next;
-
-                const result = try genExpr(c, f, callee_tir_f, .anywhere);
-                return result;
+                return genInlineCall(c, f, callee_tir_f, dest, closure, arg);
             } else {
-                if (c.tir_fun_data.get(tir_fun).key.closure_repr.isEmptyStruct()) {
+                if (callee_tir_f.key.closure_repr.isEmptyStruct()) {
                     _ = try genExpr(c, f, tir_f, .nowhere);
                 } else {
                     const closure = try genExpr(c, f, tir_f, .anywhere);
@@ -557,7 +537,7 @@ fn genExprInner(
                 for (0..callee_tir_f.key.arg_reprs.len) |_| {
                     _ = try genExpr(c, f, tir_f, .stack);
                 }
-                const output_repr = c.tir_fun_data.get(tir_fun).return_repr.one;
+                const output_repr = callee_tir_f.return_repr.one;
                 const output = switch (wasmRepr(output_repr)) {
                     .primitive => wir.Walue{ .stack = output_repr },
                     .heap => wir.Walue{ .value_at = .{
@@ -920,6 +900,37 @@ fn genExprInner(
             return fail(c, .todo);
         },
     }
+}
+
+// TODO This is a hack - should move inlining into a separate pass.
+fn genInlineCall(
+    c: *Compiler,
+    f: *wir.FunData,
+    callee_tir_f: tir.FunData,
+    dest: wir.Destination,
+    closure: wir.Walue,
+    arg: wir.Walue,
+) error{GenerateError}!?wir.Walue {
+    assert(callee_tir_f.key.arg_reprs.len == 1);
+    assert(c.dir_fun_data.get(callee_tir_f.key.fun).@"inline");
+
+    const inlining = c.inlining;
+    c.inlining = .{
+        .closure = closure,
+        .arg = arg,
+        .local_offset = c.local_walue.count(),
+    };
+    defer c.inlining = inlining;
+
+    c.local_walue.appendNTimes(null, callee_tir_f.local_data.count());
+    defer c.local_walue.data.shrinkRetainingCapacity(c.inlining.?.local_offset);
+
+    const expr_next = c.tir_expr_next;
+    c.tir_expr_next = .{ .id = 0 };
+    defer c.tir_expr_next = expr_next;
+
+    const result = try genExpr(c, f, callee_tir_f, dest);
+    return result;
 }
 
 fn assertTag(c: *Compiler, f: *wir.FunData, ptr: wir.Walue, index: u32) void {
