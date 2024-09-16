@@ -474,6 +474,13 @@ pub fn inferExpr(
                     });
                     return Repr.emptyStruct();
                 },
+                .@"from-only" => {
+                    const arg = try inferExpr(c, f, dir_f);
+                    if (arg != .only)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } });
+                    emit(c, f, .{ .call_builtin = .from_only });
+                    return arg.only.reprOf();
+                },
                 else => return fail(c, .todo),
             }
         },
@@ -510,7 +517,7 @@ pub fn inferExpr(
                             emit(c, f, .{ .object_get = .{ .index = 0 } });
                             emit(c, f, .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } });
                         } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
-                            emit(c, f, .{ .from_only = from_repr.only });
+                            emit(c, f, .{ .call_builtin = .from_only });
                         } else {
                             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
                         }

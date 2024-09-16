@@ -2170,18 +2170,22 @@ Cannot call zest.Builtin.each with these args: { string, fun[id: 1, closure: str
 ```
 s = [a: 1, b: 2]
 %each(s, (k, v) {
-  //%print(%from-only(k))
-  //%print('\n')
+  %print(%from-only(k))
+  %print('\n')
   %print(v)
   %print('\n')
 })
 101
 
+a
 1
+b
 2
 101
 
+a
 1
+b
 2
 101
 ```
@@ -2189,16 +2193,22 @@ s = [a: 1, b: 2]
 ```
 s mut = [a: 1, b: 2]
 %each(s, (k, v) {
+  %print(%from-only(k))
+  %print('\n')
   %print(v)
   %print('\n')
 })
 101
 
+a
 1
+b
 2
 101
 
+a
 1
+b
 2
 101
 ```
@@ -2206,16 +2216,18 @@ s mut = [a: 1, b: 2]
 ```
 u = union[a: i64, b: i64][[a: 1]]
 %each(u, (k, v) {
-  //%print(%from-only(k))
-  //%print('\n')
+  %print(%from-only(k))
+  %print('\n')
   %print(v)
   %print('\n')
 })
 101
 
+a
 1
 101
 
+a
 1
 101
 ```
@@ -2223,16 +2235,18 @@ u = union[a: i64, b: i64][[a: 1]]
 ```
 u = union[a: i64, b: i64][[b: 2]]
 %each(u, (k, v) {
-  //%print(%from-only(k))
-  //%print('\n')
+  %print(%from-only(k))
+  %print('\n')
   %print(v)
   %print('\n')
 })
 101
 
+b
 2
 101
 
+b
 2
 101
 ```
@@ -2240,16 +2254,18 @@ u = union[a: i64, b: i64][[b: 2]]
 ```
 u mut = union[a: i64, b: i64][[a: 1]]
 %each(u, (k, v) {
-  //%print(%from-only(k))
-  //%print('\n')
+  %print(%from-only(k))
+  %print('\n')
   %print(v)
   %print('\n')
 })
 101
 
+a
 1
 101
 
+a
 1
 101
 ```
@@ -2257,16 +2273,18 @@ u mut = union[a: i64, b: i64][[a: 1]]
 ```
 u mut = union[a: i64, b: i64][[b: 2]]
 %each(u, (k, v) {
-  //%print(%from-only(k))
-  //%print('\n')
+  %print(%from-only(k))
+  %print('\n')
   %print(v)
   %print('\n')
 })
 101
 
+b
 2
 101
 
+b
 2
 101
 ```

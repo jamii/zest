@@ -509,7 +509,7 @@ fn genExprInner(
             }
         },
         .call_builtin => |builtin| {
-            if (dest == .nowhere and !builtin.hasSideEffects()) {
+            if (dest == .nowhere and !builtin.hasSideEffects() and builtin != .from_only) {
                 for (0..builtin.argCount()) |_| {
                     _ = try genExpr(c, f, tir_f, .nowhere);
                 }
@@ -517,7 +517,7 @@ fn genExprInner(
                     .add_u32, .subtract_u32, .multiply_u32, .remainder_u32, .clz_u32, .i64_to_u32 => .{ .u32 = 0 },
                     .equal_u32, .not_equal_u32, .less_than_u32, .less_than_or_equal_u32, .more_than_u32, .more_than_or_equal_u32, .equal_i64, .not_equal_i64, .less_than_i64, .less_than_or_equal_i64, .more_than_i64, .more_than_or_equal_i64, .negate_i64, .add_i64, .subtract_i64, .multiply_i64, .remainder_i64, .union_has_key => .{ .i64 = 0 },
                     .memory_size, .heap_start, .size_of, .bit_shift_left_u32 => .{ .u32 = 0 },
-                    .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_u32, .print_i64, .print_string, .panic => unreachable,
+                    .memory_grow, .memory_fill, .memory_copy, .load, .store, .print_u32, .print_i64, .print_string, .panic, .from_only => unreachable,
                 };
             }
             switch (builtin) {
@@ -560,6 +560,11 @@ fn genExprInner(
                         emitEnum(f, wasm.Opcode.i32_wrap_i64);
                         return .{ .stack = .u32 };
                     }
+                },
+                .from_only => {
+                    const arg = try genExpr(c, f, tir_f, .nowhere);
+                    const value = walueRepr(c, f, arg).only.*;
+                    return valueToWalue(c, value);
                 },
                 else => {},
             }
@@ -744,7 +749,7 @@ fn genExprInner(
                     emitEnum(f, wasm.Opcode.@"unreachable");
                     return wir.Walue.emptyUnion();
                 },
-                .negate_i64, .store, .union_has_key, .i64_to_u32 => unreachable, // handled above
+                .negate_i64, .store, .union_has_key, .i64_to_u32, .from_only => unreachable, // handled above
             }
         },
         .each_struct => |callee_tir_funs| {
@@ -812,13 +817,6 @@ fn genExprInner(
                     return wir.Walue.emptyStruct();
                 },
                 else => panic("Can't represent union with {}", .{value}),
-            }
-        },
-        .from_only => |value| {
-            _ = try genExpr(c, f, tir_f, .nowhere);
-            switch (value.*) {
-                .i64 => |i| return .{ .i64 = i },
-                else => return fail(c, .todo),
             }
         },
         .block => |block| {
@@ -1375,6 +1373,45 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
         .only => |only| .{ .only = only.value },
         .value_at => |value_at| value_at.repr,
     };
+}
+
+fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
+    switch (value) {
+        .u32 => |u| return .{ .u32 = u },
+        .i64 => |i| return .{ .i64 = i },
+        .string => |string| return .{ .string = string },
+        .@"struct" => |@"struct"| {
+            const walues = c.allocator.alloc(wir.Walue, @"struct".values.len) catch oom();
+            for (@"struct".values, walues) |val, *wal| {
+                wal.* = valueToWalue(c, val);
+            }
+            return .{ .@"struct" = .{
+                .repr = @"struct".repr,
+                .values = walues,
+            } };
+        },
+        .@"union" => |@"union"| {
+            return .{ .@"union" = .{
+                .repr = @"union".repr,
+                .tag = @intCast(@"union".tag),
+                .value = c.box(valueToWalue(c, @"union".value.*)),
+            } };
+        },
+        .fun => |fun| {
+            return .{ .fun = .{
+                .repr = fun.repr,
+                .closure = c.box(valueToWalue(c, .{ .@"struct" = .{
+                    .repr = fun.repr.closure,
+                    .values = fun.closure,
+                } })),
+            } };
+        },
+        .only => |only| {
+            return .{ .only = .{ .value = only } };
+        },
+        .ref => panic("Ref is not a true value, shouldn't appear in ir", .{}),
+        .repr, .repr_kind => panic("TODO represent repr in wasm", .{}),
+    }
 }
 
 fn take(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
