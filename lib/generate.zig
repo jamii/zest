@@ -747,6 +747,21 @@ fn genExprInner(
                 .negate_i64, .store, .union_has_key, .i64_to_u32 => unreachable, // handled above
             }
         },
+        .each_struct => |callee_tir_funs| {
+            const @"struct" = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
+            const closure = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
+            const struct_repr = walueRepr(c, f, @"struct").@"struct";
+            for (0.., struct_repr.keys, callee_tir_funs) |index, key, callee_tir_fun| {
+                const callee_tir_f = c.tir_fun_data.get(callee_tir_fun);
+                const val = spillStack(c, f, genObjectGet(c, f, @"struct", index));
+                const arg = wir.Walue{ .@"struct" = .{
+                    .repr = callee_tir_f.key.arg_reprs[0].@"struct",
+                    .values = c.dupe(wir.Walue, &.{ .{ .only = .{ .value = c.box(key) } }, val }),
+                } };
+                _ = try genInlineCall(c, f, callee_tir_f, .nowhere, closure, arg);
+            }
+            return wir.Walue.emptyStruct();
+        },
         .from_only => |value| {
             _ = try genExpr(c, f, tir_f, .nowhere);
             switch (value.*) {
