@@ -428,53 +428,7 @@ fn genExprInner(
         },
         .object_get => |object_get| {
             const object = try genExpr(c, f, tir_f, if (dest == .nowhere) .nowhere else .anywhere);
-            switch (object) {
-                .value_at => |value_at| {
-                    switch (value_at.repr) {
-                        .@"struct" => |@"struct"| {
-                            const offset = @"struct".offsetOf(object_get.index);
-                            const repr = @"struct".reprs[object_get.index];
-                            return .{ .value_at = .{
-                                .ptr = c.box(wir.Walue{ .add = .{
-                                    .walue = value_at.ptr,
-                                    .offset = @intCast(offset),
-                                } }),
-                                .repr = repr,
-                            } };
-                        },
-                        .@"union" => |@"union"| {
-                            const ptr_spilled = spillStack(c, f, value_at.ptr.*);
-                            assertTag(c, f, ptr_spilled, @intCast(object_get.index));
-                            const offset = @"union".tagSizeOf();
-                            const repr = @"union".reprs[object_get.index];
-                            return .{ .value_at = .{
-                                .ptr = c.box(wir.Walue{ .add = .{
-                                    .walue = c.box(ptr_spilled),
-                                    .offset = @intCast(offset),
-                                } }),
-                                .repr = repr,
-                            } };
-                        },
-                        else => panic("Can't represent object with {}", .{object}),
-                    }
-                },
-                .@"struct" => |@"struct"| {
-                    return @"struct".values[object_get.index];
-                },
-                .@"union" => |@"union"| {
-                    if (@"union".tag != null and @"union".tag.? == object_get.index) {
-                        return @"union".value.?.*;
-                    } else {
-                        emitEnum(f, wasm.Opcode.@"unreachable");
-                        // TODO Is this typesafe? Do we need a poison Walue?
-                        return .{ .value_at = .{
-                            .ptr = c.box(wir.Walue{ .u32 = 0 }),
-                            .repr = walueRepr(c, f, object).@"union".reprs[object_get.index],
-                        } };
-                    }
-                },
-                else => panic("Can't represent object with {}", .{object}),
-            }
+            return genObjectGet(c, f, object, object_get.index);
         },
         .ref_init => |repr| {
             const ref = shadowPush(c, f, repr);
@@ -931,6 +885,61 @@ fn genInlineCall(
 
     const result = try genExpr(c, f, callee_tir_f, dest);
     return result;
+}
+
+fn genObjectGet(
+    c: *Compiler,
+    f: *wir.FunData,
+    object: wir.Walue,
+    index: usize,
+) wir.Walue {
+    return switch (object) {
+        .value_at => |value_at| {
+            switch (value_at.repr) {
+                .@"struct" => |@"struct"| {
+                    const offset = @"struct".offsetOf(index);
+                    const repr = @"struct".reprs[index];
+                    return .{ .value_at = .{
+                        .ptr = c.box(wir.Walue{ .add = .{
+                            .walue = value_at.ptr,
+                            .offset = @intCast(offset),
+                        } }),
+                        .repr = repr,
+                    } };
+                },
+                .@"union" => |@"union"| {
+                    const ptr_spilled = spillStack(c, f, value_at.ptr.*);
+                    assertTag(c, f, ptr_spilled, @intCast(index));
+                    const offset = @"union".tagSizeOf();
+                    const repr = @"union".reprs[index];
+                    return .{ .value_at = .{
+                        .ptr = c.box(wir.Walue{ .add = .{
+                            .walue = c.box(ptr_spilled),
+                            .offset = @intCast(offset),
+                        } }),
+                        .repr = repr,
+                    } };
+                },
+                else => panic("Can't represent object with {}", .{object}),
+            }
+        },
+        .@"struct" => |@"struct"| {
+            return @"struct".values[index];
+        },
+        .@"union" => |@"union"| {
+            if (@"union".tag != null and @"union".tag.? == index) {
+                return @"union".value.?.*;
+            } else {
+                emitEnum(f, wasm.Opcode.@"unreachable");
+                // TODO Is this typesafe? Do we need a poison Walue?
+                return .{ .value_at = .{
+                    .ptr = c.box(wir.Walue{ .u32 = 0 }),
+                    .repr = walueRepr(c, f, object).@"union".reprs[index],
+                } };
+            }
+        },
+        else => panic("Can't represent object with {}", .{object}),
+    };
 }
 
 fn assertTag(c: *Compiler, f: *wir.FunData, ptr: wir.Walue, index: u32) void {
