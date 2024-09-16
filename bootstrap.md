@@ -2101,39 +2101,6 @@ if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
 ```
 
 ```
-print = (x) {
-  t = only[%reflect(%repr-of(x))][]
-  if {only[%union-has-key(%from-only(t), 'u32')][]} {
-    %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'i64')][]} {
-    %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'string')][]} {
-    %print('\'')
-    // TODO escape
-    %print(x)
-    %print('\'')
-  } else {
-    %panic()
-  }
-  %print('\n')
-}
-print(u32[42])
-print(4294967295)
-print('foo')
-101
-
-42
-4294967295
-'foo'
-101
-
-42
-4294967295
-'foo'
-101
-```
-
-```
 if {%print('ok'); only[1][]} 42 else 101
 
 ok42
@@ -2286,5 +2253,38 @@ b
 
 b
 2
+101
+```
+
+```
+print = (x) {
+  t = only[%reflect(%repr-of(x))][]
+  if {only[%union-has-key(%from-only(t), 'u32')][]} {
+    %print(x)
+  } else if {only[%union-has-key(%from-only(t), 'i64')][]} {
+    %print(x)
+  } else if {only[%union-has-key(%from-only(t), 'string')][]} {
+    %print('\'')
+    // TODO escape
+    %print(x)
+    %print('\'')
+  } else {
+    %panic()
+  }
+  %print('\n')
+}
+print(u32[42])
+print(4294967295)
+print('foo')
+101
+
+42
+4294967295
+'foo'
+101
+
+42
+4294967295
+'foo'
 101
 ```
