@@ -23,7 +23,7 @@ alloc-free-ptr-ptr = %heap-start() - class-count
 // If the next slot points to the start of a wasm page then we need to allocate a new page.
 alloc-next-ptr-ptr = alloc-free-ptr-ptr - class-small-count
 
-alloc-pages = (page-count/u32) { // /u32
+alloc-pages = (page-count/u32) /u32 {
     %print('alloc-pages\n')
     page-count-prev = %memory-grow(page-count)
     // %memory-grow returns i32[-1] on oom
@@ -35,8 +35,8 @@ alloc-pages = (page-count/u32) { // /u32
     }
 }
 
-alloc = (:class/u32) { // /u32
-    if {class >= class-count} panic('Class is too large') else {}
+alloc = (:class/u32) /u32 {
+    // if {class >= class-count} panic('Class is too large') else {}
     free-ptr-ptr = alloc-free-ptr-ptr + {class * %size-of(u32)}
     free-ptr = %load(free-ptr-ptr, u32)
     if {free-ptr != u32[0]} {
@@ -56,8 +56,8 @@ alloc = (:class/u32) { // /u32
     }
 }
 
-free = (:class/u32, :ptr/u32) { // /struct[]
-    if {class >= class-count} panic('Class is too large') else {}
+free = (:class/u32, :ptr/u32) /struct[] {
+    // if {class >= class-count} panic('Class is too large') else {}
     free-ptr-ptr = alloc-free-ptr-ptr + {class * %size-of(u32)}
     free-ptr = %load(free-ptr-ptr, u32)
     %store(ptr, free-ptr)
@@ -67,19 +67,22 @@ free = (:class/u32, :ptr/u32) { // /struct[]
     %memory-fill(ptr + %size-of(u32), u32[0], len - %size-of(u32))
 }
 
-len-to-class = (len/u32) { // /u32
-    if {len == 0} panic('Cannot alloc zero bytes') else {}
+len-to-class = (len/u32) /u32 {
+    // if {len == u32[0]} panic('Cannot alloc zero bytes') else {}
     lower-len-log = u32[31] - %clz(len)
     upper-len-log = if {{u32[1] << lower-len-log} == len} lower-len-log else lower-len-log + u32[1]
     if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else u32[0]
 }
 
-class-to-len = (class/u32) { // /u32
+class-to-len = (class/u32) /u32 {
     if {class >= class-count} panic('Class is too large') else {}
     u32[1] << {class + class-min-len-log}
 }
 
-//alloc-bytes = (:len-min/u32) { // /slice[u8]
+class = len-to-class(u32[42])
+free(:class, ptr: alloc(:class))
+
+//alloc-bytes = (:len-min/u32) /slice[u8] {
 //    if {len-min == u32[0]} {
 //        %from-innards(slice[u8], [ptr: 0, len: 0])
 //    } else {
@@ -92,7 +95,7 @@ class-to-len = (class/u32) { // /u32
 //    }
 //}
 
-//free-bytes = (bytes/slice[u8]) { // /struct[]
+//free-bytes = (bytes/slice[u8]) /struct[] {
 //    innards = %to-innards(bytes)
 //    free(
 //        class: len-to-class(innards.len),
