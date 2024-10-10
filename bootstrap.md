@@ -2288,3 +2288,21 @@ print('foo')
 'foo'
 101
 ```
+
+```
+f = (a)/i64 a.x
+f([x: 0])
+
+0
+
+0
+```
+
+```
+f = (a)/i64 a.x
+f([x: 'x'])
+
+Expected i64, found string
+
+Expected i64, found string
+```

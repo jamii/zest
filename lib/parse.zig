@@ -51,7 +51,18 @@ fn parseFun(c: *Compiler) error{ParseError}!void {
     try expect(c, .@"(");
     try parseArgs(c, .@")");
     try expect(c, .@")");
+
+    // awkward hack
+    const start = c.sir_expr_data_post.count();
+    while (peek(c) == .@"/") {
+        try parseCallSlash(c);
+    }
+    const return_annotations = c.dupe(sir.ExprData, c.sir_expr_data_post.data.items[start..]);
+    c.sir_expr_data_post.data.shrinkRetainingCapacity(start);
+
     try parseExpr(c);
+
+    c.sir_expr_data_post.appendSlice(return_annotations);
     emit(c, .fun);
 }
 
