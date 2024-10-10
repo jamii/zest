@@ -2306,3 +2306,14 @@ Expected i64, found string
 
 Expected i64, found string
 ```
+
+```
+module {
+  even = (n) if (n == 0) 'true' else odd(n - 1)
+  odd = (n) if (n == 0) 'false' else even(n - 1)
+}.even(3)
+
+'false'
+
+'false'
+```

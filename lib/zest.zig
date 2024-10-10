@@ -121,6 +121,7 @@ pub const TokenData = enum {
     @"else",
     @"while",
     mut,
+    module,
     @"@",
     @"(",
     @")",

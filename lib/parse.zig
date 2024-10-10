@@ -43,6 +43,7 @@ fn parseExpr(c: *Compiler) error{ParseError}!void {
         .@"(" => return parseFun(c),
         .@"if" => return parseIf(c),
         .@"while" => return parseWhile(c),
+        .module => return parseModule(c),
         else => return parseExprLoose(c),
     }
 }
@@ -80,6 +81,11 @@ fn parseWhile(c: *Compiler) error{ParseError}!void {
     try parseExprAtom(c, .{});
     try parseExpr(c);
     emit(c, .@"while");
+}
+
+fn parseModule(c: *Compiler) error{ParseError}!void {
+    try parseGroup(c);
+    emit(c, .module);
 }
 
 fn parseExprLoose(c: *Compiler) error{ParseError}!void {

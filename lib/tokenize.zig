@@ -97,6 +97,7 @@ pub fn tokenize(c: *Compiler) !void {
                     .@"else",
                     .@"while",
                     .mut,
+                    .module,
                 };
                 inline for (keywords) |keyword| {
                     if (std.mem.eql(u8, name, @tagName(keyword)))
