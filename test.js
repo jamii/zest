@@ -1,3 +1,5 @@
+import { writeAllSync } from "jsr:@std/io/write-all";
+
 const wasmCode = Deno.readFileSync(Deno.args[0] ?? "./test.wasm");
 const wasmModule = new WebAssembly.Module(wasmCode);
 
@@ -9,15 +11,15 @@ try {
     env: {
       print_u32: function (u32) {
         var enc = new TextEncoder();
-        Deno.writeAllSync(Deno.stdout, enc.encode(u32.toString()));
+        writeAllSync(Deno.stdout, enc.encode(u32.toString()));
       },
       print_i64: function (i64) {
         var enc = new TextEncoder();
-        Deno.writeAllSync(Deno.stdout, enc.encode(i64.toString()));
+        writeAllSync(Deno.stdout, enc.encode(i64.toString()));
       },
       print_string: function (ptr, len) {
         let str = new Uint8Array(memory.buffer, ptr, len);
-        Deno.writeAllSync(Deno.stdout, str);
+        writeAllSync(Deno.stdout, str);
       },
     },
   });

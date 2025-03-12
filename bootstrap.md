@@ -1635,7 +1635,7 @@ panic
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/35b19c0a:1:164)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1653,7 +1653,7 @@ Oh no
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/54fb876a:1:234)
     at <anonymous> (wasm://wasm/54fb876a:1:277)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1671,7 +1671,7 @@ Division by zero
 
 RuntimeError: remainder by zero
     at <anonymous> (wasm://wasm/d225f87e:1:172)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1839,7 +1839,7 @@ Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/52ede526:1:167)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1859,7 +1859,7 @@ Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/2585c34a:1:202)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1870,7 +1870,7 @@ Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/3efd2dd2:1:168)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1890,7 +1890,7 @@ Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/9eee9f4a:1:196)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
@@ -1935,7 +1935,7 @@ Key 'some' not found in union['some': i64, 'none': i64][['none': 101]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/16729f86:1:218)
-    at file:///home/jamie/zest/test.js:31:39
+    at file:///home/jamie/zest/test.js:33:39
 ```
 
 ```
