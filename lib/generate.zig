@@ -684,13 +684,13 @@ fn genExprInner(
                 },
                 .memory_fill => {
                     emitEnum(f, wasm.Opcode.misc_prefix);
-                    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_fill));
+                    emitLebU32(f, @intFromEnum(wasm.MiscOpcode.memory_fill));
                     emitLebU32(f, 0); // memory
                     return wir.Walue.emptyStruct();
                 },
                 .memory_copy => {
                     emitEnum(f, wasm.Opcode.misc_prefix);
-                    emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+                    emitLebU32(f, @intFromEnum(wasm.MiscOpcode.memory_copy));
                     emitLebU32(f, 0); // memory from
                     emitLebU32(f, 0); // memory to
                     return wir.Walue.emptyStruct();
@@ -775,7 +775,7 @@ fn genExprInner(
                 .value_at => |value_at| {
                     for (0..union_repr.keys.len + 2) |_| {
                         emitEnum(f, wasm.Opcode.block);
-                        emitByte(f, wasm.block_empty);
+                        emitEnum(f, wasm.BlockType.empty);
                     }
                     {
                         load(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .u32 } });
@@ -844,18 +844,18 @@ fn genExprInner(
             }
 
             const branch_dest: wir.Destination = if (dest != .anywhere) dest else
-            // Need to pick a specific dest so that both branches end up in the same place.
-            switch (wasmRepr(repr)) {
-                .primitive => .stack,
-                .heap => .{ .value_at = c.box(shadowPush(c, f, repr)) },
-            };
+                // Need to pick a specific dest so that both branches end up in the same place.
+                switch (wasmRepr(repr)) {
+                    .primitive => .stack,
+                    .heap => .{ .value_at = c.box(shadowPush(c, f, repr)) },
+                };
 
             load(c, f, cond);
             emitEnum(f, wasm.Opcode.i32_wrap_i64);
             emitEnum(f, wasm.Opcode.@"if");
             switch (branch_dest) {
                 .nowhere, .value_at => {
-                    emitByte(f, wasm.block_empty);
+                    emitEnum(f, wasm.BlockType.empty);
                 },
                 .stack => {
                     emitEnum(f, wasmRepr(repr).primitive);
@@ -874,10 +874,10 @@ fn genExprInner(
         },
         .@"while" => {
             emitEnum(f, wasm.Opcode.block);
-            emitByte(f, wasm.block_empty);
+            emitEnum(f, wasm.BlockType.empty);
 
             emitEnum(f, wasm.Opcode.loop);
-            emitByte(f, wasm.block_empty);
+            emitEnum(f, wasm.BlockType.empty);
 
             const cond = try genExpr(c, f, tir_f, .anywhere);
             if ((cond == .i64 and cond.i64 == 0) or (cond == .only and cond.only.value.*.i64 == 0)) {
@@ -1010,7 +1010,7 @@ fn genObjectGet(
 fn assertTag(c: *Compiler, f: *wir.FunData, ptr: wir.Walue, index: u32) void {
     assert(ptr != .stack);
     emitEnum(f, wasm.Opcode.block);
-    emitByte(f, wasm.block_empty);
+    emitEnum(f, wasm.BlockType.empty);
     load(c, f, .{ .value_at = .{ .ptr = c.box(ptr), .repr = .u32 } });
     load(c, f, .{ .u32 = index });
     emitEnum(f, wasm.Opcode.i32_eq);
@@ -1107,7 +1107,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
                 load(c, f, from_ptr_spilled);
                 emitU32Const(f, @intCast(byte_count));
                 emitEnum(f, wasm.Opcode.misc_prefix);
-                emitLebU32(f, wasm.miscOpcode(wasm.MiscOpcode.memory_copy));
+                emitLebU32(f, @intFromEnum(wasm.MiscOpcode.memory_copy));
                 emitLebU32(f, 0); // memory from
                 emitLebU32(f, 0); // memory to
             } else {
@@ -1434,7 +1434,7 @@ fn emitByte(c: anytype, byte: u8) void {
 
 fn emitEnum(c: anytype, e: anytype) void {
     switch (@TypeOf(e)) {
-        wasm.Valtype, wasm.ExternalKind, wasm.Section, wasm.Opcode => {},
+        wasm.Valtype, wasm.ExternalKind, wasm.Section, wasm.Opcode, wasm.BlockType => {},
         else => @compileError(@typeName(@TypeOf(e))),
     }
     c.wasm.append(@intFromEnum(e)) catch oom();
@@ -1468,7 +1468,7 @@ fn emitLebU(c: anytype, i: anytype) void {
 /// Don't use this directly.
 fn emitLebI(c: anytype, i: anytype) void {
     // https://webassembly.github.io/spec/core/binary/values.html#integers
-    const U = std.meta.Int(.unsigned, @typeInfo(@TypeOf(i)).Int.bits);
+    const U = std.meta.Int(.unsigned, @typeInfo(@TypeOf(i)).int.bits);
     var n = i;
     while (true) {
         const chunk = @as(u8, @truncate(@as(U, @bitCast(n))));

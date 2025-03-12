@@ -108,12 +108,12 @@ pub fn main() !void {
 
         const text = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
-        var cases = std.mem.split(u8, text, "```");
+        var cases = std.mem.splitSequence(u8, text, "```");
         while (true) {
             const not_case = cases.next().?;
             try writer.writeAll(not_case);
             const case = cases.next() orelse break;
-            var parts = std.mem.split(u8, case, "\n\n");
+            var parts = std.mem.splitSequence(u8, case, "\n\n");
             const source = std.mem.trim(u8, parts.next().?, "\n");
             const expected_lax = std.mem.trim(u8, parts.next() orelse "", "\n");
             const expected_strict = std.mem.trim(u8, parts.next() orelse "", "\n");
@@ -139,14 +139,14 @@ pub fn main() !void {
             const lax_or_err = evalLax(allocator, &compiler);
             const actual_lax =
                 std.fmt.allocPrint(allocator, "{s}{s}", .{
-                compiler.printed.items,
-                std.mem.trim(
-                    u8,
-                    lax_or_err catch
-                        zest.formatError(&compiler),
-                    "\n",
-                ),
-            }) catch oom();
+                    compiler.printed.items,
+                    std.mem.trim(
+                        u8,
+                        lax_or_err catch
+                            zest.formatError(&compiler),
+                        "\n",
+                    ),
+                }) catch oom();
             const should_run_strict = if (lax_or_err) |_| true else |err| switch (err) {
                 error.EvalError => true,
                 else => false,

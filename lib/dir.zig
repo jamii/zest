@@ -145,7 +145,7 @@ pub const Scope = struct {
     bindings: ArrayList(Binding),
 
     pub fn init(allocator: Allocator) Scope {
-        var scope = .{
+        var scope = Scope{
             .closure_until_len = 0,
             .staged_until_len = null,
             .bindings = fieldType(Scope, .bindings).init(allocator),

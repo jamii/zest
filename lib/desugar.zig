@@ -146,7 +146,7 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             defer c.scope.restore(scope_saved);
 
             const block_start = f.expr_data_post.count();
-            for (block.count) |_| {
+            for (0..block.count) |_| {
                 try desugarExpr(c, f);
             }
             emit(c, f, .{ .block = .{ .count = countTreesSince(c, f, .{ .id = block_start }) } });
@@ -207,7 +207,7 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
         const scope_saved = c.scope.save();
         defer c.scope.restore(scope_saved);
 
-        const f = c.dir_fun_data.getPtr(body_fun);
+        var f = c.dir_fun_data.get(body_fun);
         for (bindings.items) |binding| {
             const arg = f.arg_data.append(.{});
             c.scope.push(.{
@@ -216,10 +216,11 @@ fn desugarFun(c: *Compiler) error{DesugarError}!struct { wrapper: dir.Fun, body:
                 .mut = binding.mut,
             });
         }
-        try desugarExpr(c, f);
-        emit(c, f, .assert_has_no_ref);
-        emit(c, f, .@"return");
+        try desugarExpr(c, &f);
+        emit(c, &f, .assert_has_no_ref);
+        emit(c, &f, .@"return");
         convertPostorderToPreorder(c, dir.Expr, dir.ExprData, f.expr_data_post, &f.expr_data_pre);
+        c.dir_fun_data.getPtr(body_fun).* = f;
     }
 
     return .{

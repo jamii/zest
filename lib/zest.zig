@@ -42,6 +42,7 @@ pub fn p(thing: anytype) void {
 }
 
 pub fn fieldType(comptime T: type, comptime field_enum: std.meta.FieldEnum(T)) type {
+    @setEvalBranchQuota(3000);
     return std.meta.fieldInfo(T, field_enum).type;
 }
 

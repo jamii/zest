@@ -42,7 +42,7 @@ fn pushFun(c: *Compiler, frame: dir.Frame) void {
 }
 
 fn popFun(c: *Compiler) dir.Frame {
-    const frame = c.dir_frame_stack.pop();
+    const frame = c.dir_frame_stack.pop().?;
     c.local_stack.shrinkRetainingCapacity(
         c.local_stack.items.len -
             c.dir_fun_data.get(frame.fun).local_data.count(),
@@ -67,9 +67,9 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 const args = c.allocator.alloc(Value, call.arg_count) catch oom();
                 for (0..call.arg_count) |i| {
                     const ix = call.arg_count - 1 - i;
-                    args[ix] = c.value_stack.pop();
+                    args[ix] = c.value_stack.pop().?;
                 }
-                const fun = c.value_stack.pop();
+                const fun = c.value_stack.pop().?;
                 if (fun != .fun)
                     return fail(c, .{ .not_a_fun = fun });
                 pushFun(c, .{
@@ -84,7 +84,7 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 stages_nested += 1;
             },
             .stage => |stage| {
-                const value = c.value_stack.pop();
+                const value = c.value_stack.pop().?;
                 stages_nested -= 1;
                 if (stages_nested == 0) {
                     tir_f.dir_expr_next = stage.mapping;
@@ -143,12 +143,12 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                 .@"return" => {
                     _ = popFun(c);
                     if (c.dir_frame_stack.items.len < start_frame_index)
-                        return c.value_stack.pop();
+                        return c.value_stack.pop().?;
                     const frame_prev = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
                     const expr_data_prev = c.dir_fun_data.get(frame_prev.fun).expr_data_post.get(frame_prev.expr);
                     if (expr_data_prev == .call_builtin and expr_data_prev.call_builtin == .each) {
                         // Pop call result.
-                        _ = c.value_stack.pop();
+                        _ = c.value_stack.pop().?;
                         // Call each again.
                     } else {
                         frame_prev.expr.id += 1;
@@ -157,11 +157,11 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                 },
                 .stage_begin => {},
                 .stage => {
-                    const value = c.value_stack.pop();
+                    const value = c.value_stack.pop().?;
                     c.value_stack.append(.{ .only = c.box(value) }) catch oom();
                 },
                 .repr_of => {
-                    const arg = c.value_stack.pop();
+                    const arg = c.value_stack.pop().?;
                     c.value_stack.append(.{ .repr = arg.reprOf() }) catch oom();
                 },
                 .repr_of_begin,
@@ -224,8 +224,8 @@ pub fn evalExpr(
             const values = c.allocator.alloc(Value, struct_init.count) catch oom();
             for (0..struct_init.count) |i| {
                 const ix = struct_init.count - 1 - i;
-                values[ix] = c.value_stack.pop();
-                keys[ix] = c.value_stack.pop().only.*;
+                values[ix] = c.value_stack.pop().?;
+                keys[ix] = c.value_stack.pop().?.only.*;
                 reprs[ix] = values[ix].reprOf();
             }
             // TODO sort
@@ -238,7 +238,7 @@ pub fn evalExpr(
             } }) catch oom();
         },
         .fun_init => |fun_init| {
-            const closure = c.value_stack.pop();
+            const closure = c.value_stack.pop().?;
             c.value_stack.append(.{ .fun = .{
                 .repr = .{
                     .fun = fun_init.fun,
@@ -260,12 +260,12 @@ pub fn evalExpr(
             c.value_stack.append(value) catch oom();
         },
         .local_let => |local| {
-            const value = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
             c.local_stack.items[c.local_stack.items.len - 1 - local.id] = value;
             c.value_stack.append(Value.emptyStruct()) catch oom();
         },
         .assert_object => |assert_object| {
-            const value = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
             switch (value) {
                 .@"struct" => |@"struct"| {
                     if (@"struct".values.len != assert_object.count)
@@ -280,40 +280,40 @@ pub fn evalExpr(
             c.value_stack.append(value) catch oom();
         },
         .assert_is_ref => {
-            const value = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
             if (value != .ref)
                 return fail(c, .{ .expected_is_ref = value });
             c.value_stack.append(value) catch oom();
         },
         .assert_has_no_ref => {
-            const value = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
             if (value.reprOf().hasRef(.any))
                 return fail(c, .{ .expected_has_no_ref = value });
             c.value_stack.append(value) catch oom();
         },
         .assert_has_no_ref_visible => {
-            const value = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
             if (value.reprOf().hasRef(.visible))
                 return fail(c, .{ .expected_has_no_ref = value });
             c.value_stack.append(value) catch oom();
         },
         .object_get => {
-            const key = c.value_stack.pop().only.*;
-            const object = c.value_stack.pop();
+            const key = c.value_stack.pop().?.only.*;
+            const object = c.value_stack.pop().?;
             const value = object.get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
             c.value_stack.append(value) catch oom();
         },
         .ref_init => {
-            const value = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
             c.value_stack.append(.{ .ref = .{
                 .repr = c.box(value.reprOf()),
                 .value = c.box(value.copy(c.allocator)),
             } }) catch oom();
         },
         .ref_set => {
-            const value = c.value_stack.pop();
-            const ref = c.value_stack.pop();
+            const value = c.value_stack.pop().?;
+            const ref = c.value_stack.pop().?;
             const input_repr = value.reprOf();
             if (!ref.ref.repr.equal(input_repr))
                 return fail(c, .{ .type_error = .{
@@ -324,8 +324,8 @@ pub fn evalExpr(
             c.value_stack.append(Value.emptyStruct()) catch oom();
         },
         .ref_get => {
-            const key = c.value_stack.pop().only.*;
-            const ref = c.value_stack.pop();
+            const key = c.value_stack.pop().?.only.*;
+            const ref = c.value_stack.pop().?;
             const value_ptr = ref.ref.value.getMut(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = ref.ref.value.*, .key = key } });
             c.value_stack.append(.{ .ref = .{
@@ -334,16 +334,16 @@ pub fn evalExpr(
             } }) catch oom();
         },
         .ref_deref => {
-            const ref = c.value_stack.pop();
+            const ref = c.value_stack.pop().?;
             c.value_stack.append(ref.ref.value.copy(c.allocator)) catch oom();
         },
         .call => |call| {
             const args = c.allocator.alloc(Value, call.arg_count) catch oom();
             for (0..call.arg_count) |i| {
                 const ix = call.arg_count - 1 - i;
-                args[ix] = c.value_stack.pop();
+                args[ix] = c.value_stack.pop().?;
             }
-            const fun = c.value_stack.pop();
+            const fun = c.value_stack.pop().?;
             if (fun != .fun)
                 return fail(c, .{ .not_a_fun = fun });
             pushFun(c, .{
@@ -356,8 +356,8 @@ pub fn evalExpr(
         .call_builtin => |builtin| {
             switch (builtin) {
                 .equal => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -367,8 +367,8 @@ pub fn evalExpr(
                     }
                 },
                 .@"not-equal" => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = if (arg0.i64 != arg1.i64) 1 else 0 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -378,8 +378,8 @@ pub fn evalExpr(
                     }
                 },
                 .@"less-than" => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = if (arg0.i64 < arg1.i64) 1 else 0 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -389,8 +389,8 @@ pub fn evalExpr(
                     }
                 },
                 .@"less-than-or-equal" => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = if (arg0.i64 <= arg1.i64) 1 else 0 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -400,8 +400,8 @@ pub fn evalExpr(
                     }
                 },
                 .@"more-than" => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = if (arg0.i64 > arg1.i64) 1 else 0 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -411,8 +411,8 @@ pub fn evalExpr(
                     }
                 },
                 .@"more-than-or-equal" => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = if (arg0.i64 >= arg1.i64) 1 else 0 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -422,7 +422,7 @@ pub fn evalExpr(
                     }
                 },
                 .negate => {
-                    const arg = c.value_stack.pop();
+                    const arg = c.value_stack.pop().?;
                     if (arg == .i64) {
                         c.value_stack.append(.{ .i64 = -arg.i64 }) catch oom();
                     } else {
@@ -430,8 +430,8 @@ pub fn evalExpr(
                     }
                 },
                 .add => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = arg0.i64 +% arg1.i64 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -441,8 +441,8 @@ pub fn evalExpr(
                     }
                 },
                 .subtract => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = arg0.i64 -% arg1.i64 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -452,8 +452,8 @@ pub fn evalExpr(
                     }
                 },
                 .multiply => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         c.value_stack.append(.{ .i64 = arg0.i64 *% arg1.i64 }) catch oom();
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -463,8 +463,8 @@ pub fn evalExpr(
                     }
                 },
                 .remainder => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .i64 and arg1 == .i64) {
                         if (arg1.i64 == 0) return fail(c, .division_by_zero);
                         c.value_stack.append(.{ .i64 = @rem(arg0.i64, arg1.i64) }) catch oom();
@@ -476,8 +476,8 @@ pub fn evalExpr(
                     }
                 },
                 .@"bit-shift-left" => {
-                    const arg1 = c.value_stack.pop();
-                    const arg0 = c.value_stack.pop();
+                    const arg1 = c.value_stack.pop().?;
+                    const arg0 = c.value_stack.pop().?;
                     if (arg0 == .u32 and arg1 == .u32) {
                         c.value_stack.append(.{ .u32 = arg0.u32 << @truncate(arg1.u32) }) catch oom();
                     } else {
@@ -485,7 +485,7 @@ pub fn evalExpr(
                     }
                 },
                 .clz => {
-                    const arg = c.value_stack.pop();
+                    const arg = c.value_stack.pop().?;
                     if (arg == .u32) {
                         c.value_stack.append(.{ .u32 = @clz(arg.u32) }) catch oom();
                     } else {
@@ -499,16 +499,16 @@ pub fn evalExpr(
                 .@"memory-grow" => {
                     // TODO Should we have a limit on heap size?
                     const page_count = @divExact(c.memory.items.len, std.wasm.page_size);
-                    const grow_page_count = c.value_stack.pop();
+                    const grow_page_count = c.value_stack.pop().?;
                     if (grow_page_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{grow_page_count}) } });
                     c.memory.appendNTimes(0, @as(usize, @intCast(grow_page_count.u32)) * std.wasm.page_size) catch oom();
                     c.value_stack.append(.{ .u32 = @intCast(page_count) }) catch oom();
                 },
                 .@"memory-fill" => {
-                    const byte_count = c.value_stack.pop();
-                    const value = c.value_stack.pop();
-                    const to_ptr = c.value_stack.pop();
+                    const byte_count = c.value_stack.pop().?;
+                    const value = c.value_stack.pop().?;
+                    const to_ptr = c.value_stack.pop().?;
                     if (to_ptr != .u32 or value != .u32 or byte_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ to_ptr, value, byte_count }) } });
                     @memset(
@@ -518,9 +518,9 @@ pub fn evalExpr(
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
                 .@"memory-copy" => {
-                    const byte_count = c.value_stack.pop();
-                    const from_ptr = c.value_stack.pop();
-                    const to_ptr = c.value_stack.pop();
+                    const byte_count = c.value_stack.pop().?;
+                    const from_ptr = c.value_stack.pop().?;
+                    const to_ptr = c.value_stack.pop().?;
                     if (to_ptr != .u32 or from_ptr != .u32 or byte_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ to_ptr, from_ptr, byte_count }) } });
                     if (to_ptr.u32 < from_ptr.u32) {
@@ -550,8 +550,8 @@ pub fn evalExpr(
                     c.value_stack.append(.{ .u32 = class_count + class_small_count }) catch oom();
                 },
                 .load => {
-                    const repr = c.value_stack.pop().only.*;
-                    const address = c.value_stack.pop();
+                    const repr = c.value_stack.pop().?.only.*;
+                    const address = c.value_stack.pop().?;
                     if (address != .u32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, repr }) } });
                     const address_usize = try boundsCheck(c, .load, address.u32, repr.repr);
@@ -559,8 +559,8 @@ pub fn evalExpr(
                     c.value_stack.append(loaded) catch oom();
                 },
                 .store => {
-                    const value = c.value_stack.pop();
-                    const address = c.value_stack.pop();
+                    const value = c.value_stack.pop().?;
+                    const address = c.value_stack.pop().?;
                     if (address != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ address, value }) } });
                     const address_usize = try boundsCheck(c, .store, address.u32, value.reprOf());
@@ -568,14 +568,14 @@ pub fn evalExpr(
                     c.value_stack.append(Value.emptyStruct()) catch oom();
                 },
                 .@"size-of" => {
-                    const repr = c.value_stack.pop().only.*;
+                    const repr = c.value_stack.pop().?.only.*;
                     if (repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{repr}) } });
                     const size = repr.repr.sizeOf();
                     c.value_stack.append(.{ .u32 = @intCast(size) }) catch oom();
                 },
                 .print => {
-                    const value = c.value_stack.pop();
+                    const value = c.value_stack.pop().?;
                     switch (value) {
                         .u32 => |u| c.printed.writer().print("{}", .{u}) catch oom(),
                         .i64 => |i| c.printed.writer().print("{}", .{i}) catch oom(),
@@ -588,8 +588,8 @@ pub fn evalExpr(
                     return fail(c, .panic);
                 },
                 .@"union-has-key" => {
-                    const key = c.value_stack.pop().only.*;
-                    const object = c.value_stack.pop();
+                    const key = c.value_stack.pop().?.only.*;
+                    const object = c.value_stack.pop().?;
                     if (object != .@"union")
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ object, key }) } });
                     const index = object.@"union".repr.get(key) orelse
@@ -597,7 +597,7 @@ pub fn evalExpr(
                     c.value_stack.append(.{ .i64 = if (object.@"union".tag == index) 1 else 0 }) catch oom();
                 },
                 .reflect => {
-                    const value = c.value_stack.pop();
+                    const value = c.value_stack.pop().?;
                     if (value != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
                     const tag = @intFromEnum(std.meta.activeTag(value.repr));
@@ -608,14 +608,14 @@ pub fn evalExpr(
                     } }) catch oom();
                 },
                 .@"from-only" => {
-                    const value = c.value_stack.pop();
+                    const value = c.value_stack.pop().?;
                     if (value != .only)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
                     c.value_stack.append(value.only.copy(c.allocator)) catch oom();
                 },
                 .each => {
-                    const fun = c.value_stack.pop();
-                    const value = c.value_stack.pop();
+                    const fun = c.value_stack.pop().?;
+                    const value = c.value_stack.pop().?;
                     if (fun != .fun)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } });
                     switch (value) {
@@ -674,8 +674,8 @@ pub fn evalExpr(
             }
         },
         .make => {
-            const args = c.value_stack.pop();
-            const head = c.value_stack.pop().only.*;
+            const args = c.value_stack.pop().?;
+            const head = c.value_stack.pop().?.only.*;
             switch (head) {
                 .repr => |to_repr| {
                     if (to_repr == .only) {
@@ -749,15 +749,15 @@ pub fn evalExpr(
             if (block.count == 0) {
                 c.value_stack.append(Value.emptyStruct()) catch oom();
             } else {
-                const value = c.value_stack.pop();
+                const value = c.value_stack.pop().?;
                 for (0..block.count - 1) |_| {
-                    _ = c.value_stack.pop();
+                    _ = c.value_stack.pop().?;
                 }
                 c.value_stack.append(value) catch oom();
             }
         },
         .if_then => {
-            const cond_value = c.value_stack.pop();
+            const cond_value = c.value_stack.pop().?;
             const cond = cond_value.asBool() orelse
                 return fail(c, .{ .not_a_bool = cond_value });
             if (!cond)
@@ -772,17 +772,17 @@ pub fn evalExpr(
             c.while_stack.append(frame.expr) catch oom();
         },
         .while_body => {
-            const cond_value = c.value_stack.pop();
+            const cond_value = c.value_stack.pop().?;
             const cond = cond_value.asBool() orelse
                 return fail(c, .{ .not_a_bool = cond_value });
             if (!cond) {
-                _ = c.while_stack.pop();
+                _ = c.while_stack.pop().?;
                 c.value_stack.append(Value.emptyStruct()) catch oom();
                 skipTree(c, .@"while", .while_body);
             }
         },
         .@"while" => {
-            _ = c.value_stack.pop();
+            _ = c.value_stack.pop().?;
             const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             frame.expr = c.while_stack.items[c.while_stack.items.len - 1];
         },

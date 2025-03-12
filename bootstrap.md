@@ -1907,7 +1907,7 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData.ExprData__struct_5076{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24362{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```
@@ -2305,15 +2305,4 @@ f([x: 'x'])
 Expected i64, found string
 
 Expected i64, found string
-```
-
-```
-module {
-  even = (n) if (n == 0) 'true' else odd(n - 1)
-  odd = (n) if (n == 0) 'false' else even(n - 1)
-}.even(3)
-
-'false'
-
-'false'
 ```

@@ -227,16 +227,16 @@ fn parseNumber(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void {
         const text = c.source[range0[0]..range1[1]];
         const num = std.fmt.parseFloat(f64, text) catch |err|
             return fail(c, .{ .parse_f64 = switch (err) {
-            error.InvalidCharacter => .invalid_character,
-        } });
+                error.InvalidCharacter => .invalid_character,
+            } });
         emit(c, .{ .f64 = num });
     } else {
         const text = lastTokenText(c);
         const num = std.fmt.parseInt(i64, text, 10) catch |err|
             return fail(c, .{ .parse_i64 = switch (err) {
-            error.Overflow => .overflow,
-            error.InvalidCharacter => .invalid_character,
-        } });
+                error.Overflow => .overflow,
+                error.InvalidCharacter => .invalid_character,
+            } });
         emit(c, .{ .i64 = num });
     }
 }
@@ -310,7 +310,7 @@ fn parseBuiltinCall(c: *Compiler) error{ParseError}!void {
 fn parseBuiltin(c: *Compiler) error{ParseError}!Builtin {
     try expect(c, .name);
     const name = lastTokenText(c);
-    inline for (@typeInfo(Builtin).Enum.fields) |field| {
+    inline for (@typeInfo(Builtin).@"enum".fields) |field| {
         if (std.mem.eql(u8, field.name, name))
             return @enumFromInt(field.value);
     }
