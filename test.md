@@ -924,7 +924,7 @@ x
 
 ```
 x = 5
-// Don't generate this trash
+// Don't generate this dead code
 [x, x + 1].0 + 1
 x
 
@@ -935,7 +935,7 @@ x
 
 ```
 x mut = 5
-// Don't generate this trash
+// Don't generate this dead code
 [x, x + 1].0 + 1
 x
 
@@ -946,7 +946,7 @@ x
 
 ```
 x mut = 5
-// Don't generate this trash
+// Don't generate this dead code
 if 0 1 else [x, x + 1].0 + 1
 x
 
