@@ -10,13 +10,9 @@ undefined
 42
 
 42
-
-42
 ```
 
 ```
-1000001
-
 1000001
 
 1000001
@@ -24,8 +20,6 @@ undefined
 
 ```
 1
-2
-
 2
 
 2
@@ -37,8 +31,6 @@ b = 2
 a
 
 1
-
-1
 ```
 
 ```
@@ -47,14 +39,10 @@ a = 2
 a
 
 Name already bound: a
-
-Name already bound: a
 ```
 
 ```
 [x: 1, yz: [y: 2, z: 3]].x
-
-1
 
 1
 ```
@@ -63,14 +51,10 @@ Name already bound: a
 [x: 1, yz: [y: 2, z: 3]].yz.y
 
 2
-
-2
 ```
 
 ```
 [x: 1, yz: [y: 2, z: 3]].yz.z
-
-3
 
 3
 ```
@@ -80,15 +64,11 @@ a = [x: 1, y: 2]
 a.x
 
 1
-
-1
 ```
 
 ```
 a = [x: 1, y: 2]
 a.y
-
-2
 
 2
 ```
@@ -98,8 +78,6 @@ a = [[x: 1, y: 2], z: 3]
 a.0.x
 
 1
-
-1
 ```
 
 ```
@@ -107,15 +85,11 @@ a = [[x: 1, y: 2], z: 3]
 a.0.y
 
 2
-
-2
 ```
 
 ```
 a = [[x: 1, y: 2], z: 3]
 a.z
-
-3
 
 3
 ```
@@ -137,8 +111,6 @@ a = [{k()}: 1]
 a.x
 
 1
-
-1
 ```
 
 ```
@@ -158,16 +130,12 @@ b = 2
 a()
 
 1
-
-1
 ```
 
 ```
 a = (x) x
 b = 2
 a(1)
-
-1
 
 1
 ```
@@ -177,15 +145,11 @@ a = (x, y) x
 a(7,11)
 
 7
-
-7
 ```
 
 ```
 a = (x, y) y
 a(7,11)
-
-11
 
 11
 ```
@@ -195,15 +159,11 @@ a = (:x, :y) y
 a(y: 7, x: 11)
 
 7
-
-7
 ```
 
 ```
 a = (b) b.y
 a([x: 11, y: 7])
-
-7
 
 7
 ```
@@ -213,15 +173,11 @@ a = (x, y) [:x, :y]
 a(7, 11).x
 
 7
-
-7
 ```
 
 ```
 a = (x, y) [:x, :y]
 a(7, 11).y
-
-11
 
 11
 ```
@@ -230,8 +186,6 @@ a(7, 11).y
 a = 1
 b = () a
 b()
-
-1
 
 1
 ```
@@ -248,15 +202,11 @@ b = () {
 b()
 
 1
-
-1
 ```
 
 ```
 a = ([:x]) x
 a([x: 1])
-
-1
 
 1
 ```
@@ -276,8 +226,6 @@ a = [x: f()]
 a.x
 
 1
-
-1
 ```
 
 ```
@@ -286,16 +234,12 @@ b = (x) a([x,x])
 b(1).0.0
 
 1
-
-1
 ```
 
 ```
 a = (x) [x,x]
 b = (x) a([x,x])
 b(1).1.1
-
-1
 
 1
 ```
@@ -307,8 +251,6 @@ b = f(2)
 a
 
 1
-
-1
 ```
 
 ```
@@ -316,15 +258,11 @@ f = (x) x
 [f(0), f(1), f(2)].0
 
 0
-
-0
 ```
 
 ```
 f = (x) x
 [f(0), f(1), f(2)].1
-
-1
 
 1
 ```
@@ -336,8 +274,6 @@ f = (x) x
 [f(0), f(1), f(2)].2
 
 2
-
-2
 ```
 
 ```
@@ -346,16 +282,12 @@ a = [f(0), f(1)]
 a.0
 
 0
-
-0
 ```
 
 ```
 f = (x) x
 a = [f(0), f(1)]
 a.1
-
-1
 
 1
 ```
@@ -367,16 +299,12 @@ f([y: 1])
 2
 
 2
-
-2
 ```
 
 
 ```
 a mut = 1
 a
-
-1
 
 1
 ```
@@ -387,16 +315,12 @@ a@ = 2
 a
 
 2
-
-2
 ```
 
 ```
 a mut = [x: 1, y: 2]
 a.x@ = 3
 a.x
-
-3
 
 3
 ```
@@ -407,8 +331,6 @@ a.x@ = 3
 a.y
 
 2
-
-2
 ```
 
 ```
@@ -417,16 +339,12 @@ a.y@ = 3
 a.x
 
 1
-
-1
 ```
 
 ```
 a mut = [x: 1, y: 2, z: 3]
 a.y@ = 3
 a.y
-
-3
 
 3
 ```
@@ -437,16 +355,12 @@ a@ = [x: a.y, y: a.x, z: a.z]
 a.x
 
 2
-
-2
 ```
 
 ```
 a mut = [x: 1, y: 2, z: 3]
 a@ = [x: a.y, y: a.x, z: a.z]
 a.y
-
-1
 
 1
 ```
@@ -455,8 +369,6 @@ a.y
 a mut = [x: 1, y: 2, z: 3]
 a@ = [x: a.y, y: a.x, z: a.z]
 a.z
-
-3
 
 3
 ```
@@ -468,16 +380,12 @@ a@ = 3
 a
 
 Expected struct['x': i64, 'y': i64], found i64
-
-Expected struct['x': i64, 'y': i64], found i64
 ```
 
 ```
 a mut = [x: 1, y: 2]
 a.x@ = a
 a.x.x
-
-Expected i64, found struct['x': i64, 'y': i64]
 
 Expected i64, found struct['x': i64, 'y': i64]
 ```
@@ -489,8 +397,6 @@ a@ = 2
 b
 
 1
-
-1
 ```
 
 ```
@@ -498,8 +404,6 @@ a mut = [1]
 b = a
 a@ = [2]
 b.0
-
-1
 
 1
 ```
@@ -510,16 +414,12 @@ p@ = [[p.0.0, p.1.0], [p.0.1, p.1.1]]
 p.0.1
 
 2
-
-2
 ```
 
 ```
 p mut = [[0,1],[2,3]]
 p@ = [[p.0.0, p.1.0], [p.0.1, p.1.1]]
 p.1.0
-
-1
 
 1
 ```
@@ -597,8 +497,6 @@ a mut = 1
 f(a@)
 
 1
-
-1
 ```
 
 ```
@@ -608,8 +506,6 @@ f = (x mut) {
 a mut = 1
 f(a@)
 a
-
-2
 
 2
 ```
@@ -623,8 +519,6 @@ a@ = f(a@)
 a.x
 
 2
-
-2
 ```
 
 ```
@@ -636,16 +530,12 @@ a@ = f(a@)
 a.y
 
 1
-
-1
 ```
 
 ```
 x mut = [0,1,2]
 x@ = [x.2, x.1, x.0]
 x.0
-
-2
 
 2
 ```
@@ -656,16 +546,12 @@ x@ = [x.2, x.1, x.0]
 x.1
 
 1
-
-1
 ```
 
 ```
 x mut = [0,1,2]
 x@ = [x.2, x.1, x.0]
 x.2
-
-0
 
 0
 ```
@@ -675,8 +561,6 @@ x mut = 0
 y mut = 1
 [x@, y@] = [y,x]
 x
-
-1
 
 1
 ```
@@ -689,8 +573,6 @@ y mut = 1
 y
 
 0
-
-0
 ```
 
 ```
@@ -698,8 +580,6 @@ x mut = 0
 f = () 1
 x@ = f()
 x
-
-1
 
 1
 ```
@@ -711,16 +591,12 @@ x@ = f()
 x.0
 
 1
-
-1
 ```
 
 ```
 a mut = [42]
 b = a
 b.0
-
-42
 
 42
 ```
@@ -732,8 +608,6 @@ a@ = b
 a.0
 
 1
-
-1
 ```
 
 ```
@@ -742,22 +616,16 @@ a
 a.0
 
 42
-
-42
 ```
 
 ```
 if 1 42 else 101
 
 42
-
-42
 ```
 
 ```
 if 0 42 else 101
-
-101
 
 101
 ```
@@ -768,16 +636,12 @@ if 1 {a@ = 42} else {a@ = 101}
 a
 
 42
-
-42
 ```
 
 ```
 a mut = 0
 if 0 {a@ = 42} else {a@ = 101}
 a
-
-101
 
 101
 ```
@@ -789,14 +653,10 @@ b@ = {c = 1}
 a
 
 42
-
-42
 ```
 
 ```
 1 + 2
-
-3
 
 3
 ```
@@ -816,14 +676,10 @@ a@ = a + 2
 a
 
 3
-
-3
 ```
 
 ```
 {2 * 3} - 7
-
--1
 
 -1
 ```
@@ -835,15 +691,11 @@ a@ = a - 7
 a
 
 -1
-
--1
 ```
 
 ```
 a = 42
 a == 43
-
-0
 
 0
 ```
@@ -853,15 +705,11 @@ a = 42
 a == 42
 
 1
-
-1
 ```
 
 ```
 a = 42
 a != 42
-
-0
 
 0
 ```
@@ -871,15 +719,11 @@ a = 42
 a != 43
 
 1
-
-1
 ```
 
 ```
 a = 42
 a < 42
-
-0
 
 0
 ```
@@ -889,8 +733,6 @@ a = 42
 a < 43
 
 1
-
-1
 ```
 
 ```
@@ -898,14 +740,10 @@ a = -11
 a + 25
 
 14
-
-14
 ```
 
 ```
 -11 + 25
-
-14
 
 14
 ```
@@ -918,8 +756,6 @@ while {x < 5} {
 x
 
 5
-
-5
 ```
 
 ```
@@ -929,8 +765,6 @@ x = 5
 x
 
 5
-
-5
 ```
 
 ```
@@ -938,8 +772,6 @@ x mut = 5
 // Don't generate this dead code
 [x, x + 1].0 + 1
 x
-
-5
 
 5
 ```
@@ -951,16 +783,12 @@ if 0 1 else [x, x + 1].0 + 1
 x
 
 5
-
-5
 ```
 
 ```
 x mut = 0
 y mut = 1
 if {x == y} 42 else 101
-
-101
 
 101
 ```
@@ -974,8 +802,6 @@ x = {
 a
 
 111
-
-111
 ```
 
 ```
@@ -984,8 +810,6 @@ inc = () { a@ = a + 1 }
 inc()
 inc()
 a
-
-44
 
 44
 ```
@@ -1009,8 +833,6 @@ a mut = 42
 get = () a
 a@ = a + 1
 get()
-
-43
 
 43
 ```
@@ -1047,22 +869,16 @@ square-n-times(m@, 3)
 0
 
 0
-
-0
 ```
 
 ```
 a = a
 
 Name not bound: a
-
-Name not bound: a
 ```
 
 ```
 a mut = a
-
-Name not bound: a
 
 Name not bound: a
 ```
@@ -1072,14 +888,10 @@ while 0 []
 1
 
 1
-
-1
 ```
 
 ```
 --101
-
-101
 
 101
 ```
@@ -1091,15 +903,11 @@ pass([1,2])
 pass([1,2,3]).2
 
 3
-
-3
 ```
 
 ```
 f = (opts: [:y, :z]) z
 f(opts: [y: 1, z: 2])
-
-2
 
 2
 ```
@@ -1110,15 +918,11 @@ opts = [y: 1, z: 2]
 f(:opts)
 
 2
-
-2
 ```
 
 ```
 f = (:opts) opts.z
 f(opts: [y: 1, z: 2])
-
-2
 
 2
 ```
@@ -1127,8 +931,6 @@ f(opts: [y: 1, z: 2])
 f = (:opts) opts.z
 opts = [y: 1, z: 2]
 f(:opts)
-
-2
 
 2
 ```
@@ -1148,14 +950,10 @@ TODO infer: dir.ExprData{ .repr_i64 = void }
 i64 = 1
 
 Name already bound: i64
-
-Name already bound: i64
 ```
 
 ```
 [i64: 101].i64
-
-101
 
 101
 ```
@@ -1164,15 +962,11 @@ Name already bound: i64
 [{i64}: 101].{i64}
 
 101
-
-101
 ```
 
 ```
 f = (i64) 42
 f(0)
-
-Name already bound: i64
 
 Name already bound: i64
 ```
@@ -1191,15 +985,11 @@ TODO infer: dir.ExprData{ .repr_kind_struct = void }
 i64[42]
 
 42
-
-42
 ```
 
 ```
 f = (x) i64[x]
 f(42)
-
-42
 
 42
 ```
@@ -1209,15 +999,11 @@ a = struct[x: i64, y: i64][[x: 42, y: 101]]
 a.y
 
 101
-
-101
 ```
 
 ```
 a = struct[x: i64, y: i64][[x: 42, y: []]]
 a.y
-
-Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
 
 Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
 ```
@@ -1227,15 +1013,11 @@ a = struct[x: i64, y: i64][[x: 42, z: 101]]
 a.y
 
 Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
-
-Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
 ```
 
 ```
 a = struct[x: i64, y: i64][[x: 42, y: 101, z: 0]]
 a.y
-
-Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
 
 Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
 ```
@@ -1247,17 +1029,10 @@ b = struct[struct[i64]][[a]]
 b.0.0
 
 42
-
-42
 ```
 
 ```
 %memory-size(42)
-
-Parse error: expected 0 arguments, found 1 arguments
-At 1:16:
-%memory-size(42)
-                ^
 
 Parse error: expected 0 arguments, found 1 arguments
 At 1:16:
@@ -1312,14 +1087,10 @@ At 1:16:
 %size-of(i64)
 
 8
-
-8
 ```
 
 ```
 %size-of(struct[i64, struct[u32, i64]])
-
-20
 
 20
 ```
@@ -1327,8 +1098,6 @@ At 1:16:
 ```
 %memory-grow(u32[1])
 %load(%heap-start() + u32[0], i64)
-
-0
 
 0
 ```
@@ -1338,8 +1107,6 @@ At 1:16:
 %store(%heap-start() + u32[0], 42)
 %store(%heap-start() + %size-of(i64), 101)
 %load(%heap-start() + u32[0], i64)
-
-42
 
 42
 ```
@@ -1351,16 +1118,12 @@ At 1:16:
 %load(%heap-start() + %size-of(i64), i64)
 
 101
-
-101
 ```
 
 ```
 %memory-grow(u32[1])
 %store(%heap-start() + u32[1], 42)
 %load(%heap-start() + u32[0], i64)
-
-10752
 
 10752
 ```
@@ -1372,8 +1135,6 @@ x = %load(%heap-start(), struct[i64, struct[i64, i64]])
 x.0
 
 0
-
-0
 ```
 
 ```
@@ -1381,8 +1142,6 @@ x.0
 %store(%heap-start(), [0,[1,2]])
 x = %load(%heap-start(), struct[i64, struct[i64, i64]])
 x.1.0
-
-1
 
 1
 ```
@@ -1394,16 +1153,12 @@ x = %load(%heap-start(), struct[i64, struct[i64, i64]])
 x.1.1
 
 2
-
-2
 ```
 
 ```
 %memory-grow(u32[1])
 x = [%load(%heap-start(), i64), %store(%heap-start(), 42), %load(%heap-start(), i64)]
 x.0 + x.2
-
-42
 
 42
 ```
@@ -1416,8 +1171,6 @@ x = %load(%heap-start(), struct[i64,i64,i64,i64])
 x.0 + x.1 + x.2 + x.3
 
 5
-
-5
 ```
 
 ```
@@ -1426,8 +1179,6 @@ x.0 + x.1 + x.2 + x.3
 %memory-copy(%heap-start() + {u32[2] * %size-of(i64)}, %heap-start(), u32[4] * %size-of(i64))
 x = %load(%heap-start(), struct[i64,i64,i64,i64])
 x.0 + x.1 + x.2 + x.3
-
-6
 
 6
 ```
@@ -1440,8 +1191,6 @@ x = %load(%heap-start(), struct[i64,i64,i64,i64])
 x.0 + x.1 + x.2 + x.3
 
 7
-
-7
 ```
 
 ```
@@ -1449,15 +1198,11 @@ inc = (x) x + 1
 1/inc()
 
 2
-
-2
 ```
 
 ```
 add = (x, y) x + y
 1/add(2)
-
-3
 
 3
 ```
@@ -1469,8 +1214,6 @@ x@/inc()
 x
 
 2
-
-2
 ```
 
 ```
@@ -1480,14 +1223,10 @@ x.0@/inc()
 x.0
 
 2
-
-2
 ```
 
 ```
 42 + 1/i64
-
-43
 
 43
 ```
@@ -1503,8 +1242,6 @@ Cannot call zest.Builtin.add with these args: { i64, u32 }
 ```
 x/i64 = 42
 x + 1
-
-43
 
 43
 ```
@@ -1523,15 +1260,11 @@ f = (x/i64) x + 1
 f(1)
 
 2
-
-2
 ```
 
 ```
 f = (x/i64) x + 1
 f(1/u32)
-
-Expected i64, found u32
 
 Expected i64, found u32
 ```
@@ -1542,16 +1275,12 @@ x = 1
 f(:x/i64)
 
 2
-
-2
 ```
 
 ```
 f = (:x/i64) x + 1
 x = 1/u32
 f(:x/u32)
-
-Expected i64, found u32
 
 Expected i64, found u32
 ```
@@ -1561,15 +1290,11 @@ f = (x/struct[i64, i64]) x.1
 f([101,42])
 
 42
-
-42
 ```
 
 ```
 f = (x/struct[i64, i64]) x.1
 f([101,42,32])
-
-Expected struct[i64, i64], found struct[i64, i64, i64]
 
 Expected struct[i64, i64], found struct[i64, i64, i64]
 ```
@@ -1615,8 +1340,6 @@ undefined
 42
 
 foo42
-
-foo42
 ```
 
 ```
@@ -1660,8 +1383,6 @@ RuntimeError: unreachable
 %less-than(3, 7)
 
 1
-
-1
 ```
 
 ```
@@ -1678,14 +1399,10 @@ RuntimeError: remainder by zero
 1 % 3
 
 1
-
-1
 ```
 
 ```
 7 % 3
-
-1
 
 1
 ```
@@ -1694,22 +1411,16 @@ RuntimeError: remainder by zero
 -1 % 3
 
 -1
-
--1
 ```
 
 ```
 -4 % 3
 
 -1
-
--1
 ```
 
 ```
 u32[1] << u32[10]
-
-1024
 
 1024
 ```
@@ -1726,8 +1437,6 @@ Cannot call zest.Builtin.bit-shift-left with these args: { i64, i64 }
 u32[1] << u32[32]
 
 1
-
-1
 ```
 
 ```
@@ -1739,16 +1448,9 @@ Parse error: expected }, found zest.TokenData.name
 At 2:13:
   bad grammar
              ^
-
-Parse error: expected }, found zest.TokenData.name
-At 2:13:
-  bad grammar
-             ^
 ```
 
 ```
-4294967295
-
 4294967295
 
 4294967295
@@ -1766,14 +1468,10 @@ u32[4294967295]
 %clz(u32[0])
 
 32
-
-32
 ```
 
 ```
 %clz(u32[1])
-
-31
 
 31
 ```
@@ -1782,14 +1480,10 @@ u32[4294967295]
 %clz(u32[2])
 
 30
-
-30
 ```
 
 ```
 %clz(u32[3])
-
-30
 
 30
 ```
@@ -1799,14 +1493,10 @@ union[][4]
 1
 
 Expected union[], found i64
-
-Expected union[], found i64
 ```
 
 ```
 union[4][4]
-
-Cannot make union with these args: [4]
 
 Cannot make union with these args: [4]
 ```
@@ -1818,15 +1508,11 @@ c mut = 101
 1
 
 1
-
-1
 ```
 
 ```
 a = union[some: i64, none: struct[]][[some: 42]]
 a.some
-
-42
 
 42
 ```
@@ -1845,8 +1531,6 @@ RuntimeError: unreachable
 ```
 a mut = union[some: i64, none: struct[]][[some: 42]]
 a.some
-
-42
 
 42
 ```
@@ -1918,8 +1602,6 @@ a.some@ = a.some + 1
 a.some
 
 43
-
-43
 ```
 
 ```
@@ -1943,15 +1625,11 @@ a = union[some: i64, none: struct[]][[some: 42]]
 %union-has-key(a, 'some')
 
 1
-
-1
 ```
 
 ```
 a = union[some: i64, none: struct[]][[some: 42]]
 %union-has-key(a, 'none')
-
-0
 
 0
 ```
@@ -1970,15 +1648,11 @@ a mut = union[some: i64, none: struct[]][[some: 42]]
 %union-has-key(a, 'some')
 
 1
-
-1
 ```
 
 ```
 a mut = union[some: i64, none: struct[]][[some: 42]]
 %union-has-key(a, 'none')
-
-0
 
 0
 ```
@@ -2009,16 +1683,12 @@ b = [{%repr-of(a); 'x'}: 101]
 b.x
 
 101
-
-101
 ```
 
 ```
 a = 42
 b = [{%repr-of(a + 1); 'x'}: 101]
 b.x
-
-101
 
 101
 ```
@@ -2048,8 +1718,6 @@ a = only[1][]
 if a 42 else 'oh no'
 
 42
-
-42
 ```
 
 ```
@@ -2058,15 +1726,11 @@ a = only[0][]
 if a 'oh no' else 101
 
 101
-
-101
 ```
 
 ```
 a = only[42][]
 i64[a]
-
-42
 
 42
 ```
@@ -2077,16 +1741,12 @@ t = only[%reflect(%repr-of(a))][]
 if {only[%union-has-key(%from-only(t), 'struct')][]} 101 else 202
 
 101
-
-101
 ```
 
 ```
 a = [x: 42]
 t = only[%reflect(%repr-of(a))][]
 if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
-
-202
 
 202
 ```
@@ -2096,22 +1756,16 @@ if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
 101
 
 42101
-
-42101
 ```
 
 ```
 if {%print('ok'); only[1][]} 42 else 101
 
 ok42
-
-ok42
 ```
 
 ```
 while { only[0][] } { %print('ok') }
-42
-
 42
 
 42
@@ -2149,12 +1803,6 @@ a
 b
 2
 101
-
-a
-1
-b
-2
-101
 ```
 
 ```
@@ -2165,12 +1813,6 @@ s mut = [a: 1, b: 2]
   %print(v)
   %print('\n')
 })
-101
-
-a
-1
-b
-2
 101
 
 a
@@ -2193,10 +1835,6 @@ u = union[a: i64, b: i64][[a: 1]]
 a
 1
 101
-
-a
-1
-101
 ```
 
 ```
@@ -2207,10 +1845,6 @@ u = union[a: i64, b: i64][[b: 2]]
   %print(v)
   %print('\n')
 })
-101
-
-b
-2
 101
 
 b
@@ -2231,10 +1865,6 @@ u mut = union[a: i64, b: i64][[a: 1]]
 a
 1
 101
-
-a
-1
-101
 ```
 
 ```
@@ -2245,10 +1875,6 @@ u mut = union[a: i64, b: i64][[b: 2]]
   %print(v)
   %print('\n')
 })
-101
-
-b
-2
 101
 
 b
@@ -2282,11 +1908,6 @@ print('foo')
 4294967295
 'foo'
 101
-
-42
-4294967295
-'foo'
-101
 ```
 
 ```
@@ -2294,15 +1915,11 @@ f = (a)/i64 a.x
 f([x: 0])
 
 0
-
-0
 ```
 
 ```
 f = (a)/i64 a.x
 f([x: 'x'])
-
-Expected i64, found string
 
 Expected i64, found string
 ```

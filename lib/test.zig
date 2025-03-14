@@ -116,7 +116,7 @@ pub fn main() !void {
             var parts = std.mem.splitSequence(u8, case, "\n\n");
             const source = std.mem.trim(u8, parts.next().?, "\n");
             const expected_lax = std.mem.trim(u8, parts.next() orelse "", "\n");
-            const expected_strict = std.mem.trim(u8, parts.next() orelse "", "\n");
+            const expected_strict = std.mem.trim(u8, parts.next() orelse expected_lax, "\n");
             assert(parts.next() == null);
 
             if (seed_corpus) {
@@ -194,10 +194,18 @@ pub fn main() !void {
                 \\{s}
                 \\
                 \\{s}
+            , .{ source, actual_lax });
+            if (!std.mem.eql(u8, actual_lax, actual_strict)) {
+                try writer.print(
+                    \\
+                    \\
+                    \\{s}
+                , .{actual_strict});
+            }
+            try writer.print(
                 \\
-                \\{s}
                 \\```
-            , .{ source, actual_lax, actual_strict });
+            , .{});
         }
 
         if (rewrite) {
