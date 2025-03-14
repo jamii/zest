@@ -10,12 +10,12 @@ A good place to start reading is [docs/rationale.md](/docs/rationale.md). You ca
 
 * Basic control flow, arithmetic, comparisons, functions etc work.
   * Break/continue/return are missing
-  * Mutually recursive functions are not supported yet (the interaction with staging is tricky, see #1).
+  * Mutually recursive functions are not supported yet (the interaction with staging is tricky, see https://github.com/jamii/zest/issues/1).
 * There are 2nd-class mutable references, but dynamic/static prevention of aliasing is incomplete.
 * The type system, specialization, and compile-time evaluation more or less work, but the ergonomics could be improved.
 * Code can either by interpreted or compiled, but there is no support yet for mixing both within a single program.
 * Interpreted code leaks memory. Compiled code stack-allocates everything (which is safe because type-system prevents references escaping).
-* There is no heap allocation and no memory management yet. The allocator exists in [/lib/runtime.zest](/lib/runtime.zest) but hooking it up to the language requires solving #1 first.
+* There is no heap allocation and no memory management yet. The allocator exists in [/lib/runtime.zest](/lib/runtime.zest) but hooking it up to the language requires solving https://github.com/jamii/zest/issues/1 first.
 * The only error-handling available is `panic`.
 
 ## docs and tests
