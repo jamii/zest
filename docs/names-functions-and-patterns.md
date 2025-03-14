@@ -214,6 +214,16 @@ make-echo = (x) () x
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
 
+Functions can be chained using the `/` operator.
+
+```
+inc = (x) x + 1
+add = (x, y) x + y
+1/inc()/add(2)
+
+4
+```
+
 ## patterns
 
 Assignments can pattern-match values.
