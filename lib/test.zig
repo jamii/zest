@@ -11,7 +11,7 @@ const oom = zest.oom;
 fn wasmFilename(allocator: Allocator) []const u8 {
     return std.fmt.allocPrint(
         allocator,
-        "test.{}.wasm",
+        "build/test.{}.wasm",
         .{std.Thread.getCurrentId()},
     ) catch oom();
 }
