@@ -113,7 +113,13 @@ pub fn main() !void {
             const not_case = cases.next().?;
             try writer.writeAll(not_case);
             const case = cases.next() orelse break;
-            var parts = std.mem.splitSequence(u8, case, "\n\n");
+            if (!std.mem.startsWith(u8, case, "zest-test")) {
+                try writer.print(
+                    \\```{s}```
+                , .{case});
+                continue;
+            }
+            var parts = std.mem.splitSequence(u8, std.mem.trim(u8, case, "zest-test"), "\n\n");
             const source = std.mem.trim(u8, parts.next().?, "\n");
             const expected_lax = std.mem.trim(u8, parts.next() orelse "", "\n");
             const expected_strict = std.mem.trim(u8, parts.next() orelse expected_lax, "\n");
@@ -190,7 +196,7 @@ pub fn main() !void {
                 std.debug.print("\n", .{});
             }
             try writer.print(
-                \\```
+                \\```zest-test
                 \\{s}
                 \\
                 \\{s}

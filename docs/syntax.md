@@ -18,7 +18,7 @@ I gave up on trying to avoid the shift key - there aren't enough good shiftless 
 
 Whitespace between tokens is often significant.
 
-```
+```zest-test
 a = 2
 b = 1
 a - b
@@ -26,7 +26,7 @@ a - b
 1
 ```
 
-```
+```zest-test
 a = 2
 b = 1
 a-b
@@ -34,7 +34,7 @@ a-b
 Name not bound: a-b
 ```
 
-```
+```zest-test
 a = 2
 b = 1
 a / b
@@ -44,7 +44,7 @@ TODO eval: dir.ExprData{ .call_builtin = zest.Builtin.divide }
 TODO infer: dir.ExprData{ .call_builtin = zest.Builtin.divide }
 ```
 
-```
+```zest-test
 a = 2
 b = 1
 a /b
@@ -55,7 +55,7 @@ a /b
     ^
 ```
 
-```
+```zest-test
 a = 1
 inc = (x) x + 1
 a/inc()
@@ -65,7 +65,7 @@ a/inc()
 
 TODO prefer this spacing over the one below
 
-```
+```zest-test
 a = 1
 inc = (x) x + 1
 a /inc()
@@ -76,7 +76,7 @@ a /inc()
       ^
 ```
 
-```
+```zest-test
 a = 1
 inc = (x) x + 1
 a/ inc()
@@ -88,7 +88,7 @@ a/ inc()
 
 To make semicolon insertion safe, newlines are only allowed between items in `{}`, `()` and `[]` and after binary ops.
 
-```
+```zest-test
 [a: 1,
  b: 2]
 
@@ -97,7 +97,7 @@ To make semicolon insertion safe, newlines are only allowed between items in `{}
 undefined
 ```
 
-```
+```zest-test
 [
   a: 1,
   b: 2,
@@ -108,7 +108,7 @@ undefined
 undefined
 ```
 
-```
+```zest-test
 [
   a: 
     1,
@@ -122,14 +122,14 @@ At 3:0:
 ^
 ```
 
-```
+```zest-test
 inc = (a) a + 1
 inc(1)
 
 2
 ```
 
-```
+```zest-test
 inc = (a) 
   a + 1
 inc(1)
@@ -140,7 +140,7 @@ At 2:0:
 ^
 ```
 
-```
+```zest-test
 inc = (a) {
   a + 1
 }
@@ -149,14 +149,14 @@ inc(1)
 2
 ```
 
-```
+```zest-test
 1 +
   1
 
 2
 ```
 
-```
+```zest-test
 1
 + 1
 
@@ -166,7 +166,7 @@ At 2:1:
  ^
 ```
 
-```
+```zest-test
 inc = (x) x + 1
 1/inc()
 
@@ -175,7 +175,7 @@ inc = (x) x + 1
 
 TODO prefer this spacing over the one below
 
-```
+```zest-test
 inc = (x) x + 1
 1/
 inc()
@@ -183,7 +183,7 @@ inc()
 2
 ```
 
-```
+```zest-test
 inc = (x) x + 1
 1
   /inc()

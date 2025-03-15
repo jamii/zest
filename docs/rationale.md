@@ -121,14 +121,14 @@ Similary, from inside the static dialect you can call `interpret(f, vs)` to call
 
 I want to try extending this to building, packaging, and deploying code too eg a build script might look like:
 
-```
+```zest
 main = import('some-code.zest').main
 main/compile(struct[])/to-wasm()/write-to-file('./out.wasm')
 ```
 
 Or a live-coding loop like:
 
-```
+```zest
 load = () import('my-loop.zest').do-frame/compile(struct[ref[map[string, any]]])
 data mut = map[string, any][]
 last-frame mut = now()
