@@ -11,10 +11,10 @@ Malleable:
   * cf [there are no strings on me](https://www.scattered-thoughts.net/writing/there-are-no-strings-on-me/)
 * repl, eval, plugins
 * introspection
-  * reflect on types
-  * query runtime (eg erlang)
-  * query codegen (eg julia @code_native)
-  * query UI eg [eve had jump-to-definition for UI elements](https://www.youtube.com/watch?v=oPyQf0rk8V4)
+  * reflect on types (eg zig [@typeInfo](https://ziglang.org/documentation/master/#typeInfo))
+  * query runtime (eg what async tasks are pending, what are they waiting on, and what callbacks will they run)
+  * query codegen (eg julia [code_native](https://docs.julialang.org/en/v1/stdlib/InteractiveUtils/#InteractiveUtils.code_native))
+  * query UI (eg [eve had jump-to-definition for UI elements](https://www.youtube.com/watch?v=oPyQf0rk8V4))
 * repl-first tooling
   * eg [julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/) `Pkg.add("StatsBase")`
   * eg [deno dependencies](https://docs.deno.com/examples/import_export/) `import { camelCase } from "jsr:@luca/cases@1"`
