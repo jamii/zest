@@ -80,7 +80,7 @@ set = (var, val) { }
 set(a@, 2)
 a
 
-Expected a value containing no mutable references, found: ref[i64][1]
+Expected a value containing no mutable references, found: 1/ref[i64]
 
 Expected a value containing no mutable references, found: ref[i64]
 ```
@@ -155,7 +155,7 @@ Mutable references are 2nd-class - they cannot be assigned or returned.
 a mut = 1
 a@
 
-Expected a value containing no mutable references, found: ref[i64][1]
+Expected a value containing no mutable references, found: 1/ref[i64]
 
 Expected a value containing no mutable references, found: ref[i64]
 ```
@@ -164,7 +164,7 @@ Expected a value containing no mutable references, found: ref[i64]
 a mut = 1
 b = a@
 
-Expected a value containing no mutable references, found: ref[i64][1]
+Expected a value containing no mutable references, found: 1/ref[i64]
 
 Expected a value containing no mutable references, found: ref[i64]
 ```
@@ -173,7 +173,7 @@ Expected a value containing no mutable references, found: ref[i64]
 a mut = 1
 b = [a@]
 
-Expected a value containing no mutable references, found: [ref[i64][1]]
+Expected a value containing no mutable references, found: [1/ref[i64]]
 
 Expected a value containing no mutable references, found: struct[ref[i64]]
 ```

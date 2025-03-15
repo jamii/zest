@@ -428,7 +428,7 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[fun[id: 1, closure: struct[]][]: 1]
+[[]/fun[id: 1, closure: struct[]]: 1]
 
 Cannot unstage value: ref[fun[id: 1, closure: struct[]]]
 ```
@@ -437,7 +437,7 @@ Cannot unstage value: ref[fun[id: 1, closure: struct[]]]
 a mut = 1
 a@
 
-Expected a value containing no mutable references, found: ref[i64][1]
+Expected a value containing no mutable references, found: 1/ref[i64]
 
 Expected a value containing no mutable references, found: ref[i64]
 ```
@@ -446,7 +446,7 @@ Expected a value containing no mutable references, found: ref[i64]
 a mut = 1
 [a@]
 
-Expected a value containing no mutable references, found: [ref[i64][1]]
+Expected a value containing no mutable references, found: [1/ref[i64]]
 
 Expected a value containing no mutable references, found: struct[ref[i64]]
 ```
@@ -456,7 +456,7 @@ Expected a value containing no mutable references, found: struct[ref[i64]]
 a mut = 1
 b = a@
 
-Expected a value containing no mutable references, found: ref[i64][1]
+Expected a value containing no mutable references, found: 1/ref[i64]
 
 Expected a value containing no mutable references, found: ref[i64]
 ```
@@ -465,7 +465,7 @@ Expected a value containing no mutable references, found: ref[i64]
 a mut = 1
 b = [a@]
 
-Expected a value containing no mutable references, found: [ref[i64][1]]
+Expected a value containing no mutable references, found: [1/ref[i64]]
 
 Expected a value containing no mutable references, found: struct[ref[i64]]
 ```
@@ -475,7 +475,7 @@ f = (x) x
 a mut = 1
 f(a@)
 
-Expected a value containing no mutable references, found: ref[i64][1]
+Expected a value containing no mutable references, found: 1/ref[i64]
 
 Expected a value containing no mutable references, found: ref[i64]
 ```
@@ -823,7 +823,7 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: fun[id: 3, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
+Expected a value containing no mutable references, found: ['a': 42/ref[i64]]/fun[id: 3, closure: struct['a': ref[i64]]]
 
 Expected a value containing no mutable references, found: fun[id: 3, closure: struct['a': ref[i64]]]
 ```
@@ -842,7 +842,7 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]['a': ref[i64][42]]
+Expected a value containing no mutable references, found: ['a': 42/ref[i64]]/fun[id: 1, closure: struct['a': ref[i64]]]
 
 Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]
 ```
@@ -1521,7 +1521,7 @@ a.some
 a = union[some: i64, none: struct[]][[some: 42]]
 a.none
 
-Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
+Key 'none' not found in ['some': 42]/union['some': i64, 'none': struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/52ede526:1:167)
@@ -1539,7 +1539,7 @@ a.some
 a mut = union[some: i64, none: struct[]][[some: 42]]
 a.none
 
-Key 'none' not found in union['some': i64, 'none': struct[]][['some': 42]]
+Key 'none' not found in ['some': 42]/union['some': i64, 'none': struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/2585c34a:1:202)
@@ -1550,7 +1550,7 @@ RuntimeError: unreachable
 a = union[some: i64, none: struct[]][[none: []]]
 a.some
 
-Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
+Key 'some' not found in ['none': []]/union['some': i64, 'none': struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/3efd2dd2:1:168)
@@ -1570,7 +1570,7 @@ undefined
 a mut = union[some: i64, none: struct[]][[none: []]]
 a.some
 
-Key 'some' not found in union['some': i64, 'none': struct[]][['none': []]]
+Key 'some' not found in ['none': []]/union['some': i64, 'none': struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/9eee9f4a:1:196)
@@ -1613,7 +1613,7 @@ a.some@ = {
 }
 a.none
 
-Key 'some' not found in union['some': i64, 'none': i64][['none': 101]]
+Key 'some' not found in ['none': 101]/union['some': i64, 'none': i64]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/16729f86:1:218)
@@ -1638,7 +1638,7 @@ a = union[some: i64, none: struct[]][[some: 42]]
 a = union[some: i64, none: struct[]][[some: 42]]
 %union-has-key(a, 'many')
 
-Can never find key 'many' in union['some': i64, 'none': struct[]][['some': 42]]
+Can never find key 'many' in ['some': 42]/union['some': i64, 'none': struct[]]
 
 Can never find key 'many' in union['some': i64, 'none': struct[]]
 ```
@@ -1774,7 +1774,7 @@ while { only[0][] } { %print('ok') }
 ```
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, fun[id: 1, closure: struct[]][] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[id: 1, closure: struct[]] }
 
 Cannot call zest.Builtin.each with these args: { i64, fun[id: 1, closure: struct[]] }
 ```
@@ -1783,7 +1783,7 @@ Cannot call zest.Builtin.each with these args: { i64, fun[id: 1, closure: struct
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', fun[id: 1, closure: struct[]][] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[id: 1, closure: struct[]] }
 
 Cannot call zest.Builtin.each with these args: { string, fun[id: 1, closure: struct[]] }
 ```

@@ -49,21 +49,21 @@ TODO infer: dir.ExprData{ .repr_of = void }
 All other types can be built via conversions from these basic types:
 
 ```
-f64[42]
+42/f64
 
 Name not bound: f64
 ```
 
 ```
-union[a: i64, b: string][[a: 42]]
+[a: 42]/union[a: i64, b: string]
 
-union['a': i64, 'b': string][['a': 42]]
+['a': 42]/union['a': i64, 'b': string]
 
 undefined
 ```
 
 ```
-map[string, i64][[a: 42]]
+[a: 42]/map[string, i64]
 
 Name not bound: map
 ```
@@ -88,9 +88,9 @@ TODO infer: dir.ExprData{ .repr_of = void }
 
 ```
 t = union[a: i64, b: string]
-t[[a: 42]]
+[a: 42]/t
 
-union['a': i64, 'b': string][['a': 42]]
+['a': 42]/union['a': i64, 'b': string]
 
 TODO infer: dir.ExprData{ .repr_i64 = void }
 ```
@@ -361,7 +361,7 @@ Strings allow pushing and popping unicode characters.
 Structs are objects with a fixed set of keys.
 
 ```
-struct[a: i64, b: string][[a: 0, b: 'foo']]
+[a: 0, b: 'foo']/struct[a: i64, b: string]
 
 ['a': 0, 'b': 'foo']
 
@@ -369,19 +369,19 @@ undefined
 ```
 
 ```
-struct[a: i64, b: i64][[a: 42, b: 'foo']]
+[a: 42, b: 'foo']/struct[a: i64, b: i64]
 
 Expected struct['a': i64, 'b': i64], found struct['a': i64, 'b': string]
 ```
 
 ```
-struct[a: i64, b: string][[a: 42]]
+[a: 42]/struct[a: i64, b: string]
 
 Expected struct['a': i64, 'b': string], found struct['a': i64]
 ```
 
 ```
-struct[a: i64, b: string][[a: 42, b: 'foo', c: 99]]
+[a: 42, b: 'foo', c: 99]/struct[a: i64, b: string]
 
 Expected struct['a': i64, 'b': string], found struct['a': i64, 'b': string, 'c': i64]
 ```
@@ -415,27 +415,27 @@ Structs allow getting and setting keys, but not deleting or adding keys.
 A union represents one of a finite number of single-key objects.
 
 ```
-union[strings: string, nums: i64][[strings: 'hello']]
+[strings: 'hello']/union[strings: string, nums: i64]
 
-union['strings': string, 'nums': i64][['strings': 'hello']]
+['strings': 'hello']/union['strings': string, 'nums': i64]
 
 undefined
 ```
 
 ```
-union[strings: string, nums: i64][[nums: 'hello']]
+[nums: 'hello']/union[strings: string, nums: i64]
 
 Expected union['strings': string, 'nums': i64], found struct['nums': string]
 ```
 
 ```
-union[strings: string, nums: i64][[floats: 3.14]]
+[floats: 3.14]/union[strings: string, nums: i64]
 
 TODO desugar: sir.ExprData{ .f64 = 3.14e0 }
 ```
 
 ```
-x = union[strings: string, nums: i64][[strings: 'hello']]
+x = [strings: 'hello']/union[strings: string, nums: i64]
 x.strings
 
 'hello'
@@ -444,10 +444,10 @@ undefined
 ```
 
 ```
-x = union[strings: string, nums: i64][[strings: 'hello']]
+x = [strings: 'hello']/union[strings: string, nums: i64]
 x.nums
 
-Key 'nums' not found in union['strings': string, 'nums': i64][['strings': 'hello']]
+Key 'nums' not found in ['strings': 'hello']/union['strings': string, 'nums': i64]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/3efd2dd2:1:168)
@@ -455,7 +455,7 @@ RuntimeError: unreachable
 ```
 
 ```
-x = union[strings: string, nums: i64][[strings: 'hello']]
+x = [strings: 'hello']/union[strings: string, nums: i64]
 x/has('strings')
 
 Name not bound: has
@@ -468,31 +468,31 @@ Unions are represented by an integer tag (eg 0 for 'strings', 1 for 'nums') foll
 Lists are objects where the keys are consecutive integers beginning with 0 and the values all have the same type.
 
 ```
-list[f64][[]]
+[]/list[f64]
 
 Name not bound: list
 ```
 
 ```
-list[f64][[0, 1, 2]]
+[0, 1, 2]/list[f64]
 
 Name not bound: list
 ```
 
 ```
-list[string][[0, 1, 2]]
+[0, 1, 2]/list[string]
 
 Name not bound: list
 ```
 
 ```
-list[f64][[a: 'apple']]
+[a: 'apple']/list[f64]
 
 Name not bound: list
 ```
 
 ```
-list[f64][[1: 3.14]]
+[1: 3.14]/list[f64]
 
 Name not bound: list
 ```
@@ -506,13 +506,13 @@ Lists allow getting and setting keys, and pushing/popping.
 Maps are objects with any number of entries, where all the keys have the same type and all the values have the same type.
 
 ```
-map[string, i64][[zero: 0, one: 1]]
+[zero: 0, one: 1]/map[string, i64]
 
 Name not bound: map
 ```
 
 ```
-map[string, i64][[zero: 0, one: 'one']]
+[zero: 0, one: 'one']/map[string, i64]
 
 Name not bound: map
 ```
@@ -594,19 +594,19 @@ Cannot call zest.Builtin.equal with these args: { struct['a': i64, 'b': i64], st
 ```
 
 ```
-[a: 1, b: 2] == map[string, i64][[b: 2, a: 1]]
+[a: 1, b: 2] == [b: 2, a: 1]/map[string, i64]
 
 Name not bound: map
 ```
 
 ```
-[a: 1, b: 2] != map[string, i64][[b: 2, a: 1]]
+[a: 1, b: 2] != [b: 2, a: 1]/map[string, i64]
 
 Name not bound: map
 ```
 
 ```
-union[strings: string, nums: i64][[nums: 42]] ~= struct[nums: i64][[nums: 42]]
+[nums: 42]/union[strings: string, nums: i64] ~= [nums: 42]/struct[nums: i64]
 
 TODO eval: dir.ExprData{ .call_builtin = zest.Builtin.equivalent }
 

@@ -94,23 +94,29 @@ pub const Value = union(enum) {
                 try writer.writeAll("]");
             },
             .@"union" => |@"union"| {
-                try writer.print("{}[[{}: {}]]", .{
-                    Repr{ .@"union" = @"union".repr },
+                try writer.print("[{}: {}]/{}", .{
                     @"union".repr.keys[@"union".tag],
                     @"union".value.*,
+                    Repr{ .@"union" = @"union".repr },
                 });
             },
             .fun => |fun| {
-                try writer.print("{}{}", .{ self.reprOf(), Value{ .@"struct" = .{ .repr = fun.repr.closure, .values = fun.closure } } });
+                try writer.print("{}/{}", .{
+                    Value{ .@"struct" = .{ .repr = fun.repr.closure, .values = fun.closure } },
+                    self.reprOf(),
+                });
             },
             .ref => |ref| {
-                try writer.print("{}[{}]", .{ self.reprOf(), ref.value.* });
+                try writer.print("{}/{}", .{
+                    ref.value.*,
+                    self.reprOf(),
+                });
             },
             inline .repr, .repr_kind => |data| {
                 try writer.print("{}", .{data});
             },
             .only => |only| {
-                try writer.print("only[{}][]", .{only});
+                try writer.print("[]/only[{}]", .{only});
             },
         }
     }
