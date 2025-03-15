@@ -63,23 +63,6 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
         const expr_data = f.expr_data_post.get(frame.expr);
         //zest.p(.{ .eval_staged = expr_data });
         switch (expr_data) {
-            .call => |call| {
-                const args = c.allocator.alloc(Value, call.arg_count) catch oom();
-                for (0..call.arg_count) |i| {
-                    const ix = call.arg_count - 1 - i;
-                    args[ix] = c.value_stack.pop().?;
-                }
-                const fun = c.value_stack.pop().?;
-                if (fun != .fun)
-                    return fail(c, .{ .not_a_fun = fun });
-                pushFun(c, .{
-                    .fun = fun.fun.repr.fun,
-                    .closure = .{ .@"struct" = fun.fun.getClosure() },
-                    .args = args,
-                });
-                const return_value = try eval(c);
-                c.value_stack.append(return_value) catch oom();
-            },
             .stage_begin => {
                 stages_nested += 1;
             },
