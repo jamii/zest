@@ -131,12 +131,10 @@ undefined
 
 The usual escapes are supported.
 
-TODO print escapes properly.
-
 ```
 'have a \'string\''
 
-'have a 'string''
+'have a \'string\''
 
 undefined
 ```
@@ -144,7 +142,7 @@ undefined
 ```
 'escape \\ this'
 
-'escape \ this'
+'escape \\ this'
 
 undefined
 ```
@@ -164,8 +162,7 @@ At 1:0:
 ```
 'a\nstring'
 
-'a
-string'
+'a\nstring'
 
 undefined
 ```

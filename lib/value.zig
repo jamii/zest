@@ -76,7 +76,7 @@ pub const Value = union(enum) {
             // TODO Need to adjust test.js to print this.
             //.u32 => |i| try writer.print("u32[{}]", .{i}),
             inline .u32, .i64 => |i| try writer.print("{}", .{i}),
-            .string => |string| try writer.print("'{s}'", .{string}), // TODO escape
+            .string => |string| try writer.print("'{'}'", .{std.zig.fmtEscapes(string)}),
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var positional = true;
