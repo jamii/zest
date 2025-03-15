@@ -92,7 +92,7 @@ a mut = [b: 1]
 a.b@ = 2
 a
 
-['b': 2]
+[b: 2]
 
 undefined
 ```
@@ -103,7 +103,7 @@ set = (var mut, val) { var@ = val }
 set(a.b@, 2)
 a
 
-['b': 2]
+[b: 2]
 
 undefined
 ```
@@ -118,7 +118,7 @@ swap = (x mut, y mut) {
 swap(a.b@, a.c@)
 a
 
-['b': 2, 'c': 1]
+[b: 2, c: 1]
 
 undefined
 ```
@@ -131,7 +131,7 @@ swap = (x mut, y mut) {
 swap(a.b@, a.b@)
 a
 
-['b': 1, 'c': 2]
+[b: 1, c: 2]
 
 undefined
 ```
@@ -144,7 +144,7 @@ set = (var mut, val) { var@ = val }
 set(a.b@, a.b)
 a
 
-['b': 1, 'c': 2]
+[b: 1, c: 2]
 
 undefined
 ```

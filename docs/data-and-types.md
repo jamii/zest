@@ -41,7 +41,7 @@ TODO infer: dir.ExprData{ .repr_of = void }
 ```zest-test
 %repr-of([a: 42, b: 'foo'])
 
-struct['a': i64, 'b': string]
+struct[a: i64, b: string]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -57,7 +57,7 @@ Name not bound: f64
 ```zest-test
 [a: 42]/union[a: i64, b: string]
 
-['a': 42]/union['a': i64, 'b': string]
+[a: 42]/union[a: i64, b: string]
 
 undefined
 ```
@@ -73,7 +73,7 @@ Types are themselves values.
 ```zest-test
 union[a: i64, b: string]
 
-union['a': i64, 'b': string]
+union[a: i64, b: string]
 
 TODO infer: dir.ExprData{ .repr_i64 = void }
 ```
@@ -90,7 +90,7 @@ TODO infer: dir.ExprData{ .repr_of = void }
 t = union[a: i64, b: string]
 [a: 42]/t
 
-['a': 42]/union['a': i64, 'b': string]
+[a: 42]/union[a: i64, b: string]
 
 TODO infer: dir.ExprData{ .repr_i64 = void }
 ```
@@ -182,7 +182,7 @@ undefined
 ```zest-test
 ['a': 'apple', 'b': 'bear']
 
-['a': 'apple', 'b': 'bear']
+[a: 'apple', b: 'bear']
 
 undefined
 ```
@@ -192,7 +192,7 @@ Optional trailing comma.
 ```zest-test
 ['a': 'apple', 'b': 'bear',]
 
-['a': 'apple', 'b': 'bear']
+[a: 'apple', b: 'bear']
 
 undefined
 ```
@@ -202,7 +202,7 @@ TODO Key order doesn't matter. Keys may be printed in any order.
 ```zest-test
 ['b': 'bear', 'a': 'apple']
 
-['b': 'bear', 'a': 'apple']
+[b: 'bear', a: 'apple']
 
 undefined
 ```
@@ -212,7 +212,7 @@ TODO No repeated keys.
 ```zest-test
 ['a': 'apple', 'a': 'bear']
 
-['a': 'apple', 'a': 'bear']
+[a: 'apple', a: 'bear']
 
 undefined
 ```
@@ -222,7 +222,7 @@ If the key is a string which is a valid name, the quotes may be omitted.
 ```zest-test
 [a: 'apple', b: 'bear']
 
-['a': 'apple', 'b': 'bear']
+[a: 'apple', b: 'bear']
 
 undefined
 ```
@@ -258,7 +258,7 @@ You can mix omitted and present keys.
 ```zest-test
 ['a', 1: 'b', default: 'c']
 
-['a', 'b', 'default': 'c']
+['a', 'b', default: 'c']
 
 undefined
 ```
@@ -363,7 +363,7 @@ Structs are objects with a fixed set of keys.
 ```zest-test
 [a: 0, b: 'foo']/struct[a: i64, b: string]
 
-['a': 0, 'b': 'foo']
+[a: 0, b: 'foo']
 
 undefined
 ```
@@ -371,19 +371,19 @@ undefined
 ```zest-test
 [a: 42, b: 'foo']/struct[a: i64, b: i64]
 
-Expected struct['a': i64, 'b': i64], found struct['a': i64, 'b': string]
+Expected struct[a: i64, b: i64], found struct[a: i64, b: string]
 ```
 
 ```zest-test
 [a: 42]/struct[a: i64, b: string]
 
-Expected struct['a': i64, 'b': string], found struct['a': i64]
+Expected struct[a: i64, b: string], found struct[a: i64]
 ```
 
 ```zest-test
 [a: 42, b: 'foo', c: 99]/struct[a: i64, b: string]
 
-Expected struct['a': i64, 'b': string], found struct['a': i64, 'b': string, 'c': i64]
+Expected struct[a: i64, b: string], found struct[a: i64, b: string, c: i64]
 ```
 
 The keys are not required to be strings!
@@ -417,7 +417,7 @@ A union represents one of a finite number of single-key objects.
 ```zest-test
 [strings: 'hello']/union[strings: string, nums: i64]
 
-['strings': 'hello']/union['strings': string, 'nums': i64]
+[strings: 'hello']/union[strings: string, nums: i64]
 
 undefined
 ```
@@ -425,7 +425,7 @@ undefined
 ```zest-test
 [nums: 'hello']/union[strings: string, nums: i64]
 
-Expected union['strings': string, 'nums': i64], found struct['nums': string]
+Expected union[strings: string, nums: i64], found struct[nums: string]
 ```
 
 ```zest-test
@@ -447,7 +447,7 @@ undefined
 x = [strings: 'hello']/union[strings: string, nums: i64]
 x.nums
 
-Key 'nums' not found in ['strings': 'hello']/union['strings': string, 'nums': i64]
+Key 'nums' not found in [strings: 'hello']/union[strings: string, nums: i64]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/3efd2dd2:1:168)
@@ -572,25 +572,25 @@ TODO desugar: sir.ExprData{ .f64 = 4.2e1 }
 ```zest-test
 [a: 1, b: 2] == [b: 2, a: 1]
 
-Cannot call zest.Builtin.equal with these args: { ['a': 1, 'b': 2], ['b': 2, 'a': 1] }
+Cannot call zest.Builtin.equal with these args: { [a: 1, b: 2], [b: 2, a: 1] }
 
-Cannot call zest.Builtin.equal with these args: { struct['a': i64, 'b': i64], struct['b': i64, 'a': i64] }
+Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct[b: i64, a: i64] }
 ```
 
 ```zest-test
 [a: 1, b: 2] == [b: 100, a: 1]
 
-Cannot call zest.Builtin.equal with these args: { ['a': 1, 'b': 2], ['b': 100, 'a': 1] }
+Cannot call zest.Builtin.equal with these args: { [a: 1, b: 2], [b: 100, a: 1] }
 
-Cannot call zest.Builtin.equal with these args: { struct['a': i64, 'b': i64], struct['b': i64, 'a': i64] }
+Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct[b: i64, a: i64] }
 ```
 
 ```zest-test
 [a: 1, b: 2] == [b: 2, a: 1, c: 3]
 
-Cannot call zest.Builtin.equal with these args: { ['a': 1, 'b': 2], ['b': 2, 'a': 1, 'c': 3] }
+Cannot call zest.Builtin.equal with these args: { [a: 1, b: 2], [b: 2, a: 1, c: 3] }
 
-Cannot call zest.Builtin.equal with these args: { struct['a': i64, 'b': i64], struct['b': i64, 'a': i64, 'c': i64] }
+Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct[b: i64, a: i64, c: i64] }
 ```
 
 ```zest-test
@@ -616,7 +616,7 @@ TODO infer: dir.ExprData{ .call_builtin = zest.Builtin.equivalent }
 ```zest-test
 struct[name: string, age: i64] == struct[name: string, age: i64]
 
-Cannot call zest.Builtin.equal with these args: { struct['name': string, 'age': i64], struct['name': string, 'age': i64] }
+Cannot call zest.Builtin.equal with these args: { struct[name: string, age: i64], struct[name: string, age: i64] }
 
 TODO infer: dir.ExprData{ .repr_string = void }
 ```

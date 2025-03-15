@@ -92,7 +92,7 @@ To make semicolon insertion safe, newlines are only allowed between items in `{}
 [a: 1,
  b: 2]
 
-['a': 1, 'b': 2]
+[a: 1, b: 2]
 
 undefined
 ```
@@ -103,7 +103,7 @@ undefined
   b: 2,
 ]
 
-['a': 1, 'b': 2]
+[a: 1, b: 2]
 
 undefined
 ```

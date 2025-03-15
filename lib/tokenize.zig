@@ -158,3 +158,18 @@ fn fail(c: *Compiler, pos: usize) error{TokenizeError} {
 pub const TokenizeErrorData = struct {
     pos: usize,
 };
+
+pub fn isName(string: []const u8) bool {
+    if (string.len == 0) return false;
+    switch (string[0]) {
+        'a'...'z' => {},
+        else => return false,
+    }
+    for (1..string.len) |i| {
+        switch (string[i]) {
+            'a'...'z', '0'...'9', '-' => {},
+            else => return false,
+        }
+    }
+    return true;
+}

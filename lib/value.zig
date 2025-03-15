@@ -13,6 +13,7 @@ const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
 const ReprKind = zest.ReprKind;
 const deepEqual = zest.deepEqual;
+const isName = zest.isName;
 
 pub const Value = union(enum) {
     u32: u32,
@@ -88,14 +89,14 @@ pub const Value = union(enum) {
                         try writer.print("{}", .{value});
                     } else {
                         positional = false;
-                        try writer.print("{}: {}", .{ key, value });
+                        try writer.print("{}: {}", .{ FormatKey{ .key = key }, value });
                     }
                 }
                 try writer.writeAll("]");
             },
             .@"union" => |@"union"| {
                 try writer.print("[{}: {}]/{}", .{
-                    @"union".repr.keys[@"union".tag],
+                    FormatKey{ .key = @"union".repr.keys[@"union".tag] },
                     @"union".value.*,
                     Repr{ .@"union" = @"union".repr },
                 });
@@ -258,4 +259,18 @@ pub const ValueFun = struct {
 pub const ValueRef = struct {
     repr: *Repr,
     value: *Value,
+};
+
+pub const FormatKey = struct {
+    key: Value,
+
+    pub fn format(self: FormatKey, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        if (self.key == .string and isName(self.key.string)) {
+            try writer.print("{s}", .{self.key.string});
+        } else {
+            try writer.print("{}", .{self.key});
+        }
+    }
 };

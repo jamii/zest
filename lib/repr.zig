@@ -4,6 +4,7 @@ const panic = std.debug.panic;
 const zest = @import("./zest.zig");
 const Value = zest.Value;
 const ValueStruct = zest.ValueStruct;
+const FormatKey = zest.FormatKey;
 const deepEqual = zest.deepEqual;
 const dir = zest.dir;
 
@@ -93,7 +94,7 @@ pub const Repr = union(enum) {
                         try writer.print("{}", .{repr});
                     } else {
                         positional = false;
-                        try writer.print("{}: {}", .{ key, repr });
+                        try writer.print("{}: {}", .{ FormatKey{ .key = key }, repr });
                     }
                 }
                 try writer.writeAll("]");
@@ -109,7 +110,7 @@ pub const Repr = union(enum) {
                         try writer.print("{}", .{repr});
                     } else {
                         positional = false;
-                        try writer.print("{}: {}", .{ key, repr });
+                        try writer.print("{}: {}", .{ FormatKey{ .key = key }, repr });
                     }
                 }
                 try writer.writeAll("]");

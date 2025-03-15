@@ -56,7 +56,7 @@ In objects, if a key is a valid name then it is treated as a string.
 foo = 'the number'
 [foo: 42]
 
-['foo': 42]
+[foo: 42]
 
 undefined
 ```
@@ -78,7 +78,7 @@ If the key is a valid name then the value can be omitted and will be replaced by
 foo = 'the number'
 [:foo]
 
-['foo': 'the number']
+[foo: 'the number']
 
 undefined
 ```
@@ -146,9 +146,9 @@ If the key is not present in the map then an error is thrown.
 abc = [a: 1, b: 2, c: 3]
 abc.d
 
-Key 'd' not found in ['a': 1, 'b': 2, 'c': 3]
+Key 'd' not found in [a: 1, b: 2, c: 3]
 
-Key 'd' not found in struct['a': i64, 'b': i64, 'c': i64]
+Key 'd' not found in struct[a: i64, b: i64, c: i64]
 ```
 
 ## functions
@@ -209,7 +209,7 @@ make-echo = (x) () x
   %repr-of(make-echo('foo')), 
 ]
 
-[fun[id: 3, closure: struct['x': i64]], fun[id: 3, closure: struct['x': string]]]
+[fun[id: 3, closure: struct[x: i64]], fun[id: 3, closure: struct[x: string]]]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```

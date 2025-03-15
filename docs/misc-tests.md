@@ -121,7 +121,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[id: 1, closure: struct['k': string]]
+Cannot unstage value: fun[id: 1, closure: struct[k: string]]
 ```
 
 ```zest-test
@@ -379,7 +379,7 @@ a mut = [x: 1, y: 2]
 a@ = 3
 a
 
-Expected struct['x': i64, 'y': i64], found i64
+Expected struct[x: i64, y: i64], found i64
 ```
 
 ```zest-test
@@ -387,7 +387,7 @@ a mut = [x: 1, y: 2]
 a.x@ = a
 a.x.x
 
-Expected i64, found struct['x': i64, 'y': i64]
+Expected i64, found struct[x: i64, y: i64]
 ```
 
 ```zest-test
@@ -823,9 +823,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: ['a': 42/ref[i64]]/fun[id: 3, closure: struct['a': ref[i64]]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[id: 3, closure: struct[a: ref[i64]]]
 
-Expected a value containing no mutable references, found: fun[id: 3, closure: struct['a': ref[i64]]]
+Expected a value containing no mutable references, found: fun[id: 3, closure: struct[a: ref[i64]]]
 ```
 
 ```zest-test
@@ -842,9 +842,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: ['a': 42/ref[i64]]/fun[id: 1, closure: struct['a': ref[i64]]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[id: 1, closure: struct[a: ref[i64]]]
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct['a': ref[i64]]]
+Expected a value containing no mutable references, found: fun[id: 1, closure: struct[a: ref[i64]]]
 ```
 
 ```zest-test
@@ -1005,21 +1005,21 @@ a.y
 a = struct[x: i64, y: i64][[x: 42, y: []]]
 a.y
 
-Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': struct[]]
+Expected struct[x: i64, y: i64], found struct[x: i64, y: struct[]]
 ```
 
 ```zest-test
 a = struct[x: i64, y: i64][[x: 42, z: 101]]
 a.y
 
-Expected struct['x': i64, 'y': i64], found struct['x': i64, 'z': i64]
+Expected struct[x: i64, y: i64], found struct[x: i64, z: i64]
 ```
 
 ```zest-test
 a = struct[x: i64, y: i64][[x: 42, y: 101, z: 0]]
 a.y
 
-Expected struct['x': i64, 'y': i64], found struct['x': i64, 'y': i64, 'z': i64]
+Expected struct[x: i64, y: i64], found struct[x: i64, y: i64, z: i64]
 ```
 
 ```zest-test
@@ -1521,7 +1521,7 @@ a.some
 a = union[some: i64, none: struct[]][[some: 42]]
 a.none
 
-Key 'none' not found in ['some': 42]/union['some': i64, 'none': struct[]]
+Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/52ede526:1:167)
@@ -1539,7 +1539,7 @@ a.some
 a mut = union[some: i64, none: struct[]][[some: 42]]
 a.none
 
-Key 'none' not found in ['some': 42]/union['some': i64, 'none': struct[]]
+Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/2585c34a:1:202)
@@ -1550,7 +1550,7 @@ RuntimeError: unreachable
 a = union[some: i64, none: struct[]][[none: []]]
 a.some
 
-Key 'some' not found in ['none': []]/union['some': i64, 'none': struct[]]
+Key 'some' not found in [none: []]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/3efd2dd2:1:168)
@@ -1570,7 +1570,7 @@ undefined
 a mut = union[some: i64, none: struct[]][[none: []]]
 a.some
 
-Key 'some' not found in ['none': []]/union['some': i64, 'none': struct[]]
+Key 'some' not found in [none: []]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/9eee9f4a:1:196)
@@ -1613,7 +1613,7 @@ a.some@ = {
 }
 a.none
 
-Key 'some' not found in ['none': 101]/union['some': i64, 'none': i64]
+Key 'some' not found in [none: 101]/union[some: i64, none: i64]
 
 RuntimeError: unreachable
     at <anonymous> (wasm://wasm/16729f86:1:218)
@@ -1638,9 +1638,9 @@ a = union[some: i64, none: struct[]][[some: 42]]
 a = union[some: i64, none: struct[]][[some: 42]]
 %union-has-key(a, 'many')
 
-Can never find key 'many' in ['some': 42]/union['some': i64, 'none': struct[]]
+Can never find key 'many' in [some: 42]/union[some: i64, none: struct[]]
 
-Can never find key 'many' in union['some': i64, 'none': struct[]]
+Can never find key 'many' in union[some: i64, none: struct[]]
 ```
 
 ```zest-test
@@ -1922,4 +1922,12 @@ f = (a)/i64 a.x
 f([x: 'x'])
 
 Expected i64, found string
+```
+
+```zest-test
+[name: 0, 'still-a-name': 1, ' not': 2, '0not': 2]
+
+[name: 0, still-a-name: 1, ' not': 2, '0not': 2]
+
+undefined
 ```

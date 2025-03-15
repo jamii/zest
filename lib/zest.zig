@@ -20,6 +20,7 @@ pub const Value = @import("./value.zig").Value;
 pub const ValueStruct = @import("./value.zig").ValueStruct;
 pub const ValueUnion = @import("./value.zig").ValueUnion;
 pub const ValueFun = @import("./value.zig").ValueFun;
+pub const FormatKey = @import("./value.zig").FormatKey;
 
 pub const sir = @import("./sir.zig");
 pub const dir = @import("./dir.zig");
@@ -32,6 +33,8 @@ pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
 pub const infer = @import("./infer.zig").infer;
 pub const generate = @import("./generate.zig").generate;
+
+pub const isName = @import("./tokenize.zig").isName;
 
 pub fn oom() noreturn {
     panic("OOM", .{});
