@@ -135,8 +135,8 @@ last-frame mut = now()
 do-frame mut = load()
 while true {
   if file-has-changed('my-loop.zest', since: last-frame) {
-    last-frame = now()
-    do-frame = load()
+    last-frame@ = now()
+    do-frame@ = load()
   }
   do-frame(data@)
 }
