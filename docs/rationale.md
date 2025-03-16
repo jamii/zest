@@ -23,6 +23,12 @@ Malleable:
   * make it easy to ship a program where the end-user can debug a problem, edit the code, live-reload to test their changes, and share a patch upstream - without any additional downloads
 
 Legible:
+* code-based rather than image-based - the code running now is the code that you loaded, nobody can sneak in and change it at runtime, you can understand the system by reading the code
+  * no mutable environments
+  * file/module/expr load order is not observable
+  * no side-effects at load-time, [no life before main](https://doc.rust-lang.org/1.4.0/complement-design-faq.html#there-is-no-life-before-or-after-main-(no-static-ctors/dtors))
+  * no non-determism at load-time - loading the same code always produces the same program
+  * cf [there are no strings on me](https://www.scattered-thoughts.net/writing/there-are-no-strings-on-me/)
 * catch errors early
   * early binding
   * static type-checking
@@ -31,13 +37,13 @@ Legible:
   * cf [the shape of data](https://www.scattered-thoughts.net/writing/the-shape-of-data/)
 * more locality, less spooky-action-at-a-distance
   * no shared mutable state
-  * [no life before main](https://doc.rust-lang.org/1.4.0/complement-design-faq.html#there-is-no-life-before-or-after-main-(no-static-ctors/dtors))
   * no traits/typeclasses or other global-ish state
   * no behaviour that depends on the result of type inference (eg rust `things.collect()`)
 * predictable, reasonable performance
   * static dispatch
   * fields at known offsets
   * dense memory layouts
+  * reflection and metaprogramming are predictably staged away (like zig)
 * small, simple implementation
   * possible for a single person to maintain
 
