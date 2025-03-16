@@ -24,7 +24,6 @@ alloc-free-ptr-ptr = %heap-start() - class-count
 alloc-next-ptr-ptr = alloc-free-ptr-ptr - class-small-count
 
 alloc-pages = (page-count/u32) /u32 {
-    %print('alloc-pages\n')
     page-count-prev = %memory-grow(page-count)
     // %memory-grow returns i32[-1] on oom
     if {page-count-prev == u32[4294967295]} {
