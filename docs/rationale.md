@@ -99,7 +99,7 @@ The downsides are:
 
 Malleability requires some amount of dynamism, but we still want static typing as much as possible. The trick is to design the dynamically-typed language so that sound static type-checking is easy (julia is very much an inspiration here):
 
-* Every value was a first-class, concrete type.
+* Every value has a first-class, concrete type.
 * For a given pair of types, implicitly converting from one to the other either always succeeds or always fails. Eg implicitly converting from floats to ints can't always succeed, so it must always fail. Implicit conversions fail by throwing a runtime type error.
 * When assigning to a mutable reference `a@ = b`, we implicitly convert `b` to `type-of(a)`. This includes references to struct fields, element of lists etc.
 * If a function parameter is annotated with a type, we implicitly convert the argument to that type at the call-site.
