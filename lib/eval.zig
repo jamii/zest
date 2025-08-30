@@ -792,10 +792,12 @@ fn skipTree(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData), ignore_after:
     }
 }
 
-fn boundsCheck(c: *Compiler, op: anytype, address: i64, repr: Repr) error{EvalError}!usize {
+const BoundsCheckOp = enum { load, store };
+
+fn boundsCheck(c: *Compiler, op: BoundsCheckOp, address: i64, repr: Repr) error{EvalError}!usize {
     if (address < 0)
         return fail(c, .{ .out_of_bounds = .{
-            .op = .load,
+            .op = op,
             .repr = repr,
             .address = address,
         } });
@@ -853,7 +855,7 @@ pub const EvalErrorData = union(enum) {
         head: Value,
     },
     out_of_bounds: struct {
-        op: enum { load, store },
+        op: BoundsCheckOp,
         repr: Repr,
         address: i64,
     },
