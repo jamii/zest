@@ -124,7 +124,11 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
             //zest.p(.{ .eval = expr_data });
             switch (expr_data) {
                 .@"return" => {
-                    _ = popFun(c);
+                    const frame_evalled = popFun(c);
+                    if (frame_evalled.memo) |memo| {
+                        const value = c.value_stack.items[c.value_stack.items.len - 1];
+                        c.namespace_data.get(memo.namespace).definition_data.getPtr(memo.definition).value = .{ .evaluated = value.copy(c.allocator) };
+                    }
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop().?;
                     const frame_prev = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
@@ -290,8 +294,36 @@ pub fn evalExpr(
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
             c.value_stack.append(value) catch oom();
         },
-        .namespace_get => |_| {
-            return fail(c, .todo);
+        .namespace_get => {
+            const key = c.value_stack.pop().?.only.*;
+            const namespace = c.value_stack.pop().?;
+            if (namespace != .namespace)
+                return fail(c, .{ .not_a_namespace = namespace });
+            if (namespace.namespace.namespace.id >= c.namespace_data.count())
+                return fail(c, .{ .unknown_namespace = namespace });
+            const namespace_data = c.namespace_data.get(namespace.namespace.namespace);
+            if (key != .string)
+                return fail(c, .{ .definition_not_found = .{ .namespace = namespace, .key = key } });
+            const definition = namespace_data.definition_by_name.get(key.string) orelse
+                return fail(c, .{ .definition_not_found = .{ .namespace = namespace, .key = key } });
+            const definition_data = namespace_data.definition_data.getPtr(definition);
+            switch (definition_data.value) {
+                .unevaluated => {
+                    definition_data.value = .evaluating;
+                    pushFun(c, .{
+                        .fun = definition_data.fun,
+                        .closure = Value.emptyStruct(),
+                        .args = &.{},
+                        .memo = .{
+                            .namespace = namespace.namespace.namespace,
+                            .definition = definition,
+                        },
+                    });
+                    return .call;
+                },
+                .evaluating => return fail(c, .{ .recursive_evaluation = .{ .namespace = namespace, .key = key } }),
+                .evaluated => |value| c.value_stack.append(value.copy(c.allocator)) catch oom(),
+            }
         },
         .ref_init => {
             const value = c.value_stack.pop().?;
@@ -884,6 +916,16 @@ pub const EvalErrorData = union(enum) {
     panic,
     union_never_has_key: struct {
         object: Value,
+        key: Value,
+    },
+    not_a_namespace: Value,
+    unknown_namespace: Value,
+    definition_not_found: struct {
+        namespace: Value,
+        key: Value,
+    },
+    recursive_evaluation: struct {
+        namespace: Value,
         key: Value,
     },
     todo,

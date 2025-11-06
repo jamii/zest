@@ -145,14 +145,14 @@ pub const NamespaceData = struct {
     }
 };
 
-const Definition = struct { id: usize };
+pub const Definition = struct { id: usize };
 
-const DefinitionData = struct {
+pub const DefinitionData = struct {
     fun: Fun,
     value: union(enum) {
         unevaluated,
         evaluating,
-        evaluted: Value,
+        evaluated: Value,
     },
 };
 
@@ -200,12 +200,12 @@ pub const Scope = struct {
             if (std.mem.eql(u8, binding.name, name)) {
                 return BindingInfo{
                     .name = binding.name,
-                    .value = if (binding.value != .constant and i - 1 < self.closure_until_len)
+                    .value = if (!binding.value.isStatic() and i - 1 < self.closure_until_len)
                         .{ .closure = binding.name }
                     else
                         binding.value,
                     .mut = binding.mut,
-                    .is_staged = binding.value != .constant and i - 1 < (self.staged_until_len orelse 0),
+                    .is_staged = !binding.value.isStatic() and i - 1 < (self.staged_until_len orelse 0),
                 };
             }
         }
@@ -235,6 +235,13 @@ pub const Walue = union(enum) {
         namespace: Namespace,
         name: []const u8,
     },
+
+    pub fn isStatic(walue: Walue) bool {
+        return switch (walue) {
+            .constant, .definition => true,
+            .arg, .closure, .local => false,
+        };
+    }
 };
 
 pub const Frame = struct {
@@ -242,4 +249,8 @@ pub const Frame = struct {
     args: []Value,
     closure: Value,
     expr: Expr = .{ .id = 0 },
+    memo: ?struct {
+        namespace: Namespace,
+        definition: Definition,
+    } = null,
 };

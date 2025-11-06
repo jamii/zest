@@ -732,6 +732,10 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .division_by_zero => format(c, "Division by zero", .{}),
                     .panic => format(c, "panic", .{}),
                     .union_never_has_key => |data| format(c, "Can never find key {} in {}", .{ data.key, data.object }),
+                    .not_a_namespace => |data| format(c, "Not a namespace: {}", .{data}),
+                    .unknown_namespace => |data| format(c, "Unknown namespace: {}", .{data}),
+                    .definition_not_found => |data| format(c, "Cannot find definition: {}::{}", .{ data.namespace, data.key }),
+                    .recursive_evaluation => |data| format(c, "Recursive evaluation: {}::{}", .{ data.namespace, data.key }),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },

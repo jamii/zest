@@ -170,7 +170,11 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             const namespace = c.namespace_data.append(.init(c.allocator));
             const definition_count = take(c).block.count;
 
-            var bindings = ArrayList(dir.Binding).initCapacity(c.allocator, definition_count) catch oom();
+            // TODO Allow namespaces to close over outside scope.
+            const scope_outside = c.scope;
+            c.scope = .init(c.allocator);
+            defer c.scope = scope_outside;
+
             {
                 const start = c.sir_expr_next;
                 defer c.sir_expr_next = start;
@@ -186,14 +190,14 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
                     if (name.name.mut) {
                         return fail(c, .mut_in_namespace);
                     }
-                    bindings.append(.{
+                    c.scope.push(.{
                         .name = name.name.name,
                         .value = .{ .definition = .{
                             .namespace = namespace,
                             .name = name.name.name,
                         } },
                         .mut = false,
-                    }) catch oom();
+                    });
                     _ = skipTree(c); // value
                 }
             }
@@ -203,17 +207,9 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
                 _ = take(c).let;
                 const name = take(c).name;
 
-                // TODO Allow namespaces to close over outside scope.
-                const scope_outside = c.scope;
-                c.scope = .init(c.allocator);
-                defer c.scope = scope_outside;
-
-                for (bindings.items) |binding| {
-                    c.scope.push(binding);
-                }
-
                 var def_f = dir.FunData.init(c.allocator);
                 try desugarExpr(c, &def_f);
+                emit(c, &def_f, .@"return");
                 convertPostorderToPreorder(c, dir.Expr, dir.ExprData, def_f.expr_data_post, &def_f.expr_data_pre);
                 const fun = c.dir_fun_data.append(def_f);
 
