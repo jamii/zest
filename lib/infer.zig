@@ -128,7 +128,7 @@ pub fn inferExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             return value;
         },
@@ -624,7 +624,7 @@ fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr 
 
 fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {
     switch (object) {
-        .u32, .i64, .string, .repr, .repr_kind, .fun, .only => return fail(c, .{ .expected_object = object }),
+        .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .namespace => return fail(c, .{ .expected_object = object }),
         .@"struct" => |@"struct"| {
             const ix = @"struct".get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });

@@ -24,7 +24,14 @@ pub fn tokenize(c: *Compiler) !void {
             '}' => .@"}",
             '{' => .@"{",
             ',' => .@",",
-            '.' => .@".",
+            '.' => token: {
+                if (i < source.len and source[i] == '.') {
+                    i += 1;
+                    break :token .@"..";
+                } else {
+                    break :token .@".";
+                }
+            },
             ':' => .@":",
             ';' => .@";",
             '%' => .@"%",
@@ -97,7 +104,7 @@ pub fn tokenize(c: *Compiler) !void {
                     .@"else",
                     .@"while",
                     .mut,
-                    .module,
+                    .namespace,
                 };
                 inline for (keywords) |keyword| {
                     if (std.mem.eql(u8, name, @tagName(keyword)))

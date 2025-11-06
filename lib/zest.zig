@@ -125,7 +125,7 @@ pub const TokenData = enum {
     @"else",
     @"while",
     mut,
-    module,
+    namespace,
     @"@",
     @"(",
     @")",
@@ -135,6 +135,7 @@ pub const TokenData = enum {
     @"}",
     @",",
     @".",
+    @"..",
     @":",
     @";",
     @"%",
@@ -321,6 +322,7 @@ pub const Compiler = struct {
 
     // desugar
     scope: dir.Scope,
+    namespace_data: List(dir.Namespace, dir.NamespaceData),
     dir_fun_data: List(dir.Fun, dir.FunData),
     dir_fun_main: ?dir.Fun,
     sir_expr_next: sir.Expr,
@@ -375,6 +377,7 @@ pub const Compiler = struct {
             .sir_expr_data_post = fieldType(Compiler, .sir_expr_data_post).init(allocator),
 
             .scope = fieldType(Compiler, .scope).init(allocator),
+            .namespace_data = fieldType(Compiler, .namespace_data).init(allocator),
             .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
             .dir_fun_main = null,
             .sir_expr_next = .{ .id = 0 },
@@ -702,6 +705,9 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .invalid_let_path => format(c, "Invalid let path: {}", .{expr_data}),
                     .meaningless_mut => format(c, "Meaningless to write `mut` here", .{}),
                     .wrong_builtin_arg_count => |data| format(c, "%{s} expected {} arguments, found {}", .{ @tagName(data.builtin), data.expected, data.found }),
+                    .statement_in_namespace => format(c, "Namespaces may not contain statements", .{}),
+                    .pattern_in_namespace => format(c, "Namespace definitions must be names, not patterns", .{}),
+                    .mut_in_namespace => format(c, "Namespace definitions may not be mutable", .{}),
                     .todo => format(c, "TODO desugar: {}", .{expr_data}),
                 };
             },

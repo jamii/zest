@@ -43,7 +43,7 @@ fn parseExpr(c: *Compiler) error{ParseError}!void {
         .@"(" => return parseFun(c),
         .@"if" => return parseIf(c),
         .@"while" => return parseWhile(c),
-        .module => return parseModule(c),
+        .namespace => return parseNamespace(c),
         else => return parseExprLoose(c),
     }
 }
@@ -83,9 +83,10 @@ fn parseWhile(c: *Compiler) error{ParseError}!void {
     emit(c, .@"while");
 }
 
-fn parseModule(c: *Compiler) error{ParseError}!void {
+fn parseNamespace(c: *Compiler) error{ParseError}!void {
+    try expect(c, .namespace);
     try parseGroup(c);
-    emit(c, .module);
+    emit(c, .namespace);
 }
 
 fn parseExprLoose(c: *Compiler) error{ParseError}!void {
@@ -139,6 +140,7 @@ fn parseExprTightTail(c: *Compiler, options: ExprTightOptions) error{ParseError}
             else
                 break,
             .@"." => try parseGet(c),
+            .@".." => try parseNamespaceGet(c),
             .@"[" => try parseMake(c),
             .@"/" => try parseCallSlash(c),
             .@"@" => try parseRefTo(c),
@@ -155,6 +157,16 @@ fn parseGet(c: *Compiler) error{ParseError}!void {
         .allow_floats = false,
     });
     emit(c, .get);
+}
+
+fn parseNamespaceGet(c: *Compiler) error{ParseError}!void {
+    try expect(c, .@"..");
+    try expectNoSpace(c);
+    try parseExprAtom(c, .{
+        // We want to parse `x.4.2` as `{x.4}.2`, not `x.{4.2}`.
+        .allow_floats = false,
+    });
+    emit(c, .namespace_get);
 }
 
 fn parseCall(c: *Compiler) error{ParseError}!void {

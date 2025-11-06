@@ -14,6 +14,7 @@ const ReprFun = zest.ReprFun;
 const ReprKind = zest.ReprKind;
 const deepEqual = zest.deepEqual;
 const isName = zest.isName;
+const dir = zest.dir;
 
 pub const Value = union(enum) {
     u32: u32,
@@ -22,24 +23,26 @@ pub const Value = union(enum) {
     @"struct": ValueStruct,
     @"union": ValueUnion,
     fun: ValueFun,
+    namespace: ValueNamespace,
     only: *Value,
     ref: ValueRef,
     repr: Repr,
     repr_kind: ReprKind,
 
     pub fn reprOf(value: Value) Repr {
-        switch (value) {
-            .u32 => return .u32,
-            .i64 => return .i64,
-            .string => return .string,
-            .@"struct" => |@"struct"| return .{ .@"struct" = @"struct".repr },
-            .@"union" => |@"union"| return .{ .@"union" = @"union".repr },
-            .only => |only| return .{ .only = only },
-            .fun => |fun| return .{ .fun = fun.repr },
-            .ref => |ref| return .{ .ref = ref.repr },
-            .repr => return .repr,
-            .repr_kind => return .repr_kind,
-        }
+        return switch (value) {
+            .u32 => .u32,
+            .i64 => .i64,
+            .string => .string,
+            .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
+            .@"union" => |@"union"| .{ .@"union" = @"union".repr },
+            .only => |only| .{ .only = only },
+            .fun => |fun| .{ .fun = fun.repr },
+            .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
+            .ref => |ref| .{ .ref = ref.repr },
+            .repr => .repr,
+            .repr_kind => .repr_kind,
+        };
     }
 
     pub fn emptyStruct() Value {
@@ -56,7 +59,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind, .namespace => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => |@"union"| @"union".get(key),
         };
@@ -64,7 +67,7 @@ pub const Value = union(enum) {
 
     pub fn getMut(self: *Value, key: Value) ?*Value {
         return switch (self.*) {
-            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind, .namespace => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
             .@"union" => |*@"union"| @"union".getMut(key),
         };
@@ -107,6 +110,11 @@ pub const Value = union(enum) {
                     self.reprOf(),
                 });
             },
+            .namespace => |namespace| {
+                try writer.print("namespace[{}][]", .{
+                    namespace.namespace.id,
+                });
+            },
             .ref => |ref| {
                 try writer.print("{}/{}", .{
                     ref.value.*,
@@ -124,7 +132,7 @@ pub const Value = union(enum) {
 
     pub fn copy(self: Value, allocator: Allocator) Value {
         return switch (self) {
-            .u32, .i64 => self,
+            .u32, .i64, .repr, .repr_kind, .namespace => self,
             .string => |string| .{
                 .string = allocator.dupe(u8, string) catch oom(),
             },
@@ -148,7 +156,6 @@ pub const Value = union(enum) {
                 .repr = ref.repr,
                 .value = Value.copyBox(ref.value, allocator),
             } },
-            .repr, .repr_kind => self,
         };
     }
 
@@ -181,7 +188,7 @@ pub const Value = union(enum) {
                 }
                 return .{ .@"struct" = .{ .repr = @"struct", .values = values } };
             },
-            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind => panic("TODO load: {}", .{repr}),
+            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO load: {}", .{repr}),
         }
     }
 
@@ -200,7 +207,7 @@ pub const Value = union(enum) {
                     offset += value_repr.sizeOf();
                 }
             },
-            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind => panic("TODO store: {}", .{self}),
+            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO store: {}", .{self}),
         }
     }
 
@@ -254,6 +261,10 @@ pub const ValueFun = struct {
             .values = fun.closure,
         };
     }
+};
+
+pub const ValueNamespace = struct {
+    namespace: dir.Namespace,
 };
 
 pub const ValueRef = struct {

@@ -1336,6 +1336,7 @@ fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
         .u32, .i64, .ref => .{ .primitive = wasmAbi(repr) },
         .string, .@"struct", .@"union", .fun, .only, .repr, .repr_kind => .heap,
+        .namespace => panic("TODO namespace", .{}),
     };
 }
 
@@ -1345,6 +1346,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
         .i64 => .i64,
         // Pointers.
         .string, .@"struct", .@"union", .fun, .only, .ref, .repr, .repr_kind => .i32,
+        .namespace => panic("TODO namespace", .{}),
     };
 }
 
@@ -1410,6 +1412,7 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
             return .{ .only = .{ .value = only } };
         },
         .ref => panic("Ref is not a true value, shouldn't appear in ir", .{}),
+        .namespace => panic("TODO represent namespace in wasm", .{}),
         .repr, .repr_kind => panic("TODO represent repr in wasm", .{}),
     }
 }

@@ -15,6 +15,7 @@ pub const Repr = union(enum) {
     @"struct": ReprStruct,
     @"union": ReprUnion,
     fun: ReprFun,
+    namespace: ReprNamespace,
     // TODO Replace with @"enum" and a syntax for one-value enum.
     only: *Value,
     repr,
@@ -56,7 +57,7 @@ pub const Repr = union(enum) {
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
             .fun => |fun| fun.sizeOf(),
-            .only => 0,
+            .only, .namespace => 0,
             .ref => 4,
             .repr, .repr_kind => panic("TODO {}", .{self}),
         };
@@ -73,6 +74,7 @@ pub const Repr = union(enum) {
                 .{ .fun = .{ .repr = fun, .closure = closure.values } }
             else
                 null,
+            .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
             .u32, .i64, .string, .@"union", .ref, .repr, .repr_kind => null,
         };
     }
@@ -121,6 +123,11 @@ pub const Repr = union(enum) {
                     Repr{ .@"struct" = fun.closure },
                 });
             },
+            .namespace => |namespace| {
+                try writer.print("[{}]", .{
+                    namespace.namespace.id,
+                });
+            },
             .only => |only| {
                 try writer.print("[{}]", .{only});
             },
@@ -132,7 +139,10 @@ pub const Repr = union(enum) {
 
     pub fn hasRef(self: Repr, kind: enum { any, visible }) bool {
         return switch (self) {
-            .u32, .i64, .string => {
+            .ref => {
+                return true;
+            },
+            .u32, .i64, .string, .repr, .repr_kind, .namespace => {
                 return false;
             },
             .@"struct" => |@"struct"| {
@@ -161,12 +171,6 @@ pub const Repr = union(enum) {
             },
             .only => |only| {
                 return only.reprOf().hasRef(kind);
-            },
-            .ref => {
-                return true;
-            },
-            .repr, .repr_kind => {
-                return false;
             },
         };
     }
@@ -264,10 +268,15 @@ pub const ReprFun = struct {
     }
 };
 
+pub const ReprNamespace = struct {
+    namespace: dir.Namespace,
+};
+
 pub const ReprKind = enum {
     @"struct",
     @"union",
     only,
+    namespace,
 
     pub fn format(self: ReprKind, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = fmt;

@@ -19,6 +19,7 @@ pub const ExprData = union(enum) {
     pos_value: i64,
     let,
     get,
+    namespace_get,
     fun,
     call,
     call_slash,
@@ -32,14 +33,14 @@ pub const ExprData = union(enum) {
     ref_to,
     @"if",
     @"while",
-    module,
+    namespace,
 
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         _ = c;
         return switch (expr_data) {
             .i64, .f64, .string, .name => 0,
-            .pos_value, .repr_of, .ref_to, .module => 1,
-            .key_value, .let, .get, .fun, .call, .make, .make_slash, .@"while" => 2,
+            .pos_value, .repr_of, .ref_to, .namespace => 1,
+            .key_value, .let, .get, .namespace_get, .fun, .call, .make, .make_slash, .@"while" => 2,
             .call_slash, .@"if" => 3,
             .object => |object| object.count,
             .block => |block| block.count,

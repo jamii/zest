@@ -201,6 +201,9 @@ pub fn evalExpr(
         .repr_kind_only => {
             c.value_stack.append(.{ .repr_kind = .only }) catch oom();
         },
+        .repr_kind_namespace => {
+            c.value_stack.append(.{ .repr_kind = .namespace }) catch oom();
+        },
         .struct_init => |struct_init| {
             const keys = c.allocator.alloc(Value, struct_init.count) catch oom();
             const reprs = c.allocator.alloc(Repr, struct_init.count) catch oom();
@@ -258,7 +261,7 @@ pub fn evalExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
-                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             c.value_stack.append(value) catch oom();
         },
@@ -286,6 +289,9 @@ pub fn evalExpr(
             const value = object.get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
             c.value_stack.append(value) catch oom();
+        },
+        .namespace_get => |_| {
+            return fail(c, .todo);
         },
         .ref_init => {
             const value = c.value_stack.pop().?;
@@ -665,6 +671,10 @@ pub fn evalExpr(
                         if (args.@"struct".repr.keys.len != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
                         c.value_stack.append(.{ .only = to_repr.only }) catch oom();
+                    } else if (to_repr == .namespace) {
+                        if (args.@"struct".repr.keys.len != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        c.value_stack.append(.{ .namespace = .{ .namespace = to_repr.namespace.namespace } }) catch oom();
                     } else {
                         if (args.@"struct".repr.keys.len != 1 or
                             args.@"struct".repr.keys[0] != .i64 or
@@ -723,6 +733,17 @@ pub fn evalExpr(
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
                         const value = args.@"struct".values[0];
                         c.value_stack.append(.{ .repr = .{ .only = c.box(value) } }) catch oom();
+                    },
+                    .namespace => {
+                        if (args.@"struct".repr.keys.len != 1 or
+                            args.@"struct".repr.keys[0] != .i64 or
+                            args.@"struct".repr.keys[0].i64 != 0 or
+                            args.@"struct".values[0] != .i64)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        const id_i64 = args.@"struct".values[0].i64;
+                        const id = std.math.cast(usize, id_i64) orelse
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        c.value_stack.append(.{ .repr = .{ .namespace = .{ .namespace = .{ .id = id } } } }) catch oom();
                     },
                 },
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),

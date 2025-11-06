@@ -166,6 +166,85 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
             try desugarExpr(c, f);
             emit(c, f, .@"while");
         },
+        .namespace => {
+            const namespace = c.namespace_data.append(.init(c.allocator));
+            const definition_count = take(c).block.count;
+
+            var bindings = ArrayList(dir.Binding).initCapacity(c.allocator, definition_count) catch oom();
+            {
+                const start = c.sir_expr_next;
+                defer c.sir_expr_next = start;
+
+                for (0..definition_count) |_| {
+                    if (take(c) != .let) {
+                        return fail(c, .statement_in_namespace);
+                    }
+                    const name = take(c);
+                    if (name != .name) {
+                        return fail(c, .pattern_in_namespace);
+                    }
+                    if (name.name.mut) {
+                        return fail(c, .mut_in_namespace);
+                    }
+                    bindings.append(.{
+                        .name = name.name.name,
+                        .value = .{ .definition = .{
+                            .namespace = namespace,
+                            .name = name.name.name,
+                        } },
+                        .mut = false,
+                    }) catch oom();
+                    _ = skipTree(c); // value
+                }
+            }
+
+            const namespace_data = c.namespace_data.getPtr(namespace);
+            for (0..definition_count) |_| {
+                _ = take(c).let;
+                const name = take(c).name;
+
+                // TODO Allow namespaces to close over outside scope.
+                const scope_outside = c.scope;
+                c.scope = .init(c.allocator);
+                defer c.scope = scope_outside;
+
+                for (bindings.items) |binding| {
+                    c.scope.push(binding);
+                }
+
+                var def_f = dir.FunData.init(c.allocator);
+                try desugarExpr(c, &def_f);
+                convertPostorderToPreorder(c, dir.Expr, dir.ExprData, def_f.expr_data_post, &def_f.expr_data_pre);
+                const fun = c.dir_fun_data.append(def_f);
+
+                const definition = namespace_data.definition_data.append(.{
+                    .fun = fun,
+                    .value = .unevaluated,
+                });
+                namespace_data.definition_by_name.put(name.name, definition) catch oom();
+            }
+
+            emit(c, f, .stage_begin);
+            {
+                emit(c, f, .stage_begin);
+                emit(c, f, .repr_kind_namespace);
+                emit(c, f, .{ .stage = .{} });
+                emit(c, f, .stage_begin);
+                emit(c, f, .{ .i64 = 0 });
+                emit(c, f, .{ .stage = .{} });
+                emit(c, f, .{ .i64 = @intCast(namespace.id) });
+                emit(c, f, .{ .struct_init = .{ .count = 1 } });
+                emit(c, f, .make);
+            }
+            emit(c, f, .{ .stage = .{} });
+            emit(c, f, .{ .struct_init = .{ .count = 0 } });
+            emit(c, f, .make);
+        },
+        .namespace_get => {
+            try desugarExpr(c, f); // namespace
+            try desugarKey(c, f); // key
+            emit(c, f, .namespace_get);
+        },
         else => {
             return fail(c, .todo);
         },
@@ -294,6 +373,27 @@ fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void 
         },
         .constant => |constant| {
             emit(c, f, constant);
+        },
+        .definition => |definition| {
+            emit(c, f, .stage_begin);
+            {
+                emit(c, f, .stage_begin);
+                emit(c, f, .repr_kind_namespace);
+                emit(c, f, .{ .stage = .{} });
+                emit(c, f, .stage_begin);
+                emit(c, f, .{ .i64 = 0 });
+                emit(c, f, .{ .stage = .{} });
+                emit(c, f, .{ .i64 = @intCast(definition.namespace.id) });
+                emit(c, f, .{ .struct_init = .{ .count = 1 } });
+                emit(c, f, .make);
+            }
+            emit(c, f, .{ .stage = .{} });
+            emit(c, f, .{ .struct_init = .{ .count = 0 } });
+            emit(c, f, .make);
+            emit(c, f, .stage_begin);
+            emit(c, f, .{ .string = definition.name });
+            emit(c, f, .{ .stage = .{} });
+            emit(c, f, .namespace_get);
         },
     }
 
@@ -510,5 +610,8 @@ pub const DesugarErrorData = union(enum) {
         expected: usize,
         found: usize,
     },
+    statement_in_namespace,
+    pattern_in_namespace,
+    mut_in_namespace,
     todo,
 };

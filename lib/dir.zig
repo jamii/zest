@@ -38,6 +38,7 @@ pub const ExprData = union(enum) {
     repr_kind_struct,
     repr_kind_union,
     repr_kind_only,
+    repr_kind_namespace,
     arg: Arg,
     closure,
     local_get: Local,
@@ -56,6 +57,7 @@ pub const ExprData = union(enum) {
     assert_has_no_ref_visible,
     assert_has_no_ref,
     object_get,
+    namespace_get,
     ref_init,
     ref_get,
     ref_set,
@@ -87,9 +89,9 @@ pub const ExprData = union(enum) {
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         _ = c;
         return switch (expr_data) {
-            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_only, .arg, .closure, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
+            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_only, .repr_kind_namespace, .arg, .closure, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
             .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref_visible, .assert_has_no_ref, .ref_init, .ref_deref, .@"return" => 1,
-            .object_get, .ref_get, .ref_set, .make, .stage, .unstage, .repr_of => 2,
+            .object_get, .namespace_get, .ref_get, .ref_set, .make, .stage, .unstage, .repr_of => 2,
             .@"while" => 4,
             .@"if" => 5,
             .struct_init => |struct_init| 2 * struct_init.count,
@@ -127,6 +129,31 @@ pub const FunData = struct {
             .expr_data_pre = fieldType(FunData, .expr_data_pre).init(allocator),
         };
     }
+};
+
+pub const Namespace = struct { id: usize };
+
+pub const NamespaceData = struct {
+    definition_by_name: Map([]const u8, Definition),
+    definition_data: List(Definition, DefinitionData),
+
+    pub fn init(allocator: Allocator) NamespaceData {
+        return .{
+            .definition_by_name = fieldType(NamespaceData, .definition_by_name).init(allocator),
+            .definition_data = fieldType(NamespaceData, .definition_data).init(allocator),
+        };
+    }
+};
+
+const Definition = struct { id: usize };
+
+const DefinitionData = struct {
+    fun: Fun,
+    value: union(enum) {
+        unevaluated,
+        evaluating,
+        evaluted: Value,
+    },
 };
 
 pub const predefined_bindings: [7]Binding = .{
@@ -204,6 +231,10 @@ pub const Walue = union(enum) {
     closure: []const u8,
     local: Local,
     constant: ExprData,
+    definition: struct {
+        namespace: Namespace,
+        name: []const u8,
+    },
 };
 
 pub const Frame = struct {
