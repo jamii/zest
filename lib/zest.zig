@@ -757,6 +757,10 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
                     .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
                     .union_never_has_key => |data| format(c, "Can never find key {} in {}", .{ data.key, data.object }),
+                    .not_a_namespace => |data| format(c, "Not a namespace: {}", .{data}),
+                    .unknown_namespace => |data| format(c, "Unknown namespace: {}", .{data}),
+                    .definition_not_found => |data| format(c, "Cannot find definition: {}..{}", .{ data.namespace, data.key }),
+                    .recursive_evaluation => |data| format(c, "Recursive evaluation: {}..{}", .{ data.namespace, data.key }),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

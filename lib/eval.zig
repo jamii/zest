@@ -33,7 +33,7 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     return eval(c);
 }
 
-fn pushFun(c: *Compiler, frame: dir.Frame) void {
+pub fn pushFun(c: *Compiler, frame: dir.Frame) void {
     c.dir_frame_stack.append(frame) catch oom();
     c.local_stack.appendNTimes(
         Value.emptyStruct(),

@@ -157,6 +157,45 @@ pub fn inferExpr(
             emit(c, f, .{ .object_get = .{ .index = get.index } });
             return get.repr;
         },
+        .namespace_get => {
+            const namespace = try inferExpr(c, f, dir_f);
+            const key = try unstage(c, try inferExpr(c, f, dir_f));
+            if (namespace != .namespace)
+                return fail(c, .{ .not_a_namespace = namespace });
+            if (namespace.namespace.namespace.id >= c.namespace_data.count())
+                return fail(c, .{ .unknown_namespace = namespace });
+            const namespace_data = c.namespace_data.get(namespace.namespace.namespace);
+            if (key != .string)
+                return fail(c, .{ .definition_not_found = .{ .namespace = namespace, .key = key } });
+            const definition = namespace_data.definition_by_name.get(key.string) orelse
+                return fail(c, .{ .definition_not_found = .{ .namespace = namespace, .key = key } });
+            const definition_data = namespace_data.definition_data.getPtr(definition);
+            const value = value: {
+                switch (definition_data.value) {
+                    .unevaluated => {
+                        definition_data.value = .evaluating;
+                        eval.pushFun(c, .{
+                            .fun = definition_data.fun,
+                            .closure = Value.emptyStruct(),
+                            .args = &.{},
+                            .memo = .{
+                                .namespace = namespace.namespace.namespace,
+                                .definition = definition,
+                            },
+                        });
+                        break :value try eval.eval(c);
+                    },
+                    .evaluating => return fail(c, .{ .recursive_evaluation = .{ .namespace = namespace, .key = key } }),
+                    .evaluated => |value| {
+                        break :value value.copy(c.allocator);
+                    },
+                }
+            };
+            // TODO This is a hacky way to emit the value.
+            emit(c, f, .{ .only = c.box(value) });
+            emit(c, f, .{ .call_builtin = .from_only });
+            return value.reprOf();
+        },
         .ref_get => {
             const ref = try inferExpr(c, f, dir_f);
             const key = try unstage(c, try inferExpr(c, f, dir_f));
@@ -706,6 +745,16 @@ pub const InferErrorData = union(enum) {
     },
     union_never_has_key: struct {
         object: Repr,
+        key: Value,
+    },
+    not_a_namespace: Repr,
+    unknown_namespace: Repr,
+    definition_not_found: struct {
+        namespace: Repr,
+        key: Value,
+    },
+    recursive_evaluation: struct {
+        namespace: Repr,
         key: Value,
     },
     todo,
