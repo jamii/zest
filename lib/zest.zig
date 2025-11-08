@@ -14,6 +14,7 @@ pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
 pub const ReprUnion = @import("./repr.zig").ReprUnion;
 pub const ReprFun = @import("./repr.zig").ReprFun;
+pub const ReprNamespace = @import("./repr.zig").ReprNamespace;
 pub const ReprKind = @import("./repr.zig").ReprKind;
 
 pub const Value = @import("./value.zig").Value;
@@ -588,6 +589,7 @@ pub const Compiler = struct {
             .f64 => |i| try writer.print(" {}", .{i}),
             .string => |s| try writer.print(" {s}", .{s}),
             .only => |v| try writer.print(" {}", .{v}),
+            .namespace => |n| try writer.print(" {}", .{n}),
             .arg => |arg| try writer.print(" a{}", .{arg.id}),
             .local_get => |local| try writer.print(" l{}", .{local.id}),
             .local_let => |local| try writer.print(" l{}", .{local.id}),

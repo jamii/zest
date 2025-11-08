@@ -11,6 +11,7 @@ const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
+const ReprNamespace = zest.ReprNamespace;
 const Value = zest.Value;
 const FlatLattice = zest.FlatLattice;
 const TreePart = zest.TreePart;
@@ -33,6 +34,7 @@ pub const ExprData = union(enum) {
     f64: f64,
     string: []const u8,
     only: *Value,
+    namespace: ReprNamespace,
     closure,
     arg: Arg,
     local_get: Local,
@@ -67,7 +69,7 @@ pub const ExprData = union(enum) {
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         return switch (expr_data) {
             .i64, .f64, .string, .closure, .arg, .local_get => 0,
-            .only, .union_init, .local_let, .object_get, .ref_init, .ref_get, .ref_deref, .@"return" => 1,
+            .only, .namespace, .union_init, .local_let, .object_get, .ref_init, .ref_get, .ref_deref, .@"return" => 1,
             .each_struct, .each_union, .ref_set, .@"while" => 2,
             .@"if" => 3,
             .struct_init => |repr| repr.keys.len,

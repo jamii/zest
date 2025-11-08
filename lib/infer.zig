@@ -493,6 +493,10 @@ pub fn inferExpr(
                         if (args.@"struct".keys.len != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
                         emit(c, f, .{ .only = to_repr.only });
+                    } else if (to_repr == .namespace) {
+                        if (args.@"struct".keys.len != 0)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        emit(c, f, .{ .namespace = to_repr.namespace });
                     } else {
                         if (args.@"struct".keys.len != 1 or
                             args.@"struct".keys[0] != .i64 or

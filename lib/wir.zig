@@ -13,6 +13,7 @@ const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
+const ReprNamespace = zest.ReprNamespace;
 const Value = zest.Value;
 const tir = zest.tir;
 
@@ -42,6 +43,9 @@ pub const Walue = union(enum) {
     },
     only: struct {
         value: *Value,
+    },
+    namespace: struct {
+        repr: ReprNamespace,
     },
     value_at: struct {
         ptr: *Walue,

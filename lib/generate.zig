@@ -338,6 +338,10 @@ fn genExprInner(
             _ = try genExpr(c, f, tir_f, .nowhere);
             return .{ .only = .{ .value = value } };
         },
+        .namespace => |repr| {
+            _ = try genExpr(c, f, tir_f, .nowhere);
+            return .{ .namespace = .{ .repr = repr } };
+        },
         .closure => {
             if (c.inlining) |inlining| {
                 return inlining.closure;
@@ -1090,7 +1094,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
         .fun => |fun| {
             store(c, f, fun.closure.*, to_ptr);
         },
-        .only => {
+        .only, .namespace => {
             // Zero-sized, nothing to do
         },
         .value_at => |value_at| {
@@ -1170,7 +1174,7 @@ fn load(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
             emitEnum(f, wasm.Opcode.i64_const);
             emitLebI64(f, i);
         },
-        .string, .@"struct", .@"union", .fun, .only => panic("Can't load from {}", .{from_value}),
+        .string, .@"struct", .@"union", .fun, .only, .namespace => panic("Can't load from {}", .{from_value}),
         .value_at => |value_at| {
             const from_add = asAdd(c, value_at.ptr.*);
             load(c, f, from_add.walue.*);
@@ -1198,7 +1202,7 @@ fn loadPtrTo(c: *Compiler, f: *wir.FunData, from_value: wir.Walue) void {
         .closure, .arg, .@"return", .local, .shadow => {
             panic("Can't point to local: {}", .{from_value});
         },
-        .stack, .u32, .i64, .string, .@"struct", .@"union", .fun, .only => {
+        .stack, .u32, .i64, .string, .@"struct", .@"union", .fun, .only, .namespace => {
             const repr = walueRepr(c, f, from_value);
             const ptr = copyToShadow(c, f, from_value, repr);
             load(c, f, ptr);
@@ -1246,7 +1250,7 @@ fn getShuffler(f: *wir.FunData, repr: Repr) wir.Local {
 
 fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .@"struct", .@"union", .fun, .only => return walue,
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .@"struct", .@"union", .fun, .only, .namespace => return walue,
         .stack => |repr| {
             emitEnum(f, wasm.Opcode.drop);
             return switch (repr) {
@@ -1272,7 +1276,7 @@ fn dropStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
 
 fn spillStack(c: *Compiler, f: *wir.FunData, walue: wir.Walue) wir.Walue {
     switch (walue) {
-        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .only => {
+        .closure, .arg, .@"return", .local, .shadow, .u32, .i64, .string, .only, .namespace => {
             return walue;
         },
         .stack => |repr| {
@@ -1335,8 +1339,7 @@ const WasmRepr = union(enum) {
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
         .u32, .i64, .ref => .{ .primitive = wasmAbi(repr) },
-        .string, .@"struct", .@"union", .fun, .only, .repr, .repr_kind => .heap,
-        .namespace => panic("TODO namespace", .{}),
+        .string, .@"struct", .@"union", .fun, .only, .namespace, .repr, .repr_kind => .heap,
     };
 }
 
@@ -1345,8 +1348,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
         .u32 => .i32,
         .i64 => .i64,
         // Pointers.
-        .string, .@"struct", .@"union", .fun, .only, .ref, .repr, .repr_kind => .i32,
-        .namespace => panic("TODO namespace", .{}),
+        .string, .@"struct", .@"union", .fun, .only, .namespace, .ref, .repr, .repr_kind => .i32,
     };
 }
 
@@ -1357,7 +1359,7 @@ fn wasmLocal(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) u32 {
         .@"return" => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len - 1),
         .local => |local| @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + local.id),
         .shadow => @intCast(c.fun_type_data.get(f.fun_type).arg_types.len + f.local_shadow.?.id),
-        .stack, .u32, .i64, .string, .@"struct", .@"union", .fun, .only, .value_at, .add => panic("Not a local: {}", .{walue}),
+        .stack, .u32, .i64, .string, .@"struct", .@"union", .fun, .only, .namespace, .value_at, .add => panic("Not a local: {}", .{walue}),
     };
 }
 
@@ -1373,6 +1375,7 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
         .@"union" => |@"union"| .{ .@"union" = @"union".repr },
         .fun => |fun| .{ .fun = fun.repr },
         .only => |only| .{ .only = only.value },
+        .namespace => |namespace| .{ .namespace = namespace.repr },
         .value_at => |value_at| value_at.repr,
     };
 }
