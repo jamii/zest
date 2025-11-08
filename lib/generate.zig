@@ -273,7 +273,7 @@ fn genFun(c: *Compiler, f: *wir.FunData) error{GenerateError}!void {
 fn genExpr(
     c: *Compiler,
     f: *wir.FunData,
-    tir_f: tir.FunData,
+    tir_f: *tir.FunData,
     dest: wir.Destination,
 ) error{GenerateError}!wir.Walue {
     return (try genExprOrNull(c, f, tir_f, dest)).?;
@@ -282,7 +282,7 @@ fn genExpr(
 fn genExprOrNull(
     c: *Compiler,
     f: *wir.FunData,
-    tir_f: tir.FunData,
+    tir_f: *tir.FunData,
     dest: wir.Destination,
 ) error{GenerateError}!?wir.Walue {
     const result_maybe = try genExprInner(c, f, tir_f, dest);
@@ -323,7 +323,7 @@ fn genExprOrNull(
 fn genExprInner(
     c: *Compiler,
     f: *wir.FunData,
-    tir_f: tir.FunData,
+    tir_f: *tir.FunData,
     dest: wir.Destination,
 ) error{GenerateError}!?wir.Walue {
     const expr_data = take(c, tir_f);
@@ -929,7 +929,7 @@ fn genExprInner(
 fn genInlineCall(
     c: *Compiler,
     f: *wir.FunData,
-    callee_tir_f: tir.FunData,
+    callee_tir_f: *tir.FunData,
     dest: wir.Destination,
     closure: wir.Walue,
     arg: wir.Walue,
@@ -1420,13 +1420,13 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
     }
 }
 
-fn take(c: *Compiler, tir_f: tir.FunData) tir.ExprData {
+fn take(c: *Compiler, tir_f: *tir.FunData) tir.ExprData {
     const expr_data = tir_f.expr_data_pre.get(c.tir_expr_next);
     c.tir_expr_next.id += 1;
     return expr_data;
 }
 
-fn skipTree(c: *Compiler, tir_f: tir.FunData) void {
+fn skipTree(c: *Compiler, tir_f: *tir.FunData) void {
     var children_remaining: usize = 1;
     while (children_remaining > 0) {
         children_remaining += take(c, tir_f).childCount(c);

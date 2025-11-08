@@ -337,7 +337,7 @@ pub const Compiler = struct {
     printed: ArrayList(u8),
 
     // infer
-    tir_fun_data: List(tir.Fun, tir.FunData),
+    tir_fun_data: List(tir.Fun, *tir.FunData),
     tir_fun_by_key: Map(tir.FunKey, tir.Fun),
     tir_fun_main: ?tir.Fun,
     tir_fun_data_next: ?*tir.FunData,
@@ -578,7 +578,7 @@ pub const Compiler = struct {
         indent.* -= 1;
     }
 
-    fn printTir(c: *Compiler, writer: anytype, f: tir.FunData, expr: *tir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
+    fn printTir(c: *Compiler, writer: anytype, f: *tir.FunData, expr: *tir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
         const expr_data = f.expr_data_pre.get(expr.*);
         expr.id += 1;
 
@@ -761,6 +761,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .unknown_namespace => |data| format(c, "Unknown namespace: {}", .{data}),
                     .definition_not_found => |data| format(c, "Cannot find definition: {}..{}", .{ data.namespace, data.key }),
                     .recursive_evaluation => |data| format(c, "Recursive evaluation: {}..{}", .{ data.namespace, data.key }),
+                    .recursive_inference => |data| format(c, "Recursive inference: {}", .{data.key}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

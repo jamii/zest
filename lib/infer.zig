@@ -31,7 +31,10 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
     if (c.tir_fun_by_key.get(key)) |fun|
         return fun;
 
-    var f = tir.FunData.init(c.allocator, key);
+    const f = c.box(tir.FunData.init(c.allocator, key));
+    const fun = c.tir_fun_data.append(f);
+    c.tir_fun_by_key.put(key, fun) catch oom();
+
     const dir_f = c.dir_fun_data.get(key.fun);
     for (dir_f.local_data.items()) |dir_local_data| {
         _ = f.local_data.append(.{
@@ -41,10 +44,10 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
     }
 
     const tir_fun_data_next = c.tir_fun_data_next;
-    c.tir_fun_data_next = &f;
+    c.tir_fun_data_next = f;
     defer c.tir_fun_data_next = tir_fun_data_next;
 
-    _ = try inferExpr(c, &f, dir_f);
+    _ = try inferExpr(c, f, dir_f);
     convertPostorderToPreorder(c, tir.Expr, tir.ExprData, f.expr_data_post, &f.expr_data_pre);
     switch (f.return_repr) {
         .zero => f.return_repr = .{ .one = Repr.emptyUnion() },
@@ -52,8 +55,6 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
         .many => panic("Unreachable - should have errored earlier", .{}),
     }
 
-    const fun = c.tir_fun_data.append(f);
-    c.tir_fun_by_key.put(key, fun) catch oom();
     return fun;
 }
 
@@ -240,8 +241,11 @@ pub fn inferExpr(
             // TODO Once we have type asserts on return, we'll want to trust that and queue fun for later to avoid stack overflows.
             const tir_fun = try inferFun(c, key);
             emit(c, f, .{ .call = tir_fun });
-            // TODO Once we have recursive functions we'll have to be careful about reentrancy here.
-            return c.tir_fun_data.get(tir_fun).return_repr.one;
+            switch (c.tir_fun_data.get(tir_fun).return_repr) {
+                .zero => return fail(c, .{ .recursive_inference = .{ .key = f.key } }),
+                .one => |repr| return repr,
+                .many => panic("Should already have returned an error for this", .{}),
+            }
         },
         .call_builtin => |builtin| {
             switch (builtin) {
@@ -756,6 +760,9 @@ pub const InferErrorData = union(enum) {
     recursive_evaluation: struct {
         namespace: Repr,
         key: Value,
+    },
+    recursive_inference: struct {
+        key: tir.FunKey,
     },
     todo,
 };
