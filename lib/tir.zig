@@ -5,7 +5,6 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
-const fieldType = zest.fieldType;
 const List = zest.List;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
@@ -156,9 +155,9 @@ pub const FunData = struct {
     pub fn init(allocator: Allocator, key: FunKey) FunData {
         return .{
             .key = key,
-            .local_data = fieldType(FunData, .local_data).init(allocator),
-            .expr_data_post = fieldType(FunData, .expr_data_post).init(allocator),
-            .expr_data_pre = fieldType(FunData, .expr_data_pre).init(allocator),
+            .local_data = .init(allocator),
+            .expr_data_post = .init(allocator),
+            .expr_data_pre = .init(allocator),
             .return_repr = .zero,
             .dir_expr_next = .{ .id = 0 },
         };

@@ -6,7 +6,6 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const zest = @import("./zest.zig");
-const fieldType = zest.fieldType;
 const deepEqual = zest.deepEqual;
 const List = zest.List;
 const Repr = zest.Repr;
@@ -120,11 +119,11 @@ pub const FunData = struct {
             .tir_fun = tir_fun,
             .fun_type = fun_type,
 
-            .local_data = fieldType(FunData, .local_data).init(allocator),
+            .local_data = .init(allocator),
             .local_shadow = null,
-            .local_shufflers = fieldType(FunData, .local_shufflers).initFill(null),
+            .local_shufflers = .initFill(null),
 
-            .wasm = fieldType(FunData, .wasm).init(allocator),
+            .wasm = .init(allocator),
 
             .shadow_offset_max = 0,
             .shadow_offset_next = 0,

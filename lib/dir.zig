@@ -6,7 +6,6 @@ const ArrayList = std.ArrayList;
 
 const zest = @import("zest.zig");
 const oom = zest.oom;
-const fieldType = zest.fieldType;
 const List = zest.List;
 const Map = zest.Map;
 const Value = zest.Value;
@@ -121,12 +120,12 @@ pub const FunData = struct {
     pub fn init(allocator: Allocator) FunData {
         return .{
             .@"inline" = false,
-            .closure_keys_index = fieldType(FunData, .closure_keys_index).init(allocator),
-            .closure_keys = fieldType(FunData, .closure_keys).init(allocator),
-            .arg_data = fieldType(FunData, .arg_data).init(allocator),
-            .local_data = fieldType(FunData, .local_data).init(allocator),
-            .expr_data_post = fieldType(FunData, .expr_data_post).init(allocator),
-            .expr_data_pre = fieldType(FunData, .expr_data_pre).init(allocator),
+            .closure_keys_index = .init(allocator),
+            .closure_keys = .init(allocator),
+            .arg_data = .init(allocator),
+            .local_data = .init(allocator),
+            .expr_data_post = .init(allocator),
+            .expr_data_pre = .init(allocator),
         };
     }
 };
@@ -139,8 +138,8 @@ pub const NamespaceData = struct {
 
     pub fn init(allocator: Allocator) NamespaceData {
         return .{
-            .definition_by_name = fieldType(NamespaceData, .definition_by_name).init(allocator),
-            .definition_data = fieldType(NamespaceData, .definition_data).init(allocator),
+            .definition_by_name = .init(allocator),
+            .definition_data = .init(allocator),
         };
     }
 };
@@ -175,7 +174,7 @@ pub const Scope = struct {
         var scope = Scope{
             .closure_until_len = 0,
             .staged_until_len = null,
-            .bindings = fieldType(Scope, .bindings).init(allocator),
+            .bindings = .init(allocator),
         };
         scope.bindings.appendSlice(&predefined_bindings) catch oom();
         return scope;

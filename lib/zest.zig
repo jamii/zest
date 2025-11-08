@@ -45,11 +45,6 @@ pub fn p(thing: anytype) void {
     std.debug.print("{any}\n", .{thing});
 }
 
-pub fn fieldType(comptime T: type, comptime field_enum: std.meta.FieldEnum(T)) type {
-    @setEvalBranchQuota(3000);
-    return std.meta.fieldInfo(T, field_enum).type;
-}
-
 pub fn List(comptime K: type, comptime V: type) type {
     return struct {
         data: ArrayList(V),
@@ -370,42 +365,42 @@ pub const Compiler = struct {
             .allocator = allocator,
             .source = source,
 
-            .token_data = fieldType(Compiler, .token_data).init(allocator),
-            .token_to_source = fieldType(Compiler, .token_to_source).init(allocator),
+            .token_data = .init(allocator),
+            .token_to_source = .init(allocator),
 
             .token_next = .{ .id = 0 },
-            .sir_expr_data_pre = fieldType(Compiler, .sir_expr_data_pre).init(allocator),
-            .sir_expr_data_post = fieldType(Compiler, .sir_expr_data_post).init(allocator),
+            .sir_expr_data_pre = .init(allocator),
+            .sir_expr_data_post = .init(allocator),
 
-            .scope = fieldType(Compiler, .scope).init(allocator),
-            .namespace_data = fieldType(Compiler, .namespace_data).init(allocator),
-            .dir_fun_data = fieldType(Compiler, .dir_fun_data).init(allocator),
+            .scope = .init(allocator),
+            .namespace_data = .init(allocator),
+            .dir_fun_data = .init(allocator),
             .dir_fun_main = null,
             .sir_expr_next = .{ .id = 0 },
 
-            .dir_frame_stack = fieldType(Compiler, .dir_frame_stack).init(allocator),
-            .value_stack = fieldType(Compiler, .value_stack).init(allocator),
-            .local_stack = fieldType(Compiler, .local_stack).init(allocator),
-            .while_stack = fieldType(Compiler, .while_stack).init(allocator),
-            .memory = fieldType(Compiler, .memory).init(allocator),
-            .printed = fieldType(Compiler, .printed).init(allocator),
+            .dir_frame_stack = .init(allocator),
+            .value_stack = .init(allocator),
+            .local_stack = .init(allocator),
+            .while_stack = .init(allocator),
+            .memory = .init(allocator),
+            .printed = .init(allocator),
 
-            .tir_fun_data = fieldType(Compiler, .tir_fun_data).init(allocator),
-            .tir_fun_by_key = fieldType(Compiler, .tir_fun_by_key).init(allocator),
+            .tir_fun_data = .init(allocator),
+            .tir_fun_by_key = .init(allocator),
             .tir_fun_main = null,
             .tir_fun_data_next = null,
             .infer_mode = .infer,
 
-            .wir_fun_data = fieldType(Compiler, .wir_fun_data).init(allocator),
-            .wir_fun_by_tir = fieldType(Compiler, .wir_fun_by_tir).init(allocator),
-            .fun_type_memo = fieldType(Compiler, .fun_type_memo).init(allocator),
-            .fun_type_data = fieldType(Compiler, .fun_type_data).init(allocator),
+            .wir_fun_data = .init(allocator),
+            .wir_fun_by_tir = .init(allocator),
+            .fun_type_memo = .init(allocator),
+            .fun_type_data = .init(allocator),
             .tir_expr_next = .{ .id = 0 },
-            .local_walue = fieldType(Compiler, .local_walue).init(allocator),
+            .local_walue = .init(allocator),
             .inlining = null,
-            .constant_memo = fieldType(Compiler, .constant_memo).init(allocator),
-            .constant_data = fieldType(Compiler, .constant_data).init(allocator),
-            .wasm = fieldType(Compiler, .wasm).init(allocator),
+            .constant_memo = .init(allocator),
+            .constant_data = .init(allocator),
+            .wasm = .init(allocator),
 
             .reflection = ReprUnion{
                 .keys = allocator.dupe(Value, &[_]Value{
