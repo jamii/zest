@@ -80,7 +80,7 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
             .unstage_begin => |unstage_begin| {
                 tir_f.dir_expr_next = unstage_begin.mapping;
                 tir_f.dir_expr_next.id += 1;
-                const repr = try infer.inferExpr(c, tir_f, f);
+                const repr = try infer.inferExpr(c, tir_f, f, .other);
                 const value = repr.valueOf() orelse return fail(c, .{ .cannot_unstage_value = repr });
                 c.value_stack.append(value) catch oom();
                 frame.expr = f.expr_data_pre.get(unstage_begin.mapping).unstage_begin.mapping;
@@ -90,7 +90,7 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 frame.expr.id += 1;
                 tir_f.dir_expr_next = repr_of_begin.mapping;
                 tir_f.dir_expr_next.id += 1;
-                const repr = try infer.inferExpr(c, tir_f, f);
+                const repr = try infer.inferExpr(c, tir_f, f, .other);
                 c.value_stack.append(.{ .repr = repr }) catch oom();
                 frame.expr = f.expr_data_pre.get(repr_of_begin.mapping).repr_of_begin.mapping;
                 assert(f.expr_data_post.get(frame.expr) == .repr_of);

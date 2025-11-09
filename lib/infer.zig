@@ -47,7 +47,7 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
     c.tir_fun_data_next = f;
     defer c.tir_fun_data_next = tir_fun_data_next;
 
-    _ = try inferExpr(c, f, dir_f);
+    _ = try inferExpr(c, f, dir_f, .other);
     convertPostorderToPreorder(c, tir.Expr, tir.ExprData, f.expr_data_post, &f.expr_data_pre);
     switch (f.return_repr) {
         .zero => f.return_repr = .{ .one = Repr.emptyUnion() },
@@ -62,9 +62,48 @@ pub fn inferExpr(
     c: *Compiler,
     f: *tir.FunData,
     dir_f: dir.FunData,
+    dest: tir.Destination,
+) error{ InferError, EvalError }!Repr {
+    const repr = try inferExprInner(c, f, dir_f, dest);
+    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = f.dir_expr_next.id - 1 }), dest, repr });
+    try propagate(c, f, dest, repr);
+    return repr;
+}
+
+fn propagate(
+    c: *Compiler,
+    f: *tir.FunData,
+    dest: tir.Destination,
+    found_repr: Repr,
+) !void {
+    const lattice = switch (dest) {
+        .@"return" => &f.return_repr,
+        .local => |local| &f.local_data.getPtr(local).repr,
+        .other => return,
+    };
+    switch (lattice.*) {
+        .zero => {
+            lattice.* = .{ .one = found_repr };
+        },
+        .one => |expected_repr| {
+            if (!expected_repr.equal(found_repr)) {
+                lattice.* = .{ .many = expected_repr };
+                return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
+            }
+        },
+        .many => |expected_repr| {
+            return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
+        },
+    }
+}
+
+fn inferExprInner(
+    c: *Compiler,
+    f: *tir.FunData,
+    dir_f: dir.FunData,
+    dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
     const expr_data = take(f, dir_f);
-    //zest.p(.{ .infer = expr_data });
     switch (expr_data) {
         .i64 => |i| {
             emit(c, f, .{ .i64 = i });
@@ -78,15 +117,15 @@ pub fn inferExpr(
             const keys = c.allocator.alloc(Value, struct_init.count) catch oom();
             const reprs = c.allocator.alloc(Repr, struct_init.count) catch oom();
             for (keys, reprs) |*key, *repr| {
-                key.* = try unstage(c, try inferExpr(c, f, dir_f));
-                repr.* = try inferExpr(c, f, dir_f);
+                key.* = try unstage(c, try inferExpr(c, f, dir_f, .other));
+                repr.* = try inferExpr(c, f, dir_f, .other);
             }
             const result = Repr{ .@"struct" = .{ .keys = keys, .reprs = reprs } };
             emit(c, f, .{ .struct_init = result.@"struct" });
             return result;
         },
         .fun_init => |fun_init| {
-            const closure = try inferExpr(c, f, dir_f);
+            const closure = try inferExpr(c, f, dir_f, .other);
             return .{ .fun = .{
                 .fun = fun_init.fun,
                 .closure = closure.@"struct",
@@ -107,19 +146,18 @@ pub fn inferExpr(
             return f.local_data.get(local).repr.one;
         },
         .local_let => |dir_local| {
-            const value = try inferExpr(c, f, dir_f);
             const local = tir.Local{ .id = dir_local.id };
+            _ = try inferExpr(c, f, dir_f, .{ .local = local });
             emit(c, f, .{ .local_let = local });
-            _ = try reprUnion(c, &f.local_data.getPtr(local).repr, value);
             return Repr.emptyStruct();
         },
         .ref_init => {
-            const value = try inferExpr(c, f, dir_f);
+            const value = try inferExpr(c, f, dir_f, .other);
             emit(c, f, .{ .ref_init = value });
             return .{ .ref = c.box(value) };
         },
         .assert_object => |assert_object| {
-            const value = try inferExpr(c, f, dir_f);
+            const value = try inferExpr(c, f, dir_f, dest);
             switch (value) {
                 .@"struct" => |@"struct"| {
                     if (@"struct".keys.len != assert_object.count)
@@ -134,33 +172,33 @@ pub fn inferExpr(
             return value;
         },
         .assert_is_ref => {
-            const value = try inferExpr(c, f, dir_f);
+            const value = try inferExpr(c, f, dir_f, dest);
             if (value != .ref)
                 return fail(c, .{ .expected_is_ref = value });
             return value;
         },
         .assert_has_no_ref => {
-            const value = try inferExpr(c, f, dir_f);
+            const value = try inferExpr(c, f, dir_f, dest);
             if (value.hasRef(.any))
                 return fail(c, .{ .expected_has_no_ref = value });
             return value;
         },
         .assert_has_no_ref_visible => {
-            const value = try inferExpr(c, f, dir_f);
+            const value = try inferExpr(c, f, dir_f, dest);
             if (value.hasRef(.visible))
                 return fail(c, .{ .expected_has_no_ref = value });
             return value;
         },
         .object_get => {
-            const object = try inferExpr(c, f, dir_f);
-            const key = try unstage(c, try inferExpr(c, f, dir_f));
+            const object = try inferExpr(c, f, dir_f, .other);
+            const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
             const get = try objectGet(c, object, key);
             emit(c, f, .{ .object_get = .{ .index = get.index } });
             return get.repr;
         },
         .namespace_get => {
-            const namespace = try inferExpr(c, f, dir_f);
-            const key = try unstage(c, try inferExpr(c, f, dir_f));
+            const namespace = try inferExpr(c, f, dir_f, .other);
+            const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
             if (namespace != .namespace)
                 return fail(c, .{ .not_a_namespace = namespace });
             if (namespace.namespace.namespace.id >= c.namespace_data.count())
@@ -198,8 +236,8 @@ pub fn inferExpr(
             return value.reprOf();
         },
         .ref_get => {
-            const ref = try inferExpr(c, f, dir_f);
-            const key = try unstage(c, try inferExpr(c, f, dir_f));
+            const ref = try inferExpr(c, f, dir_f, .other);
+            const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
             const get = try objectGet(c, ref.ref.*, key);
             emit(c, f, .{ .ref_get = switch (ref.ref.*) {
                 .@"struct" => .{ .struct_offset = get.offset },
@@ -209,8 +247,8 @@ pub fn inferExpr(
             return .{ .ref = c.box(get.repr) };
         },
         .ref_set => {
-            const ref = try inferExpr(c, f, dir_f);
-            const value = try inferExpr(c, f, dir_f);
+            const ref = try inferExpr(c, f, dir_f, .other);
+            const value = try inferExpr(c, f, dir_f, .other);
             if (!ref.ref.equal(value))
                 return fail(c, .{ .type_error = .{
                     .expected = ref.ref.*,
@@ -220,27 +258,27 @@ pub fn inferExpr(
             return Repr.emptyStruct();
         },
         .ref_deref => {
-            const ref = try inferExpr(c, f, dir_f);
+            const ref = try inferExpr(c, f, dir_f, .other);
             const repr = ref.ref.*;
             emit(c, f, .{ .ref_deref = repr });
             return repr;
         },
         .call => |call| {
-            const fun = try inferExpr(c, f, dir_f);
+            const fun = try inferExpr(c, f, dir_f, .other);
             if (fun != .fun)
                 return fail(c, .{ .not_a_fun = fun });
             const args = c.allocator.alloc(Repr, call.arg_count) catch oom();
             for (args) |*arg| {
-                arg.* = try inferExpr(c, f, dir_f);
+                arg.* = try inferExpr(c, f, dir_f, .other);
             }
             const key = tir.FunKey{
                 .fun = fun.fun.fun,
                 .closure_repr = .{ .@"struct" = fun.fun.closure },
                 .arg_reprs = args,
             };
-            // TODO Once we have type asserts on return, we'll want to trust that and queue fun for later to avoid stack overflows.
             const tir_fun = try inferFun(c, key);
             emit(c, f, .{ .call = tir_fun });
+
             switch (c.tir_fun_data.get(tir_fun).return_repr) {
                 .zero => return fail(c, .{ .recursive_inference = .{ .key = f.key } }),
                 .one => |repr| return repr,
@@ -250,8 +288,8 @@ pub fn inferExpr(
         .call_builtin => |builtin| {
             switch (builtin) {
                 .equal => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .equal_i64 });
                         return .i64;
@@ -263,8 +301,8 @@ pub fn inferExpr(
                     }
                 },
                 .@"not-equal" => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .not_equal_i64 });
                         return .i64;
@@ -276,8 +314,8 @@ pub fn inferExpr(
                     }
                 },
                 .@"less-than" => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .less_than_i64 });
                         return .i64;
@@ -289,8 +327,8 @@ pub fn inferExpr(
                     }
                 },
                 .@"less-than-or-equal" => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .less_than_or_equal_i64 });
                         return .i64;
@@ -302,8 +340,8 @@ pub fn inferExpr(
                     }
                 },
                 .@"more-than" => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .more_than_i64 });
                         return .i64;
@@ -315,8 +353,8 @@ pub fn inferExpr(
                     }
                 },
                 .@"more-than-or-equal" => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .more_than_or_equal_i64 });
                         return .i64;
@@ -328,7 +366,7 @@ pub fn inferExpr(
                     }
                 },
                 .negate => {
-                    const arg = try inferExpr(c, f, dir_f);
+                    const arg = try inferExpr(c, f, dir_f, .other);
                     if (arg == .i64) {
                         emit(c, f, .{ .call_builtin = .negate_i64 });
                         return .i64;
@@ -337,8 +375,8 @@ pub fn inferExpr(
                     }
                 },
                 .add => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .add_i64 });
                         return .i64;
@@ -350,8 +388,8 @@ pub fn inferExpr(
                     }
                 },
                 .subtract => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .subtract_i64 });
                         return .i64;
@@ -363,8 +401,8 @@ pub fn inferExpr(
                     }
                 },
                 .multiply => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .multiply_i64 });
                         return .i64;
@@ -376,8 +414,8 @@ pub fn inferExpr(
                     }
                 },
                 .remainder => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .remainder_i64 });
                         return .i64;
@@ -389,8 +427,8 @@ pub fn inferExpr(
                     }
                 },
                 .@"bit-shift-left" => {
-                    const arg0 = try inferExpr(c, f, dir_f);
-                    const arg1 = try inferExpr(c, f, dir_f);
+                    const arg0 = try inferExpr(c, f, dir_f, .other);
+                    const arg1 = try inferExpr(c, f, dir_f, .other);
                     if (arg0 == .u32 and arg1 == .u32) {
                         emit(c, f, .{ .call_builtin = .bit_shift_left_u32 });
                         return .u32;
@@ -399,7 +437,7 @@ pub fn inferExpr(
                     }
                 },
                 .clz => {
-                    const arg = try inferExpr(c, f, dir_f);
+                    const arg = try inferExpr(c, f, dir_f, .other);
                     if (arg == .u32) {
                         emit(c, f, .{ .call_builtin = .clz_u32 });
                         return .u32;
@@ -412,25 +450,25 @@ pub fn inferExpr(
                     return .u32;
                 },
                 .@"memory-grow" => {
-                    const grow_page_count = try inferExpr(c, f, dir_f);
+                    const grow_page_count = try inferExpr(c, f, dir_f, .other);
                     if (grow_page_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{grow_page_count}) } });
                     emit(c, f, .{ .call_builtin = .memory_grow });
                     return .u32;
                 },
                 .@"memory-fill" => {
-                    const to_ptr = try inferExpr(c, f, dir_f);
-                    const value = try inferExpr(c, f, dir_f);
-                    const byte_count = try inferExpr(c, f, dir_f);
+                    const to_ptr = try inferExpr(c, f, dir_f, .other);
+                    const value = try inferExpr(c, f, dir_f, .other);
+                    const byte_count = try inferExpr(c, f, dir_f, .other);
                     if (to_ptr != .u32 or value != .u32 or byte_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ to_ptr, value, byte_count }) } });
                     emit(c, f, .{ .call_builtin = .memory_fill });
                     return Repr.emptyStruct();
                 },
                 .@"memory-copy" => {
-                    const to_ptr = try inferExpr(c, f, dir_f);
-                    const from_ptr = try inferExpr(c, f, dir_f);
-                    const byte_count = try inferExpr(c, f, dir_f);
+                    const to_ptr = try inferExpr(c, f, dir_f, .other);
+                    const from_ptr = try inferExpr(c, f, dir_f, .other);
+                    const byte_count = try inferExpr(c, f, dir_f, .other);
                     if (to_ptr != .u32 or from_ptr != .u32 or byte_count != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ to_ptr, from_ptr, byte_count }) } });
                     emit(c, f, .{ .call_builtin = .memory_copy });
@@ -441,30 +479,30 @@ pub fn inferExpr(
                     return .u32;
                 },
                 .load => {
-                    const address = try inferExpr(c, f, dir_f);
-                    const repr = try unstage(c, try inferExpr(c, f, dir_f));
+                    const address = try inferExpr(c, f, dir_f, .other);
+                    const repr = try unstage(c, try inferExpr(c, f, dir_f, .other));
                     if (address != .u32 or repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, repr.reprOf() }) } });
                     emit(c, f, .{ .call_builtin = .{ .load = repr.repr } });
                     return repr.repr;
                 },
                 .store => {
-                    const address = try inferExpr(c, f, dir_f);
-                    const value = try inferExpr(c, f, dir_f);
+                    const address = try inferExpr(c, f, dir_f, .other);
+                    const value = try inferExpr(c, f, dir_f, .other);
                     if (address != .u32)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ address, value }) } });
                     emit(c, f, .{ .call_builtin = .store });
                     return Repr.emptyStruct();
                 },
                 .@"size-of" => {
-                    const repr = try unstage(c, try inferExpr(c, f, dir_f));
+                    const repr = try unstage(c, try inferExpr(c, f, dir_f, .other));
                     if (repr != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{repr.reprOf()}) } });
                     emit(c, f, .{ .call_builtin = .{ .size_of = @intCast(repr.repr.sizeOf()) } });
                     return .u32;
                 },
                 .print => {
-                    const repr = try inferExpr(c, f, dir_f);
+                    const repr = try inferExpr(c, f, dir_f, .other);
                     switch (repr) {
                         .u32 => emit(c, f, .{ .call_builtin = .print_u32 }),
                         .i64 => emit(c, f, .{ .call_builtin = .print_i64 }),
@@ -478,8 +516,8 @@ pub fn inferExpr(
                     return Repr.emptyUnion();
                 },
                 .@"union-has-key" => {
-                    const object = try inferExpr(c, f, dir_f);
-                    const key = try unstage(c, try inferExpr(c, f, dir_f));
+                    const object = try inferExpr(c, f, dir_f, .other);
+                    const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
                     if (object != .@"union")
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ object, key.reprOf() }) } });
                     const index = object.@"union".get(key) orelse
@@ -488,8 +526,8 @@ pub fn inferExpr(
                     return .i64;
                 },
                 .each => {
-                    const value = try inferExpr(c, f, dir_f);
-                    const fun = try inferExpr(c, f, dir_f);
+                    const value = try inferExpr(c, f, dir_f, .other);
+                    const fun = try inferExpr(c, f, dir_f, .other);
                     if (fun != .fun)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } });
                     const keys, const reprs = switch (value) {
@@ -518,7 +556,7 @@ pub fn inferExpr(
                     return Repr.emptyStruct();
                 },
                 .@"from-only" => {
-                    const arg = try inferExpr(c, f, dir_f);
+                    const arg = try inferExpr(c, f, dir_f, .other);
                     if (arg != .only)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } });
                     emit(c, f, .{ .call_builtin = .from_only });
@@ -528,10 +566,13 @@ pub fn inferExpr(
             }
         },
         .make => {
-            const head = try unstage(c, try inferExpr(c, f, dir_f));
-            const args = try inferExpr(c, f, dir_f);
+            const head = try unstage(c, try inferExpr(c, f, dir_f, .other));
+            const args = try inferExpr(c, f, dir_f, .other);
             switch (head) {
                 .repr => |to_repr| {
+                    // Can propagate before even looking at args - important for constraining return type of recursive functions.
+                    try propagate(c, f, dest, to_repr);
+
                     if (to_repr == .only) {
                         if (args.@"struct".keys.len != 0)
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
@@ -577,20 +618,20 @@ pub fn inferExpr(
         },
         .block => |block| {
             var result = Repr.emptyStruct();
-            for (0..block.count) |_| {
-                result = try inferExpr(c, f, dir_f);
+            for (0..block.count) |i| {
+                result = try inferExpr(c, f, dir_f, if (i == block.count - 1) dest else .other);
             }
             emit(c, f, .{ .block = .{ .count = block.count } });
             return result;
         },
         .@"if" => {
-            const cond_repr = try inferExpr(c, f, dir_f);
+            const cond_repr = try inferExpr(c, f, dir_f, .other);
             const cond = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
             _ = take(f, dir_f).if_then;
-            const then = try inferExpr(c, f, dir_f);
+            const then = try inferExpr(c, f, dir_f, dest);
             _ = take(f, dir_f).if_else;
-            const @"else" = try inferExpr(c, f, dir_f);
+            const @"else" = try inferExpr(c, f, dir_f, dest);
             const repr = switch (cond) {
                 .true => then,
                 .false => @"else",
@@ -605,17 +646,16 @@ pub fn inferExpr(
         },
         .@"while" => {
             _ = take(f, dir_f).while_begin;
-            const cond_repr = try inferExpr(c, f, dir_f);
+            const cond_repr = try inferExpr(c, f, dir_f, .other);
             _ = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
             _ = take(f, dir_f).while_body;
-            _ = try inferExpr(c, f, dir_f);
+            _ = try inferExpr(c, f, dir_f, .other);
             emit(c, f, .@"while");
             return Repr.emptyStruct();
         },
         .@"return" => {
-            const value = try inferExpr(c, f, dir_f);
-            _ = try reprUnion(c, &f.return_repr, value);
+            _ = try inferExpr(c, f, dir_f, .@"return");
             emit(c, f, .@"return");
             return Repr.emptyStruct();
         },
@@ -630,7 +670,7 @@ pub fn inferExpr(
         },
         .unstage => {
             _ = take(f, dir_f).unstage_begin;
-            const result = try inferExpr(c, f, dir_f);
+            const result = try inferExpr(c, f, dir_f, dest);
             return result;
         },
         .repr_of => {
@@ -647,26 +687,6 @@ fn unstage(c: *Compiler, repr: Repr) !Value {
     const value = repr.valueOf() orelse
         return fail(c, .{ .value_not_staged = repr });
     return value.only.*;
-}
-
-fn reprUnion(c: *Compiler, lattice: *FlatLattice(Repr), found_repr: Repr) !Repr {
-    switch (lattice.*) {
-        .zero => {
-            lattice.* = .{ .one = found_repr };
-            return found_repr;
-        },
-        .one => |expected_repr| {
-            if (expected_repr.equal(found_repr)) {
-                return found_repr;
-            } else {
-                lattice.* = .{ .many = expected_repr };
-                return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
-            }
-        },
-        .many => |expected_repr| {
-            return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
-        },
-    }
 }
 
 fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {

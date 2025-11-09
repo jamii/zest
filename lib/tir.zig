@@ -163,3 +163,9 @@ pub const FunData = struct {
         };
     }
 };
+
+pub const Destination = union(enum) {
+    local: Local,
+    @"return",
+    other,
+};
