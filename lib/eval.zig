@@ -52,8 +52,8 @@ fn popFun(c: *Compiler) dir.Frame {
 
 pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ EvalError, InferError }!Value {
     pushFun(c, .{
-        .fun = tir_f.key.fun,
-        .expr = f.expr_data_pre.get(tir_f.dir_expr_next).stage.mapping,
+        .fun = c.infer_context.key.fun,
+        .expr = f.expr_data_pre.get(c.infer_context.dir_expr_next).stage.mapping,
         .args = &.{},
         .closure = Value.emptyStruct(),
     });
@@ -70,7 +70,7 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 const value = c.value_stack.pop().?;
                 stages_nested -= 1;
                 if (stages_nested == 0) {
-                    tir_f.dir_expr_next = stage.mapping;
+                    c.infer_context.dir_expr_next = stage.mapping;
                     _ = popFun(c);
                     return value;
                 } else {
@@ -78,8 +78,8 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 }
             },
             .unstage_begin => |unstage_begin| {
-                tir_f.dir_expr_next = unstage_begin.mapping;
-                tir_f.dir_expr_next.id += 1;
+                c.infer_context.dir_expr_next = unstage_begin.mapping;
+                c.infer_context.dir_expr_next.id += 1;
                 const repr = try infer.inferExpr(c, tir_f, f, .other);
                 const value = repr.valueOf() orelse return fail(c, .{ .cannot_unstage_value = repr });
                 c.value_stack.append(value) catch oom();
@@ -88,8 +88,8 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
             .unstage => {},
             .repr_of_begin => |repr_of_begin| {
                 frame.expr.id += 1;
-                tir_f.dir_expr_next = repr_of_begin.mapping;
-                tir_f.dir_expr_next.id += 1;
+                c.infer_context.dir_expr_next = repr_of_begin.mapping;
+                c.infer_context.dir_expr_next.id += 1;
                 const repr = try infer.inferExpr(c, tir_f, f, .other);
                 c.value_stack.append(.{ .repr = repr }) catch oom();
                 frame.expr = f.expr_data_pre.get(repr_of_begin.mapping).repr_of_begin.mapping;

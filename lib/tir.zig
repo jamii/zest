@@ -150,7 +150,6 @@ pub const FunData = struct {
     expr_data_post: List(Expr, ExprData),
     expr_data_pre: List(Expr, ExprData),
     return_repr: FlatLattice(Repr),
-    dir_expr_next: dir.Expr,
 
     pub fn init(allocator: Allocator, key: FunKey) FunData {
         return .{
@@ -159,7 +158,6 @@ pub const FunData = struct {
             .expr_data_post = .init(allocator),
             .expr_data_pre = .init(allocator),
             .return_repr = .zero,
-            .dir_expr_next = .{ .id = 0 },
         };
     }
 };

@@ -43,9 +43,16 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
         });
     }
 
-    const tir_fun_data_next = c.tir_fun_data_next;
-    c.tir_fun_data_next = f;
-    defer c.tir_fun_data_next = tir_fun_data_next;
+    const infer_context = c.infer_context;
+    defer c.infer_context = infer_context;
+    c.infer_context = .{
+        .dir_expr_next = .{ .id = 0 },
+        .key = key,
+        .closure = .closure,
+        .arg = .arg,
+        .local_offset = 0,
+        .@"return" = .@"return",
+    };
 
     _ = try inferExpr(c, f, dir_f, .other);
     convertPostorderToPreorder(c, tir.Expr, tir.ExprData, f.expr_data_post, &f.expr_data_pre);
@@ -58,6 +65,39 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
     return fun;
 }
 
+fn inferFunInline(c: *Compiler, f: *tir.FunData, key: tir.FunKey, closure_local: tir.Local, arg_locals: []const tir.Local) !Repr {
+    assert(key.arg_reprs.len == arg_locals.len);
+
+    const local_offset = f.local_data.count();
+
+    const dir_f = c.dir_fun_data.get(key.fun);
+    for (dir_f.local_data.items()) |dir_local_data| {
+        _ = f.local_data.append(.{
+            .repr = .zero,
+            .is_tmp = dir_local_data.is_tmp,
+        });
+    }
+
+    const infer_context = c.infer_context;
+    defer c.infer_context = infer_context;
+    c.infer_context = .{
+        .dir_expr_next = .{ .id = 0 },
+        .key = key,
+        .closure = .{ .local = closure_local },
+        .arg = .{ .locals = arg_locals },
+        .local_offset = local_offset,
+        .@"return" = .{ .@"break" = .zero },
+    };
+
+    _ = try inferExpr(c, f, dir_f, .other);
+
+    switch (c.infer_context.@"return".@"break") {
+        .zero => return Repr.emptyUnion(),
+        .one => |repr| return repr,
+        .many => panic("Unreachable - should have errored earlier", .{}),
+    }
+}
+
 pub fn inferExpr(
     c: *Compiler,
     f: *tir.FunData,
@@ -65,7 +105,7 @@ pub fn inferExpr(
     dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
     const repr = try inferExprInner(c, f, dir_f, dest);
-    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = f.dir_expr_next.id - 1 }), dest, repr });
+    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
     try propagate(c, f, dest, repr);
     return repr;
 }
@@ -77,7 +117,10 @@ fn propagate(
     found_repr: Repr,
 ) !void {
     const lattice = switch (dest) {
-        .@"return" => &f.return_repr,
+        .@"return" => switch (c.infer_context.@"return") {
+            .@"return" => &f.return_repr,
+            .@"break" => |*return_repr| return_repr,
+        },
         .local => |local| &f.local_data.getPtr(local).repr,
         .other => return,
     };
@@ -103,7 +146,7 @@ fn inferExprInner(
     dir_f: dir.FunData,
     dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
-    const expr_data = take(f, dir_f);
+    const expr_data = take(c, dir_f);
     switch (expr_data) {
         .i64 => |i| {
             emit(c, f, .{ .i64 = i });
@@ -132,21 +175,27 @@ fn inferExprInner(
             } };
         },
         .arg => |arg| {
-            emit(c, f, .{ .arg = .{ .id = arg.id } });
-            return f.key.arg_reprs[arg.id];
+            emit(c, f, switch (c.infer_context.arg) {
+                .arg => .{ .arg = .{ .id = arg.id } },
+                .locals => |locals| .{ .local_get = locals[arg.id] },
+            });
+            return c.infer_context.key.arg_reprs[arg.id];
         },
         .closure => {
-            emit(c, f, .closure);
-            return f.key.closure_repr;
+            emit(c, f, switch (c.infer_context.closure) {
+                .closure => .closure,
+                .local => |local| .{ .local_get = local },
+            });
+            return c.infer_context.key.closure_repr;
         },
         .local_get => |dir_local| {
-            const local = tir.Local{ .id = dir_local.id };
+            const local = tir.Local{ .id = dir_local.id + c.infer_context.local_offset };
             emit(c, f, .{ .local_get = local });
             // Shouldn't be able to reach get before let.
             return f.local_data.get(local).repr.one;
         },
         .local_let => |dir_local| {
-            const local = tir.Local{ .id = dir_local.id };
+            const local = tir.Local{ .id = dir_local.id + c.infer_context.local_offset };
             _ = try inferExpr(c, f, dir_f, .{ .local = local });
             emit(c, f, .{ .local_let = local });
             return Repr.emptyStruct();
@@ -267,22 +316,46 @@ fn inferExprInner(
             const fun = try inferExpr(c, f, dir_f, .other);
             if (fun != .fun)
                 return fail(c, .{ .not_a_fun = fun });
-            const args = c.allocator.alloc(Repr, call.arg_count) catch oom();
-            for (args) |*arg| {
-                arg.* = try inferExpr(c, f, dir_f, .other);
+
+            const must_inline = c.dir_fun_data.get(fun.fun.fun).@"inline";
+            var closure_local: ?tir.Local = null;
+            if (must_inline) {
+                closure_local = f.local_data.append(.{ .repr = .{ .one = .{ .@"struct" = fun.fun.closure } }, .is_tmp = true });
+                emit(c, f, .{ .local_let = closure_local.? });
             }
+
+            var arg_locals: ?[]tir.Local = null;
+            if (must_inline)
+                arg_locals = c.allocator.alloc(tir.Local, call.arg_count) catch oom();
+
+            const args = c.allocator.alloc(Repr, call.arg_count) catch oom();
+            for (args, 0..) |*arg, i| {
+                arg.* = try inferExpr(c, f, dir_f, .other);
+                if (must_inline) {
+                    const arg_local = f.local_data.append(.{ .repr = .{ .one = arg.* }, .is_tmp = true });
+                    arg_locals.?[i] = arg_local;
+                    emit(c, f, .{ .local_let = arg_local });
+                }
+            }
+
             const key = tir.FunKey{
                 .fun = fun.fun.fun,
                 .closure_repr = .{ .@"struct" = fun.fun.closure },
                 .arg_reprs = args,
             };
-            const tir_fun = try inferFun(c, key);
-            emit(c, f, .{ .call = tir_fun });
 
-            switch (c.tir_fun_data.get(tir_fun).return_repr) {
-                .zero => return fail(c, .{ .recursive_inference = .{ .key = f.key } }),
-                .one => |repr| return repr,
-                .many => panic("Should already have returned an error for this", .{}),
+            if (must_inline) {
+                const repr = try inferFunInline(c, f, key, closure_local.?, arg_locals.?);
+                emit(c, f, .{ .block = .{ .count = 1 + call.arg_count + 1 } });
+                return repr;
+            } else {
+                const tir_fun = try inferFun(c, key);
+                emit(c, f, .{ .call = tir_fun });
+                switch (c.tir_fun_data.get(tir_fun).return_repr) {
+                    .zero => return fail(c, .{ .recursive_inference = .{ .key = c.infer_context.key } }),
+                    .one => |repr| return repr,
+                    .many => panic("Should already have returned an error for this", .{}),
+                }
             }
         },
         .call_builtin => |builtin| {
@@ -628,10 +701,10 @@ fn inferExprInner(
             const cond_repr = try inferExpr(c, f, dir_f, .other);
             const cond = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
-            _ = take(f, dir_f).if_then;
-            const then = try inferExpr(c, f, dir_f, dest);
-            _ = take(f, dir_f).if_else;
-            const @"else" = try inferExpr(c, f, dir_f, dest);
+            _ = take(c, dir_f).if_then;
+            const then = try inferExpr(c, f, dir_f, if (cond == .false) .other else dest);
+            _ = take(c, dir_f).if_else;
+            const @"else" = try inferExpr(c, f, dir_f, if (cond == .true) .other else dest);
             const repr = switch (cond) {
                 .true => then,
                 .false => @"else",
@@ -645,18 +718,22 @@ fn inferExprInner(
             return repr;
         },
         .@"while" => {
-            _ = take(f, dir_f).while_begin;
+            _ = take(c, dir_f).while_begin;
             const cond_repr = try inferExpr(c, f, dir_f, .other);
             _ = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
-            _ = take(f, dir_f).while_body;
+            _ = take(c, dir_f).while_body;
             _ = try inferExpr(c, f, dir_f, .other);
             emit(c, f, .@"while");
             return Repr.emptyStruct();
         },
         .@"return" => {
             _ = try inferExpr(c, f, dir_f, .@"return");
-            emit(c, f, .@"return");
+            switch (c.infer_context.@"return") {
+                .@"return" => emit(c, f, .@"return"),
+                // TODO Might need to break to specific label rather than just yield.
+                .@"break" => {},
+            }
             return Repr.emptyStruct();
         },
         .stage => {
@@ -664,12 +741,12 @@ fn inferExprInner(
             c.infer_mode = .unstage;
             defer c.infer_mode = infer_mode;
 
-            f.dir_expr_next.id -= 1; // untake .stage
+            c.infer_context.dir_expr_next.id -= 1; // untake .stage
             const value = try eval.evalStaged(c, dir_f, f);
             return .{ .only = c.box(value) };
         },
         .unstage => {
-            _ = take(f, dir_f).unstage_begin;
+            _ = take(c, dir_f).unstage_begin;
             const result = try inferExpr(c, f, dir_f, dest);
             return result;
         },
@@ -714,9 +791,9 @@ fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { 
     }
 }
 
-fn take(f: *tir.FunData, dir_f: dir.FunData) dir.ExprData {
-    const expr_data = dir_f.expr_data_pre.get(f.dir_expr_next);
-    f.dir_expr_next.id += 1;
+fn take(c: *Compiler, dir_f: dir.FunData) dir.ExprData {
+    const expr_data = dir_f.expr_data_pre.get(c.infer_context.dir_expr_next);
+    c.infer_context.dir_expr_next.id += 1;
     return expr_data;
 }
 
@@ -730,8 +807,8 @@ fn emit(c: *Compiler, f: *tir.FunData, expr_data: ?tir.ExprData) void {
 
 fn fail(c: *Compiler, data: InferErrorData) error{InferError} {
     c.error_data = .{ .infer = .{
-        .key = c.tir_fun_data_next.?.key,
-        .expr = .{ .id = c.tir_fun_data_next.?.dir_expr_next.id - 1 },
+        .key = c.infer_context.key,
+        .expr = .{ .id = c.infer_context.dir_expr_next.id - 1 },
         .data = data,
     } };
     return error.InferError;

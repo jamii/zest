@@ -337,6 +337,24 @@ pub const Compiler = struct {
     tir_fun_main: ?tir.Fun,
     tir_fun_data_next: ?*tir.FunData,
     infer_mode: enum { infer, unstage },
+    infer_context: struct {
+        dir_expr_next: dir.Expr,
+        key: tir.FunKey,
+        closure: union(enum) {
+            closure,
+            local: tir.Local,
+        },
+        arg: union(enum) {
+            arg,
+            locals: []const tir.Local,
+        },
+        local_offset: usize,
+        @"return": union(enum) {
+            @"return",
+            // TODO This will need a label once we have an actual return statement.
+            @"break": FlatLattice(Repr),
+        },
+    },
 
     // generate
     wir_fun_data: List(wir.Fun, wir.FunData),
@@ -390,6 +408,14 @@ pub const Compiler = struct {
             .tir_fun_main = null,
             .tir_fun_data_next = null,
             .infer_mode = .infer,
+            .infer_context = .{
+                .dir_expr_next = .{ .id = 0 },
+                .key = undefined,
+                .closure = .closure,
+                .arg = .arg,
+                .local_offset = 0,
+                .@"return" = .@"return",
+            },
 
             .wir_fun_data = .init(allocator),
             .wir_fun_by_tir = .init(allocator),
@@ -501,7 +527,7 @@ pub const Compiler = struct {
                     for (0..f.key.arg_reprs.len) |arg_id| {
                         try writer.print(", a{}", .{arg_id});
                     }
-                    try writer.print(")\n", .{});
+                    try writer.print(") /{}\n", .{f.return_repr.one});
                     var expr = tir.Expr{ .id = 0 };
                     var indent: usize = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {

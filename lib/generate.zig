@@ -54,31 +54,28 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
 
     for (0.., c.tir_fun_data.items()) |tir_fun_id, tir_f| {
         const tir_fun = tir.Fun{ .id = tir_fun_id };
-        const dir_f = c.dir_fun_data.get(tir_f.key.fun);
-        if (!dir_f.@"inline") {
 
-            // Get fun_type.
-            var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
-            var return_types = ArrayList(wasm.Valtype).init(c.allocator);
-            if (!tir_f.key.closure_repr.isEmptyStruct()) {
-                arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
-            }
-            for (tir_f.key.arg_reprs) |arg_repr| {
-                arg_types.append(wasmAbi(arg_repr)) catch oom();
-            }
-            switch (wasmRepr(tir_f.return_repr.one)) {
-                .primitive => |valtype| return_types.append(valtype) catch oom(),
-                .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
-            }
-            const fun_type = memoFunType(c, .{
-                .arg_types = arg_types.toOwnedSlice() catch oom(),
-                .return_types = return_types.toOwnedSlice() catch oom(),
-            });
-
-            // Make wir fun.
-            const wir_fun = c.wir_fun_data.append(wir.FunData.init(c.allocator, tir_fun, fun_type));
-            c.wir_fun_by_tir.put(tir_fun, wir_fun) catch oom();
+        // Get fun_type.
+        var arg_types = ArrayList(wasm.Valtype).init(c.allocator);
+        var return_types = ArrayList(wasm.Valtype).init(c.allocator);
+        if (!tir_f.key.closure_repr.isEmptyStruct()) {
+            arg_types.append(wasmAbi(tir_f.key.closure_repr)) catch oom();
         }
+        for (tir_f.key.arg_reprs) |arg_repr| {
+            arg_types.append(wasmAbi(arg_repr)) catch oom();
+        }
+        switch (wasmRepr(tir_f.return_repr.one)) {
+            .primitive => |valtype| return_types.append(valtype) catch oom(),
+            .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
+        }
+        const fun_type = memoFunType(c, .{
+            .arg_types = arg_types.toOwnedSlice() catch oom(),
+            .return_types = return_types.toOwnedSlice() catch oom(),
+        });
+
+        // Make wir fun.
+        const wir_fun = c.wir_fun_data.append(wir.FunData.init(c.allocator, tir_fun, fun_type));
+        c.wir_fun_by_tir.put(tir_fun, wir_fun) catch oom();
     }
 
     var import_types: [imports.len]wir.FunType = undefined;
