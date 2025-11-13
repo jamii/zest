@@ -1357,7 +1357,7 @@ foobar42
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/35b19c0a:1:164)
+    at <anonymous> (wasm://wasm/d11e8996:1:164)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1374,8 +1374,8 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/54fb876a:1:234)
-    at <anonymous> (wasm://wasm/54fb876a:1:277)
+    at <anonymous> (wasm://wasm/03f78e82:1:282)
+    at <anonymous> (wasm://wasm/03f78e82:1:204)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1391,7 +1391,7 @@ RuntimeError: unreachable
 Division by zero
 
 RuntimeError: remainder by zero
-    at <anonymous> (wasm://wasm/d225f87e:1:172)
+    at <anonymous> (wasm://wasm/765d238a:1:172)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1524,7 +1524,7 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/52ede526:1:167)
+    at <anonymous> (wasm://wasm/246c329e:1:167)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1542,7 +1542,7 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/2585c34a:1:202)
+    at <anonymous> (wasm://wasm/ff5ec1de:1:202)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1553,7 +1553,7 @@ a.some
 Key 'some' not found in [none: []]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/3efd2dd2:1:168)
+    at <anonymous> (wasm://wasm/5a01a222:1:168)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1573,7 +1573,7 @@ a.some
 Key 'some' not found in [none: []]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/9eee9f4a:1:196)
+    at <anonymous> (wasm://wasm/2a1e5b0a:1:196)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1591,7 +1591,7 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24378{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24386{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```
@@ -1616,7 +1616,7 @@ a.none
 Key 'some' not found in [none: 101]/union[some: i64, none: i64]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/16729f86:1:218)
+    at <anonymous> (wasm://wasm/41ef547e:1:218)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1930,4 +1930,101 @@ Expected i64, found string
 [name: 0, still-a-name: 1, ' not': 2, '0not': 2]
 
 undefined
+```
+
+```zest-test
+rec = namespace {
+  even = 4
+  odd = 7
+}
+rec
+
+namespace[0][]
+
+undefined
+```
+
+```zest-test
+rec = namespace {
+  even = 4
+  odd = 7
+}
+rec..even
+
+4
+```
+
+```zest-test
+rec = namespace {
+  even = 4
+  odd = 7
+}
+rec..odd
+
+7
+```
+
+```zest-test
+rec = namespace {
+  even = odd
+  odd = even
+}
+rec..even
+
+Recursive evaluation: namespace[0][]..'even'
+
+Recursive evaluation: namespace[0]..'even'
+```
+
+```zest-test
+rec = namespace {
+  is-even = (n) if {n == 0} 4 else is-odd(n - 1)
+  is-odd = (n) if {n == 0} 7 else is-even(n - 1)
+}
+rec..is-even(3)
+
+7
+```
+
+```zest-test
+rec = namespace {
+  is-even = (n) if {n == 0} 4 else is-odd(n - 1)
+  is-odd = (n) if {n == 0} 7 else is-even(n - 1)
+}
+rec..is-even(4)
+
+4
+```
+
+```zest-test
+rec = namespace {
+  is-even = (n) if {n != 0} is-odd(n - 1) else 4
+  is-odd = (n) if {n != 0} is-even(n - 1) else 7
+}
+[rec..is-even(3), rec..is-even(4)]
+
+[7, 4]
+
+Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 1 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
+```
+
+```zest-test
+rec = namespace {
+  is-even = (n) /i64 if {n != 0} is-odd(n - 1) else 4
+  is-odd = (n) /i64 if {n != 0} is-even(n - 1) else 7
+}
+[rec..is-even(3), rec..is-even(4)]
+
+[7, 4]
+
+undefined
+```
+
+```zest-test
+rec = namespace {
+  tri = (n) /i64 if {n == 0} 0 else tri(n - 1) + n
+}
+rec..tri(3)
+
+6
 ```

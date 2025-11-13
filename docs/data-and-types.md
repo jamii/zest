@@ -291,7 +291,7 @@ i64[42]
 ```zest-test
 i64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24736.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24794.overflow
 At 1:23:
 i64[9223372036854775808]
                        ^
@@ -322,7 +322,7 @@ TODO Represent literals as big-intb:ig-dec to avoid this problem.
 ```zest-test
 f64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24736.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24794.overflow
 At 1:23:
 f64[9223372036854775808]
                        ^
@@ -450,7 +450,7 @@ x.nums
 Key 'nums' not found in [strings: 'hello']/union[strings: string, nums: i64]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/3efd2dd2:1:168)
+    at <anonymous> (wasm://wasm/5a01a222:1:168)
     at file:///home/jamie/zest/test.js:33:39
 ```
 

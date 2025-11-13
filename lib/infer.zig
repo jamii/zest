@@ -640,11 +640,12 @@ fn inferExprInner(
         },
         .make => {
             const head = try unstage(c, try inferExpr(c, f, dir_f, .other));
-            const args = try inferExpr(c, f, dir_f, .other);
             switch (head) {
                 .repr => |to_repr| {
                     // Can propagate before even looking at args - important for constraining return type of recursive functions.
                     try propagate(c, f, dest, to_repr);
+
+                    const args = try inferExpr(c, f, dir_f, .other);
 
                     if (to_repr == .only) {
                         if (args.@"struct".keys.len != 0)
@@ -685,7 +686,11 @@ fn inferExprInner(
                     }
                     return to_repr;
                 },
-                .repr_kind => panic("TODO {}", .{head}),
+                .repr_kind => {
+                    const args = try inferExpr(c, f, dir_f, .other);
+                    _ = args;
+                    panic("TODO {}", .{head});
+                },
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
             }
         },
