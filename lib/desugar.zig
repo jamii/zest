@@ -233,7 +233,11 @@ fn desugarExpr(c: *Compiler, f: *dir.FunData) error{DesugarError}!void {
                 emit(c, f, .make);
             }
             emit(c, f, .{ .stage = .{} });
+            emit(c, f, .stage_begin);
+            emit(c, f, .{ .i64 = 0 });
+            emit(c, f, .{ .stage = .{} });
             emit(c, f, .{ .struct_init = .{ .count = 0 } });
+            emit(c, f, .{ .struct_init = .{ .count = 1 } });
             emit(c, f, .make);
         },
         .namespace_get => {
@@ -384,7 +388,11 @@ fn desugarBinding(c: *Compiler, f: *dir.FunData, binding: dir.BindingInfo) void 
                 emit(c, f, .make);
             }
             emit(c, f, .{ .stage = .{} });
+            emit(c, f, .stage_begin);
+            emit(c, f, .{ .i64 = 0 });
+            emit(c, f, .{ .stage = .{} });
             emit(c, f, .{ .struct_init = .{ .count = 0 } });
+            emit(c, f, .{ .struct_init = .{ .count = 1 } });
             emit(c, f, .make);
             emit(c, f, .stage_begin);
             emit(c, f, .{ .string = definition.name });

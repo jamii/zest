@@ -12,7 +12,6 @@ const ReprUnion = zest.ReprUnion;
 const ReprFun = zest.ReprFun;
 const ReprNamespace = zest.ReprNamespace;
 const Value = zest.Value;
-const FlatLattice = zest.FlatLattice;
 const TreePart = zest.TreePart;
 const Compiler = zest.Compiler;
 const dir = @import("./dir.zig");
@@ -22,7 +21,7 @@ pub const Arg = struct { id: usize };
 pub const Local = struct { id: usize };
 
 pub const LocalData = struct {
-    repr: FlatLattice(Repr),
+    repr: ?Repr,
     is_tmp: bool,
 };
 
@@ -149,7 +148,7 @@ pub const FunData = struct {
     local_data: List(Local, LocalData),
     expr_data_post: List(Expr, ExprData),
     expr_data_pre: List(Expr, ExprData),
-    return_repr: FlatLattice(Repr),
+    return_repr: ?Repr,
 
     pub fn init(allocator: Allocator, key: FunKey) FunData {
         return .{
@@ -157,12 +156,22 @@ pub const FunData = struct {
             .local_data = .init(allocator),
             .expr_data_post = .init(allocator),
             .expr_data_pre = .init(allocator),
-            .return_repr = .zero,
+            .return_repr = null,
         };
     }
 };
 
-pub const Destination = union(enum) {
+pub const Destination = struct {
+    repr: ?Repr,
+    location: Location,
+
+    pub const other = Destination{
+        .repr = null,
+        .location = .other,
+    };
+};
+
+pub const Location = union(enum) {
     local: Local,
     @"return",
     other,

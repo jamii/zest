@@ -12,7 +12,6 @@ const Compiler = zest.Compiler;
 const Value = zest.Value;
 const Repr = zest.Repr;
 const Builtin = zest.Builtin;
-const FlatLattice = zest.FlatLattice;
 const dir = zest.dir;
 const tir = zest.tir;
 
@@ -38,7 +37,7 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
     const dir_f = c.dir_fun_data.get(key.fun);
     for (dir_f.local_data.items()) |dir_local_data| {
         _ = f.local_data.append(.{
-            .repr = .zero,
+            .repr = null,
             .is_tmp = dir_local_data.is_tmp,
         });
     }
@@ -56,11 +55,8 @@ fn inferFun(c: *Compiler, key: tir.FunKey) !tir.Fun {
 
     _ = try inferExpr(c, f, dir_f, .other);
     convertPostorderToPreorder(c, tir.Expr, tir.ExprData, f.expr_data_post, &f.expr_data_pre);
-    switch (f.return_repr) {
-        .zero => f.return_repr = .{ .one = Repr.emptyUnion() },
-        .one => {},
-        .many => panic("Unreachable - should have errored earlier", .{}),
-    }
+    if (f.return_repr == null)
+        f.return_repr = Repr.emptyUnion();
 
     return fun;
 }
@@ -73,7 +69,7 @@ fn inferFunInline(c: *Compiler, f: *tir.FunData, key: tir.FunKey, closure_local:
     const dir_f = c.dir_fun_data.get(key.fun);
     for (dir_f.local_data.items()) |dir_local_data| {
         _ = f.local_data.append(.{
-            .repr = .zero,
+            .repr = null,
             .is_tmp = dir_local_data.is_tmp,
         });
     }
@@ -86,16 +82,12 @@ fn inferFunInline(c: *Compiler, f: *tir.FunData, key: tir.FunKey, closure_local:
         .closure = .{ .local = closure_local },
         .arg = .{ .locals = arg_locals },
         .local_offset = local_offset,
-        .@"return" = .{ .@"break" = .zero },
+        .@"return" = .{ .@"break" = null },
     };
 
     _ = try inferExpr(c, f, dir_f, .other);
 
-    switch (c.infer_context.@"return".@"break") {
-        .zero => return Repr.emptyUnion(),
-        .one => |repr| return repr,
-        .many => panic("Unreachable - should have errored earlier", .{}),
-    }
+    return c.infer_context.@"return".@"break" orelse Repr.emptyUnion();
 }
 
 pub fn inferExpr(
@@ -104,8 +96,13 @@ pub fn inferExpr(
     dir_f: dir.FunData,
     dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
-    const repr = try inferExprInner(c, f, dir_f, dest);
-    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
+    zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
+    var repr = try inferExprInner(c, f, dir_f, dest);
+    zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
+    if (dest.repr) |dest_repr| {
+        try convert(c, f, repr, dest_repr);
+        repr = dest_repr;
+    }
     try propagate(c, f, dest, repr);
     return repr;
 }
@@ -116,7 +113,7 @@ fn propagate(
     dest: tir.Destination,
     found_repr: Repr,
 ) !void {
-    const lattice = switch (dest) {
+    const repr_ptr = switch (dest.location) {
         .@"return" => switch (c.infer_context.@"return") {
             .@"return" => &f.return_repr,
             .@"break" => |*return_repr| return_repr,
@@ -124,19 +121,12 @@ fn propagate(
         .local => |local| &f.local_data.getPtr(local).repr,
         .other => return,
     };
-    switch (lattice.*) {
-        .zero => {
-            lattice.* = .{ .one = found_repr };
-        },
-        .one => |expected_repr| {
-            if (!expected_repr.equal(found_repr)) {
-                lattice.* = .{ .many = expected_repr };
-                return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
-            }
-        },
-        .many => |expected_repr| {
+    if (repr_ptr.*) |expected_repr| {
+        if (!expected_repr.equal(found_repr)) {
             return fail(c, .{ .type_error = .{ .expected = expected_repr, .found = found_repr } });
-        },
+        }
+    } else {
+        repr_ptr.* = found_repr;
     }
 }
 
@@ -161,14 +151,26 @@ fn inferExprInner(
             const reprs = c.allocator.alloc(Repr, struct_init.count) catch oom();
             for (keys, reprs) |*key, *repr| {
                 key.* = try unstage(c, try inferExpr(c, f, dir_f, .other));
-                repr.* = try inferExpr(c, f, dir_f, .other);
+                var value_repr: ?Repr = null;
+                if (dest.repr != null and dest.repr.? == .@"struct") {
+                    if (dest.repr.?.@"struct".get(key.*)) |ix| {
+                        value_repr = dest.repr.?.@"struct".reprs[ix];
+                    }
+                }
+                repr.* = try inferExpr(c, f, dir_f, .{ .repr = value_repr, .location = .other });
             }
             const result = Repr{ .@"struct" = .{ .keys = keys, .reprs = reprs } };
             emit(c, f, .{ .struct_init = result.@"struct" });
             return result;
         },
         .fun_init => |fun_init| {
-            const closure = try inferExpr(c, f, dir_f, .other);
+            var closure_repr: ?Repr = null;
+            if (dest.repr) |dest_repr| {
+                if (dest_repr == .fun) {
+                    closure_repr = .{ .@"struct" = dest_repr.fun.closure };
+                }
+            }
+            const closure = try inferExpr(c, f, dir_f, .{ .repr = closure_repr, .location = .other });
             return .{ .fun = .{
                 .fun = fun_init.fun,
                 .closure = closure.@"struct",
@@ -192,15 +194,17 @@ fn inferExprInner(
             const local = tir.Local{ .id = dir_local.id + c.infer_context.local_offset };
             emit(c, f, .{ .local_get = local });
             // Shouldn't be able to reach get before let.
-            return f.local_data.get(local).repr.one;
+            return f.local_data.get(local).repr.?;
         },
         .local_let => |dir_local| {
             const local = tir.Local{ .id = dir_local.id + c.infer_context.local_offset };
-            _ = try inferExpr(c, f, dir_f, .{ .local = local });
+            _ = try inferExpr(c, f, dir_f, .{ .repr = f.local_data.get(local).repr, .location = .{ .local = local } });
             emit(c, f, .{ .local_let = local });
             return Repr.emptyStruct();
         },
         .ref_init => {
+            // The ref type isn't user-visible, so there shouldn't be a way to type this expr.
+            assert(dest.repr == null);
             const value = try inferExpr(c, f, dir_f, .other);
             emit(c, f, .{ .ref_init = value });
             return .{ .ref = c.box(value) };
@@ -297,20 +301,14 @@ fn inferExprInner(
         },
         .ref_set => {
             const ref = try inferExpr(c, f, dir_f, .other);
-            const value = try inferExpr(c, f, dir_f, .other);
-            if (!ref.ref.equal(value))
-                return fail(c, .{ .type_error = .{
-                    .expected = ref.ref.*,
-                    .found = value,
-                } });
+            _ = try inferExpr(c, f, dir_f, .{ .repr = ref.ref.*, .location = .other });
             emit(c, f, .ref_set);
             return Repr.emptyStruct();
         },
         .ref_deref => {
             const ref = try inferExpr(c, f, dir_f, .other);
-            const repr = ref.ref.*;
-            emit(c, f, .{ .ref_deref = repr });
-            return repr;
+            emit(c, f, .{ .ref_deref = ref.ref.* });
+            return ref.ref.*;
         },
         .call => |call| {
             const fun = try inferExpr(c, f, dir_f, .other);
@@ -320,7 +318,7 @@ fn inferExprInner(
             const must_inline = c.dir_fun_data.get(fun.fun.fun).@"inline";
             var closure_local: ?tir.Local = null;
             if (must_inline) {
-                closure_local = f.local_data.append(.{ .repr = .{ .one = .{ .@"struct" = fun.fun.closure } }, .is_tmp = true });
+                closure_local = f.local_data.append(.{ .repr = .{ .@"struct" = fun.fun.closure }, .is_tmp = true });
                 emit(c, f, .{ .local_let = closure_local.? });
             }
 
@@ -330,9 +328,10 @@ fn inferExprInner(
 
             const args = c.allocator.alloc(Repr, call.arg_count) catch oom();
             for (args, 0..) |*arg, i| {
+                // TODO Eventually we should interleave this with the type annotations on the params, but it requires storing them separately rather than folded into the wrapper function.
                 arg.* = try inferExpr(c, f, dir_f, .other);
                 if (must_inline) {
-                    const arg_local = f.local_data.append(.{ .repr = .{ .one = arg.* }, .is_tmp = true });
+                    const arg_local = f.local_data.append(.{ .repr = arg.*, .is_tmp = true });
                     arg_locals.?[i] = arg_local;
                     emit(c, f, .{ .local_let = arg_local });
                 }
@@ -351,14 +350,12 @@ fn inferExprInner(
             } else {
                 const tir_fun = try inferFun(c, key);
                 emit(c, f, .{ .call = tir_fun });
-                switch (c.tir_fun_data.get(tir_fun).return_repr) {
-                    .zero => return fail(c, .{ .recursive_inference = .{ .key = c.infer_context.key } }),
-                    .one => |repr| return repr,
-                    .many => panic("Should already have returned an error for this", .{}),
-                }
+                return c.tir_fun_data.get(tir_fun).return_repr orelse
+                    fail(c, .{ .recursive_inference = .{ .key = c.infer_context.key } });
             }
         },
         .call_builtin => |builtin| {
+            // TODO Should propagate type expectations between args.
             switch (builtin) {
                 .equal => {
                     const arg0 = try inferExpr(c, f, dir_f, .other);
@@ -645,45 +642,13 @@ fn inferExprInner(
                     // Can propagate before even looking at args - important for constraining return type of recursive functions.
                     try propagate(c, f, dest, to_repr);
 
-                    const args = try inferExpr(c, f, dir_f, .other);
-
-                    if (to_repr == .only) {
-                        if (args.@"struct".keys.len != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        emit(c, f, .{ .only = to_repr.only });
-                    } else if (to_repr == .namespace) {
-                        if (args.@"struct".keys.len != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        emit(c, f, .{ .namespace = to_repr.namespace });
-                    } else {
-                        if (args.@"struct".keys.len != 1 or
-                            args.@"struct".keys[0] != .i64 or
-                            args.@"struct".keys[0].i64 != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        emit(c, f, .{ .object_get = .{ .index = 0 } });
-                        const from_repr = args.@"struct".reprs[0];
-                        if (from_repr.equal(to_repr)) {
-                            // nop
-                        } else if (from_repr == .i64 and to_repr == .u32) {
-                            // TODO We should only allow this cast when from is a constant walue.
-                            emit(c, f, .{ .call_builtin = .i64_to_u32 });
-                        } else if (to_repr == .@"union" and from_repr == .@"struct") {
-                            if (from_repr.@"struct".keys.len != 1)
-                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            const key = from_repr.@"struct".keys[0];
-                            const repr = from_repr.@"struct".reprs[0];
-                            const tag = to_repr.@"union".get(key) orelse
-                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            if (!repr.equal(to_repr.@"union".reprs[tag]))
-                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            emit(c, f, .{ .object_get = .{ .index = 0 } });
-                            emit(c, f, .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } });
-                        } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
-                            emit(c, f, .{ .call_builtin = .from_only });
-                        } else {
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        }
-                    }
+                    const args_repr = Repr{ .@"struct" = .{
+                        .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
+                        .reprs = c.dupe(Repr, &.{to_repr}),
+                    } };
+                    const args = try inferExpr(c, f, dir_f, .{ .repr = args_repr, .location = .other });
+                    emit(c, f, .{ .object_get = .{ .index = 0 } });
+                    try convert(c, f, args.@"struct".reprs[0], to_repr);
                     return to_repr;
                 },
                 .repr_kind => {
@@ -733,7 +698,7 @@ fn inferExprInner(
             return Repr.emptyStruct();
         },
         .@"return" => {
-            _ = try inferExpr(c, f, dir_f, .@"return");
+            _ = try inferExpr(c, f, dir_f, .{ .repr = f.return_repr, .location = .@"return" });
             switch (c.infer_context.@"return") {
                 .@"return" => emit(c, f, .@"return"),
                 // TODO Might need to break to specific label rather than just yield.
@@ -762,6 +727,34 @@ fn inferExprInner(
         else => {
             return fail(c, .todo);
         },
+    }
+}
+
+fn convert(c: *Compiler, f: *tir.FunData, from_repr: Repr, to_repr: Repr) !void {
+    if (from_repr.equal(to_repr)) {
+        // nop
+    } else if (from_repr == .i64 and to_repr == .u32) {
+        // TODO We should only allow this cast when from is a constant walue.
+        emit(c, f, .{ .call_builtin = .i64_to_u32 });
+    } else if (to_repr == .@"union" and from_repr == .@"struct") {
+        if (from_repr.@"struct".keys.len != 1)
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        const key = from_repr.@"struct".keys[0];
+        const repr = from_repr.@"struct".reprs[0];
+        const tag = to_repr.@"union".get(key) orelse
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        if (!repr.equal(to_repr.@"union".reprs[tag]))
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        emit(c, f, .{ .object_get = .{ .index = 0 } });
+        emit(c, f, .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } });
+    } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
+        emit(c, f, .{ .call_builtin = .from_only });
+    } else if (to_repr == .only and from_repr.isEmptyStruct()) {
+        emit(c, f, .{ .only = to_repr.only });
+    } else if (to_repr == .namespace and from_repr.isEmptyStruct()) {
+        emit(c, f, .{ .namespace = to_repr.namespace });
+    } else {
+        return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
     }
 }
 

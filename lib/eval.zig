@@ -699,45 +699,14 @@ pub fn evalExpr(
             const head = c.value_stack.pop().?.only.*;
             switch (head) {
                 .repr => |to_repr| {
-                    if (to_repr == .only) {
-                        if (args.@"struct".repr.keys.len != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        c.value_stack.append(.{ .only = to_repr.only }) catch oom();
-                    } else if (to_repr == .namespace) {
-                        if (args.@"struct".repr.keys.len != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        c.value_stack.append(.{ .namespace = .{ .namespace = to_repr.namespace.namespace } }) catch oom();
-                    } else {
-                        if (args.@"struct".repr.keys.len != 1 or
-                            args.@"struct".repr.keys[0] != .i64 or
-                            args.@"struct".repr.keys[0].i64 != 0)
-                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        const from_repr = args.@"struct".repr.reprs[0];
-                        const from_value = args.@"struct".values[0];
-                        if (from_repr.equal(to_repr)) {
-                            c.value_stack.append(from_value) catch oom();
-                        } else if (from_repr == .i64 and to_repr == .u32) {
-                            if (std.math.cast(u32, from_value.i64)) |converted| {
-                                c.value_stack.append(.{ .u32 = converted }) catch oom();
-                            } else {
-                                return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
-                            }
-                        } else if (to_repr == .@"union" and from_repr == .@"struct") {
-                            if (from_repr.@"struct".keys.len != 1)
-                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            const key = from_repr.@"struct".keys[0];
-                            const value = args.@"struct".values[0].@"struct".values[0];
-                            const tag = to_repr.@"union".get(key) orelse
-                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
-                                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                            c.value_stack.append(.{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } }) catch oom();
-                        } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
-                            c.value_stack.append(from_repr.only.copy(c.allocator)) catch oom();
-                        } else {
-                            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
-                        }
-                    }
+                    if (args.@"struct".repr.keys.len != 1 or
+                        args.@"struct".repr.keys[0] != .i64 or
+                        args.@"struct".repr.keys[0].i64 != 0)
+                        return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                    const from_repr = args.@"struct".repr.reprs[0];
+                    const from_value = args.@"struct".values[0];
+                    const to_value = try convert(c, from_value, from_repr, to_repr);
+                    c.value_stack.append(to_value) catch oom();
                 },
                 .repr_kind => |repr_kind| switch (repr_kind) {
                     .@"struct" => {
@@ -826,6 +795,36 @@ pub fn evalExpr(
         .f64 => return fail(c, .todo),
     }
     return .next;
+}
+
+fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Value {
+    if (from_repr.equal(to_repr)) {
+        return from_value;
+    } else if (from_repr == .i64 and to_repr == .u32) {
+        if (std.math.cast(u32, from_value.i64)) |converted| {
+            return .{ .u32 = converted };
+        } else {
+            return fail(c, .{ .convert_error = .{ .expected = to_repr, .found = from_value } });
+        }
+    } else if (to_repr == .@"union" and from_repr == .@"struct") {
+        if (from_repr.@"struct".keys.len != 1)
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        const key = from_repr.@"struct".keys[0];
+        const value = from_value.@"struct".values[0];
+        const tag = to_repr.@"union".get(key) orelse
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        return .{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } };
+    } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
+        return from_repr.only.copy(c.allocator);
+    } else if (to_repr == .only and from_repr.isEmptyStruct()) {
+        return .{ .only = to_repr.only };
+    } else if (to_repr == .namespace and from_repr.isEmptyStruct()) {
+        return .{ .namespace = .{ .namespace = to_repr.namespace.namespace } };
+    } else {
+        return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+    }
 }
 
 fn skipTree(c: *Compiler, expect_next: std.meta.Tag(dir.ExprData), ignore_after: std.meta.Tag(dir.ExprData)) void {

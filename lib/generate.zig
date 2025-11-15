@@ -64,9 +64,9 @@ pub fn generate(c: *Compiler) error{GenerateError}!void {
         for (tir_f.key.arg_reprs) |arg_repr| {
             arg_types.append(wasmAbi(arg_repr)) catch oom();
         }
-        switch (wasmRepr(tir_f.return_repr.one)) {
+        switch (wasmRepr(tir_f.return_repr.?)) {
             .primitive => |valtype| return_types.append(valtype) catch oom(),
-            .heap => if (tir_f.return_repr.one.sizeOf() > 0) arg_types.append(.i32) catch oom(),
+            .heap => if (tir_f.return_repr.?.sizeOf() > 0) arg_types.append(.i32) catch oom(),
         }
         const fun_type = memoFunType(c, .{
             .arg_types = arg_types.toOwnedSlice() catch oom(),
@@ -492,7 +492,7 @@ fn genExprInner(
                 for (0..callee_tir_f.key.arg_reprs.len) |_| {
                     _ = try genExpr(c, f, tir_f, .stack);
                 }
-                const output_repr = callee_tir_f.return_repr.one;
+                const output_repr = callee_tir_f.return_repr.?;
                 const output = switch (wasmRepr(output_repr)) {
                     .primitive => wir.Walue{ .stack = output_repr },
                     .heap => wir.Walue{ .value_at = .{
@@ -908,7 +908,7 @@ fn genExprInner(
                 const result = try genExpr(c, f, tir_f, .anywhere);
                 return result;
             } else {
-                const result_dest: wir.Destination = switch (wasmRepr(tir_f.return_repr.one)) {
+                const result_dest: wir.Destination = switch (wasmRepr(tir_f.return_repr.?)) {
                     .primitive => .stack,
                     .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
                 };

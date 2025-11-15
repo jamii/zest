@@ -1006,6 +1006,8 @@ a = struct[x: i64, y: i64][[x: 42, y: []]]
 a.y
 
 Expected struct[x: i64, y: i64], found struct[x: i64, y: struct[]]
+
+Expected i64, found struct[]
 ```
 
 ```zest-test
@@ -1542,7 +1544,7 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/ff5ec1de:1:202)
+    at <anonymous> (wasm://wasm/21e368e2:1:202)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1616,7 +1618,7 @@ a.none
 Key 'some' not found in [none: 101]/union[some: i64, none: i64]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/41ef547e:1:218)
+    at <anonymous> (wasm://wasm/866bb572:1:218)
     at file:///home/jamie/zest/test.js:33:39
 ```
 
@@ -1714,7 +1716,7 @@ TODO infer: dir.ExprData{ .call_builtin = zest.Builtin.reflect }
 
 ```zest-test
 // No type error from false branch because condition is comptime-known
-a = only[1][]
+a = only[1][[]]
 if a 42 else 'oh no'
 
 42
@@ -1722,14 +1724,14 @@ if a 42 else 'oh no'
 
 ```zest-test
 // No type error from true branch because condition is comptime-known
-a = only[0][]
+a = only[0][[]]
 if a 'oh no' else 101
 
 101
 ```
 
 ```zest-test
-a = only[42][]
+a = only[42][[]]
 i64[a]
 
 42
@@ -1737,16 +1739,16 @@ i64[a]
 
 ```zest-test
 a = [x: 42]
-t = only[%reflect(%repr-of(a))][]
-if {only[%union-has-key(%from-only(t), 'struct')][]} 101 else 202
+t = only[%reflect(%repr-of(a))][[]]
+if {only[%union-has-key(%from-only(t), 'struct')][[]]} 101 else 202
 
 101
 ```
 
 ```zest-test
 a = [x: 42]
-t = only[%reflect(%repr-of(a))][]
-if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
+t = only[%reflect(%repr-of(a))][[]]
+if {only[%union-has-key(%from-only(t), 'union')][[]]} 101 else 202
 
 202
 ```
@@ -1759,13 +1761,13 @@ if {only[%union-has-key(%from-only(t), 'union')][]} 101 else 202
 ```
 
 ```zest-test
-if {%print('ok'); only[1][]} 42 else 101
+if {%print('ok'); only[1][[]]} 42 else 101
 
 ok42
 ```
 
 ```zest-test
-while { only[0][] } { %print('ok') }
+while { only[0][[]] } { %print('ok') }
 42
 
 42
@@ -1884,12 +1886,12 @@ b
 
 ```zest-test
 print = (x) {
-  t = only[%reflect(%repr-of(x))][]
-  if {only[%union-has-key(%from-only(t), 'u32')][]} {
+  t = only[%reflect(%repr-of(x))][[]]
+  if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
     %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'i64')][]} {
+  } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
     %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'string')][]} {
+  } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
     %print('\'')
     // TODO escape
     %print(x)
@@ -2027,4 +2029,31 @@ rec = namespace {
 rec..tri(3)
 
 6
+```
+
+```zest-test
+ns = namespace{
+  maybe-int = union[some: i64, none: struct[]]
+  f = (x) /maybe-int {
+    if {x == 0} [none: []] else [some: x]
+  }
+}
+ns..f(3).some
+
+3
+```
+
+```zest-test
+// TODO This requires some kind of peer-type union in `propagate`
+ns = namespace{
+  maybe-int = union[some: i64, none: struct[]]
+  f = (x) {
+    if {x == 0} [none: []]/maybe-int else [some: x]
+  }
+}
+ns..f(3).some
+
+3
+
+Expected union[some: i64, none: struct[]], found struct[some: i64]
 ```

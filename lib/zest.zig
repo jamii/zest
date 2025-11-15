@@ -286,14 +286,6 @@ fn convertExpr(
     }
 }
 
-pub fn FlatLattice(comptime T: type) type {
-    return union(enum) {
-        zero,
-        one: T,
-        many: T,
-    };
-}
-
 pub const Stage = enum {
     source,
     tokens,
@@ -352,7 +344,7 @@ pub const Compiler = struct {
         @"return": union(enum) {
             @"return",
             // TODO This will need a label once we have an actual return statement.
-            @"break": FlatLattice(Repr),
+            @"break": ?Repr,
         },
     },
 
@@ -527,12 +519,12 @@ pub const Compiler = struct {
                     for (0..f.key.arg_reprs.len) |arg_id| {
                         try writer.print(", a{}", .{arg_id});
                     }
-                    try writer.print(") /{}\n", .{f.return_repr.one});
+                    try writer.print(") /{}\n", .{f.return_repr.?});
                     var expr = tir.Expr{ .id = 0 };
                     var indent: usize = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
-                        try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.one });
+                        try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.? });
                     }
                     try c.printTir(writer, f, &expr, &indent);
                 }
