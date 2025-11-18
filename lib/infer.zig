@@ -96,9 +96,9 @@ pub fn inferExpr(
     dir_f: dir.FunData,
     dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
-    zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
+    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
     var repr = try inferExprInner(c, f, dir_f, dest);
-    zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
+    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
     if (dest.repr) |dest_repr| {
         try convert(c, f, repr, dest_repr);
         repr = dest_repr;
@@ -597,32 +597,101 @@ fn inferExprInner(
                 },
                 .each => {
                     const value = try inferExpr(c, f, dir_f, .other);
+                    const value_local = f.local_data.append(.{ .repr = value, .is_tmp = true });
+                    emit(c, f, .{ .local_let = value_local });
+
                     const fun = try inferExpr(c, f, dir_f, .other);
                     if (fun != .fun)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } });
-                    const keys, const reprs = switch (value) {
-                        // TODO Would it be better to generate an each_struct/union instruction and leave it for generate?
-                        .@"struct" => |@"struct"| .{ @"struct".keys, @"struct".reprs },
-                        .@"union" => |@"union"| .{ @"union".keys, @"union".reprs },
+
+                    const fun_local = f.local_data.append(.{ .repr = .{ .@"struct" = fun.fun.closure }, .is_tmp = true });
+                    emit(c, f, .{ .local_let = fun_local });
+
+                    switch (value) {
+                        .@"struct" => |@"struct"| {
+                            for (@"struct".keys, @"struct".reprs, 0..) |key, repr, ix| {
+                                const args_repr = Repr{ .@"struct" = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, repr }),
+                                } };
+
+                                emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                emit(c, f, .{ .only = c.box(key) });
+                                emit(c, f, .{ .local_get = value_local });
+                                emit(c, f, .{ .object_get = .{ .index = ix } });
+                                emit(c, f, .{ .struct_init = args_repr.@"struct" });
+                                const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
+                                emit(c, f, .{ .local_let = args_local });
+
+                                // TODO This will only inline the wrapper - we want to inline the whole thing.
+                                _ = try inferFunInline(
+                                    c,
+                                    f,
+                                    .{
+                                        .fun = fun.fun.fun,
+                                        .closure_repr = .{ .@"struct" = fun.fun.closure },
+                                        .arg_reprs = c.dupe(Repr, &.{args_repr}),
+                                    },
+                                    fun_local,
+                                    &.{args_local},
+                                );
+
+                                emit(c, f, .{ .block = .{ .count = 2 } });
+                            }
+
+                            emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                            emit(c, f, .{ .block = .{ .count = 2 + @"struct".keys.len + 1 } });
+                        },
+                        .@"union" => |@"union"| {
+                            emit(c, f, .{ .local_get = value_local });
+                            emit(c, f, .union_tag);
+                            const tag_local = f.local_data.append(.{ .repr = .u32, .is_tmp = true });
+                            emit(c, f, .{ .local_let = tag_local });
+
+                            for (@"union".keys, @"union".reprs, 0..) |key, repr, ix| {
+                                emit(c, f, .{ .local_get = tag_local });
+                                emit(c, f, .{ .i64 = @intCast(ix) });
+                                emit(c, f, .{ .call_builtin = .i64_to_u32 });
+                                emit(c, f, .{ .call_builtin = .equal_u32 });
+
+                                const args_repr = Repr{ .@"struct" = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, repr }),
+                                } };
+
+                                emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                emit(c, f, .{ .only = c.box(key) });
+                                emit(c, f, .{ .local_get = value_local });
+                                emit(c, f, .{ .object_get = .{ .index = ix } });
+                                emit(c, f, .{ .struct_init = args_repr.@"struct" });
+                                const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
+                                emit(c, f, .{ .local_let = args_local });
+
+                                // TODO This will only inline the wrapper - we want to inline the whole thing.
+                                _ = try inferFunInline(
+                                    c,
+                                    f,
+                                    .{
+                                        .fun = fun.fun.fun,
+                                        .closure_repr = .{ .@"struct" = fun.fun.closure },
+                                        .arg_reprs = c.dupe(Repr, &.{args_repr}),
+                                    },
+                                    fun_local,
+                                    &.{args_local},
+                                );
+
+                                emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                emit(c, f, .{ .block = .{ .count = 3 } });
+                            }
+                            emit(c, f, .{ .call_builtin = .panic });
+                            for (0..@"union".keys.len) |_| {
+                                emit(c, f, .{ .@"if" = .emptyStruct() });
+                            }
+                            emit(c, f, .{ .block = .{ .count = 4 } });
+                        },
                         else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } }),
-                    };
-                    const tir_funs = c.allocator.alloc(tir.Fun, keys.len) catch oom();
-                    for (tir_funs, keys, reprs) |*tir_fun, key, repr| {
-                        const args_repr = Repr{ .@"struct" = .{
-                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, repr }),
-                        } };
-                        tir_fun.* = try inferFun(c, .{
-                            .fun = fun.fun.fun,
-                            .closure_repr = .{ .@"struct" = fun.fun.closure },
-                            .arg_reprs = c.dupe(Repr, &.{args_repr}),
-                        });
                     }
-                    emit(c, f, switch (value) {
-                        .@"struct" => .{ .each_struct = tir_funs },
-                        .@"union" => .{ .each_union = tir_funs },
-                        else => unreachable,
-                    });
+
                     return Repr.emptyStruct();
                 },
                 .@"from-only" => {

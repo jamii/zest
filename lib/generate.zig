@@ -396,6 +396,20 @@ fn genExprInner(
                 .value = c.box(arg),
             } };
         },
+        .union_tag => {
+            const value = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
+            switch (value) {
+                .value_at => |value_at| {
+                    load(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .u32 } });
+                    return .{ .stack = .u32 };
+                },
+                .@"union" => |@"union"| {
+                    // Zero-length unions can't be constructed, so safe to assume that the tag exists.
+                    return .{ .u32 = @"union".tag.? };
+                },
+                else => panic("Can't represent union with {}", .{value}),
+            }
+        },
         .local_let => |local| {
             var value = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
             switch (value) {
@@ -751,73 +765,6 @@ fn genExprInner(
                     return wir.Walue.emptyUnion();
                 },
                 .negate_i64, .store, .union_has_key, .i64_to_u32, .from_only => unreachable, // handled above
-            }
-        },
-        .each_struct => |callee_tir_funs| {
-            const value = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-            const closure = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-            const struct_repr = walueRepr(c, f, value).@"struct";
-            for (0.., struct_repr.keys, callee_tir_funs) |index, key, callee_tir_fun| {
-                const callee_tir_f = c.tir_fun_data.get(callee_tir_fun);
-                const val = spillStack(c, f, genObjectGet(c, f, value, index));
-                const arg = wir.Walue{ .@"struct" = .{
-                    .repr = callee_tir_f.key.arg_reprs[0].@"struct",
-                    .values = c.dupe(wir.Walue, &.{ .{ .only = .{ .value = c.box(key) } }, val }),
-                } };
-                _ = try genInlineCall(c, f, callee_tir_f, .nowhere, closure, arg);
-            }
-            return wir.Walue.emptyStruct();
-        },
-        .each_union => |callee_tir_funs| {
-            const value = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-            const closure = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-            const union_repr = walueRepr(c, f, value).@"union";
-            switch (value) {
-                .value_at => |value_at| {
-                    for (0..union_repr.keys.len + 2) |_| {
-                        emitEnum(f, wasm.Opcode.block);
-                        emitEnum(f, wasm.BlockType.empty);
-                    }
-                    {
-                        load(c, f, .{ .value_at = .{ .ptr = value_at.ptr, .repr = .u32 } });
-                        emitEnum(f, wasm.Opcode.br_table);
-                        emitLebU32(f, @intCast(union_repr.keys.len));
-                        for (0..union_repr.keys.len + 1) |i| {
-                            emitLebU32(f, @intCast(i));
-                        }
-                        emitEnum(f, wasm.Opcode.end);
-                    }
-                    for (0.., union_repr.keys, callee_tir_funs) |index, key, callee_tir_fun| {
-                        const callee_tir_f = c.tir_fun_data.get(callee_tir_fun);
-                        const val = spillStack(c, f, genObjectGet(c, f, value, index));
-                        const arg = wir.Walue{ .@"struct" = .{
-                            .repr = callee_tir_f.key.arg_reprs[0].@"struct",
-                            .values = c.dupe(wir.Walue, &.{ .{ .only = .{ .value = c.box(key) } }, val }),
-                        } };
-                        _ = try genInlineCall(c, f, callee_tir_f, .nowhere, closure, arg);
-                        emitEnum(f, wasm.Opcode.br);
-                        emitLebU32(f, @intCast(union_repr.keys.len - index));
-                        emitEnum(f, wasm.Opcode.end);
-                    }
-                    emitEnum(f, wasm.Opcode.@"unreachable");
-                    emitEnum(f, wasm.Opcode.end);
-                    return wir.Walue.emptyStruct();
-                },
-                .@"union" => |@"union"| {
-                    if (@"union".tag) |index| {
-                        const key = @"union".repr.keys[@intCast(index)];
-                        const callee_tir_fun = callee_tir_funs[index];
-                        const callee_tir_f = c.tir_fun_data.get(callee_tir_fun);
-                        const val = spillStack(c, f, genObjectGet(c, f, value, index));
-                        const arg = wir.Walue{ .@"struct" = .{
-                            .repr = callee_tir_f.key.arg_reprs[0].@"struct",
-                            .values = c.dupe(wir.Walue, &.{ .{ .only = .{ .value = c.box(key) } }, val }),
-                        } };
-                        _ = try genInlineCall(c, f, callee_tir_f, .nowhere, closure, arg);
-                    }
-                    return wir.Walue.emptyStruct();
-                },
-                else => panic("Can't represent union with {}", .{value}),
             }
         },
         .block => |block| {

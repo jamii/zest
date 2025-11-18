@@ -42,6 +42,8 @@ pub const ExprData = union(enum) {
         repr: ReprUnion,
         tag: u32,
     },
+    // TODO This could be a builtin.
+    union_tag,
     local_let: Local,
     object_get: struct {
         index: usize,
@@ -55,8 +57,6 @@ pub const ExprData = union(enum) {
     ref_deref: Repr,
     call: Fun,
     call_builtin: BuiltinTyped,
-    each_struct: []const Fun,
-    each_union: []const Fun,
     block: struct {
         count: usize,
     },
@@ -67,8 +67,8 @@ pub const ExprData = union(enum) {
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         return switch (expr_data) {
             .i64, .f64, .string, .closure, .arg, .local_get => 0,
-            .only, .namespace, .union_init, .local_let, .object_get, .ref_init, .ref_get, .ref_deref, .@"return" => 1,
-            .each_struct, .each_union, .ref_set, .@"while" => 2,
+            .only, .namespace, .union_init, .union_tag, .local_let, .object_get, .ref_init, .ref_get, .ref_deref, .@"return" => 1,
+            .ref_set, .@"while" => 2,
             .@"if" => 3,
             .struct_init => |repr| repr.keys.len,
             .call => |fun| 1 + c.tir_fun_data.get(fun).key.arg_reprs.len,
