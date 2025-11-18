@@ -340,32 +340,23 @@ fn genExprInner(
             return .{ .namespace = .{ .repr = repr } };
         },
         .closure => {
-            if (c.inlining) |inlining| {
-                return inlining.closure;
-            } else {
-                return .{ .value_at = .{
-                    .ptr = c.box(wir.Walue{ .closure = {} }),
-                    .repr = tir_f.key.closure_repr,
-                } };
-            }
+            return .{ .value_at = .{
+                .ptr = c.box(wir.Walue{ .closure = {} }),
+                .repr = tir_f.key.closure_repr,
+            } };
         },
         .arg => |arg| {
-            if (c.inlining) |inlining| {
-                return inlining.arg;
-            } else {
-                const repr = tir_f.key.arg_reprs[arg.id];
-                return switch (wasmRepr(repr)) {
-                    .primitive => .{ .arg = arg },
-                    .heap => .{ .value_at = .{
-                        .ptr = c.box(wir.Walue{ .arg = arg }),
-                        .repr = repr,
-                    } },
-                };
-            }
+            const repr = tir_f.key.arg_reprs[arg.id];
+            return switch (wasmRepr(repr)) {
+                .primitive => .{ .arg = arg },
+                .heap => .{ .value_at = .{
+                    .ptr = c.box(wir.Walue{ .arg = arg }),
+                    .repr = repr,
+                } },
+            };
         },
         .local_get => |local| {
-            const local_offset = if (c.inlining) |inlining| inlining.local_offset else 0;
-            return c.local_walue.get(.{ .id = local.id + local_offset }).?;
+            return c.local_walue.get(.{ .id = local.id }).?;
         },
         .struct_init => |struct_repr| {
             // TODO Can pass dest if we do alias analysis.
@@ -437,8 +428,7 @@ fn genExprInner(
                 },
                 else => {},
             }
-            const local_offset = if (c.inlining) |inlining| inlining.local_offset else 0;
-            c.local_walue.getPtr(.{ .id = local.id + local_offset }).* = value;
+            c.local_walue.getPtr(.{ .id = local.id }).* = value;
             return null;
         },
         .object_get => |object_get| {
@@ -492,36 +482,30 @@ fn genExprInner(
         .call => |tir_fun| {
             f.is_leaf = false;
             const callee_tir_f = c.tir_fun_data.get(tir_fun);
-            if (c.dir_fun_data.get(callee_tir_f.key.fun).@"inline") {
-                const closure = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-                const arg = spillStack(c, f, try genExpr(c, f, tir_f, .anywhere));
-                return genInlineCall(c, f, callee_tir_f, dest, closure, arg);
+            if (callee_tir_f.key.closure_repr.isEmptyStruct()) {
+                _ = try genExpr(c, f, tir_f, .nowhere);
             } else {
-                if (callee_tir_f.key.closure_repr.isEmptyStruct()) {
-                    _ = try genExpr(c, f, tir_f, .nowhere);
-                } else {
-                    const closure = try genExpr(c, f, tir_f, .anywhere);
-                    loadPtrTo(c, f, closure);
-                }
-                for (0..callee_tir_f.key.arg_reprs.len) |_| {
-                    _ = try genExpr(c, f, tir_f, .stack);
-                }
-                const output_repr = callee_tir_f.return_repr.?;
-                const output = switch (wasmRepr(output_repr)) {
-                    .primitive => wir.Walue{ .stack = output_repr },
-                    .heap => wir.Walue{ .value_at = .{
-                        .ptr = c.box(if (dest == .value_at) dest.value_at.* else shadowPush(c, f, output_repr)),
-                        .repr = output_repr,
-                    } },
-                };
-                switch (wasmRepr(output_repr)) {
-                    .primitive => {},
-                    .heap => if (output_repr.sizeOf() > 0) loadPtrTo(c, f, output),
-                }
-                emitEnum(f, wasm.Opcode.call);
-                emitLebU32(f, @intCast(imports.len + c.wir_fun_by_tir.get(tir_fun).?.id));
-                return output;
+                const closure = try genExpr(c, f, tir_f, .anywhere);
+                loadPtrTo(c, f, closure);
             }
+            for (0..callee_tir_f.key.arg_reprs.len) |_| {
+                _ = try genExpr(c, f, tir_f, .stack);
+            }
+            const output_repr = callee_tir_f.return_repr.?;
+            const output = switch (wasmRepr(output_repr)) {
+                .primitive => wir.Walue{ .stack = output_repr },
+                .heap => wir.Walue{ .value_at = .{
+                    .ptr = c.box(if (dest == .value_at) dest.value_at.* else shadowPush(c, f, output_repr)),
+                    .repr = output_repr,
+                } },
+            };
+            switch (wasmRepr(output_repr)) {
+                .primitive => {},
+                .heap => if (output_repr.sizeOf() > 0) loadPtrTo(c, f, output),
+            }
+            emitEnum(f, wasm.Opcode.call);
+            emitLebU32(f, @intCast(imports.len + c.wir_fun_by_tir.get(tir_fun).?.id));
+            return output;
         },
         .call_builtin => |builtin| {
             if (dest == .nowhere and !builtin.hasSideEffects() and builtin != .from_only) {
@@ -851,53 +835,17 @@ fn genExprInner(
             return wir.Walue.emptyStruct();
         },
         .@"return" => {
-            if (c.inlining) |_| {
-                const result = try genExpr(c, f, tir_f, .anywhere);
-                return result;
-            } else {
-                const result_dest: wir.Destination = switch (wasmRepr(tir_f.return_repr.?)) {
-                    .primitive => .stack,
-                    .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
-                };
-                _ = try genExpr(c, f, tir_f, result_dest);
-                return null;
-            }
+            const result_dest: wir.Destination = switch (wasmRepr(tir_f.return_repr.?)) {
+                .primitive => .stack,
+                .heap => .{ .value_at = c.box(wir.Walue{ .@"return" = {} }) },
+            };
+            _ = try genExpr(c, f, tir_f, result_dest);
+            return null;
         },
         else => {
             return fail(c, .todo);
         },
     }
-}
-
-// TODO This is a hack - should move inlining into a separate pass.
-fn genInlineCall(
-    c: *Compiler,
-    f: *wir.FunData,
-    callee_tir_f: *tir.FunData,
-    dest: wir.Destination,
-    closure: wir.Walue,
-    arg: wir.Walue,
-) error{GenerateError}!?wir.Walue {
-    assert(callee_tir_f.key.arg_reprs.len == 1);
-    assert(c.dir_fun_data.get(callee_tir_f.key.fun).@"inline");
-
-    const inlining = c.inlining;
-    c.inlining = .{
-        .closure = closure,
-        .arg = arg,
-        .local_offset = c.local_walue.count(),
-    };
-    defer c.inlining = inlining;
-
-    c.local_walue.appendNTimes(null, callee_tir_f.local_data.count());
-    defer c.local_walue.data.shrinkRetainingCapacity(c.inlining.?.local_offset);
-
-    const expr_next = c.tir_expr_next;
-    c.tir_expr_next = .{ .id = 0 };
-    defer c.tir_expr_next = expr_next;
-
-    const result = try genExpr(c, f, callee_tir_f, dest);
-    return result;
 }
 
 fn genObjectGet(
