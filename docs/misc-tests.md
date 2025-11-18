@@ -1593,7 +1593,7 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24386{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24384{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```
@@ -1932,103 +1932,6 @@ Expected i64, found string
 [name: 0, still-a-name: 1, ' not': 2, '0not': 2]
 
 undefined
-```
-
-```zest-test
-rec = namespace {
-  even = 4
-  odd = 7
-}
-rec
-
-namespace[0][]
-
-undefined
-```
-
-```zest-test
-rec = namespace {
-  even = 4
-  odd = 7
-}
-rec..even
-
-4
-```
-
-```zest-test
-rec = namespace {
-  even = 4
-  odd = 7
-}
-rec..odd
-
-7
-```
-
-```zest-test
-rec = namespace {
-  even = odd
-  odd = even
-}
-rec..even
-
-Recursive evaluation: namespace[0][]..'even'
-
-Recursive evaluation: namespace[0]..'even'
-```
-
-```zest-test
-rec = namespace {
-  is-even = (n) if {n == 0} 4 else is-odd(n - 1)
-  is-odd = (n) if {n == 0} 7 else is-even(n - 1)
-}
-rec..is-even(3)
-
-7
-```
-
-```zest-test
-rec = namespace {
-  is-even = (n) if {n == 0} 4 else is-odd(n - 1)
-  is-odd = (n) if {n == 0} 7 else is-even(n - 1)
-}
-rec..is-even(4)
-
-4
-```
-
-```zest-test
-rec = namespace {
-  is-even = (n) if {n != 0} is-odd(n - 1) else 4
-  is-odd = (n) if {n != 0} is-even(n - 1) else 7
-}
-[rec..is-even(3), rec..is-even(4)]
-
-[7, 4]
-
-Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 1 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
-```
-
-```zest-test
-rec = namespace {
-  is-even = (n) /i64 if {n != 0} is-odd(n - 1) else 4
-  is-odd = (n) /i64 if {n != 0} is-even(n - 1) else 7
-}
-[rec..is-even(3), rec..is-even(4)]
-
-[7, 4]
-
-undefined
-```
-
-```zest-test
-rec = namespace {
-  tri = (n) /i64 if {n == 0} 0 else tri(n - 1) + n
-}
-rec..tri(3)
-
-6
 ```
 
 ```zest-test

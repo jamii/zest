@@ -155,13 +155,14 @@ pub const DefinitionData = struct {
     },
 };
 
-pub const predefined_bindings: [7]Binding = .{
+pub const predefined_bindings: [8]Binding = .{
     .{ .name = "u32", .value = .{ .constant = .repr_u32 }, .mut = false },
     .{ .name = "i64", .value = .{ .constant = .repr_i64 }, .mut = false },
     .{ .name = "string", .value = .{ .constant = .repr_string }, .mut = false },
     .{ .name = "struct", .value = .{ .constant = .repr_kind_struct }, .mut = false },
     .{ .name = "union", .value = .{ .constant = .repr_kind_union }, .mut = false },
     .{ .name = "only", .value = .{ .constant = .repr_kind_only }, .mut = false },
+    .{ .name = "namespace", .value = .{ .constant = .repr_kind_namespace }, .mut = false },
     .{ .name = "repr", .value = .{ .constant = .repr_repr }, .mut = false },
 };
 

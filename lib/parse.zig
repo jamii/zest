@@ -40,11 +40,10 @@ fn parseBlock(c: *Compiler, end: TokenData) error{ParseError}!void {
 
 fn parseExpr(c: *Compiler) error{ParseError}!void {
     switch (peek(c)) {
-        .@"(" => return parseFun(c),
-        .@"if" => return parseIf(c),
-        .@"while" => return parseWhile(c),
-        .namespace => return parseNamespace(c),
-        else => return parseExprLoose(c),
+        .@"(" => try parseFun(c),
+        .@"if" => try parseIf(c),
+        .@"while" => try parseWhile(c),
+        else => try parseExprLoose(c),
     }
 }
 
@@ -81,12 +80,6 @@ fn parseWhile(c: *Compiler) error{ParseError}!void {
     try parseExprAtom(c, .{});
     try parseExpr(c);
     emit(c, .@"while");
-}
-
-fn parseNamespace(c: *Compiler) error{ParseError}!void {
-    try expect(c, .namespace);
-    try parseGroup(c);
-    emit(c, .namespace);
 }
 
 fn parseExprLoose(c: *Compiler) error{ParseError}!void {
@@ -214,6 +207,7 @@ fn parseExprAtom(c: *Compiler, options: ExprAtomOptions) error{ParseError}!void 
         .@"[" => try parseObject(c),
         .@"{" => try parseGroup(c),
         .@"-" => try parseNegate(c),
+        .namespace => try parseNamespace(c),
         .@"%" => try parseBuiltinCall(c),
         else => {
             const token = take(c);
@@ -295,6 +289,15 @@ fn parseNegate(c: *Compiler) error{ParseError}!void {
     try expect(c, .@"-");
     try parseExprAtom(c, .{});
     emit(c, .{ .call_builtin = .negate });
+}
+fn parseNamespace(c: *Compiler) error{ParseError}!void {
+    try expect(c, .namespace);
+    if (!peekSpace(c) and peek(c) == .@"{") {
+        try parseGroup(c);
+        emit(c, .namespace);
+    } else {
+        emit(c, .{ .name = .{ .name = "namespace", .mut = false } });
+    }
 }
 
 fn parseBuiltinCall(c: *Compiler) error{ParseError}!void {

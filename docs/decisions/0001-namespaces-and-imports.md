@@ -281,4 +281,4 @@ HANDLE requires adding some new concepts to the language - namespace types, lazy
 
 HANDLE adds a big source of unpredictability via laziness. But it also offers better options for ide support, minimizing load times, development experience, live reloading / repls, and avoids the make-work of splitting code into granular packages (cf rust workspaces).
 
-I'm leaning towards the verdict that HANDLE adds enough to pay for the extra features, but maybe some extra eyes will spot something I missed.
+I think HANDLE adds enough to pay for the extra features.

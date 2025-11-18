@@ -110,9 +110,9 @@ pub const Value = union(enum) {
                     self.reprOf(),
                 });
             },
-            .namespace => |namespace| {
-                try writer.print("namespace[{}][]", .{
-                    namespace.namespace.id,
+            .namespace => {
+                try writer.print("[]/{}", .{
+                    self.reprOf(),
                 });
             },
             .ref => |ref| {
@@ -124,8 +124,8 @@ pub const Value = union(enum) {
             inline .repr, .repr_kind => |data| {
                 try writer.print("{}", .{data});
             },
-            .only => |only| {
-                try writer.print("[]/only[{}]", .{only});
+            .only => {
+                try writer.print("[]/{}", .{self.reprOf()});
             },
         }
     }
