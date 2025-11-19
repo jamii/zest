@@ -22,7 +22,8 @@ pub fn evalLax(
     source: []const u8,
 ) ![]const u8 {
     compiler.* = .init(allocator);
-    try zest.compileLax(compiler, source);
+    try zest.compileLax(compiler, .runtime, zest.runtime, false);
+    try zest.compileLax(compiler, .main, source, false);
     const value = try zest.evalMain(compiler);
     return std.fmt.allocPrint(allocator, "{}", .{value});
 }
@@ -33,8 +34,9 @@ pub fn evalStrict(
     source: []const u8,
 ) ![]const u8 {
     compiler.* = .init(allocator);
-    try zest.compileLax(compiler, source);
-    try zest.compileStrict(compiler);
+    try zest.compileLax(compiler, .runtime, zest.runtime, false);
+    try zest.compileLax(compiler, .main, source, false);
+    try zest.compileStrict(compiler, false);
     return evalWasm(allocator, compiler);
 }
 

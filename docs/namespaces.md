@@ -6,7 +6,7 @@ namespace{
   odd = 7
 }
 
-[]/namespace[0]
+[]/namespace[1]
 
 undefined
 ```
@@ -41,7 +41,7 @@ kinds = namespace{
 }
 [kinds, []/namespace[0]]
 
-[[]/namespace[0], []/namespace[0]]
+[[]/namespace[1], []/namespace[0]]
 
 undefined
 ```
@@ -65,7 +65,7 @@ namespace{
   danger = %panic()
 }
 
-[]/namespace[0]
+[]/namespace[1]
 
 undefined
 ```
@@ -111,7 +111,7 @@ kinds = namespace{
 }
 kinds..even
 
-Recursive evaluation: []/namespace[0]..'even'
+Recursive evaluation: []/namespace[1]..'even'
 ```
 
 Bindings may contain mutually recursive functions:
@@ -170,7 +170,7 @@ kinds..is-even(4)
 
 'true'
 
-Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 1 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
+Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 27 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
 ```
 
 Namespaces currently can't close over values from the outer scope.

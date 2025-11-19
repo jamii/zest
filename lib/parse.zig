@@ -16,6 +16,8 @@ pub fn parse(c: *Compiler, source: sir.Source) !void {
     c.source_current = source;
     defer c.source_current = null;
 
+    c.token_next = .{ .id = 0 };
+
     const s = c.sir_source_data.getPtr(source);
     try parseBlock(c, s, .eof);
     try expect(c, s, .eof);

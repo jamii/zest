@@ -20,9 +20,18 @@ pub fn desugar(c: *Compiler, source: sir.Source) error{DesugarError}!void {
     c.source_current = source;
     defer c.source_current = null;
 
+    c.sir_expr_next = .{ .id = 0 };
+    c.scope = .init(c.allocator);
+
     const s = c.sir_source_data.get(source);
 
     switch (s.origin) {
+        .runtime => {
+            // Gonna throw away this function.
+            var f = dir.FunData.init(c.allocator);
+            const namespace = try desugarNamespace(c, s, &f);
+            c.namespace_by_origin.put(s.origin, namespace) catch oom();
+        },
         .main => {
             var f = dir.FunData.init(c.allocator);
             try desugarExpr(c, s, &f);
@@ -178,78 +187,7 @@ fn desugarExpr(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{DesugarEr
             emit(c, f, .@"while");
         },
         .namespace => {
-            const namespace = c.namespace_data.append(.init(c.allocator));
-            const definition_count = take(c, s).block.count;
-
-            // TODO Allow namespaces to close over outside scope.
-            const scope_outside = c.scope;
-            c.scope = .init(c.allocator);
-            defer c.scope = scope_outside;
-
-            {
-                const start = c.sir_expr_next;
-                defer c.sir_expr_next = start;
-
-                for (0..definition_count) |_| {
-                    if (take(c, s) != .let) {
-                        return fail(c, .statement_in_namespace);
-                    }
-                    const name = take(c, s);
-                    if (name != .name) {
-                        return fail(c, .pattern_in_namespace);
-                    }
-                    if (name.name.mut) {
-                        return fail(c, .mut_in_namespace);
-                    }
-                    c.scope.push(.{
-                        .name = name.name.name,
-                        .value = .{ .definition = .{
-                            .namespace = namespace,
-                            .name = name.name.name,
-                        } },
-                        .mut = false,
-                    });
-                    _ = skipTree(c, s); // value
-                }
-            }
-
-            const namespace_data = c.namespace_data.getPtr(namespace);
-            for (0..definition_count) |_| {
-                _ = take(c, s).let;
-                const name = take(c, s).name;
-
-                var def_f = dir.FunData.init(c.allocator);
-                try desugarExpr(c, s, &def_f);
-                emit(c, &def_f, .@"return");
-                convertPostorderToPreorder(c, dir.Expr, dir.ExprData, def_f.expr_data_post, &def_f.expr_data_pre);
-                const fun = c.dir_fun_data.append(def_f);
-
-                const definition = namespace_data.definition_data.append(.{
-                    .fun = fun,
-                    .value = .unevaluated,
-                });
-                namespace_data.definition_by_name.put(name.name, definition) catch oom();
-            }
-
-            emit(c, f, .stage_begin);
-            {
-                emit(c, f, .stage_begin);
-                emit(c, f, .repr_kind_namespace);
-                emit(c, f, .{ .stage = .{} });
-                emit(c, f, .stage_begin);
-                emit(c, f, .{ .i64 = 0 });
-                emit(c, f, .{ .stage = .{} });
-                emit(c, f, .{ .i64 = @intCast(namespace.id) });
-                emit(c, f, .{ .struct_init = .{ .count = 1 } });
-                emit(c, f, .make);
-            }
-            emit(c, f, .{ .stage = .{} });
-            emit(c, f, .stage_begin);
-            emit(c, f, .{ .i64 = 0 });
-            emit(c, f, .{ .stage = .{} });
-            emit(c, f, .{ .struct_init = .{ .count = 0 } });
-            emit(c, f, .{ .struct_init = .{ .count = 1 } });
-            emit(c, f, .make);
+            _ = try desugarNamespace(c, s, f);
         },
         .namespace_get => {
             try desugarExpr(c, s, f); // namespace
@@ -319,6 +257,66 @@ fn desugarFun(c: *Compiler, s: sir.SourceData) error{DesugarError}!struct { wrap
     };
 }
 
+fn desugarNamespace(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{DesugarError}!dir.Namespace {
+    const namespace = c.namespace_data.append(.init(c.allocator));
+
+    const definition_count = take(c, s).block.count;
+
+    // TODO Allow namespaces to close over outside scope.
+    const scope_outside = c.scope;
+    c.scope = .init(c.allocator);
+    defer c.scope = scope_outside;
+
+    {
+        const start = c.sir_expr_next;
+        defer c.sir_expr_next = start;
+
+        for (0..definition_count) |_| {
+            if (take(c, s) != .let) {
+                return fail(c, .statement_in_namespace);
+            }
+            const name = take(c, s);
+            if (name != .name) {
+                return fail(c, .pattern_in_namespace);
+            }
+            if (name.name.mut) {
+                return fail(c, .mut_in_namespace);
+            }
+            c.scope.push(.{
+                .name = name.name.name,
+                .value = .{ .definition = .{
+                    .namespace = namespace,
+                    .name = name.name.name,
+                } },
+                .mut = false,
+            });
+            _ = skipTree(c, s); // value
+        }
+    }
+
+    const namespace_data = c.namespace_data.getPtr(namespace);
+    for (0..definition_count) |_| {
+        _ = take(c, s).let;
+        const name = take(c, s).name;
+
+        var def_f = dir.FunData.init(c.allocator);
+        try desugarExpr(c, s, &def_f);
+        emit(c, &def_f, .@"return");
+        convertPostorderToPreorder(c, dir.Expr, dir.ExprData, def_f.expr_data_post, &def_f.expr_data_pre);
+        const fun = c.dir_fun_data.append(def_f);
+
+        const definition = namespace_data.definition_data.append(.{
+            .fun = fun,
+            .value = .unevaluated,
+        });
+        namespace_data.definition_by_name.put(name.name, definition) catch oom();
+    }
+
+    emitNamespace(c, f, namespace);
+
+    return namespace;
+}
+
 fn desugarPath(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{DesugarError}!void {
     switch (take(c, s)) {
         .ref_to => {
@@ -386,25 +384,7 @@ fn desugarBinding(c: *Compiler, s: sir.SourceData, f: *dir.FunData, binding: dir
             emit(c, f, constant);
         },
         .definition => |definition| {
-            emit(c, f, .stage_begin);
-            {
-                emit(c, f, .stage_begin);
-                emit(c, f, .repr_kind_namespace);
-                emit(c, f, .{ .stage = .{} });
-                emit(c, f, .stage_begin);
-                emit(c, f, .{ .i64 = 0 });
-                emit(c, f, .{ .stage = .{} });
-                emit(c, f, .{ .i64 = @intCast(definition.namespace.id) });
-                emit(c, f, .{ .struct_init = .{ .count = 1 } });
-                emit(c, f, .make);
-            }
-            emit(c, f, .{ .stage = .{} });
-            emit(c, f, .stage_begin);
-            emit(c, f, .{ .i64 = 0 });
-            emit(c, f, .{ .stage = .{} });
-            emit(c, f, .{ .struct_init = .{ .count = 0 } });
-            emit(c, f, .{ .struct_init = .{ .count = 1 } });
-            emit(c, f, .make);
+            emitNamespace(c, f, definition.namespace);
             emit(c, f, .stage_begin);
             emit(c, f, .{ .string = definition.name });
             emit(c, f, .{ .stage = .{} });
@@ -567,6 +547,28 @@ fn desugarPattern(c: *Compiler, s: sir.SourceData, f: *dir.FunData, bindings: *A
 fn emit(c: *Compiler, f: *dir.FunData, expr_data: dir.ExprData) void {
     _ = c;
     _ = f.expr_data_post.append(expr_data);
+}
+
+fn emitNamespace(c: *Compiler, f: *dir.FunData, namespace: dir.Namespace) void {
+    emit(c, f, .stage_begin);
+    {
+        emit(c, f, .stage_begin);
+        emit(c, f, .repr_kind_namespace);
+        emit(c, f, .{ .stage = .{} });
+        emit(c, f, .stage_begin);
+        emit(c, f, .{ .i64 = 0 });
+        emit(c, f, .{ .stage = .{} });
+        emit(c, f, .{ .i64 = @intCast(namespace.id) });
+        emit(c, f, .{ .struct_init = .{ .count = 1 } });
+        emit(c, f, .make);
+    }
+    emit(c, f, .{ .stage = .{} });
+    emit(c, f, .stage_begin);
+    emit(c, f, .{ .i64 = 0 });
+    emit(c, f, .{ .stage = .{} });
+    emit(c, f, .{ .struct_init = .{ .count = 0 } });
+    emit(c, f, .{ .struct_init = .{ .count = 1 } });
+    emit(c, f, .make);
 }
 
 fn take(c: *Compiler, s: sir.SourceData) sir.ExprData {

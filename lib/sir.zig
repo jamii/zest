@@ -119,7 +119,7 @@ pub const SourceData = struct {
 };
 
 pub const Origin = union(enum) {
-    std,
+    runtime,
     import: []const u8,
     main,
 };

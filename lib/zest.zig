@@ -264,6 +264,7 @@ pub const Compiler = struct {
     // desugar
     scope: dir.Scope,
     namespace_data: List(dir.Namespace, dir.NamespaceData),
+    namespace_by_origin: Map(sir.Origin, dir.Namespace),
     dir_fun_data: List(dir.Fun, dir.FunData),
     dir_fun_main: ?dir.Fun,
     sir_expr_next: sir.Expr,
@@ -330,6 +331,7 @@ pub const Compiler = struct {
 
             .scope = .init(allocator),
             .namespace_data = .init(allocator),
+            .namespace_by_origin = .init(allocator),
             .dir_fun_data = .init(allocator),
             .dir_fun_main = null,
             .sir_expr_next = .{ .id = 0 },
@@ -422,7 +424,8 @@ pub const Compiler = struct {
             .source => {
                 try writer.print("--- SOURCE ---\n", .{});
                 for (c.sir_source_data.items()) |s| {
-                    try writer.print("{}\n", .{s.origin});
+                    if (s.origin == .runtime)
+                        try writer.print("{}\n", .{s.origin});
                     try writer.print("{s}\n", .{s.text});
                     try writer.print("---\n", .{});
                 }
@@ -452,7 +455,11 @@ pub const Compiler = struct {
             },
             .dir => {
                 try writer.print("--- DIR ---\n", .{});
-                try writer.print("main = f{}\n", .{c.dir_fun_main.?.id});
+                if (c.dir_fun_main) |fun| {
+                    try writer.print("main = f{}\n", .{fun.id});
+                } else {
+                    try writer.print("main = ???\n", .{});
+                }
                 for (c.dir_fun_data.items(), 0..) |f, fun_id| {
                     try writer.print("f{} = (closure", .{fun_id});
                     for (0..f.arg_data.count()) |arg_id| {
@@ -757,26 +764,28 @@ pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const
     return std.fmt.allocPrint(c.allocator, message, args) catch oom();
 }
 
-pub fn compileLax(c: *Compiler, text: []const u8) error{ TokenizeError, ParseError, DesugarError }!void {
-    const s = c.sir_source_data.append(.init(c.allocator, .main, text));
+pub fn compileLax(c: *Compiler, origin: sir.Origin, text: []const u8, print_debug_info: bool) error{ TokenizeError, ParseError, DesugarError }!void {
+    const s = c.sir_source_data.append(.init(c.allocator, origin, text));
 
-    c.print(.source, std.io.getStdErr().writer()) catch unreachable;
+    if (print_debug_info) c.print(.source, std.io.getStdErr().writer()) catch unreachable;
 
     try tokenize(c, s);
-    c.print(.tokens, std.io.getStdErr().writer()) catch unreachable;
+    if (print_debug_info) c.print(.tokens, std.io.getStdErr().writer()) catch unreachable;
 
     try parse(c, s);
-    c.print(.sir, std.io.getStdErr().writer()) catch unreachable;
+    if (print_debug_info) c.print(.sir, std.io.getStdErr().writer()) catch unreachable;
 
     try desugar(c, s);
-    c.print(.dir, std.io.getStdErr().writer()) catch unreachable;
+    if (print_debug_info) c.print(.dir, std.io.getStdErr().writer()) catch unreachable;
 }
 
-pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }!void {
+pub fn compileStrict(c: *Compiler, print_debug_info: bool) error{ EvalError, InferError, GenerateError }!void {
     assert(c.dir_fun_main != null);
 
     try infer(c);
-    c.print(.tir, std.io.getStdErr().writer()) catch unreachable;
+    if (print_debug_info) c.print(.tir, std.io.getStdErr().writer()) catch unreachable;
 
     try generate(c);
 }
+
+pub const runtime = @embedFile("./runtime.zest");
