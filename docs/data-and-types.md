@@ -207,6 +207,14 @@ Key order matters.
 undefined
 ```
 
+TODO But conversions are allowed to reorder keys.
+
+```zest-test
+['b': 'bear', 'a': 'apple']/struct['a': string, 'b': string]
+
+Expected struct[a: string, b: string], found struct[b: string, a: string]
+```
+
 TODO No repeated keys.
 
 ```zest-test
