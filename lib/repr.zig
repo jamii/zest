@@ -118,10 +118,11 @@ pub const Repr = union(enum) {
                 try writer.writeAll("]");
             },
             .fun => |fun| {
-                try writer.print("[id: {}, closure: {}]", .{
-                    fun.fun.id,
-                    Repr{ .@"struct" = fun.closure },
-                });
+                try writer.print("[{}", .{fun.fun.id});
+                for (fun.closure.keys, fun.closure.reprs) |key, repr| {
+                    try writer.print(", {}: {}", .{ FormatKey{ .key = key }, repr });
+                }
+                try writer.writeAll("]");
             },
             .namespace => |namespace| {
                 try writer.print("[{}]", .{

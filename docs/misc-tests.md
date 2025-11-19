@@ -121,7 +121,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[id: 1, closure: struct[k: string]]
+Cannot unstage value: fun[1, k: string]
 ```
 
 ```zest-test
@@ -428,9 +428,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[id: 1, closure: struct[]]: 1]
+[[]/fun[1]: 1]
 
-Cannot unstage value: ref[fun[id: 1, closure: struct[]]]
+Cannot unstage value: ref[fun[1]]
 ```
 
 ```zest-test
@@ -823,9 +823,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[id: 3, closure: struct[a: ref[i64]]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[3, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[id: 3, closure: struct[a: ref[i64]]]
+Expected a value containing no mutable references, found: fun[3, a: ref[i64]]
 ```
 
 ```zest-test
@@ -842,9 +842,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[id: 1, closure: struct[a: ref[i64]]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[1, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[id: 1, closure: struct[a: ref[i64]]]
+Expected a value containing no mutable references, found: fun[1, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1772,18 +1772,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[id: 1, closure: struct[]] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[1] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[id: 1, closure: struct[]] }
+Cannot call zest.Builtin.each with these args: { i64, fun[1] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[id: 1, closure: struct[]] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[1] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[id: 1, closure: struct[]] }
+Cannot call zest.Builtin.each with these args: { string, fun[1] }
 ```
 
 ```zest-test
