@@ -1348,9 +1348,7 @@ foo42
 x = [{%print('foo')}: 42]
 x.{%print('bar')}
 
-foobar42
-
-42
+Tried to perform a side effect during pure evaluation: zest.Builtin.print
 ```
 
 ```zest-test
@@ -1701,9 +1699,7 @@ a = 42
 b = [{%print('surprise')}: 101]
 b.{[]}
 
-surprise101
-
-101
+Tried to perform a side effect during pure evaluation: zest.Builtin.print
 ```
 
 ```zest-test

@@ -61,12 +61,15 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
     while (true) {
         const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
         const expr_data = f.expr_data_post.get(frame.expr);
-        //zest.p(.{ .eval_staged = expr_data });
+        frame.expr.id += 1;
+        //zest.p(.{ .eval_staged = expr_data, .values = c.value_stack.items });
         switch (expr_data) {
             .stage_begin => {
+                c.pure_depth += 1;
                 stages_nested += 1;
             },
             .stage => |stage| {
+                c.pure_depth -= 1;
                 const value = c.value_stack.pop().?;
                 stages_nested -= 1;
                 if (stages_nested == 0) {
@@ -110,7 +113,6 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
                 }
             },
         }
-        frame.expr.id += 1;
     }
 }
 
@@ -121,14 +123,14 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
         const f = c.dir_fun_data.get(frame.fun);
         while (true) {
             const expr_data = f.expr_data_post.get(frame.expr);
-            //zest.p(.{ .eval = expr_data });
+            //zest.p(.{ .eval = expr_data, .values = c.value_stack.items });
             switch (expr_data) {
                 .@"return" => {
                     const frame_evalled = popFun(c);
                     if (frame_evalled.memo) |memo| {
                         const value = c.value_stack.items[c.value_stack.items.len - 1];
                         c.namespace_data.get(memo.namespace).definition_data.getPtr(memo.definition).value = .{ .evaluated = value.copy(c.allocator) };
-                        c.eval_mode = memo.eval_mode;
+                        c.pure_depth -= 1;
                     }
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop().?;
@@ -143,8 +145,11 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     }
                     continue :fun;
                 },
-                .stage_begin => {},
+                .stage_begin => {
+                    c.pure_depth += 1;
+                },
                 .stage => {
+                    c.pure_depth -= 1;
                     const value = c.value_stack.pop().?;
                     c.value_stack.append(.{ .only = c.box(value) }) catch oom();
                 },
@@ -318,10 +323,9 @@ pub fn evalExpr(
                         .memo = .{
                             .namespace = namespace.namespace.namespace,
                             .definition = definition,
-                            .eval_mode = c.eval_mode,
                         },
                     });
-                    c.eval_mode = .pure;
+                    c.pure_depth += 1;
                     return .call;
                 },
                 .evaluating => return fail(c, .{ .recursive_evaluation = .{ .namespace = namespace, .key = key } }),
@@ -600,7 +604,7 @@ pub fn evalExpr(
                 },
                 .print => {
                     const value = c.value_stack.pop().?;
-                    if (c.eval_mode == .pure)
+                    if (c.pure_depth > 0)
                         return fail(c, .{ .side_effects_in_pure_eval = .print });
                     switch (value) {
                         .u32 => |u| c.printed.writer().print("{}", .{u}) catch oom(),

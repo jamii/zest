@@ -19,7 +19,9 @@ fn wasmFilename(allocator: Allocator) []const u8 {
 pub fn evalLax(
     allocator: Allocator,
     compiler: *Compiler,
+    source: []const u8,
 ) ![]const u8 {
+    compiler.* = .init(allocator, source);
     try zest.compileLax(compiler);
     const value = try zest.evalMain(compiler);
     return std.fmt.allocPrint(allocator, "{}", .{value});
@@ -28,7 +30,10 @@ pub fn evalLax(
 pub fn evalStrict(
     allocator: Allocator,
     compiler: *Compiler,
+    source: []const u8,
 ) ![]const u8 {
+    compiler.* = .init(allocator, source);
+    try zest.compileLax(compiler);
     try zest.compileStrict(compiler);
     return evalWasm(allocator, compiler);
 }
@@ -141,8 +146,8 @@ pub fn main() !void {
                 corpus_file.writeAll(source) catch unreachable;
             }
 
-            var compiler = Compiler.init(allocator, source);
-            const lax_or_err = evalLax(allocator, &compiler);
+            var compiler: Compiler = undefined;
+            const lax_or_err = evalLax(allocator, &compiler, source);
             const actual_lax =
                 std.fmt.allocPrint(allocator, "{s}{s}", .{
                     compiler.printed.items,
@@ -158,7 +163,7 @@ pub fn main() !void {
                 else => false,
             };
             const actual_strict = if (should_run_strict)
-                std.mem.trim(u8, evalStrict(allocator, &compiler) catch zest.formatError(&compiler), "\n")
+                std.mem.trim(u8, evalStrict(allocator, &compiler, source) catch zest.formatError(&compiler), "\n")
             else
                 actual_lax;
 

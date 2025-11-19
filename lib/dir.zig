@@ -252,6 +252,5 @@ pub const Frame = struct {
     memo: ?struct {
         namespace: Namespace,
         definition: Definition,
-        eval_mode: Compiler.EvalMode,
     } = null,
 };

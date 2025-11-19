@@ -322,7 +322,7 @@ pub const Compiler = struct {
     while_stack: ArrayList(dir.Expr),
     memory: ArrayList(u8),
     printed: ArrayList(u8),
-    eval_mode: EvalMode,
+    pure_depth: usize,
 
     // infer
     tir_fun_data: List(tir.Fun, *tir.FunData),
@@ -366,8 +366,6 @@ pub const Compiler = struct {
 
     error_data: ?ErrorData,
 
-    pub const EvalMode = enum { impure, pure };
-
     pub fn init(allocator: Allocator, source: []const u8) Compiler {
         var c = Compiler{
             .allocator = allocator,
@@ -392,7 +390,7 @@ pub const Compiler = struct {
             .while_stack = .init(allocator),
             .memory = .init(allocator),
             .printed = .init(allocator),
-            .eval_mode = .impure,
+            .pure_depth = 0,
 
             .tir_fun_data = .init(allocator),
             .tir_fun_by_key = .init(allocator),

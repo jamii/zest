@@ -273,10 +273,9 @@ fn inferExprInner(
                             .memo = .{
                                 .namespace = namespace.namespace.namespace,
                                 .definition = definition,
-                                .eval_mode = c.eval_mode,
                             },
                         });
-                        c.eval_mode = .pure;
+                        c.pure_depth += 1;
 
                         break :value try eval.eval(c);
                     },
@@ -783,9 +782,8 @@ fn inferExprInner(
             c.infer_mode = .unstage;
             defer c.infer_mode = infer_mode;
 
-            const eval_mode = c.eval_mode;
-            c.eval_mode = .pure;
-            defer c.eval_mode = eval_mode;
+            c.pure_depth += 1;
+            defer c.pure_depth -= 1;
 
             c.infer_context.dir_expr_next.id -= 1; // untake .stage
             const value = try eval.evalStaged(c, dir_f, f);
