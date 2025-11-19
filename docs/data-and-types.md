@@ -197,7 +197,7 @@ Optional trailing comma.
 undefined
 ```
 
-TODO Key order doesn't matter. Keys may be printed in any order.
+Key order matters.
 
 ```zest-test
 ['b': 'bear', 'a': 'apple']
@@ -317,7 +317,7 @@ f64[42]
 Name not bound: f64
 ```
 
-TODO Represent literals as big-intb:ig-dec to avoid this problem.
+TODO Represent literals as big-int/big-dec to avoid this problem.
 
 ```zest-test
 f64[9223372036854775808]
