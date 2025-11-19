@@ -6,14 +6,16 @@ const Allocator = std.mem.Allocator;
 const zest = @import("./zest.zig");
 const oom = zest.oom;
 const Compiler = zest.Compiler;
-const TokenData = zest.TokenData;
+const sir = zest.sir;
+const TokenData = sir.TokenData;
 
-pub fn tokenize(c: *Compiler) !void {
-    const source = c.source;
+pub fn tokenize(c: *Compiler, source: sir.Source) !void {
+    const s = c.sir_source_data.getPtr(source);
+    const text = s.text;
     var i: usize = 0;
-    while (i < source.len) {
+    while (i < text.len) {
         const start = i;
-        const char = source[i];
+        const char = text[i];
         i += 1;
         const token: TokenData = switch (char) {
             '@' => .@"@",
@@ -25,7 +27,7 @@ pub fn tokenize(c: *Compiler) !void {
             '{' => .@"{",
             ',' => .@",",
             '.' => token: {
-                if (i < source.len and source[i] == '.') {
+                if (i < text.len and text[i] == '.') {
                     i += 1;
                     break :token .@"..";
                 } else {
@@ -36,7 +38,7 @@ pub fn tokenize(c: *Compiler) !void {
             ';' => .@";",
             '%' => .@"%",
             '=' => token: {
-                if (i < source.len and source[i] == '=') {
+                if (i < text.len and text[i] == '=') {
                     i += 1;
                     break :token .@"==";
                 } else {
@@ -44,26 +46,26 @@ pub fn tokenize(c: *Compiler) !void {
                 }
             },
             '!' => token: {
-                if (i < source.len and source[i] == '=') {
+                if (i < text.len and text[i] == '=') {
                     i += 1;
                     break :token .@"!=";
                 } else {
-                    return fail(c, start);
+                    return fail(c, source, start);
                 }
             },
             '~' => token: {
-                if (i < source.len and source[i] == '=') {
+                if (i < text.len and text[i] == '=') {
                     i += 1;
                     break :token .@"~=";
                 } else {
-                    return fail(c, start);
+                    return fail(c, source, start);
                 }
             },
             '<' => token: {
-                if (i < source.len and source[i] == '=') {
+                if (i < text.len and text[i] == '=') {
                     i += 1;
                     break :token .@"<=";
-                } else if (i < source.len and source[i] == '<') {
+                } else if (i < text.len and text[i] == '<') {
                     i += 1;
                     break :token .@"<<";
                 }
@@ -72,7 +74,7 @@ pub fn tokenize(c: *Compiler) !void {
                 }
             },
             '>' => token: {
-                if (i < source.len and source[i] == '=') {
+                if (i < text.len and text[i] == '=') {
                     i += 1;
                     break :token .@">=";
                 } else {
@@ -82,8 +84,8 @@ pub fn tokenize(c: *Compiler) !void {
             '+' => .@"+",
             '-' => .@"-",
             '/' => token: {
-                if (i < source.len and source[i] == '/') {
-                    while (i < source.len and source[i] != '\n') : (i += 1) {}
+                if (i < text.len and text[i] == '/') {
+                    while (i < text.len and text[i] != '\n') : (i += 1) {}
                     break :token .comment;
                 } else {
                     break :token .@"/";
@@ -92,13 +94,13 @@ pub fn tokenize(c: *Compiler) !void {
             '*' => .@"*",
             'a'...'z' => token: {
                 i -= 1;
-                while (i < source.len) {
-                    switch (source[i]) {
+                while (i < text.len) {
+                    switch (text[i]) {
                         'a'...'z', '0'...'9', '-' => i += 1,
                         else => break,
                     }
                 }
-                const name = source[start..i];
+                const name = text[start..i];
                 const keywords = [_]TokenData{
                     .@"if",
                     .@"else",
@@ -114,9 +116,9 @@ pub fn tokenize(c: *Compiler) !void {
             },
             '\'' => token: {
                 var escaped = false;
-                while (i < source.len) : (i += 1) {
-                    switch (source[i]) {
-                        '\n' => return fail(c, start),
+                while (i < text.len) : (i += 1) {
+                    switch (text[i]) {
+                        '\n' => return fail(c, source, start),
                         '\'' => {
                             if (!escaped) {
                                 i += 1;
@@ -129,11 +131,11 @@ pub fn tokenize(c: *Compiler) !void {
                         else => escaped = false,
                     }
                 }
-                return fail(c, start);
+                return fail(c, source, start);
             },
             '0'...'9' => token: {
-                while (i < source.len) {
-                    switch (source[i]) {
+                while (i < text.len) {
+                    switch (text[i]) {
                         '0'...'9' => i += 1,
                         else => break,
                     }
@@ -141,28 +143,29 @@ pub fn tokenize(c: *Compiler) !void {
                 break :token .number;
             },
             ' ' => token: {
-                while (i < source.len and source[i] == ' ') {
+                while (i < text.len and text[i] == ' ') {
                     i += 1;
                 }
                 break :token .space;
             },
             '\n' => .newline,
-            else => return fail(c, start),
+            else => return fail(c, source, start),
         };
-        _ = c.token_data.append(token);
-        _ = c.token_to_source.append(.{ start, i });
+        _ = s.token_data.append(token);
+        _ = s.token_to_text.append(.{ start, i });
     }
 
-    _ = c.token_data.append(.eof);
-    _ = c.token_to_source.append(.{ i, i });
+    _ = s.token_data.append(.eof);
+    _ = s.token_to_text.append(.{ i, i });
 }
 
-fn fail(c: *Compiler, pos: usize) error{TokenizeError} {
-    c.error_data = .{ .tokenize = .{ .pos = pos } };
+fn fail(c: *Compiler, source: sir.Source, pos: usize) error{TokenizeError} {
+    c.error_data = .{ .tokenize = .{ .source = source, .pos = pos } };
     return error.TokenizeError;
 }
 
 pub const TokenizeErrorData = struct {
+    source: sir.Source,
     pos: usize,
 };
 

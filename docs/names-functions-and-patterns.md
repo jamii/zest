@@ -34,7 +34,7 @@ NoCaps = 'foo'
 0digits-at-start = 'foo'
 0digist-at-start
 
-Parse error: expected eof, found zest.TokenData.name
+Parse error: expected eof, found sir.TokenData.name
 At 1:16:
 0digits-at-start = 'foo'
                 ^
@@ -44,7 +44,7 @@ At 1:16:
 0-digits-at-start = 'foo'
 0-digits-at-start
 
-Parse error: expected eof, found zest.TokenData.-
+Parse error: expected eof, found sir.TokenData.-
 At 1:2:
 0-digits-at-start = 'foo'
   ^

@@ -111,49 +111,6 @@ pub fn Map(comptime K: type, comptime V: type) type {
     }, std.hash_map.default_max_load_percentage);
 }
 
-pub const Token = struct { id: usize };
-
-pub const TokenData = enum {
-    number,
-    string,
-    name,
-    @"if",
-    @"else",
-    @"while",
-    mut,
-    namespace,
-    @"@",
-    @"(",
-    @")",
-    @"[",
-    @"]",
-    @"{",
-    @"}",
-    @",",
-    @".",
-    @"..",
-    @":",
-    @";",
-    @"%",
-    @"=",
-    @"==",
-    @"!=",
-    @"~=",
-    @"<",
-    @"<=",
-    @">",
-    @">=",
-    @"+",
-    @"-",
-    @"/",
-    @"*",
-    @"<<",
-    comment,
-    space,
-    newline,
-    eof,
-};
-
 pub const Builtin = enum {
     equal,
     @"not-equal",
@@ -297,16 +254,12 @@ pub const Stage = enum {
 
 pub const Compiler = struct {
     allocator: Allocator,
-    source: []const u8,
 
-    // tokenize
-    token_data: List(Token, TokenData),
-    token_to_source: List(Token, [2]usize),
+    source_current: ?sir.Source,
 
-    // parse
-    token_next: Token,
-    sir_expr_data_pre: List(sir.Expr, sir.ExprData),
-    sir_expr_data_post: List(sir.Expr, sir.ExprData),
+    // tokenize/parse
+    token_next: sir.Token,
+    sir_source_data: List(sir.Source, sir.SourceData),
 
     // desugar
     scope: dir.Scope,
@@ -366,17 +319,14 @@ pub const Compiler = struct {
 
     error_data: ?ErrorData,
 
-    pub fn init(allocator: Allocator, source: []const u8) Compiler {
+    pub fn init(allocator: Allocator) Compiler {
         var c = Compiler{
             .allocator = allocator,
-            .source = source,
 
-            .token_data = .init(allocator),
-            .token_to_source = .init(allocator),
+            .source_current = null,
 
             .token_next = .{ .id = 0 },
-            .sir_expr_data_pre = .init(allocator),
-            .sir_expr_data_post = .init(allocator),
+            .sir_source_data = .init(allocator),
 
             .scope = .init(allocator),
             .namespace_data = .init(allocator),
@@ -471,21 +421,33 @@ pub const Compiler = struct {
         switch (stage) {
             .source => {
                 try writer.print("--- SOURCE ---\n", .{});
-                try writer.print("{s}\n", .{c.source});
+                for (c.sir_source_data.items()) |s| {
+                    try writer.print("{}\n", .{s.origin});
+                    try writer.print("{s}\n", .{s.text});
+                    try writer.print("---\n", .{});
+                }
                 try writer.print("---\n", .{});
             },
             .tokens => {
                 try writer.print("--- TOKENS ---\n", .{});
-                for (c.token_data.items(), c.token_to_source.items()) |token_data, source_range| {
-                    try writer.print("{} {any}\n", .{ token_data, source_range });
+                for (c.sir_source_data.items()) |s| {
+                    try writer.print("{}\n", .{s.origin});
+                    for (s.token_data.items(), s.token_to_text.items()) |token_data, source_range| {
+                        try writer.print("{} {any}\n", .{ token_data, source_range });
+                    }
+                    try writer.print("---\n", .{});
                 }
                 try writer.print("---\n", .{});
             },
             .sir => {
                 try writer.print("--- SIR ---\n", .{});
-                var expr = sir.Expr{ .id = 0 };
-                var indent: usize = 0;
-                try c.printSir(writer, &expr, &indent);
+                for (c.sir_source_data.items()) |s| {
+                    try writer.print("{}\n", .{s.origin});
+                    var expr = sir.Expr{ .id = 0 };
+                    var indent: usize = 0;
+                    try c.printSir(writer, s, &expr, &indent);
+                    try writer.print("---\n", .{});
+                }
                 try writer.print("---\n", .{});
             },
             .dir => {
@@ -530,8 +492,8 @@ pub const Compiler = struct {
         }
     }
 
-    fn printSir(c: *Compiler, writer: anytype, expr: *sir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
-        const expr_data = c.sir_expr_data_pre.get(expr.*);
+    fn printSir(c: *Compiler, writer: anytype, s: sir.SourceData, expr: *sir.Expr, indent: *usize) @TypeOf(writer.print("", .{})) {
+        const expr_data = s.expr_data_pre.get(expr.*);
         expr.id += 1;
 
         try writer.writeByteNTimes(' ', indent.* * 2);
@@ -539,7 +501,7 @@ pub const Compiler = struct {
         switch (expr_data) {
             .i64 => |i| try writer.print(" {}", .{i}),
             .f64 => |i| try writer.print(" {}", .{i}),
-            .string => |s| try writer.print(" {s}", .{s}),
+            .string => |string| try writer.print(" {s}", .{string}),
             .name => |name| try writer.print(" {s} mut={}", .{ name.name, name.mut }),
             .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
             .object => |object| try writer.print(" {}", .{object.count}),
@@ -551,7 +513,7 @@ pub const Compiler = struct {
 
         indent.* += 1;
         for (0..expr_data.childCount(c)) |_| {
-            try c.printSir(writer, expr, indent);
+            try c.printSir(writer, s, expr, indent);
         }
         indent.* -= 1;
     }
@@ -631,8 +593,12 @@ pub const InferErrorData = @import("./infer.zig").InferErrorData;
 pub const GenerateErrorData = @import("./generate.zig").GenerateErrorData;
 pub const ErrorData = union(enum) {
     tokenize: TokenizeErrorData,
-    parse: ParseErrorData,
+    parse: struct {
+        source: sir.Source,
+        data: ParseErrorData,
+    },
     desugar: struct {
+        source: sir.Source,
         expr: sir.Expr,
         data: DesugarErrorData,
     },
@@ -652,7 +618,7 @@ pub const ErrorData = union(enum) {
 };
 
 const Location = struct {
-    source: []const u8,
+    text: []const u8,
     line: usize,
     column: usize,
     range: [2]usize,
@@ -663,19 +629,20 @@ const Location = struct {
         try writer.print("At {}:{}:\n{s}\n", .{
             self.line,
             self.column,
-            self.source[self.range[0]..self.range[1]],
+            self.text[self.range[0]..self.range[1]],
         });
         try writer.writeByteNTimes(' ', self.column);
         try writer.writeByte('^');
     }
 };
 
-fn locate(c: *Compiler, pos: usize) Location {
-    const line = 1 + std.mem.count(u8, c.source[0..pos], "\n");
-    const start = if (std.mem.lastIndexOfScalar(u8, c.source[0..pos], '\n')) |i| i + 1 else 0;
-    const end = std.mem.indexOfScalarPos(u8, c.source, pos, '\n') orelse c.source.len;
+fn locate(c: *Compiler, source: sir.Source, pos: usize) Location {
+    const s = c.sir_source_data.get(source);
+    const line = 1 + std.mem.count(u8, s.text[0..pos], "\n");
+    const start = if (std.mem.lastIndexOfScalar(u8, s.text[0..pos], '\n')) |i| i + 1 else 0;
+    const end = std.mem.indexOfScalarPos(u8, s.text, pos, '\n') orelse s.text.len;
     return .{
-        .source = c.source,
+        .text = s.text,
         .line = line,
         .column = pos - start,
         .range = .{ start, end },
@@ -686,13 +653,14 @@ pub fn formatError(c: *Compiler) []const u8 {
     if (c.error_data) |error_data|
         switch (error_data) {
             .tokenize => |err| {
-                const location = locate(c, err.pos);
+                const location = locate(c, err.source, err.pos);
                 return format(c, "Tokenize error\n{}", .{location});
             },
             .parse => |err| {
-                const pos = c.token_to_source.get(c.token_next)[0];
-                const location = locate(c, pos);
-                return switch (err) {
+                const s = c.sir_source_data.get(err.source);
+                const pos = s.token_to_text.get(c.token_next)[0];
+                const location = locate(c, err.source, pos);
+                return switch (err.data) {
                     .unexpected => |data| format(c, "Parse error: expected {s}, found {}\n{}", .{ data.expected, data.found, location }),
                     .unexpected_space => format(c, "Parse error: unexpected space\n{}", .{location}),
                     .ambiguous_precedence => |data| format(c, "Parse error: ambigious precedence between {} and {}\n{}", .{ data[0], data[1], location }),
@@ -705,7 +673,8 @@ pub fn formatError(c: *Compiler) []const u8 {
                 };
             },
             .desugar => |err| {
-                const expr_data = c.sir_expr_data_pre.get(err.expr);
+                const s = c.sir_source_data.get(err.source);
+                const expr_data = s.expr_data_pre.get(err.expr);
                 return switch (err.data) {
                     .invalid_pattern => format(c, "Invalid pattern: {}", .{expr_data}),
                     .name_not_bound => |data| format(c, "Name not bound: {s}", .{data.name}),
@@ -788,19 +757,18 @@ pub fn format(c: *Compiler, comptime message: []const u8, args: anytype) []const
     return std.fmt.allocPrint(c.allocator, message, args) catch oom();
 }
 
-pub fn compileLax(c: *Compiler) error{ TokenizeError, ParseError, DesugarError }!void {
+pub fn compileLax(c: *Compiler, text: []const u8) error{ TokenizeError, ParseError, DesugarError }!void {
+    const s = c.sir_source_data.append(.init(c.allocator, .main, text));
+
     c.print(.source, std.io.getStdErr().writer()) catch unreachable;
 
-    try tokenize(c);
-    assert(c.token_data.count() == c.token_to_source.count());
+    try tokenize(c, s);
     c.print(.tokens, std.io.getStdErr().writer()) catch unreachable;
 
-    try parse(c);
-    assert(c.token_next.id == c.token_data.count() - 1);
+    try parse(c, s);
     c.print(.sir, std.io.getStdErr().writer()) catch unreachable;
 
-    try desugar(c);
-    assert(c.dir_fun_main != null);
+    try desugar(c, s);
     c.print(.dir, std.io.getStdErr().writer()) catch unreachable;
 }
 
@@ -808,9 +776,7 @@ pub fn compileStrict(c: *Compiler) error{ EvalError, InferError, GenerateError }
     assert(c.dir_fun_main != null);
 
     try infer(c);
-    assert(c.tir_fun_main != null);
     c.print(.tir, std.io.getStdErr().writer()) catch unreachable;
 
     try generate(c);
-    assert(c.wasm.items.len != 0);
 }

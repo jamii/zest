@@ -299,7 +299,7 @@ i64[42]
 ```zest-test
 i64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24786.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24805.overflow
 At 1:23:
 i64[9223372036854775808]
                        ^
@@ -330,7 +330,7 @@ TODO Represent literals as big-int/big-dec to avoid this problem.
 ```zest-test
 f64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24786.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24805.overflow
 At 1:23:
 f64[9223372036854775808]
                        ^

@@ -1,8 +1,55 @@
 //! Syntax IR
 
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const zest = @import("./zest.zig");
 const Builtin = zest.Builtin;
 const Compiler = zest.Compiler;
+const List = zest.List;
+
+pub const Token = struct { id: usize };
+
+pub const TokenData = enum {
+    number,
+    string,
+    name,
+    @"if",
+    @"else",
+    @"while",
+    mut,
+    namespace,
+    @"@",
+    @"(",
+    @")",
+    @"[",
+    @"]",
+    @"{",
+    @"}",
+    @",",
+    @".",
+    @"..",
+    @":",
+    @";",
+    @"%",
+    @"=",
+    @"==",
+    @"!=",
+    @"~=",
+    @"<",
+    @"<=",
+    @">",
+    @">=",
+    @"+",
+    @"-",
+    @"/",
+    @"*",
+    @"<<",
+    comment,
+    space,
+    newline,
+    eof,
+};
 
 pub const Expr = struct { id: usize };
 
@@ -47,4 +94,32 @@ pub const ExprData = union(enum) {
             .call_builtin => |builtin| builtin.argCount(),
         };
     }
+};
+
+pub const Source = struct { id: usize };
+
+pub const SourceData = struct {
+    origin: Origin,
+    text: []const u8,
+    token_data: List(Token, TokenData),
+    token_to_text: List(Token, [2]usize),
+    expr_data_pre: List(Expr, ExprData),
+    expr_data_post: List(Expr, ExprData),
+
+    pub fn init(allocator: Allocator, origin: Origin, text: []const u8) SourceData {
+        return .{
+            .origin = origin,
+            .text = text,
+            .token_data = .init(allocator),
+            .token_to_text = .init(allocator),
+            .expr_data_pre = .init(allocator),
+            .expr_data_post = .init(allocator),
+        };
+    }
+};
+
+pub const Origin = union(enum) {
+    std,
+    import: []const u8,
+    main,
 };

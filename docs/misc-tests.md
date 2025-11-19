@@ -1444,7 +1444,7 @@ foo = () {
   bad grammar
 }
 
-Parse error: expected }, found zest.TokenData.name
+Parse error: expected }, found sir.TokenData.name
 At 2:13:
   bad grammar
              ^
@@ -1591,7 +1591,7 @@ undefined
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24384{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24400{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```

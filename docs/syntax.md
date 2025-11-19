@@ -49,7 +49,7 @@ a = 2
 b = 1
 a /b
 
-Parse error: expected space or newline, found zest.TokenData.name
+Parse error: expected space or newline, found sir.TokenData.name
 At 3:4:
 a /b
     ^
@@ -70,7 +70,7 @@ a = 1
 inc = (x) x + 1
 a /inc()
 
-Parse error: expected space or newline, found zest.TokenData.name
+Parse error: expected space or newline, found sir.TokenData.name
 At 3:6:
 a /inc()
       ^
@@ -116,7 +116,7 @@ undefined
     2,
 ]
 
-Parse error: expected expr-atom, found zest.TokenData.newline
+Parse error: expected expr-atom, found sir.TokenData.newline
 At 3:0:
     1,
 ^
@@ -134,7 +134,7 @@ inc = (a)
   a + 1
 inc(1)
 
-Parse error: expected expr-atom, found zest.TokenData.newline
+Parse error: expected expr-atom, found sir.TokenData.newline
 At 2:0:
   a + 1
 ^
@@ -160,7 +160,7 @@ inc(1)
 1
 + 1
 
-Parse error: expected expr-atom, found zest.TokenData.+
+Parse error: expected expr-atom, found sir.TokenData.+
 At 2:1:
 + 1
  ^
@@ -188,7 +188,7 @@ inc = (x) x + 1
 1
   /inc()
 
-Parse error: expected expr-atom, found zest.TokenData./
+Parse error: expected expr-atom, found sir.TokenData./
 At 3:3:
   /inc()
    ^
