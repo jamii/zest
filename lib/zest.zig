@@ -322,6 +322,7 @@ pub const Compiler = struct {
     while_stack: ArrayList(dir.Expr),
     memory: ArrayList(u8),
     printed: ArrayList(u8),
+    eval_mode: EvalMode,
 
     // infer
     tir_fun_data: List(tir.Fun, *tir.FunData),
@@ -365,6 +366,8 @@ pub const Compiler = struct {
 
     error_data: ?ErrorData,
 
+    pub const EvalMode = enum { impure, pure };
+
     pub fn init(allocator: Allocator, source: []const u8) Compiler {
         var c = Compiler{
             .allocator = allocator,
@@ -389,6 +392,7 @@ pub const Compiler = struct {
             .while_stack = .init(allocator),
             .memory = .init(allocator),
             .printed = .init(allocator),
+            .eval_mode = .impure,
 
             .tir_fun_data = .init(allocator),
             .tir_fun_by_key = .init(allocator),
@@ -744,6 +748,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .unknown_namespace => |data| format(c, "Unknown namespace: {}", .{data}),
                     .definition_not_found => |data| format(c, "Cannot find definition: {}..{}", .{ data.namespace, data.key }),
                     .recursive_evaluation => |data| format(c, "Recursive evaluation: {}..{}", .{ data.namespace, data.key }),
+                    .side_effects_in_pure_eval => |data| format(c, "Tried to perform a side effect during pure evaluation: {}", .{data}),
                     .todo => format(c, "TODO eval: {}", .{expr_data}),
                 };
             },

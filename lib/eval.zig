@@ -128,6 +128,7 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     if (frame_evalled.memo) |memo| {
                         const value = c.value_stack.items[c.value_stack.items.len - 1];
                         c.namespace_data.get(memo.namespace).definition_data.getPtr(memo.definition).value = .{ .evaluated = value.copy(c.allocator) };
+                        c.eval_mode = memo.eval_mode;
                     }
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop().?;
@@ -317,8 +318,10 @@ pub fn evalExpr(
                         .memo = .{
                             .namespace = namespace.namespace.namespace,
                             .definition = definition,
+                            .eval_mode = c.eval_mode,
                         },
                     });
+                    c.eval_mode = .pure;
                     return .call;
                 },
                 .evaluating => return fail(c, .{ .recursive_evaluation = .{ .namespace = namespace, .key = key } }),
@@ -597,6 +600,8 @@ pub fn evalExpr(
                 },
                 .print => {
                     const value = c.value_stack.pop().?;
+                    if (c.eval_mode == .pure)
+                        return fail(c, .{ .side_effects_in_pure_eval = .print });
                     switch (value) {
                         .u32 => |u| c.printed.writer().print("{}", .{u}) catch oom(),
                         .i64 => |i| c.printed.writer().print("{}", .{i}) catch oom(),
@@ -927,5 +932,6 @@ pub const EvalErrorData = union(enum) {
         namespace: Value,
         key: Value,
     },
+    side_effects_in_pure_eval: Builtin,
     todo,
 };

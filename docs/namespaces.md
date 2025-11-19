@@ -75,25 +75,19 @@ n = namespace{
   danger = %panic()
 }
 n..danger
-// TODO The strict result is weird!
 
 panic
-
-Recursive evaluation: namespace[0]..'danger'
 ```
 
 Bindings are evaluated in a pure context.
 
 ```zest-test
-// TODO
 n = namespace{
   impure = %print('hi!')
 }
 n..impure
 
-hi![]
-
-undefined
+Tried to perform a side effect during pure evaluation: zest.Builtin.print
 ```
 
 Bindings can refer to each other in any order:
@@ -118,8 +112,6 @@ kinds = namespace{
 kinds..even
 
 Recursive evaluation: []/namespace[0]..'even'
-
-Recursive evaluation: namespace[0]..'even'
 ```
 
 Bindings may contain mutually recursive functions:

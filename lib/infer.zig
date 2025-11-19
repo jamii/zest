@@ -96,9 +96,9 @@ pub fn inferExpr(
     dir_f: dir.FunData,
     dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
-    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
+    //zest.p(.{ .in, f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
     var repr = try inferExprInner(c, f, dir_f, dest);
-    //zest.p(.{ f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
+    //zest.p(.{ .out, f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
     if (dest.repr) |dest_repr| {
         try convert(c, f, repr, dest_repr);
         repr = dest_repr;
@@ -273,8 +273,11 @@ fn inferExprInner(
                             .memo = .{
                                 .namespace = namespace.namespace.namespace,
                                 .definition = definition,
+                                .eval_mode = c.eval_mode,
                             },
                         });
+                        c.eval_mode = .pure;
+
                         break :value try eval.eval(c);
                     },
                     .evaluating => return fail(c, .{ .recursive_evaluation = .{ .namespace = namespace, .key = key } }),
@@ -779,6 +782,10 @@ fn inferExprInner(
             const infer_mode = c.infer_mode;
             c.infer_mode = .unstage;
             defer c.infer_mode = infer_mode;
+
+            const eval_mode = c.eval_mode;
+            c.eval_mode = .pure;
+            defer c.eval_mode = eval_mode;
 
             c.infer_context.dir_expr_next.id -= 1; // untake .stage
             const value = try eval.evalStaged(c, dir_f, f);
