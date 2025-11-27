@@ -169,11 +169,11 @@ pub fn main() !void {
             else
                 actual_lax;
 
-            std.debug.print(
-                \\--- wat ---
-                \\{s}
-                \\
-            , .{readWat(allocator)});
+            //std.debug.print(
+            //    \\--- wat ---
+            //    \\{s}
+            //    \\
+            //, .{readWat(allocator)});
 
             const correct_lax = std.mem.eql(u8, expected_lax, actual_lax);
             const correct_strict = std.mem.eql(u8, expected_strict, actual_strict);

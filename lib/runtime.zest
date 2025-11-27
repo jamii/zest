@@ -4,6 +4,27 @@ panic = (message) {
   %panic()
 }
 
+print = (x) {
+  t = only[%reflect(%repr-of(x))][[]]
+  if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
+    %print(x)
+  } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
+    %print(x)
+  } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
+    %print('\'')
+    // TODO escape
+    %print(x)
+    %print('\'')
+  } else {
+    %print('TODO print')
+  }
+  %print('\n')
+}
+
+print-main = () {
+  print(%main())
+}
+
 wasm-page-len-log = u32[16] // log2(64 * 1024)
 wasm-page-len = u32[1] << wasm-page-len-log
 

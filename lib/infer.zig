@@ -18,11 +18,12 @@ const tir = zest.tir;
 const eval = @import("./eval.zig");
 
 pub fn infer(c: *Compiler) error{ EvalError, InferError }!void {
+    const print_main = try eval.evalRuntimeDefinition(c, "print-main");
     c.infer_mode = .infer;
     c.tir_fun_main = try inferFun(c, .{
-        .fun = c.dir_fun_main.?,
+        .fun = print_main.fun.repr.fun,
         .closure_repr = Repr.emptyStruct(),
-        .arg_reprs = &.{},
+        .arg_reprs = c.dupe(Repr, &.{Repr.emptyStruct()}),
     });
 }
 
@@ -702,6 +703,22 @@ fn inferExprInner(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } });
                     emit(c, f, .{ .call_builtin = .from_only });
                     return arg.only.reprOf();
+                },
+                .main => {
+                    const closure_local = f.local_data.append(.{ .repr = .emptyStruct(), .is_tmp = true });
+                    const arg_local = f.local_data.append(.{ .repr = .emptyStruct(), .is_tmp = true });
+                    const repr = try inferFunInline(
+                        c,
+                        f,
+                        .{
+                            .fun = c.dir_fun_main.?,
+                            .closure_repr = .emptyStruct(),
+                            .arg_reprs = c.dupe(Repr, &.{.emptyStruct()}),
+                        },
+                        closure_local,
+                        &.{arg_local},
+                    );
+                    return repr;
                 },
                 else => return fail(c, .todo),
             }

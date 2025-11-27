@@ -30,9 +30,7 @@ try {
 memory = wasmInstance.exports.memory;
 
 try {
-  const result = wasmInstance.exports.main();
-  // Use result.toString to print Int64 without a trailing 'n'
-  console.log(result?.toString());
+  wasmInstance.exports.main();
 } catch (error) {
   console.error(error);
 }

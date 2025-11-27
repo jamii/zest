@@ -33,6 +33,34 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     return eval(c);
 }
 
+pub fn evalRuntimeDefinition(c: *Compiler, name: []const u8) error{EvalError}!Value {
+    const runtime = c.namespace_by_origin.get(.runtime).?;
+    const runtime_data = c.namespace_data.get(runtime);
+    const definition = runtime_data.definition_by_name.get(name).?;
+    const definition_data = runtime_data.definition_data.get(definition);
+
+    switch (definition_data.value) {
+        .unevaluated => {
+            c.pure_depth += 1;
+            pushFun(c, .{
+                .fun = definition_data.fun,
+                .closure = Value.emptyStruct(),
+                .args = &.{},
+                .memo = .{
+                    .namespace = runtime,
+                    .definition = definition,
+                },
+            });
+            return eval(c);
+        },
+        .evaluating => return fail(c, .{ .recursive_evaluation = .{
+            .namespace = .{ .namespace = .{ .namespace = runtime } },
+            .key = .{ .string = name },
+        } }),
+        .evaluated => |value| return value,
+    }
+}
+
 pub fn pushFun(c: *Compiler, frame: dir.Frame) void {
     c.dir_frame_stack.append(frame) catch oom();
     c.local_stack.appendNTimes(
@@ -699,6 +727,14 @@ pub fn evalExpr(
                         },
                         else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } }),
                     }
+                },
+                .main => {
+                    pushFun(c, .{
+                        .fun = c.dir_fun_main.?,
+                        .closure = .emptyStruct(),
+                        .args = c.dupe(Value, &.{.emptyStruct()}),
+                    });
+                    return .call;
                 },
                 else => return fail(c, .todo),
             }
