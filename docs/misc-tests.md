@@ -3,7 +3,7 @@
 
 []
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -121,7 +121,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[27, k: string]
+Cannot unstage value: fun[33, k: string]
 ```
 
 ```zest-test
@@ -428,9 +428,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[27]: 1]
+[[]/fun[33]: 1]
 
-Cannot unstage value: ref[fun[27]]
+Cannot unstage value: ref[fun[33]]
 ```
 
 ```zest-test
@@ -823,9 +823,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[29, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[35, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[29, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[35, a: ref[i64]]
 ```
 
 ```zest-test
@@ -842,9 +842,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[27, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[33, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[27, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[33, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1082,7 +1082,7 @@ At 1:16:
 
 42
 
-8388776
+8388777
 ```
 
 ```zest-test
@@ -1315,8 +1315,6 @@ Cannot unstage value: i64
 'foo'
 
 'foo'
-
-undefined
 ```
 
 ```zest-test
@@ -1324,8 +1322,6 @@ undefined
 'foo'
 
 'foo'
-
-undefined
 ```
 
 ```zest-test
@@ -1333,8 +1329,6 @@ x = ['bar','foo']
 x.1
 
 'foo'
-
-undefined
 ```
 
 ```zest-test
@@ -1357,8 +1351,9 @@ Tried to perform a side effect during pure evaluation: zest.Builtin.print
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/d11e8996:1:164)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/b528dff6:1:196)
+    at <anonymous> (wasm://wasm/b528dff6:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1374,9 +1369,10 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/03f78e82:1:282)
-    at <anonymous> (wasm://wasm/03f78e82:1:204)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/f62cd036:1:306)
+    at <anonymous> (wasm://wasm/f62cd036:1:221)
+    at <anonymous> (wasm://wasm/f62cd036:1:177)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1391,8 +1387,9 @@ RuntimeError: unreachable
 Division by zero
 
 RuntimeError: remainder by zero
-    at <anonymous> (wasm://wasm/765d238a:1:172)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/01b4049a:1:191)
+    at <anonymous> (wasm://wasm/01b4049a:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1524,8 +1521,9 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/246c329e:1:167)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/247ec0ee:1:185)
+    at <anonymous> (wasm://wasm/247ec0ee:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1542,8 +1540,9 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/21e368e2:1:202)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/34feac2a:1:222)
+    at <anonymous> (wasm://wasm/34feac2a:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1553,8 +1552,9 @@ a.some
 Key 'some' not found in [none: []]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/5a01a222:1:168)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/78c14fa2:1:187)
+    at <anonymous> (wasm://wasm/78c14fa2:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1563,7 +1563,7 @@ a.none
 
 []
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -1573,8 +1573,9 @@ a.some
 Key 'some' not found in [none: []]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/2a1e5b0a:1:196)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/e9709e0a:1:217)
+    at <anonymous> (wasm://wasm/e9709e0a:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1583,7 +1584,7 @@ a.none
 
 []
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -1616,8 +1617,9 @@ a.none
 Key 'some' not found in [none: 101]/union[some: i64, none: i64]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/866bb572:1:218)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/3e7f7c5e:1:239)
+    at <anonymous> (wasm://wasm/3e7f7c5e:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test
@@ -1772,18 +1774,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[27] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[33] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[27] }
+Cannot call zest.Builtin.each with these args: { i64, fun[33] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[27] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[33] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[27] }
+Cannot call zest.Builtin.each with these args: { string, fun[33] }
 ```
 
 ```zest-test
@@ -1927,7 +1929,7 @@ Expected i64, found string
 
 [name: 0, still-a-name: 1, ' not': 2, '0not': 2]
 
-undefined
+TODO print
 ```
 
 ```zest-test

@@ -7,8 +7,6 @@ some-name = 'foo'
 some-name
 
 'foo'
-
-undefined
 ```
 
 ```zest-test
@@ -16,8 +14,6 @@ side2side = 'foo'
 side2side
 
 'foo'
-
-undefined
 ```
 
 ```zest-test
@@ -58,7 +54,7 @@ foo = 'the number'
 
 [foo: 42]
 
-undefined
+TODO print
 ```
 
 Use brackets to treat the key as a name.
@@ -80,7 +76,7 @@ foo = 'the number'
 
 [foo: 'the number']
 
-undefined
+TODO print
 ```
 
 Names may not be shadowed.
@@ -185,7 +181,7 @@ Each function has a unique nominal type.
 inc = (x) x + 1
 %repr-of(inc)
 
-fun[27]
+fun[33]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -195,7 +191,7 @@ inc = (x) x + 1
 dec = (x) x - 1
 %repr-of(inc) == %repr-of(dec)
 
-Cannot call zest.Builtin.equal with these args: { fun[27], fun[29] }
+Cannot call zest.Builtin.equal with these args: { fun[33], fun[35] }
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -209,7 +205,7 @@ make-echo = (x) () x
   %repr-of(make-echo('foo')), 
 ]
 
-[fun[29, x: i64], fun[29, x: string]]
+[fun[35, x: i64], fun[35, x: string]]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -234,7 +230,7 @@ Assignments can pattern-match values.
 
 [1, 2]
 
-undefined
+TODO print
 ```
 
 Patterns that don't match exactly will throw errors.
@@ -261,7 +257,7 @@ Patterns can use the same syntax sugar as object fields:
 
 [1, 2, 3]
 
-undefined
+TODO print
 ```
 
 The arguments to functions are just an object pattern-match:
@@ -273,7 +269,7 @@ foo(1, 'z with spaces': 3, :y)
 
 [1, 2, 3]
 
-undefined
+TODO print
 ```
 
 TODO matching rest-of-object

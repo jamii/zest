@@ -97,9 +97,9 @@ pub fn inferExpr(
     dir_f: dir.FunData,
     dest: tir.Destination,
 ) error{ InferError, EvalError }!Repr {
-    //zest.p(.{ .in, f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
+    //zest.p(.{ .in, f.key.fun.id, c.infer_context.dir_expr_next.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id }), dest });
     var repr = try inferExprInner(c, f, dir_f, dest);
-    //zest.p(.{ .out, f.key.fun.id, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
+    //zest.p(.{ .out, f.key.fun.id, c.infer_context.dir_expr_next.id - 1, dir_f.expr_data_pre.get(.{ .id = c.infer_context.dir_expr_next.id - 1 }), dest, repr });
     if (dest.repr) |dest_repr| {
         try convert(c, f, repr, dest_repr);
         repr = dest_repr;
@@ -759,21 +759,34 @@ fn inferExprInner(
             const cond_repr = try inferExpr(c, f, dir_f, .other);
             const cond = cond_repr.asBoolish() orelse
                 return fail(c, .{ .not_a_bool = cond_repr });
-            _ = take(c, dir_f).if_then;
-            const then = try inferExpr(c, f, dir_f, if (cond == .false) .other else dest);
-            _ = take(c, dir_f).if_else;
-            const @"else" = try inferExpr(c, f, dir_f, if (cond == .true) .other else dest);
-            const repr = switch (cond) {
-                .true => then,
-                .false => @"else",
-                .unknown => repr: {
+            switch (cond) {
+                .false => {
+                    _ = take(c, dir_f).if_then;
+                    _ = skipTree(c, dir_f);
+                    _ = take(c, dir_f).if_else;
+                    const repr = try inferExpr(c, f, dir_f, dest);
+                    emit(c, f, .{ .block = .{ .count = 2 } });
+                    return repr;
+                },
+                .true => {
+                    _ = take(c, dir_f).if_then;
+                    const repr = try inferExpr(c, f, dir_f, dest);
+                    _ = take(c, dir_f).if_else;
+                    _ = skipTree(c, dir_f);
+                    emit(c, f, .{ .block = .{ .count = 2 } });
+                    return repr;
+                },
+                .unknown => {
+                    _ = take(c, dir_f).if_then;
+                    const then = try inferExpr(c, f, dir_f, dest);
+                    _ = take(c, dir_f).if_else;
+                    const @"else" = try inferExpr(c, f, dir_f, dest);
                     if (!then.equal(@"else"))
                         return fail(c, .{ .type_error = .{ .expected = then, .found = @"else" } });
-                    break :repr then;
+                    emit(c, f, .{ .@"if" = then });
+                    return then;
                 },
-            };
-            emit(c, f, .{ .@"if" = repr });
-            return repr;
+            }
         },
         .@"while" => {
             _ = take(c, dir_f).while_begin;
@@ -884,6 +897,16 @@ fn take(c: *Compiler, dir_f: dir.FunData) dir.ExprData {
     const expr_data = dir_f.expr_data_pre.get(c.infer_context.dir_expr_next);
     c.infer_context.dir_expr_next.id += 1;
     return expr_data;
+}
+
+fn skipTree(c: *Compiler, dir_f: dir.FunData) dir.Expr {
+    const start = c.infer_context.dir_expr_next;
+    var children_remaining: usize = 1;
+    while (children_remaining > 0) {
+        children_remaining += take(c, dir_f).childCount(c);
+        children_remaining -= 1;
+    }
+    return start;
 }
 
 fn emit(c: *Compiler, f: *tir.FunData, expr_data: ?tir.ExprData) void {

@@ -59,7 +59,7 @@ Name not bound: f64
 
 [a: 42]/union[a: i64, b: string]
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -125,8 +125,6 @@ A sequence of unicode characters enclosed in single quotes.
 'foo'
 
 'foo'
-
-undefined
 ```
 
 The usual escapes are supported.
@@ -136,7 +134,7 @@ The usual escapes are supported.
 
 'have a \'string\''
 
-undefined
+'have a 'string''
 ```
 
 ```zest-test
@@ -144,7 +142,7 @@ undefined
 
 'escape \\ this'
 
-undefined
+'escape \ this'
 ```
 
 The syntax does not allow literal newlines.
@@ -164,7 +162,8 @@ At 1:0:
 
 'a\nstring'
 
-undefined
+'a
+string'
 ```
 
 ### objects
@@ -176,7 +175,7 @@ Zero or more key-value pairs, separated by commas.
 
 []
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -184,7 +183,7 @@ undefined
 
 [a: 'apple', b: 'bear']
 
-undefined
+TODO print
 ```
 
 Optional trailing comma.
@@ -194,7 +193,7 @@ Optional trailing comma.
 
 [a: 'apple', b: 'bear']
 
-undefined
+TODO print
 ```
 
 Key order matters.
@@ -204,7 +203,7 @@ Key order matters.
 
 [b: 'bear', a: 'apple']
 
-undefined
+TODO print
 ```
 
 TODO But conversions are allowed to reorder keys.
@@ -222,7 +221,7 @@ TODO No repeated keys.
 
 [a: 'apple', a: 'bear']
 
-undefined
+TODO print
 ```
 
 If the key is a string which is a valid name, the quotes may be omitted.
@@ -232,7 +231,7 @@ If the key is a string which is a valid name, the quotes may be omitted.
 
 [a: 'apple', b: 'bear']
 
-undefined
+TODO print
 ```
 
 Omitted keys default to consecutive integers, starting at 0.
@@ -242,7 +241,7 @@ Omitted keys default to consecutive integers, starting at 0.
 
 ['a', 'b']
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -250,7 +249,7 @@ undefined
 
 ['a', 'b']
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -258,7 +257,7 @@ undefined
 
 [1: 'b', 0: 'a']
 
-undefined
+TODO print
 ```
 
 You can mix omitted and present keys.
@@ -268,7 +267,7 @@ You can mix omitted and present keys.
 
 ['a', 'b', default: 'c']
 
-undefined
+TODO print
 ```
 
 But omitted keys must be written before present keys.
@@ -356,8 +355,6 @@ Name not bound: f64
 string['foo']
 
 'foo'
-
-undefined
 ```
 
 Strings are uft8.
@@ -373,7 +370,7 @@ Structs are objects with a fixed set of keys.
 
 [a: 0, b: 'foo']
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -429,7 +426,7 @@ A union represents one of a finite number of single-key objects.
 
 [strings: 'hello']/union[strings: string, nums: i64]
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -449,8 +446,6 @@ x = [strings: 'hello']/union[strings: string, nums: i64]
 x.strings
 
 'hello'
-
-undefined
 ```
 
 ```zest-test
@@ -460,8 +455,9 @@ x.nums
 Key 'nums' not found in [strings: 'hello']/union[strings: string, nums: i64]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/5a01a222:1:168)
-    at file:///home/jamie/zest/test.js:33:39
+    at <anonymous> (wasm://wasm/78c14fa2:1:187)
+    at <anonymous> (wasm://wasm/78c14fa2:1:176)
+    at file:///home/jamie/zest/test.js:33:24
 ```
 
 ```zest-test

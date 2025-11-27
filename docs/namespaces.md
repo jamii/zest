@@ -8,7 +8,7 @@ namespace{
 
 []/namespace[1]
 
-undefined
+TODO print
 ```
 
 Destructuring is not supported.
@@ -43,7 +43,7 @@ kinds = namespace{
 
 [[]/namespace[1], []/namespace[0]]
 
-undefined
+TODO print
 ```
 
 Bindings can be accessed with `..` (placeholder syntax.)
@@ -67,7 +67,7 @@ namespace{
 
 []/namespace[1]
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -129,8 +129,6 @@ kinds = namespace{
 kinds..is-even(4)
 
 'true'
-
-undefined
 ```
 
 But these functions must have return type annotations in order to type-check succesfully.
@@ -149,8 +147,6 @@ kinds = namespace{
 kinds..is-even(4)
 
 'true'
-
-undefined
 ```
 
 ```zest-test
@@ -170,7 +166,7 @@ kinds..is-even(4)
 
 'true'
 
-Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 27 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
+Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 33 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
 ```
 
 Namespaces currently can't close over values from the outer scope.

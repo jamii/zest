@@ -27,7 +27,7 @@ b mut = 2
 
 [2, 1]
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -38,7 +38,7 @@ b mut = 2
 
 [2, 2, 1]
 
-undefined
+TODO print
 ```
 
 To pass a mutable reference to a function, mark the argument as `mut` and pass the reference with `@`.
@@ -94,7 +94,7 @@ a
 
 [b: 2]
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -105,7 +105,7 @@ a
 
 [b: 2]
 
-undefined
+TODO print
 ```
 
 TODO Mutable references never alias - setting the value of one mutable variable will never change the value of another mutable variable. To enforce this, all of the mutable arguments to a function call must be disjoint.
@@ -120,7 +120,7 @@ a
 
 [b: 2, c: 1]
 
-undefined
+TODO print
 ```
 
 ```zest-test
@@ -133,7 +133,7 @@ a
 
 [b: 1, c: 2]
 
-undefined
+TODO print
 ```
 
 Only the mutable arguments are required to be disjoint - other arguments may overlap.
@@ -146,7 +146,7 @@ a
 
 [b: 1, c: 2]
 
-undefined
+TODO print
 ```
 
 Mutable references are 2nd-class - they cannot be assigned or returned.
