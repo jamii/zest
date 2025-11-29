@@ -15,12 +15,6 @@ string-innards = struct[
   len: u32,
 ]
 
-panic = (message) {
-  %print(message)
-  %print('\n')
-  %panic()
-}
-
 print-value = (x) {
   t = only[%reflect(%repr-of(x))][[]]
   if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
@@ -82,6 +76,11 @@ print = (x) {
 
 print-main = () {
   print(%main())
+}
+
+panic = (message) {
+  print(message)
+  %panic()
 }
 
 wasm-page-len-log = u32[16] // log2(64 * 1024)
