@@ -315,10 +315,6 @@ pub const Compiler = struct {
     constant_data: ArrayList(u8),
     wasm: ArrayList(u8),
 
-    // constants
-    reflection: ReprUnion,
-    string_innards: ReprStruct,
-
     error_data: ?ErrorData,
 
     pub fn init(allocator: Allocator) Compiler {
@@ -369,40 +365,12 @@ pub const Compiler = struct {
             .constant_data = .init(allocator),
             .wasm = .init(allocator),
 
-            .reflection = ReprUnion{
-                .keys = allocator.dupe(Value, &[_]Value{
-                    .{ .string = "u32" },
-                    .{ .string = "i64" },
-                    .{ .string = "string" },
-                    .{ .string = "struct" },
-                    .{ .string = "union" },
-                    .{ .string = "fun" },
-                    .{ .string = "only" },
-                    .{ .string = "repr" },
-                    .{ .string = "repr-kind" },
-                }) catch oom(),
-                // TODO Need lists for most useful values.
-                .reprs = allocator.dupe(Repr, &[_]Repr{
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                    Repr.emptyStruct(),
-                }) catch oom(),
-            },
-            .string_innards = ReprStruct{
-                .keys = allocator.dupe(Value, &[_]Value{ .{ .string = "ptr" }, .{ .string = "len" } }) catch oom(),
-                .reprs = allocator.dupe(Repr, &[_]Repr{ .u32, .u32 }) catch oom(),
-            },
-
             .error_data = null,
         };
+
         // Need at least one page of memory for the allocator.
         c.memory.appendNTimes(0, std.wasm.page_size) catch oom();
+
         return c;
     }
 

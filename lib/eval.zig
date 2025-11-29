@@ -33,7 +33,7 @@ pub fn evalMain(c: *Compiler) error{EvalError}!Value {
     return eval(c);
 }
 
-pub fn evalRuntimeDefinition(c: *Compiler, name: []const u8) error{EvalError}!Value {
+pub fn evalRuntimeDefinition(c: *Compiler, name: []const u8) Value {
     const runtime = c.namespace_by_origin.get(.runtime).?;
     const runtime_data = c.namespace_data.get(runtime);
     const definition = runtime_data.definition_by_name.get(name).?;
@@ -51,12 +51,14 @@ pub fn evalRuntimeDefinition(c: *Compiler, name: []const u8) error{EvalError}!Va
                     .definition = definition,
                 },
             });
-            return eval(c);
+            return eval(c) catch |err| panic("{}", .{err});
         },
-        .evaluating => return fail(c, .{ .recursive_evaluation = .{
-            .namespace = .{ .namespace = .{ .namespace = runtime } },
-            .key = .{ .string = name },
-        } }),
+        .evaluating => panic("{}", .{
+            fail(c, .{ .recursive_evaluation = .{
+                .namespace = .{ .namespace = .{ .namespace = runtime } },
+                .key = .{ .string = name },
+            } }),
+        }),
         .evaluated => |value| return value,
     }
 }
@@ -147,11 +149,11 @@ pub fn evalStaged(c: *Compiler, f: dir.FunData, tir_f: *tir.FunData) error{ Eval
 pub fn eval(c: *Compiler) error{EvalError}!Value {
     const start_frame_index = c.dir_frame_stack.items.len;
     fun: while (true) {
-        const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-        const f = c.dir_fun_data.get(frame.fun);
         while (true) {
+            const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+            const f = c.dir_fun_data.get(frame.fun);
             const expr_data = f.expr_data_post.get(frame.expr);
-            //zest.p(.{ .eval = expr_data, .values = c.value_stack.items });
+            //zest.p(.{ .fun = frame.fun, .expr = expr_data, .values = c.value_stack.items });
             switch (expr_data) {
                 .@"return" => {
                     const frame_evalled = popFun(c);
@@ -197,7 +199,7 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     }
                 },
             }
-            frame.expr.id += 1;
+            c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1].expr.id += 1;
         }
     }
 }
@@ -660,7 +662,7 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
                     const tag = @intFromEnum(std.meta.activeTag(value.repr));
                     c.value_stack.append(.{ .@"union" = .{
-                        .repr = c.reflection,
+                        .repr = evalRuntimeDefinition(c, "reflection").repr.@"union",
                         .tag = tag,
                         .value = c.box(Value.emptyStruct()),
                     } }) catch oom();

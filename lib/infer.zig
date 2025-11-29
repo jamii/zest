@@ -18,7 +18,7 @@ const tir = zest.tir;
 const eval = @import("./eval.zig");
 
 pub fn infer(c: *Compiler) error{ EvalError, InferError }!void {
-    const print_main = try eval.evalRuntimeDefinition(c, "print-main");
+    const print_main = eval.evalRuntimeDefinition(c, "print-main");
     c.infer_mode = .infer;
     c.tir_fun_main = try inferFun(c, .{
         .fun = print_main.fun.repr.fun,

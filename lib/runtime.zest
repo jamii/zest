@@ -1,3 +1,20 @@
+reflection = union[
+  u32: struct[],
+  i64: struct[],
+  string: struct[],
+  struct: struct[],
+  union: struct[],
+  fun: struct[],
+  only: struct[],
+  repr: struct[],
+  repr-kind: struct[],
+]
+
+string-innards = struct[
+  ptr: u32,
+  len: u32,
+]
+
 panic = (message) {
   %print(message)
   %print('\n')

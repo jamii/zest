@@ -121,7 +121,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[33, k: string]
+Cannot unstage value: fun[35, k: string]
 ```
 
 ```zest-test
@@ -428,9 +428,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[33]: 1]
+[[]/fun[35]: 1]
 
-Cannot unstage value: ref[fun[33]]
+Cannot unstage value: ref[fun[35]]
 ```
 
 ```zest-test
@@ -823,9 +823,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[35, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[37, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[35, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[37, a: ref[i64]]
 ```
 
 ```zest-test
@@ -842,9 +842,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[33, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[35, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[33, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[35, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1592,7 +1592,7 @@ TODO print
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24404{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24397{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```
@@ -1774,18 +1774,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[33] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[35] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[33] }
+Cannot call zest.Builtin.each with these args: { i64, fun[35] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[33] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[35] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[33] }
+Cannot call zest.Builtin.each with these args: { string, fun[35] }
 ```
 
 ```zest-test
