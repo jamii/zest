@@ -8,7 +8,7 @@ namespace{
 
 []/namespace[1]
 
-TODO print
+Cannot call zest.Builtin.from-only with these args: { namespace[1] }
 ```
 
 Destructuring is not supported.
@@ -43,7 +43,7 @@ kinds = namespace{
 
 [[]/namespace[1], []/namespace[0]]
 
-TODO print
+[TODO print]
 ```
 
 Bindings can be accessed with `..` (placeholder syntax.)
@@ -67,7 +67,7 @@ namespace{
 
 []/namespace[1]
 
-TODO print
+Cannot call zest.Builtin.from-only with these args: { namespace[1] }
 ```
 
 ```zest-test
@@ -166,7 +166,7 @@ kinds..is-even(4)
 
 'true'
 
-Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 35 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
+Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 41 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
 ```
 
 Namespaces currently can't close over values from the outer scope.

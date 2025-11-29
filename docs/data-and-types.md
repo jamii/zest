@@ -59,7 +59,7 @@ Name not bound: f64
 
 [a: 42]/union[a: i64, b: string]
 
-TODO print
+[TODO print]/TODO print
 ```
 
 ```zest-test
@@ -175,7 +175,7 @@ Zero or more key-value pairs, separated by commas.
 
 []
 
-TODO print
+[TODO print]
 ```
 
 ```zest-test
@@ -183,7 +183,7 @@ TODO print
 
 [a: 'apple', b: 'bear']
 
-TODO print
+[TODO print]
 ```
 
 Optional trailing comma.
@@ -193,7 +193,7 @@ Optional trailing comma.
 
 [a: 'apple', b: 'bear']
 
-TODO print
+[TODO print]
 ```
 
 Key order matters.
@@ -203,7 +203,7 @@ Key order matters.
 
 [b: 'bear', a: 'apple']
 
-TODO print
+[TODO print]
 ```
 
 TODO But conversions are allowed to reorder keys.
@@ -221,7 +221,7 @@ TODO No repeated keys.
 
 [a: 'apple', a: 'bear']
 
-TODO print
+[TODO print]
 ```
 
 If the key is a string which is a valid name, the quotes may be omitted.
@@ -231,7 +231,7 @@ If the key is a string which is a valid name, the quotes may be omitted.
 
 [a: 'apple', b: 'bear']
 
-TODO print
+[TODO print]
 ```
 
 Omitted keys default to consecutive integers, starting at 0.
@@ -241,7 +241,7 @@ Omitted keys default to consecutive integers, starting at 0.
 
 ['a', 'b']
 
-TODO print
+[TODO print]
 ```
 
 ```zest-test
@@ -249,7 +249,7 @@ TODO print
 
 ['a', 'b']
 
-TODO print
+[TODO print]
 ```
 
 ```zest-test
@@ -257,7 +257,7 @@ TODO print
 
 [1: 'b', 0: 'a']
 
-TODO print
+[TODO print]
 ```
 
 You can mix omitted and present keys.
@@ -267,7 +267,7 @@ You can mix omitted and present keys.
 
 ['a', 'b', default: 'c']
 
-TODO print
+[TODO print]
 ```
 
 But omitted keys must be written before present keys.
@@ -370,7 +370,7 @@ Structs are objects with a fixed set of keys.
 
 [a: 0, b: 'foo']
 
-TODO print
+[TODO print]
 ```
 
 ```zest-test
@@ -426,7 +426,7 @@ A union represents one of a finite number of single-key objects.
 
 [strings: 'hello']/union[strings: string, nums: i64]
 
-TODO print
+[TODO print]/TODO print
 ```
 
 ```zest-test
@@ -455,8 +455,8 @@ x.nums
 Key 'nums' not found in [strings: 'hello']/union[strings: string, nums: i64]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/78c14fa2:1:187)
-    at <anonymous> (wasm://wasm/78c14fa2:1:176)
+    at <anonymous> (wasm://wasm/484cb326:1:188)
+    at <anonymous> (wasm://wasm/484cb326:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 

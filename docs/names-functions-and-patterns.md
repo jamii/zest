@@ -54,7 +54,7 @@ foo = 'the number'
 
 [foo: 42]
 
-TODO print
+[TODO print]
 ```
 
 Use brackets to treat the key as a name.
@@ -76,7 +76,7 @@ foo = 'the number'
 
 [foo: 'the number']
 
-TODO print
+[TODO print]
 ```
 
 Names may not be shadowed.
@@ -181,7 +181,7 @@ Each function has a unique nominal type.
 inc = (x) x + 1
 %repr-of(inc)
 
-fun[35]
+fun[41]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -191,7 +191,7 @@ inc = (x) x + 1
 dec = (x) x - 1
 %repr-of(inc) == %repr-of(dec)
 
-Cannot call zest.Builtin.equal with these args: { fun[35], fun[37] }
+Cannot call zest.Builtin.equal with these args: { fun[41], fun[43] }
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -205,7 +205,7 @@ make-echo = (x) () x
   %repr-of(make-echo('foo')), 
 ]
 
-[fun[37, x: i64], fun[37, x: string]]
+[fun[43, x: i64], fun[43, x: string]]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -230,7 +230,7 @@ Assignments can pattern-match values.
 
 [1, 2]
 
-TODO print
+[TODO print]
 ```
 
 Patterns that don't match exactly will throw errors.
@@ -257,7 +257,7 @@ Patterns can use the same syntax sugar as object fields:
 
 [1, 2, 3]
 
-TODO print
+[TODO print]
 ```
 
 The arguments to functions are just an object pattern-match:
@@ -269,7 +269,7 @@ foo(1, 'z with spaces': 3, :y)
 
 [1, 2, 3]
 
-TODO print
+[TODO print]
 ```
 
 TODO matching rest-of-object

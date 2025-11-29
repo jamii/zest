@@ -21,7 +21,7 @@ panic = (message) {
   %panic()
 }
 
-print = (x) {
+print-value = (x) {
   t = only[%reflect(%repr-of(x))][[]]
   if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
     %print(x)
@@ -32,9 +32,31 @@ print = (x) {
     // TODO escape
     %print(x)
     %print('\'')
+  } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
+    %print('[TODO print]')
+  } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
+    %print('[TODO print]/')
+    print-repr-of(x)
+  } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
+    %print('[TODO print]/')
+    print-repr-of(x)
+  } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
+    print-value(%from-only(x))
+    %print('/')
+    print-repr-of(x)
   } else {
     %print('TODO print')
   }
+}
+
+// TODO Remove this once we have a runtime representation of reprs.
+print-repr-of = (x) {
+  // print(%repr-of(x))
+  %print('TODO print')
+}
+
+print = (x) {
+  print-value(x)
   %print('\n')
 }
 
