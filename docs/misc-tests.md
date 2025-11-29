@@ -1351,8 +1351,8 @@ Tried to perform a side effect during pure evaluation: zest.Builtin.print
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/d8df546a:1:198)
-    at <anonymous> (wasm://wasm/d8df546a:1:178)
+    at <anonymous> (wasm://wasm/20492a42:1:198)
+    at <anonymous> (wasm://wasm/20492a42:1:178)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1369,9 +1369,9 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/4d137b82:1:308)
-    at <anonymous> (wasm://wasm/4d137b82:1:223)
-    at <anonymous> (wasm://wasm/4d137b82:1:179)
+    at <anonymous> (wasm://wasm/f3bba692:1:308)
+    at <anonymous> (wasm://wasm/f3bba692:1:223)
+    at <anonymous> (wasm://wasm/f3bba692:1:179)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1957,4 +1957,20 @@ ns..f(3).some
 3
 
 Expected union[some: i64, none: struct[]], found struct[some: i64]
+```
+
+```zest-test
+only[42][[]]
+
+[]/only[42]
+
+TODO print
+```
+
+```zest-test
+() 1
+
+[]/fun[41]
+
+[TODO print]/fun[TODO print]
 ```

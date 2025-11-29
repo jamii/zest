@@ -59,7 +59,7 @@ Name not bound: f64
 
 [a: 42]/union[a: i64, b: string]
 
-[TODO print]/TODO print
+[TODO print]/union[TODO print]
 ```
 
 ```zest-test
@@ -426,7 +426,7 @@ A union represents one of a finite number of single-key objects.
 
 [strings: 'hello']/union[strings: string, nums: i64]
 
-[TODO print]/TODO print
+[TODO print]/union[TODO print]
 ```
 
 ```zest-test

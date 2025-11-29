@@ -41,18 +41,38 @@ print-value = (x) {
     %print('[TODO print]/')
     print-repr-of(x)
   } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
-    print-value(%from-only(x))
-    %print('/')
+    %print('[]/')
     print-repr-of(x)
   } else {
     %print('TODO print')
   }
 }
 
-// TODO Remove this once we have a runtime representation of reprs.
 print-repr-of = (x) {
-  // print(%repr-of(x))
-  %print('TODO print')
+  t = only[%reflect(%repr-of(x))][[]]
+  if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
+    %print('u32')
+  } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
+    %print('i64')
+  } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
+    %print('string')
+  } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
+    %print('struct[TODO print]')
+  } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
+    %print('union[TODO print]')
+  } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
+    %print('fun[TODO print]')
+  } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
+    %print('only[')
+    print-value(%from-only(x))
+    %print(']')
+  } else if {only[%union-has-key(%from-only(t), 'repr')][[]]} {
+    %print('repr')
+  } else if {only[%union-has-key(%from-only(t), 'repr-kind')][[]]} {
+    %print('repr-kind')
+  } else {
+    panic('Unreachable')
+  }
 }
 
 print = (x) {
