@@ -181,7 +181,7 @@ Each function has a unique nominal type.
 inc = (x) x + 1
 %repr-of(inc)
 
-fun[41]
+fun[38]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -191,7 +191,7 @@ inc = (x) x + 1
 dec = (x) x - 1
 %repr-of(inc) == %repr-of(dec)
 
-Cannot call zest.Builtin.equal with these args: { fun[41], fun[43] }
+Cannot call zest.Builtin.equal with these args: { fun[38], fun[40] }
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -205,7 +205,7 @@ make-echo = (x) () x
   %repr-of(make-echo('foo')), 
 ]
 
-[fun[43, x: i64], fun[43, x: string]]
+[fun[40, x: i64], fun[40, x: string]]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```

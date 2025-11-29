@@ -15,7 +15,7 @@ string-innards = struct[
   len: u32,
 ]
 
-print-value = (x) {
+print = (x) {
   t = only[%reflect(%repr-of(x))][[]]
   if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
     %print(x)
@@ -29,53 +29,25 @@ print-value = (x) {
   } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
     %print('[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
-    %print('[TODO print]/')
-    print-repr-of(x)
+    %print('[TODO print]/union[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
-    %print('[TODO print]/')
-    print-repr-of(x)
+    %print('[TODO print]/fun[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
-    %print('[]/')
-    print-repr-of(x)
+    %print('[]/only[')
+    print(%from-only(x))
+    %print(']')
   } else {
     %print('TODO print')
   }
 }
 
-print-repr-of = (x) {
-  t = only[%reflect(%repr-of(x))][[]]
-  if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
-    %print('u32')
-  } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
-    %print('i64')
-  } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
-    %print('string')
-  } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
-    %print('struct[TODO print]')
-  } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
-    %print('union[TODO print]')
-  } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
-    %print('fun[TODO print]')
-  } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
-    %print('only[')
-    print-value(%from-only(x))
-    %print(']')
-  } else if {only[%union-has-key(%from-only(t), 'repr')][[]]} {
-    %print('repr')
-  } else if {only[%union-has-key(%from-only(t), 'repr-kind')][[]]} {
-    %print('repr-kind')
-  } else {
-    panic('Unreachable')
-  }
-}
-
-print = (x) {
-  print-value(x)
+println = (x) {
+  print(x)
   %print('\n')
 }
 
-print-main = () {
-  print(%main())
+println-main = () {
+  println(%main())
 }
 
 panic = (message) {

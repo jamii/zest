@@ -121,7 +121,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[41, k: string]
+Cannot unstage value: fun[38, k: string]
 ```
 
 ```zest-test
@@ -428,9 +428,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[41]: 1]
+[[]/fun[38]: 1]
 
-Cannot unstage value: ref[fun[41]]
+Cannot unstage value: ref[fun[38]]
 ```
 
 ```zest-test
@@ -823,9 +823,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[43, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[40, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[43, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[40, a: ref[i64]]
 ```
 
 ```zest-test
@@ -842,9 +842,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[41, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[38, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[41, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[38, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1351,8 +1351,8 @@ Tried to perform a side effect during pure evaluation: zest.Builtin.print
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/20492a42:1:198)
-    at <anonymous> (wasm://wasm/20492a42:1:178)
+    at <anonymous> (wasm://wasm/f7decaaa:1:197)
+    at <anonymous> (wasm://wasm/f7decaaa:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1369,9 +1369,9 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/f3bba692:1:308)
-    at <anonymous> (wasm://wasm/f3bba692:1:223)
-    at <anonymous> (wasm://wasm/f3bba692:1:179)
+    at <anonymous> (wasm://wasm/442ca1a2:1:307)
+    at <anonymous> (wasm://wasm/442ca1a2:1:222)
+    at <anonymous> (wasm://wasm/442ca1a2:1:178)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1774,18 +1774,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[41] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[38] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[41] }
+Cannot call zest.Builtin.each with these args: { i64, fun[38] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[41] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[38] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[41] }
+Cannot call zest.Builtin.each with these args: { string, fun[38] }
 ```
 
 ```zest-test
@@ -1970,7 +1970,7 @@ TODO print
 ```zest-test
 () 1
 
-[]/fun[41]
+[]/fun[38]
 
 [TODO print]/fun[TODO print]
 ```
