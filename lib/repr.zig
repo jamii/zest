@@ -14,6 +14,7 @@ pub const Repr = union(enum) {
     string,
     @"struct": ReprStruct,
     @"union": ReprUnion,
+    list: ReprList,
     fun: ReprFun,
     namespace: ReprNamespace,
     // TODO Replace with @"enum" and a syntax for one-value enum.
@@ -53,9 +54,10 @@ pub const Repr = union(enum) {
         return switch (self) {
             .u32 => 4,
             .i64 => 8,
-            .string => 8, // struct[ptr: u32, len: u32]
+            .string => 8, // see runtime.string-innards
             .@"struct" => |@"struct"| @"struct".sizeOf(),
             .@"union" => |@"union"| @"union".sizeOf(),
+            .list => 12, // see runtime.list-innards
             .fun => |fun| fun.sizeOf(),
             .only, .namespace => 0,
             .ref => 4,
@@ -75,7 +77,7 @@ pub const Repr = union(enum) {
             else
                 null,
             .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
-            .u32, .i64, .string, .@"union", .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .@"union", .list, .ref, .repr, .repr_kind => null,
         };
     }
 
@@ -116,6 +118,9 @@ pub const Repr = union(enum) {
                     }
                 }
                 try writer.writeAll("]");
+            },
+            .list => |list| {
+                try writer.print("list[{}]", .{list.elem.*});
             },
             .fun => |fun| {
                 try writer.print("[{}", .{fun.fun.id});
@@ -163,6 +168,9 @@ pub const Repr = union(enum) {
                     if (repr.hasRef(kind)) return true;
                 }
                 return false;
+            },
+            .list => |list| {
+                return list.elem.hasRef(kind);
             },
             .fun => |fun| {
                 switch (kind) {
@@ -258,6 +266,10 @@ pub const ReprUnion = struct {
         }
         return null;
     }
+};
+
+pub const ReprList = struct {
+    elem: *Repr,
 };
 
 pub const ReprFun = struct {

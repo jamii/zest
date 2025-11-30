@@ -6,6 +6,8 @@ const ArrayList = std.ArrayList;
 
 pub fn deepEqual(a: anytype, b: @TypeOf(a)) bool {
     const T = @TypeOf(a);
+    if (std.meta.hasFn(T, "deepEqual"))
+        return T.deepEqual(a, b);
     switch (@typeInfo(T)) {
         .void => return true,
         .int, .@"enum" => return a == b,
@@ -60,6 +62,8 @@ pub fn deepHash(key: anytype) u64 {
 
 pub fn deepHashInto(hasher: anytype, key: anytype) void {
     const T = @TypeOf(key);
+    if (std.meta.hasFn(T, "deepHashInto"))
+        return T.deepHashInto(hasher, key);
     switch (@typeInfo(T)) {
         .void => {},
         .int, .@"enum" => hasher.update(std.mem.asBytes(&key)),

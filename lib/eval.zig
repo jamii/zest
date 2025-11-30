@@ -301,6 +301,13 @@ pub fn evalExpr(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
+                .list => |list| {
+                    if (list.elems.items.len != assert_object.count)
+                        return fail(c, .{ .wrong_number_of_keys = .{
+                            .expected = assert_object.count,
+                            .actual = list.elems.items.len,
+                        } });
+                },
                 .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             c.value_stack.append(value) catch oom();

@@ -8,7 +8,7 @@ namespace{
 
 []/namespace[1]
 
-Cannot call zest.Builtin.from-only with these args: { namespace[1] }
+[]/namespace[TODO print]
 ```
 
 Destructuring is not supported.
@@ -67,7 +67,7 @@ namespace{
 
 []/namespace[1]
 
-Cannot call zest.Builtin.from-only with these args: { namespace[1] }
+[]/namespace[TODO print]
 ```
 
 ```zest-test

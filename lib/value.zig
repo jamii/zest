@@ -10,6 +10,7 @@ const oom = zest.oom;
 const Repr = zest.Repr;
 const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
+const ReprList = zest.ReprList;
 const ReprFun = zest.ReprFun;
 const ReprKind = zest.ReprKind;
 const deepEqual = zest.deepEqual;
@@ -22,6 +23,7 @@ pub const Value = union(enum) {
     string: []const u8,
     @"struct": ValueStruct,
     @"union": ValueUnion,
+    list: ValueList,
     fun: ValueFun,
     namespace: ValueNamespace,
     only: *Value,
@@ -36,6 +38,7 @@ pub const Value = union(enum) {
             .string => .string,
             .@"struct" => |@"struct"| .{ .@"struct" = @"struct".repr },
             .@"union" => |@"union"| .{ .@"union" = @"union".repr },
+            .list => |list| .{ .list = list.repr },
             .only => |only| .{ .only = only },
             .fun => |fun| .{ .fun = fun.repr },
             .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
@@ -62,6 +65,7 @@ pub const Value = union(enum) {
             .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind, .namespace => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => |@"union"| @"union".get(key),
+            .list => |list| list.get(key),
         };
     }
 
@@ -70,6 +74,7 @@ pub const Value = union(enum) {
             .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind, .namespace => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
             .@"union" => |*@"union"| @"union".getMut(key),
+            .list => |*list| list.getMut(key),
         };
     }
 
@@ -77,9 +82,8 @@ pub const Value = union(enum) {
         _ = fmt;
         _ = options;
         switch (self) {
-            // TODO Need to adjust test.js to print this.
-            //.u32 => |i| try writer.print("u32[{}]", .{i}),
-            inline .u32, .i64 => |i| try writer.print("{}", .{i}),
+            .u32 => |i| try writer.print("{}/u32", .{i}),
+            .i64 => |i| try writer.print("{}", .{i}),
             .string => |string| try writer.print("'{'}'", .{std.zig.fmtEscapes(string)}),
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
@@ -101,8 +105,18 @@ pub const Value = union(enum) {
                 try writer.print("[{}: {}]/{}", .{
                     FormatKey{ .key = @"union".repr.keys[@"union".tag] },
                     @"union".value.*,
-                    Repr{ .@"union" = @"union".repr },
+                    self.reprOf(),
                 });
+            },
+            .list => |list| {
+                try writer.writeAll("[");
+                for (list.elems.items, 0..) |elem, i| {
+                    if (i != 0) {
+                        try writer.writeAll(", ");
+                    }
+                    try writer.print("{}", .{elem});
+                }
+                try writer.print("]/{}", .{self.reprOf()});
             },
             .fun => |fun| {
                 try writer.print("{}/{}", .{
@@ -145,6 +159,10 @@ pub const Value = union(enum) {
                 .tag = @"union".tag,
                 .value = Value.copyBox(@"union".value, allocator),
             } },
+            .list => |list| .{ .list = .{
+                .repr = list.repr,
+                .elems = Value.copyArrayList(list.elems, allocator),
+            } },
             .only => |only| .{
                 .only = Value.copyBox(only, allocator),
             },
@@ -171,6 +189,13 @@ pub const Value = union(enum) {
         return values;
     }
 
+    pub fn copyArrayList(self: ArrayList(Value), allocator: Allocator) ArrayList(Value) {
+        var values = ArrayList(Value).initCapacity(allocator, self.items.len) catch oom();
+        _ = values.addManyAsSliceAssumeCapacity(self.items.len);
+        for (values.items, self.items) |*value, old_value| value.* = old_value.copy(allocator);
+        return values;
+    }
+
     pub fn load(allocator: Allocator, bytes: []const u8, repr: Repr) Value {
         switch (repr) {
             .u32 => {
@@ -188,7 +213,7 @@ pub const Value = union(enum) {
                 }
                 return .{ .@"struct" = .{ .repr = @"struct", .values = values } };
             },
-            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO load: {}", .{repr}),
+            .string, .@"union", .list, .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO load: {}", .{repr}),
         }
     }
 
@@ -207,7 +232,7 @@ pub const Value = union(enum) {
                     offset += value_repr.sizeOf();
                 }
             },
-            .string, .@"union", .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO store: {}", .{self}),
+            .string, .@"union", .list, .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO store: {}", .{self}),
         }
     }
 
@@ -248,6 +273,38 @@ pub const ValueUnion = struct {
 
     pub fn getMut(self: *ValueUnion, key: Value) ?*Value {
         return if (self.repr.get(key)) |i| if (self.tag == i) self.value else null else null;
+    }
+};
+
+pub const ValueList = struct {
+    repr: ReprList,
+    elems: ArrayList(Value),
+
+    pub fn get(self: ValueList, key: Value) ?Value {
+        return if (key == .i64 and key.i64 >= 0 and key.i64 < self.elems.items.len)
+            self.elems.items[@intCast(key.i64)]
+        else
+            null;
+    }
+
+    pub fn getMut(self: *ValueList, key: Value) ?*Value {
+        return if (key == .i64 and key.i64 >= 0 and key.i64 < self.elems.items.len)
+            &self.elems.items[@intCast(key.i64)]
+        else
+            null;
+    }
+
+    pub fn deepEqual(self: ValueList, other: ValueList) bool {
+        if (!zest.deepEqual(self.repr, other.repr)) return false;
+        if (self.elems.items.len != other.elems.items.len) return false;
+        for (self.elems.items, other.elems.items) |self_elem, other_elem|
+            if (!zest.deepEqual(self_elem, other_elem)) return false;
+        return true;
+    }
+
+    pub fn deepHashInto(hasher: anytype, self: ValueList) void {
+        zest.deepHashInto(hasher, self.repr);
+        zest.deepHashInto(hasher, self.elems.items);
     }
 };
 

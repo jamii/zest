@@ -221,6 +221,7 @@ fn inferExprInner(
                         } });
                 },
                 .@"union" => return fail(c, .todo),
+                .list => return fail(c, .todo), // Need to emit an assert on length
                 .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             return value;
@@ -889,6 +890,7 @@ fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { 
                 .offset = @intCast(@"union".tagSizeOf()),
             };
         },
+        .list => return fail(c, .todo), // emit a list_get
         .ref => unreachable, // always passes through ref_deref first
     }
 }

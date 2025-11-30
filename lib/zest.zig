@@ -9,10 +9,12 @@ const wasm = std.wasm;
 
 pub const deepEqual = @import("deep.zig").deepEqual;
 pub const deepHash = @import("deep.zig").deepHash;
+pub const deepHashInto = @import("deep.zig").deepHashInto;
 
 pub const Repr = @import("./repr.zig").Repr;
 pub const ReprStruct = @import("./repr.zig").ReprStruct;
 pub const ReprUnion = @import("./repr.zig").ReprUnion;
+pub const ReprList = @import("./repr.zig").ReprList;
 pub const ReprFun = @import("./repr.zig").ReprFun;
 pub const ReprNamespace = @import("./repr.zig").ReprNamespace;
 pub const ReprKind = @import("./repr.zig").ReprKind;

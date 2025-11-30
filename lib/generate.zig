@@ -1232,7 +1232,7 @@ const WasmRepr = union(enum) {
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
         .u32, .i64, .ref => .{ .primitive = wasmAbi(repr) },
-        .string, .@"struct", .@"union", .fun, .only, .namespace, .repr, .repr_kind => .heap,
+        .string, .@"struct", .@"union", .list, .fun, .only, .namespace, .repr, .repr_kind => .heap,
     };
 }
 
@@ -1241,7 +1241,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
         .u32 => .i32,
         .i64 => .i64,
         // Pointers.
-        .string, .@"struct", .@"union", .fun, .only, .namespace, .ref, .repr, .repr_kind => .i32,
+        .string, .@"struct", .@"union", .list, .fun, .only, .namespace, .ref, .repr, .repr_kind => .i32,
     };
 }
 
@@ -1295,6 +1295,7 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
                 .value = c.box(valueToWalue(c, @"union".value.*)),
             } };
         },
+        .list => panic("TODO list", .{}),
         .fun => |fun| {
             return .{ .fun = .{
                 .repr = fun.repr,

@@ -1,10 +1,13 @@
+// This must be in the same order as Repr
 reflection = union[
   u32: struct[],
   i64: struct[],
   string: struct[],
   struct: struct[],
   union: struct[],
+  list: struct[],
   fun: struct[],
+  namespace: struct[],
   only: struct[],
   repr: struct[],
   repr-kind: struct[],
@@ -19,6 +22,7 @@ print = (x) {
   t = only[%reflect(%repr-of(x))][[]]
   if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
     %print(x)
+    %print('/u32')
   } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
     %print(x)
   } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
@@ -30,8 +34,12 @@ print = (x) {
     %print('[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
     %print('[TODO print]/union[TODO print]')
+  } else if {only[%union-has-key(%from-only(t), 'list')][[]]} {
+    %print('[TODO print]/list[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
     %print('[TODO print]/fun[TODO print]')
+  } else if {only[%union-has-key(%from-only(t), 'namespace')][[]]} {
+    %print('[]/namespace[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
     %print('[]/only[')
     print(%from-only(x))

@@ -1045,26 +1045,26 @@ At 1:16:
 ```zest-test
 %memory-size()
 
-1
+1/u32
 
-129
+129/u32
 ```
 
 ```zest-test
 %memory-grow(u32[3])
 
-1
+1/u32
 
-129
+129/u32
 ```
 
 ```zest-test
 %memory-grow(u32[3])
 %memory-grow(u32[4])
 
-4
+4/u32
 
-132
+132/u32
 ```
 
 ```zest-test
@@ -1072,29 +1072,29 @@ At 1:16:
 %memory-grow(u32[4])
 %memory-size()
 
-8
+8/u32
 
-136
+136/u32
 ```
 
 ```zest-test
 %heap-start()
 
-42
+42/u32
 
-8388777
+8388781/u32
 ```
 
 ```zest-test
 %size-of(i64)
 
-8
+8/u32
 ```
 
 ```zest-test
 %size-of(struct[i64, struct[u32, i64]])
 
-20
+20/u32
 ```
 
 ```zest-test
@@ -1236,7 +1236,7 @@ x.0
 ```zest-test
 42 + 1/u32
 
-Cannot call zest.Builtin.add with these args: { 42, 1 }
+Cannot call zest.Builtin.add with these args: { 42, 1/u32 }
 
 Cannot call zest.Builtin.add with these args: { i64, u32 }
 ```
@@ -1252,7 +1252,7 @@ x + 1
 x/u32 = 42
 x + 1
 
-Cannot call zest.Builtin.add with these args: { 42, 1 }
+Cannot call zest.Builtin.add with these args: { 42/u32, 1 }
 
 Cannot call zest.Builtin.add with these args: { u32, i64 }
 ```
@@ -1419,7 +1419,7 @@ RuntimeError: remainder by zero
 ```zest-test
 u32[1] << u32[10]
 
-1024
+1024/u32
 ```
 
 ```zest-test
@@ -1433,7 +1433,7 @@ Cannot call zest.Builtin.bit-shift-left with these args: { i64, i64 }
 ```zest-test
 u32[1] << u32[32]
 
-1
+1/u32
 ```
 
 ```zest-test
@@ -1456,33 +1456,33 @@ At 2:13:
 ```zest-test
 u32[4294967295]
 
-4294967295
+4294967295/u32
 
--1
+-1/u32
 ```
 
 ```zest-test
 %clz(u32[0])
 
-32
+32/u32
 ```
 
 ```zest-test
 %clz(u32[1])
 
-31
+31/u32
 ```
 
 ```zest-test
 %clz(u32[2])
 
-30
+30/u32
 ```
 
 ```zest-test
 %clz(u32[3])
 
-30
+30/u32
 ```
 
 ```zest-test
@@ -1963,8 +1963,6 @@ Expected union[some: i64, none: struct[]], found struct[some: i64]
 only[42][[]]
 
 []/only[42]
-
-TODO print
 ```
 
 ```zest-test
