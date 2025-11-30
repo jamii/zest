@@ -238,6 +238,9 @@ pub fn evalExpr(
         .repr_kind_union => {
             c.value_stack.append(.{ .repr_kind = .@"union" }) catch oom();
         },
+        .repr_kind_list => {
+            c.value_stack.append(.{ .repr_kind = .list }) catch oom();
+        },
         .repr_kind_only => {
             c.value_stack.append(.{ .repr_kind = .only }) catch oom();
         },
@@ -781,6 +784,15 @@ pub fn evalExpr(
                         }
                         c.value_stack.append(.{ .repr = .{ .@"union" = .{ .keys = args.@"struct".repr.keys, .reprs = reprs } } }) catch oom();
                     },
+                    .list => {
+                        if (args.@"struct".repr.keys.len != 1 or
+                            args.@"struct".repr.keys[0] != .i64 or
+                            args.@"struct".repr.keys[0].i64 != 0 or
+                            args.@"struct".values[0] != .repr)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        const repr = args.@"struct".values[0].repr;
+                        c.value_stack.append(.{ .repr = .{ .list = .{ .elem = c.box(repr) } } }) catch oom();
+                    },
                     .only => {
                         if (args.@"struct".repr.keys.len != 1 or
                             args.@"struct".repr.keys[0] != .i64 or
@@ -870,6 +882,17 @@ fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Val
         if (!value.reprOf().equal(to_repr.@"union".reprs[tag]))
             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
         return .{ .@"union" = .{ .repr = to_repr.@"union", .tag = tag, .value = c.box(value) } };
+    } else if (to_repr == .list and from_repr == .@"struct") {
+        const len = from_repr.@"struct".keys.len;
+        var elems = ArrayList(Value).initCapacity(c.allocator, len) catch oom();
+        _ = elems.addManyAsSliceAssumeCapacity(len);
+        for (from_repr.@"struct".keys, from_value.@"struct".values, from_repr.@"struct".reprs) |key, value, repr| {
+            // This relies on structs not being allowed to have repeated keys to ensure that all elems are initialized.
+            if (key != .i64 or key.i64 < 0 or key.i64 >= len)
+                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+            elems.items[@intCast(key.i64)] = try convert(c, value, repr, to_repr.list.elem.*);
+        }
+        return .{ .list = .{ .repr = to_repr.list, .elems = elems } };
     } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
         return from_repr.only.copy(c.allocator);
     } else if (to_repr == .only and from_repr.isEmptyStruct()) {

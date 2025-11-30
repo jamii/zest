@@ -474,33 +474,39 @@ Unions are represented by an integer tag (eg 0 for 'strings', 1 for 'nums') foll
 Lists are objects where the keys are consecutive integers beginning with 0 and the values all have the same type.
 
 ```zest-test
-[]/list[f64]
+[]/list[i64]
 
-Name not bound: list
+[]/list[i64]
 ```
 
 ```zest-test
-[0, 1, 2]/list[f64]
+[0, 1, 2]/list[i64]
 
-Name not bound: list
+[0, 1, 2]/list[i64]
 ```
 
 ```zest-test
 [0, 1, 2]/list[string]
 
-Name not bound: list
+[0, 1, 2]/list[string]
 ```
 
 ```zest-test
-[a: 'apple']/list[f64]
+[a: 'apple']/list[i64]
 
-Name not bound: list
+error
 ```
 
 ```zest-test
-[1: 3.14]/list[f64]
+[1: 2]/list[i64]
 
-Name not bound: list
+error
+```
+
+```zest-test
+[1: 0, 0: 1]/list[i64]
+
+error
 ```
 
 Lists are laid out contiguously in memory, in key order.

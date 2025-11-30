@@ -36,6 +36,7 @@ pub const ExprData = union(enum) {
     repr_repr,
     repr_kind_struct,
     repr_kind_union,
+    repr_kind_list,
     repr_kind_only,
     repr_kind_namespace,
     arg: Arg,
@@ -88,7 +89,7 @@ pub const ExprData = union(enum) {
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         _ = c;
         return switch (expr_data) {
-            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_only, .repr_kind_namespace, .arg, .closure, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
+            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_list, .repr_kind_only, .repr_kind_namespace, .arg, .closure, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
             .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref_visible, .assert_has_no_ref, .ref_init, .ref_deref, .@"return" => 1,
             .object_get, .namespace_get, .ref_get, .ref_set, .make, .stage, .unstage, .repr_of => 2,
             .@"while" => 4,
@@ -155,12 +156,13 @@ pub const DefinitionData = struct {
     },
 };
 
-pub const predefined_bindings: [8]Binding = .{
+pub const predefined_bindings: [9]Binding = .{
     .{ .name = "u32", .value = .{ .constant = .repr_u32 }, .mut = false },
     .{ .name = "i64", .value = .{ .constant = .repr_i64 }, .mut = false },
     .{ .name = "string", .value = .{ .constant = .repr_string }, .mut = false },
     .{ .name = "struct", .value = .{ .constant = .repr_kind_struct }, .mut = false },
     .{ .name = "union", .value = .{ .constant = .repr_kind_union }, .mut = false },
+    .{ .name = "list", .value = .{ .constant = .repr_kind_list }, .mut = false },
     .{ .name = "only", .value = .{ .constant = .repr_kind_only }, .mut = false },
     .{ .name = "namespace", .value = .{ .constant = .repr_kind_namespace }, .mut = false },
     .{ .name = "repr", .value = .{ .constant = .repr_repr }, .mut = false },

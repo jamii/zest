@@ -120,7 +120,7 @@ pub const Repr = union(enum) {
                 try writer.writeAll("]");
             },
             .list => |list| {
-                try writer.print("list[{}]", .{list.elem.*});
+                try writer.print("[{}]", .{list.elem.*});
             },
             .fun => |fun| {
                 try writer.print("[{}", .{fun.fun.id});
@@ -288,6 +288,7 @@ pub const ReprNamespace = struct {
 pub const ReprKind = enum {
     @"struct",
     @"union",
+    list,
     only,
     namespace,
 
