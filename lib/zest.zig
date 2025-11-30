@@ -549,6 +549,7 @@ pub const Compiler = struct {
             .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
             .struct_init => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
             .union_init => |union_init| try writer.print(" /{} tag={}", .{ Repr{ .@"union" = union_init.repr }, union_init.tag }),
+            .list_init => |list_init| try writer.print(" {}", .{list_init.count}),
             .ref_init, .@"if", .ref_deref => |repr| try writer.print(" /{}", .{repr}),
             .block => |block| try writer.print(" {}", .{block.count}),
             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),

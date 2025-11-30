@@ -44,6 +44,9 @@ pub const ExprData = union(enum) {
     },
     // TODO This could be a builtin.
     union_tag,
+    list_init: struct {
+        count: usize,
+    },
     local_let: Local,
     object_get: struct {
         index: usize,
@@ -73,7 +76,7 @@ pub const ExprData = union(enum) {
             .struct_init => |repr| repr.keys.len,
             .call => |fun| 1 + c.tir_fun_data.get(fun).key.arg_reprs.len,
             .call_builtin => |builtin| builtin.argCount(),
-            .block => |block| block.count,
+            inline .list_init, .block => |data| data.count,
         };
     }
 };

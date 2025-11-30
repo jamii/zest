@@ -852,6 +852,22 @@ fn convert(c: *Compiler, f: *tir.FunData, from_repr: Repr, to_repr: Repr) !void 
             return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
         emit(c, f, .{ .object_get = .{ .index = 0 } });
         emit(c, f, .{ .union_init = .{ .repr = to_repr.@"union", .tag = @intCast(tag) } });
+    } else if (to_repr == .list and from_repr == .@"struct") {
+        const struct_local = f.local_data.append(.{ .repr = from_repr, .is_tmp = true });
+        emit(c, f, .{ .local_let = struct_local });
+        const len = from_repr.@"struct".keys.len;
+        for (0..len) |to_ix| {
+            for (from_repr.@"struct".keys, from_repr.@"struct".reprs, 0..) |key, repr, from_ix| {
+                if (key == .i64 and key.i64 == to_ix) {
+                    emit(c, f, .{ .local_get = struct_local });
+                    emit(c, f, .{ .object_get = .{ .index = from_ix } });
+                    try convert(c, f, repr, to_repr.list.elem.*);
+                    break;
+                }
+            } else return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        }
+        emit(c, f, .{ .list_init = .{ .count = len } });
+        emit(c, f, .{ .block = .{ .count = 2 } });
     } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
         emit(c, f, .{ .call_builtin = .from_only });
     } else if (to_repr == .only and from_repr.isEmptyStruct()) {

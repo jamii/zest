@@ -298,7 +298,7 @@ i64[42]
 ```zest-test
 i64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24824.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24825.overflow
 At 1:23:
 i64[9223372036854775808]
                        ^
@@ -329,7 +329,7 @@ TODO Represent literals as big-int/big-dec to avoid this problem.
 ```zest-test
 f64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24824.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24825.overflow
 At 1:23:
 f64[9223372036854775808]
                        ^
@@ -477,36 +477,42 @@ Lists are objects where the keys are consecutive integers beginning with 0 and t
 []/list[i64]
 
 []/list[i64]
+
+TODO generate
 ```
 
 ```zest-test
 [0, 1, 2]/list[i64]
 
 [0, 1, 2]/list[i64]
+
+TODO generate
 ```
 
 ```zest-test
 [0, 1, 2]/list[string]
 
-[0, 1, 2]/list[string]
+Expected string, found i64
 ```
 
 ```zest-test
 [a: 'apple']/list[i64]
 
-error
+Expected list[i64], found struct[a: string]
 ```
 
 ```zest-test
 [1: 2]/list[i64]
 
-error
+Expected list[i64], found struct[1: i64]
 ```
 
 ```zest-test
 [1: 0, 0: 1]/list[i64]
 
-error
+[1, 0]/list[i64]
+
+TODO generate
 ```
 
 Lists are laid out contiguously in memory, in key order.
