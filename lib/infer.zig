@@ -911,8 +911,8 @@ fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { 
                 .offset = @intCast(@"union".tagSizeOf()),
             };
         },
-        .list => return fail(c, .todo), // emit a list_get
-        .ref => unreachable, // always passes through ref_deref first
+        .list => panic("Unreachable", .{}),
+        .ref => panic("Unreachable", .{}), // always passes through ref_deref first
     }
 }
 

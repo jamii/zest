@@ -121,7 +121,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[38, k: string]
+Cannot unstage value: fun[39, k: string]
 ```
 
 ```zest-test
@@ -428,9 +428,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[38]: 1]
+[[]/fun[39]: 1]
 
-Cannot unstage value: ref[fun[38]]
+Cannot unstage value: ref[fun[39]]
 ```
 
 ```zest-test
@@ -823,9 +823,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[40, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[41, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[40, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[41, a: ref[i64]]
 ```
 
 ```zest-test
@@ -842,9 +842,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[38, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[39, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[38, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[39, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1774,18 +1774,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[38] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[39] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[38] }
+Cannot call zest.Builtin.each with these args: { i64, fun[39] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[38] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[39] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[38] }
+Cannot call zest.Builtin.each with these args: { string, fun[39] }
 ```
 
 ```zest-test
@@ -1968,7 +1968,16 @@ only[42][[]]
 ```zest-test
 () 1
 
-[]/fun[38]
+[]/fun[39]
 
 [TODO print]/fun[TODO print]
+```
+
+```zest-test
+x = ['a', 'b', 'c']/list[string]
+x.1
+
+'b'
+
+TODO infer: dir.ExprData{ .i64 = 1 }
 ```

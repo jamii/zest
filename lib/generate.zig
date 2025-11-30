@@ -14,7 +14,7 @@ const Repr = zest.Repr;
 const Value = zest.Value;
 const tir = zest.tir;
 const wir = zest.wir;
-const eval = @import("./eval.zig");
+const evalRuntimeDefinition = zest.evalRuntimeDefinition;
 
 const global_shadow = 0;
 const global_heap_start = 1;
@@ -969,7 +969,7 @@ fn store(c: *Compiler, f: *wir.FunData, from_value: wir.Walue, to_ptr: wir.Walue
             const ptr = ptrToConstant(c, .{ .string = string });
             var values = [_]wir.Walue{ .{ .u32 = ptr }, .{ .u32 = @intCast(string.len) } };
             const innards = wir.Walue{ .@"struct" = .{
-                .repr = eval.evalRuntimeDefinition(c, "string-innards").repr.@"struct",
+                .repr = evalRuntimeDefinition(c, "string-innards").repr.@"struct",
                 .values = &values,
             } };
             store(c, f, innards, to_ptr);

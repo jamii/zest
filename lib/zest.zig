@@ -34,6 +34,7 @@ pub const tokenize = @import("./tokenize.zig").tokenize;
 pub const parse = @import("./parse.zig").parse;
 pub const desugar = @import("./desugar.zig").desugar;
 pub const evalMain = @import("./eval.zig").evalMain;
+pub const evalRuntimeDefinition = @import("./eval.zig").evalRuntimeDefinition;
 pub const infer = @import("./infer.zig").infer;
 pub const generate = @import("./generate.zig").generate;
 

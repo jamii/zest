@@ -3,7 +3,7 @@ reflection = union[
   u32: struct[],
   i64: struct[],
   string: struct[],
-  struct: struct[],
+  struct: reflection-struct,
   union: struct[],
   list: struct[],
   fun: struct[],
@@ -12,6 +12,11 @@ reflection = union[
   any: struct[],
   repr: struct[],
   repr-kind: struct[],
+]
+
+reflection-struct = struct[
+  keys: list[any],
+  values: list[repr],
 ]
 
 string-innards = struct[

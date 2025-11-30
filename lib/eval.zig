@@ -673,12 +673,7 @@ pub fn evalExpr(
                     const value = c.value_stack.pop().?;
                     if (value != .repr)
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
-                    const tag = @intFromEnum(std.meta.activeTag(value.repr));
-                    c.value_stack.append(.{ .@"union" = .{
-                        .repr = evalRuntimeDefinition(c, "reflection").repr.@"union",
-                        .tag = tag,
-                        .value = c.box(Value.emptyStruct()),
-                    } }) catch oom();
+                    c.value_stack.append(value.repr.reflect(c)) catch oom();
                 },
                 .@"from-any" => {
                     const value = c.value_stack.pop().?;
