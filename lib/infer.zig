@@ -609,18 +609,18 @@ fn inferExprInner(
                     return .i64;
                 },
                 .each => {
-                    const value = try inferExpr(c, f, dir_f, .other);
-                    const value_local = f.local_data.append(.{ .repr = value, .is_tmp = true });
-                    emit(c, f, .{ .local_let = value_local });
+                    const object = try inferExpr(c, f, dir_f, .other);
+                    const object_local = f.local_data.append(.{ .repr = object, .is_tmp = true });
+                    emit(c, f, .{ .local_let = object_local });
 
                     const fun = try inferExpr(c, f, dir_f, .other);
                     if (fun != .fun)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } });
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ object, fun }) } });
 
                     const fun_local = f.local_data.append(.{ .repr = .{ .@"struct" = fun.fun.closure }, .is_tmp = true });
                     emit(c, f, .{ .local_let = fun_local });
 
-                    switch (value) {
+                    switch (object) {
                         .@"struct" => |@"struct"| {
                             for (@"struct".keys, @"struct".reprs, 0..) |key, repr, ix| {
                                 const args_repr = Repr{ .@"struct" = .{
@@ -630,7 +630,7 @@ fn inferExprInner(
 
                                 emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                                 emit(c, f, .{ .only = c.box(key) });
-                                emit(c, f, .{ .local_get = value_local });
+                                emit(c, f, .{ .local_get = object_local });
                                 emit(c, f, .{ .object_get = .{ .index = ix } });
                                 emit(c, f, .{ .struct_init = args_repr.@"struct" });
                                 const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
@@ -656,7 +656,7 @@ fn inferExprInner(
                             emit(c, f, .{ .block = .{ .count = 2 + @"struct".keys.len + 1 } });
                         },
                         .@"union" => |@"union"| {
-                            emit(c, f, .{ .local_get = value_local });
+                            emit(c, f, .{ .local_get = object_local });
                             emit(c, f, .union_tag);
                             const tag_local = f.local_data.append(.{ .repr = .u32, .is_tmp = true });
                             emit(c, f, .{ .local_let = tag_local });
@@ -674,7 +674,7 @@ fn inferExprInner(
 
                                 emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                                 emit(c, f, .{ .only = c.box(key) });
-                                emit(c, f, .{ .local_get = value_local });
+                                emit(c, f, .{ .local_get = object_local });
                                 emit(c, f, .{ .object_get = .{ .index = ix } });
                                 emit(c, f, .{ .struct_init = args_repr.@"struct" });
                                 const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
@@ -702,7 +702,112 @@ fn inferExprInner(
                             }
                             emit(c, f, .{ .block = .{ .count = 4 } });
                         },
-                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ value, fun }) } }),
+                        .list => return fail(c, .todo),
+                        .only => |only| {
+                            switch (only.*) {
+                                .@"struct" => |@"struct"| {
+                                    for (@"struct".repr.keys, @"struct".values) |key, value| {
+                                        const args_repr = Repr{ .@"struct" = .{
+                                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, .{ .only = c.box(value) } }),
+                                        } };
+
+                                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                        emit(c, f, .{ .only = c.box(key) });
+                                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                        emit(c, f, .{ .only = c.box(value) });
+                                        emit(c, f, .{ .struct_init = args_repr.@"struct" });
+                                        const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
+                                        emit(c, f, .{ .local_let = args_local });
+
+                                        // TODO This will only inline the wrapper - we want to inline the whole thing.
+                                        _ = try inferFunInline(
+                                            c,
+                                            f,
+                                            .{
+                                                .fun = fun.fun.fun,
+                                                .closure_repr = .{ .@"struct" = fun.fun.closure },
+                                                .arg_reprs = c.dupe(Repr, &.{args_repr}),
+                                            },
+                                            fun_local,
+                                            &.{args_local},
+                                        );
+
+                                        emit(c, f, .{ .block = .{ .count = 2 } });
+                                    }
+
+                                    emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                    emit(c, f, .{ .block = .{ .count = 2 + @"struct".repr.keys.len + 1 } });
+                                },
+                                .@"union" => |@"union"| {
+                                    const key = @"union".repr.keys[@"union".tag];
+                                    const args_repr = Repr{ .@"struct" = .{
+                                        .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                        .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, .{ .only = @"union".value } }),
+                                    } };
+
+                                    emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                    emit(c, f, .{ .only = c.box(key) });
+                                    emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                    emit(c, f, .{ .only = @"union".value });
+                                    emit(c, f, .{ .struct_init = args_repr.@"struct" });
+                                    const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
+                                    emit(c, f, .{ .local_let = args_local });
+
+                                    // TODO This will only inline the wrapper - we want to inline the whole thing.
+                                    _ = try inferFunInline(
+                                        c,
+                                        f,
+                                        .{
+                                            .fun = fun.fun.fun,
+                                            .closure_repr = .{ .@"struct" = fun.fun.closure },
+                                            .arg_reprs = c.dupe(Repr, &.{args_repr}),
+                                        },
+                                        fun_local,
+                                        &.{args_local},
+                                    );
+
+                                    emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                    emit(c, f, .{ .block = .{ .count = 5 } });
+                                },
+                                .list => |list| {
+                                    for (0.., list.elems.items) |key, value| {
+                                        const args_repr = Repr{ .@"struct" = .{
+                                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(Value{ .i64 = @intCast(key) }) }, .{ .only = c.box(value) } }),
+                                        } };
+
+                                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                        emit(c, f, .{ .only = c.box(Value{ .i64 = @intCast(key) }) });
+                                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                        emit(c, f, .{ .only = c.box(value) });
+                                        emit(c, f, .{ .struct_init = args_repr.@"struct" });
+                                        const args_local = f.local_data.append(.{ .repr = args_repr, .is_tmp = true });
+                                        emit(c, f, .{ .local_let = args_local });
+
+                                        // TODO This will only inline the wrapper - we want to inline the whole thing.
+                                        _ = try inferFunInline(
+                                            c,
+                                            f,
+                                            .{
+                                                .fun = fun.fun.fun,
+                                                .closure_repr = .{ .@"struct" = fun.fun.closure },
+                                                .arg_reprs = c.dupe(Repr, &.{args_repr}),
+                                            },
+                                            fun_local,
+                                            &.{args_local},
+                                        );
+
+                                        emit(c, f, .{ .block = .{ .count = 2 } });
+                                    }
+
+                                    emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                    emit(c, f, .{ .block = .{ .count = 2 + list.elems.items.len + 1 } });
+                                },
+                                else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ object, fun }) } }),
+                            }
+                        },
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{ object, fun }) } }),
                     }
 
                     return Repr.emptyStruct();

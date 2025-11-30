@@ -1983,30 +1983,57 @@ Expected an object, found: list[string]
 ```
 
 ```zest-test
-x = ['a', 'b', 'c']/list[string]
-%each(x, (k, v) {
-  %print(k)
+y = []/only[['a', 'b', 'c']]
+%each(y, (k, v) {
+  %print(%from-only(k))
   %print(' = ')
-  %print(v)
+  %print(%from-only(v))
   %print('\n')
 })
 
-'b'
+0 = a
+1 = b
+2 = c
+[]
 
-Expected an object, found: list[string]
+0 = a
+1 = b
+2 = c
+[TODO print]
 ```
 
 ```zest-test
-x = ['a', 'b', 'c']/list[string]
-y = []/only[x]
+y = []/only[[a: 1]/union[a: i64, b: string]]
 %each(y, (k, v) {
-  %print(k)
+  %print(%from-only(k))
   %print(' = ')
-  %print(v)
+  %print(%from-only(v))
   %print('\n')
 })
 
-'b'
+a = 1
+[]
 
-Expected an object, found: list[string]
+a = 1
+[TODO print]
+```
+
+```zest-test
+y = []/only[['a', 'b', 'c']/list[string]]
+%each(y, (k, v) {
+  %print(%from-only(k))
+  %print(' = ')
+  %print(%from-only(v))
+  %print('\n')
+})
+
+-1 = a
+-1 = b
+-1 = c
+[]
+
+0 = a
+1 = b
+2 = c
+[TODO print]
 ```
