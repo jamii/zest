@@ -94,7 +94,7 @@ To make semicolon insertion safe, newlines are only allowed between items in `{}
 
 [a: 1, b: 2]
 
-[TODO print]
+['a': TODO, 'b': TODO]
 ```
 
 ```zest-test
@@ -105,7 +105,7 @@ To make semicolon insertion safe, newlines are only allowed between items in `{}
 
 [a: 1, b: 2]
 
-[TODO print]
+['a': TODO, 'b': TODO]
 ```
 
 ```zest-test

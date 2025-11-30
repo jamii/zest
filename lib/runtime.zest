@@ -37,7 +37,19 @@ print = (x) {
     %print(x)
     %print('\'')
   } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
-    %print('[TODO print]')
+    %print('[')
+    positional mut = 1
+    %each(only[%from-only(t).struct.keys][[]], (ix, key) {
+      if {%from-only(ix) != 0} %print(', ') else {}
+      if {only[%from-only(ix) != %from-any(%from-only(key))][[]]} { positional@ = 0 } else {}
+      if {positional == 0} {
+        print(%from-only(only[%from-any(%from-only(key))][[]]))
+        %print(': ')
+      } else {}
+      %print('TODO')
+      //print(x.{%from-any(%from-only(key))})
+    })
+    %print(']')
   } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
     %print('[TODO print]/union[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'list')][[]]} {

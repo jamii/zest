@@ -43,7 +43,7 @@ kinds = namespace{
 
 [[]/namespace[1], []/namespace[0]]
 
-[TODO print]
+[TODO, TODO]
 ```
 
 Bindings can be accessed with `..` (placeholder syntax.)
@@ -166,7 +166,7 @@ kinds..is-even(4)
 
 'true'
 
-Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 39 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
+Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 41 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
 ```
 
 Namespaces currently can't close over values from the outer scope.

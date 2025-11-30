@@ -429,24 +429,28 @@ pub fn evalExpr(
                 .equal => {
                     const arg1 = c.value_stack.pop().?;
                     const arg0 = c.value_stack.pop().?;
-                    if (arg0 == .i64 and arg1 == .i64) {
-                        c.value_stack.append(.{ .i64 = if (arg0.i64 == arg1.i64) 1 else 0 }) catch oom();
-                    } else if (arg0 == .u32 and arg1 == .u32) {
-                        c.value_stack.append(.{ .i64 = if (arg0.u32 == arg1.u32) 1 else 0 }) catch oom();
-                    } else {
+                    const result = if (std.meta.activeTag(arg0) != std.meta.activeTag(arg1))
+                        false
+                    else if (arg0 == .i64 and arg1 == .i64)
+                        arg0.i64 == arg1.i64
+                    else if (arg0 == .u32 and arg1 == .u32)
+                        arg0.u32 == arg1.u32
+                    else
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    }
+                    c.value_stack.append(.{ .i64 = if (result) 1 else 0 }) catch oom();
                 },
                 .@"not-equal" => {
                     const arg1 = c.value_stack.pop().?;
                     const arg0 = c.value_stack.pop().?;
-                    if (arg0 == .i64 and arg1 == .i64) {
-                        c.value_stack.append(.{ .i64 = if (arg0.i64 != arg1.i64) 1 else 0 }) catch oom();
-                    } else if (arg0 == .u32 and arg1 == .u32) {
-                        c.value_stack.append(.{ .i64 = if (arg0.u32 != arg1.u32) 1 else 0 }) catch oom();
-                    } else {
+                    const result = if (std.meta.activeTag(arg0) != std.meta.activeTag(arg1))
+                        true
+                    else if (arg0 == .i64 and arg1 == .i64)
+                        arg0.i64 != arg1.i64
+                    else if (arg0 == .u32 and arg1 == .u32)
+                        arg0.u32 != arg1.u32
+                    else
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    }
+                    c.value_stack.append(.{ .i64 = if (result) 1 else 0 }) catch oom();
                 },
                 .@"less-than" => {
                     const arg1 = c.value_stack.pop().?;

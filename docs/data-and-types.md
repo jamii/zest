@@ -174,8 +174,6 @@ Zero or more key-value pairs, separated by commas.
 []
 
 []
-
-[TODO print]
 ```
 
 ```zest-test
@@ -183,7 +181,7 @@ Zero or more key-value pairs, separated by commas.
 
 [a: 'apple', b: 'bear']
 
-[TODO print]
+['a': TODO, 'b': TODO]
 ```
 
 Optional trailing comma.
@@ -193,7 +191,7 @@ Optional trailing comma.
 
 [a: 'apple', b: 'bear']
 
-[TODO print]
+['a': TODO, 'b': TODO]
 ```
 
 Key order matters.
@@ -203,7 +201,7 @@ Key order matters.
 
 [b: 'bear', a: 'apple']
 
-[TODO print]
+['b': TODO, 'a': TODO]
 ```
 
 TODO But conversions are allowed to reorder keys.
@@ -221,7 +219,7 @@ TODO No repeated keys.
 
 [a: 'apple', a: 'bear']
 
-[TODO print]
+['a': TODO, 'a': TODO]
 ```
 
 If the key is a string which is a valid name, the quotes may be omitted.
@@ -231,7 +229,7 @@ If the key is a string which is a valid name, the quotes may be omitted.
 
 [a: 'apple', b: 'bear']
 
-[TODO print]
+['a': TODO, 'b': TODO]
 ```
 
 Omitted keys default to consecutive integers, starting at 0.
@@ -241,7 +239,7 @@ Omitted keys default to consecutive integers, starting at 0.
 
 ['a', 'b']
 
-[TODO print]
+[TODO, TODO]
 ```
 
 ```zest-test
@@ -249,7 +247,7 @@ Omitted keys default to consecutive integers, starting at 0.
 
 ['a', 'b']
 
-[TODO print]
+[TODO, TODO]
 ```
 
 ```zest-test
@@ -257,7 +255,7 @@ Omitted keys default to consecutive integers, starting at 0.
 
 [1: 'b', 0: 'a']
 
-[TODO print]
+[1: TODO, 0: TODO]
 ```
 
 You can mix omitted and present keys.
@@ -267,7 +265,7 @@ You can mix omitted and present keys.
 
 ['a', 'b', default: 'c']
 
-[TODO print]
+[TODO, TODO, 'default': TODO]
 ```
 
 But omitted keys must be written before present keys.
@@ -370,7 +368,7 @@ Structs are objects with a fixed set of keys.
 
 [a: 0, b: 'foo']
 
-[TODO print]
+['a': TODO, 'b': TODO]
 ```
 
 ```zest-test

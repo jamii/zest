@@ -2,8 +2,6 @@
 
 
 []
-
-[TODO print]
 ```
 
 ```zest-test
@@ -121,7 +119,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[39, k: string]
+Cannot unstage value: fun[41, k: string]
 ```
 
 ```zest-test
@@ -428,9 +426,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[39]: 1]
+[[]/fun[41]: 1]
 
-Cannot unstage value: ref[fun[39]]
+Cannot unstage value: ref[fun[41]]
 ```
 
 ```zest-test
@@ -823,9 +821,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[41, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[43, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[41, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[43, a: ref[i64]]
 ```
 
 ```zest-test
@@ -842,9 +840,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[39, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[41, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[39, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[41, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1521,8 +1519,8 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/4956a59a:1:186)
-    at <anonymous> (wasm://wasm/4956a59a:1:177)
+    at <anonymous> (wasm://wasm/d1767886:1:186)
+    at <anonymous> (wasm://wasm/d1767886:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1540,8 +1538,8 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/6ea0375a:1:223)
-    at <anonymous> (wasm://wasm/6ea0375a:1:177)
+    at <anonymous> (wasm://wasm/17674dae:1:223)
+    at <anonymous> (wasm://wasm/17674dae:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1562,8 +1560,6 @@ a = union[some: i64, none: struct[]][[none: []]]
 a.none
 
 []
-
-[TODO print]
 ```
 
 ```zest-test
@@ -1583,8 +1579,6 @@ a mut = union[some: i64, none: struct[]][[none: []]]
 a.none
 
 []
-
-[TODO print]
 ```
 
 ```zest-test
@@ -1774,18 +1768,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[39] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[41] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[39] }
+Cannot call zest.Builtin.each with these args: { i64, fun[41] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[39] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[41] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[39] }
+Cannot call zest.Builtin.each with these args: { string, fun[41] }
 ```
 
 ```zest-test
@@ -1929,7 +1923,7 @@ Expected i64, found string
 
 [name: 0, still-a-name: 1, ' not': 2, '0not': 2]
 
-[TODO print]
+['name': TODO, 'still-a-name': TODO, ' not': TODO, '0not': TODO]
 ```
 
 ```zest-test
@@ -1968,7 +1962,7 @@ only[42][[]]
 ```zest-test
 () 1
 
-[]/fun[39]
+[]/fun[41]
 
 [TODO print]/fun[TODO print]
 ```
@@ -1995,11 +1989,6 @@ y = []/only[['a', 'b', 'c']]
 1 = b
 2 = c
 []
-
-0 = a
-1 = b
-2 = c
-[TODO print]
 ```
 
 ```zest-test
@@ -2013,9 +2002,6 @@ y = []/only[[a: 1]/union[a: i64, b: string]]
 
 a = 1
 []
-
-a = 1
-[TODO print]
 ```
 
 ```zest-test
@@ -2035,5 +2021,5 @@ y = []/only[['a', 'b', 'c']/list[string]]
 0 = a
 1 = b
 2 = c
-[TODO print]
+[]
 ```
