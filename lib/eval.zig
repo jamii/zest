@@ -229,6 +229,9 @@ pub fn evalExpr(
         .repr_string => {
             c.value_stack.append(.{ .repr = .string }) catch oom();
         },
+        .repr_any => {
+            c.value_stack.append(.{ .repr = .any }) catch oom();
+        },
         .repr_repr => {
             c.value_stack.append(.{ .repr = .repr }) catch oom();
         },
@@ -311,7 +314,7 @@ pub fn evalExpr(
                             .actual = list.elems.items.len,
                         } });
                 },
-                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref, .namespace => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .any, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             c.value_stack.append(value) catch oom();
         },
@@ -677,6 +680,12 @@ pub fn evalExpr(
                         .value = c.box(Value.emptyStruct()),
                     } }) catch oom();
                 },
+                .@"from-any" => {
+                    const value = c.value_stack.pop().?;
+                    if (value != .any)
+                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
+                    c.value_stack.append(value.any.copy(c.allocator)) catch oom();
+                },
                 .@"from-only" => {
                     const value = c.value_stack.pop().?;
                     if (value != .only)
@@ -893,6 +902,8 @@ fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Val
             elems.items[@intCast(key.i64)] = try convert(c, value, repr, to_repr.list.elem.*);
         }
         return .{ .list = .{ .repr = to_repr.list, .elems = elems } };
+    } else if (to_repr == .any) {
+        return .{ .any = c.box(from_value) };
     } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
         return from_repr.only.copy(c.allocator);
     } else if (to_repr == .only and from_repr.isEmptyStruct()) {

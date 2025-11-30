@@ -222,7 +222,7 @@ fn inferExprInner(
                 },
                 .@"union" => return fail(c, .todo),
                 .list => return fail(c, .todo), // Need to emit an assert on length
-                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .ref, .namespace => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .any, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             return value;
         },
@@ -698,6 +698,9 @@ fn inferExprInner(
 
                     return Repr.emptyStruct();
                 },
+                .@"from-any" => {
+                    return fail(c, .from_any);
+                },
                 .@"from-only" => {
                     const arg = try inferExpr(c, f, dir_f, .other);
                     if (arg != .only)
@@ -868,6 +871,8 @@ fn convert(c: *Compiler, f: *tir.FunData, from_repr: Repr, to_repr: Repr) !void 
         }
         emit(c, f, .{ .list_init = .{ .count = len } });
         emit(c, f, .{ .block = .{ .count = 2 } });
+    } else if (to_repr == .any) {
+        emit(c, f, .{ .any_init = from_repr });
     } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
         emit(c, f, .{ .call_builtin = .from_only });
     } else if (to_repr == .only and from_repr.isEmptyStruct()) {
@@ -887,7 +892,7 @@ fn unstage(c: *Compiler, repr: Repr) !Value {
 
 fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {
     switch (object) {
-        .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .namespace => return fail(c, .{ .expected_object = object }),
+        .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .any, .namespace => return fail(c, .{ .expected_object = object }),
         .@"struct" => |@"struct"| {
             const ix = @"struct".get(key) orelse
                 return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
@@ -991,5 +996,6 @@ pub const InferErrorData = union(enum) {
     recursive_inference: struct {
         key: tir.FunKey,
     },
+    from_any,
     todo,
 };

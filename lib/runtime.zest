@@ -9,6 +9,7 @@ reflection = union[
   fun: struct[],
   namespace: struct[],
   only: struct[],
+  any: struct[],
   repr: struct[],
   repr-kind: struct[],
 ]
@@ -44,7 +45,10 @@ print = (x) {
     %print('[]/only[')
     print(%from-only(x))
     %print(']')
-  } else {
+  } else if {only[%union-has-key(%from-only(t), 'any')][[]]} {
+    //print(%from-any(x))
+    %print('TODO/any')
+  }else {
     %print('TODO print')
   }
 }

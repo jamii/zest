@@ -51,6 +51,7 @@ pub const ExprData = union(enum) {
     object_get: struct {
         index: usize,
     },
+    any_init: Repr,
     ref_init: Repr,
     ref_get: union(enum) {
         struct_offset: u32,
@@ -70,7 +71,7 @@ pub const ExprData = union(enum) {
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         return switch (expr_data) {
             .i64, .f64, .string, .closure, .arg, .local_get => 0,
-            .only, .namespace, .union_init, .union_tag, .local_let, .object_get, .ref_init, .ref_get, .ref_deref, .@"return" => 1,
+            .only, .namespace, .union_init, .union_tag, .local_let, .object_get, .any_init, .ref_init, .ref_get, .ref_deref, .@"return" => 1,
             .ref_set, .@"while" => 2,
             .@"if" => 3,
             .struct_init => |repr| repr.keys.len,

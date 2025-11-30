@@ -544,6 +544,57 @@ TODO Make a decision about iteration order (see notes [here](https://www.scatter
 * Sorted order. Expensive.
 * Insertion order (like js maps). Then have to say that either key order matters in notation, or that equal maps can have different iteration orders.
 
+### any
+
+Any value may be converted to type `any`.
+
+```zest-test
+42/any
+
+42/any
+
+TODO/any
+```
+
+There is not much you can do with a value of type `any`, unless you use `%from-any` to recover the original value. This builtin only works in interpreted code, since there is no way to know the result type at compile-time.
+
+```zest-test
+x = [a: 1]/any
+x.a
+
+Key 'a' not found in [a: 1]/any
+
+Expected an object, found: any
+```
+
+```zest-test
+x = [a: 1]/any
+%from-any(x).a
+
+1
+
+The result type of %from-any cannot be inferred
+```
+
+Using `any` as a parameter type allows building heterogenously typed data-structures.
+
+```zest-test
+[42, 'foo']/list[any]
+
+[42/any, 'foo'/any]/list[any]
+
+TODO generate
+```
+
+```zest-test
+x = [42, 'foo']/list[any]
+%from-any(x.0)
+
+42
+
+The result type of %from-any cannot be inferred
+```
+
 ## equality
 
 Two __data__ are equal if:

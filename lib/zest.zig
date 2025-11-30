@@ -145,6 +145,7 @@ pub const Builtin = enum {
     @"union-has-key",
     @"repr-of",
     reflect,
+    @"from-any",
     @"from-only",
     each,
     main,
@@ -152,7 +153,7 @@ pub const Builtin = enum {
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic, .main => 0,
-            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-only" => 1,
+            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-any", .@"from-only" => 1,
             .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"bit-shift-left", .@"and", .@"or", .load, .store, .@"union-has-key", .each => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };
@@ -550,7 +551,7 @@ pub const Compiler = struct {
             .struct_init => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
             .union_init => |union_init| try writer.print(" /{} tag={}", .{ Repr{ .@"union" = union_init.repr }, union_init.tag }),
             .list_init => |list_init| try writer.print(" {}", .{list_init.count}),
-            .ref_init, .@"if", .ref_deref => |repr| try writer.print(" /{}", .{repr}),
+            .any_init, .ref_init, .@"if", .ref_deref => |repr| try writer.print(" /{}", .{repr}),
             .block => |block| try writer.print(" {}", .{block.count}),
             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case: " ++ @tagName(tag)),
         }
@@ -719,6 +720,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .definition_not_found => |data| format(c, "Cannot find definition: {}..{}", .{ data.namespace, data.key }),
                     .recursive_evaluation => |data| format(c, "Recursive evaluation: {}..{}", .{ data.namespace, data.key }),
                     .recursive_inference => |data| format(c, "Recursive inference: {}", .{data.key}),
+                    .from_any => format(c, "The result type of %from-any cannot be inferred", .{}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

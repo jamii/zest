@@ -436,6 +436,12 @@ fn genExprInner(
             const object = try genExpr(c, f, tir_f, if (dest == .nowhere) .nowhere else .anywhere);
             return genObjectGet(c, f, object, object_get.index);
         },
+        .any_init => |repr| {
+            // TODO Once we can represent repr in compiled code, we should also store the repr for any.
+            const ref = shadowPush(c, f, repr);
+            _ = try genExpr(c, f, tir_f, .{ .value_at = c.box(ref) });
+            return ref;
+        },
         .ref_init => |repr| {
             const ref = shadowPush(c, f, repr);
             _ = try genExpr(c, f, tir_f, .{ .value_at = c.box(ref) });
@@ -1232,7 +1238,7 @@ const WasmRepr = union(enum) {
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
         .u32, .i64, .ref => .{ .primitive = wasmAbi(repr) },
-        .string, .@"struct", .@"union", .list, .fun, .only, .namespace, .repr, .repr_kind => .heap,
+        .string, .@"struct", .@"union", .list, .fun, .only, .any, .namespace, .repr, .repr_kind => .heap,
     };
 }
 
@@ -1241,7 +1247,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
         .u32 => .i32,
         .i64 => .i64,
         // Pointers.
-        .string, .@"struct", .@"union", .list, .fun, .only, .namespace, .ref, .repr, .repr_kind => .i32,
+        .string, .@"struct", .@"union", .list, .fun, .only, .any, .namespace, .ref, .repr, .repr_kind => .i32,
     };
 }
 
@@ -1295,7 +1301,6 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
                 .value = c.box(valueToWalue(c, @"union".value.*)),
             } };
         },
-        .list => panic("TODO list", .{}),
         .fun => |fun| {
             return .{ .fun = .{
                 .repr = fun.repr,
@@ -1309,8 +1314,7 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
             return .{ .only = .{ .value = only } };
         },
         .ref => panic("Ref is not a true value, shouldn't appear in ir", .{}),
-        .namespace => panic("TODO represent namespace in wasm", .{}),
-        .repr, .repr_kind => panic("TODO represent repr in wasm", .{}),
+        .list, .namespace, .any, .repr, .repr_kind => panic("TODO", .{}),
     }
 }
 

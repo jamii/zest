@@ -27,6 +27,7 @@ pub const Value = union(enum) {
     fun: ValueFun,
     namespace: ValueNamespace,
     only: *Value,
+    any: *Value,
     ref: ValueRef,
     repr: Repr,
     repr_kind: ReprKind,
@@ -40,6 +41,7 @@ pub const Value = union(enum) {
             .@"union" => |@"union"| .{ .@"union" = @"union".repr },
             .list => |list| .{ .list = list.repr },
             .only => |only| .{ .only = only },
+            .any => .any,
             .fun => |fun| .{ .fun = fun.repr },
             .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
             .ref => |ref| .{ .ref = ref.repr },
@@ -62,7 +64,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind, .namespace => null,
+            .u32, .i64, .string, .fun, .only, .any, .ref, .repr, .repr_kind, .namespace => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => |@"union"| @"union".get(key),
             .list => |list| list.get(key),
@@ -71,7 +73,7 @@ pub const Value = union(enum) {
 
     pub fn getMut(self: *Value, key: Value) ?*Value {
         return switch (self.*) {
-            .u32, .i64, .string, .fun, .only, .ref, .repr, .repr_kind, .namespace => null,
+            .u32, .i64, .string, .fun, .only, .any, .ref, .repr, .repr_kind, .namespace => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
             .@"union" => |*@"union"| @"union".getMut(key),
             .list => |*list| list.getMut(key),
@@ -117,6 +119,9 @@ pub const Value = union(enum) {
                     try writer.print("{}", .{elem});
                 }
                 try writer.print("]/{}", .{self.reprOf()});
+            },
+            .any => |any| {
+                try writer.print("{}/any", .{any});
             },
             .fun => |fun| {
                 try writer.print("{}/{}", .{
@@ -166,6 +171,9 @@ pub const Value = union(enum) {
             .only => |only| .{
                 .only = Value.copyBox(only, allocator),
             },
+            .any => |any| .{
+                .any = Value.copyBox(any, allocator),
+            },
             .fun => |fun| .{ .fun = .{
                 .repr = fun.repr,
                 .closure = Value.copySlice(fun.closure, allocator),
@@ -213,7 +221,7 @@ pub const Value = union(enum) {
                 }
                 return .{ .@"struct" = .{ .repr = @"struct", .values = values } };
             },
-            .string, .@"union", .list, .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO load: {}", .{repr}),
+            .string, .@"union", .list, .only, .any, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO load: {}", .{repr}),
         }
     }
 
@@ -232,7 +240,7 @@ pub const Value = union(enum) {
                     offset += value_repr.sizeOf();
                 }
             },
-            .string, .@"union", .list, .only, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO store: {}", .{self}),
+            .string, .@"union", .list, .only, .any, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO store: {}", .{self}),
         }
     }
 
@@ -325,6 +333,7 @@ pub const ValueNamespace = struct {
 };
 
 pub const ValueRef = struct {
+    // The repr is redundant, but we store it so that we don't need to allocate in Value.reprOf
     repr: *Repr,
     value: *Value,
 };

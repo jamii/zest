@@ -19,6 +19,7 @@ pub const Repr = union(enum) {
     namespace: ReprNamespace,
     // TODO Replace with @"enum" and a syntax for one-value enum.
     only: *Value,
+    any,
     repr,
     repr_kind,
     ref: *Repr,
@@ -60,6 +61,7 @@ pub const Repr = union(enum) {
             .list => 12, // see runtime.list-innards
             .fun => |fun| fun.sizeOf(),
             .only, .namespace => 0,
+            .any => 4, // TODO will be 8 when we store repr
             .ref => 4,
             .repr, .repr_kind => panic("TODO {}", .{self}),
         };
@@ -77,7 +79,7 @@ pub const Repr = union(enum) {
             else
                 null,
             .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
-            .u32, .i64, .string, .@"union", .list, .ref, .repr, .repr_kind => null,
+            .u32, .i64, .string, .@"union", .list, .any, .repr, .repr_kind, .ref => null,
         };
     }
 
@@ -86,7 +88,7 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.print("{s}", .{@tagName(self)});
         switch (self) {
-            .u32, .i64, .string, .repr, .repr_kind => {},
+            .u32, .i64, .string, .any, .repr, .repr_kind => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var positional = true;
@@ -148,7 +150,7 @@ pub const Repr = union(enum) {
             .ref => {
                 return true;
             },
-            .u32, .i64, .string, .repr, .repr_kind, .namespace => {
+            .u32, .i64, .string, .namespace, .any, .repr, .repr_kind => {
                 return false;
             },
             .@"struct" => |@"struct"| {
