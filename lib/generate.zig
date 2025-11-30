@@ -449,16 +449,16 @@ fn genExprInner(
         },
         .ref_get => |ref_get| {
             const ref = try genExpr(c, f, tir_f, if (dest == .nowhere) .nowhere else .anywhere);
-            switch (ref_get) {
-                .struct_offset => |offset| {
+            switch (ref_get.repr) {
+                .@"struct" => |@"struct"| {
                     return .{ .add = .{
                         .walue = c.box(ref),
-                        .offset = offset,
+                        .offset = @intCast(@"struct".offsetOf(ref_get.index)),
                     } };
                 },
-                .union_tag => |tag| {
+                .@"union" => {
                     const ref_spilled = spillStack(c, f, ref);
-                    assertTag(c, f, ref_spilled, tag);
+                    assertTag(c, f, ref_spilled, @intCast(ref_get.index));
                     return .{
                         .add = .{
                             .walue = c.box(ref_spilled),
@@ -466,6 +466,7 @@ fn genExprInner(
                         },
                     };
                 },
+                else => panic("Invalid ref_get repr: {}", .{ref_get.repr}),
             }
         },
         .ref_set => {

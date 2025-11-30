@@ -247,9 +247,15 @@ fn inferExprInner(
         .object_get => {
             const object = try inferExpr(c, f, dir_f, .other);
             const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
-            const get = try objectGet(c, object, key);
-            emit(c, f, .{ .object_get = .{ .index = get.index } });
-            return get.repr;
+            switch (object) {
+                inline .@"struct", .@"union" => |struct_or_union| {
+                    const index = struct_or_union.get(key) orelse
+                        return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
+                    emit(c, f, .{ .object_get = .{ .index = index } });
+                    return struct_or_union.reprs[index];
+                },
+                else => return fail(c, .{ .expected_object = object }),
+            }
         },
         .namespace_get => {
             const namespace = try inferExpr(c, f, dir_f, .other);
@@ -294,14 +300,17 @@ fn inferExprInner(
         },
         .ref_get => {
             const ref = try inferExpr(c, f, dir_f, .other);
+            const object = ref.ref.*;
             const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
-            const get = try objectGet(c, ref.ref.*, key);
-            emit(c, f, .{ .ref_get = switch (ref.ref.*) {
-                .@"struct" => .{ .struct_offset = get.offset },
-                .@"union" => .{ .union_tag = @intCast(get.index) },
-                else => unreachable,
-            } });
-            return .{ .ref = c.box(get.repr) };
+            switch (object) {
+                inline .@"struct", .@"union" => |struct_or_union| {
+                    const index = struct_or_union.get(key) orelse
+                        return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
+                    emit(c, f, .{ .ref_get = .{ .repr = object, .index = index } });
+                    return .{ .ref = c.box(struct_or_union.reprs[index]) };
+                },
+                else => return fail(c, .{ .expected_object = object }),
+            }
         },
         .ref_set => {
             const ref = try inferExpr(c, f, dir_f, .other);
@@ -888,32 +897,6 @@ fn unstage(c: *Compiler, repr: Repr) !Value {
     const value = repr.valueOf() orelse
         return fail(c, .{ .value_not_staged = repr });
     return value.only.*;
-}
-
-fn objectGet(c: *Compiler, object: Repr, key: Value) error{InferError}!struct { index: usize, repr: Repr, offset: u32 } {
-    switch (object) {
-        .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .any, .namespace => return fail(c, .{ .expected_object = object }),
-        .@"struct" => |@"struct"| {
-            const ix = @"struct".get(key) orelse
-                return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
-            return .{
-                .index = ix,
-                .repr = @"struct".reprs[ix],
-                .offset = @intCast(@"struct".offsetOf(ix)),
-            };
-        },
-        .@"union" => |@"union"| {
-            const ix = @"union".get(key) orelse
-                return fail(c, .{ .key_not_found = .{ .object = object, .key = key } });
-            return .{
-                .index = ix,
-                .repr = @"union".reprs[ix],
-                .offset = @intCast(@"union".tagSizeOf()),
-            };
-        },
-        .list => panic("Unreachable", .{}),
-        .ref => panic("Unreachable", .{}), // always passes through ref_deref first
-    }
 }
 
 fn take(c: *Compiler, dir_f: dir.FunData) dir.ExprData {

@@ -53,9 +53,9 @@ pub const ExprData = union(enum) {
     },
     any_init: Repr,
     ref_init: Repr,
-    ref_get: union(enum) {
-        struct_offset: u32,
-        union_tag: u32,
+    ref_get: struct {
+        repr: Repr,
+        index: usize,
     },
     ref_set,
     ref_deref: Repr,

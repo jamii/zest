@@ -1979,5 +1979,5 @@ x.1
 
 'b'
 
-TODO infer: dir.ExprData{ .i64 = 1 }
+Expected an object, found: list[string]
 ```
