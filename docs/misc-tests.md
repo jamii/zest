@@ -1981,3 +1981,32 @@ x.1
 
 Expected an object, found: list[string]
 ```
+
+```zest-test
+x = ['a', 'b', 'c']/list[string]
+%each(x, (k, v) {
+  %print(k)
+  %print(' = ')
+  %print(v)
+  %print('\n')
+})
+
+'b'
+
+Expected an object, found: list[string]
+```
+
+```zest-test
+x = ['a', 'b', 'c']/list[string]
+y = []/only[x]
+%each(y, (k, v) {
+  %print(k)
+  %print(' = ')
+  %print(v)
+  %print('\n')
+})
+
+'b'
+
+Expected an object, found: list[string]
+```
