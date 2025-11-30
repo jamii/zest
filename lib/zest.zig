@@ -429,12 +429,12 @@ pub const Compiler = struct {
             .dir => {
                 try writer.print("--- DIR ---\n", .{});
                 if (c.dir_fun_main) |fun| {
-                    try writer.print("main = f{}\n", .{fun.id});
+                    try writer.print("main = df{}\n", .{fun.id});
                 } else {
                     try writer.print("main = ???\n", .{});
                 }
                 for (c.dir_fun_data.items(), 0..) |f, fun_id| {
-                    try writer.print("f{} = (closure", .{fun_id});
+                    try writer.print("df{} = (closure", .{fun_id});
                     for (0..f.arg_data.count()) |arg_id| {
                         try writer.print(", a{}", .{arg_id});
                     }
@@ -451,9 +451,9 @@ pub const Compiler = struct {
             },
             .tir => {
                 try writer.print("--- TIR ---\n", .{});
-                try writer.print("main = f{}\n", .{c.tir_fun_main.?.id});
+                try writer.print("main = tf{} ()\n", .{c.tir_fun_main.?.id});
                 for (c.tir_fun_data.items(), 0..) |f, fun_id| {
-                    try writer.print("f{} = (closure", .{fun_id});
+                    try writer.print("tf{} = df{} = (closure", .{ fun_id, f.key.fun.id });
                     for (0..f.key.arg_reprs.len) |arg_id| {
                         try writer.print(", a{}", .{arg_id});
                     }
@@ -462,7 +462,13 @@ pub const Compiler = struct {
                     var indent: usize = 1;
                     for (f.local_data.items(), 0..) |local_data, local_id| {
                         try writer.writeByteNTimes(' ', indent * 2);
-                        try writer.print("local l{} /{}\n", .{ local_id, local_data.repr.? });
+                        try writer.print("local l{} /", .{local_id});
+                        if (local_data.repr) |repr| {
+                            try writer.print("{}", .{repr});
+                        } else {
+                            try writer.writeAll("?");
+                        }
+                        try writer.writeAll("\n");
                     }
                     try c.printTir(writer, f, &expr, &indent);
                 }
@@ -512,7 +518,7 @@ pub const Compiler = struct {
             .local_get => |local| try writer.print(" l{}", .{local.id}),
             .local_let => |local| try writer.print(" l{}", .{local.id}),
             .struct_init => |struct_init| try writer.print(" count={}", .{struct_init.count}),
-            .fun_init => |fun_init| try writer.print(" f{}", .{fun_init.fun.id}),
+            .fun_init => |fun_init| try writer.print(" df{}", .{fun_init.fun.id}),
             .assert_object => |assert_object| try writer.print(" count={}", .{assert_object.count}),
             .call => |call| try writer.print(" arg_count={}", .{call.arg_count}),
             .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
@@ -547,7 +553,7 @@ pub const Compiler = struct {
             .object_get => |object_get| try writer.print(" index={}", .{object_get.index}),
             .ref_get => |ref_get| try writer.print(" {}", .{ref_get}),
             .ref_set => {},
-            .call => |fun| try writer.print(" f{}", .{fun.id}),
+            .call => |fun| try writer.print(" tf{}", .{fun.id}),
             .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
             .struct_init => |repr_struct| try writer.print(" /{}", .{Repr{ .@"struct" = repr_struct }}),
             .union_init => |union_init| try writer.print(" /{} tag={}", .{ Repr{ .@"union" = union_init.repr }, union_init.tag }),
