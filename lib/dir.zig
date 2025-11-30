@@ -42,6 +42,8 @@ pub const ExprData = union(enum) {
     repr_kind_namespace,
     arg: Arg,
     closure,
+    // TODO Once namespaces can close over values, functions will have to close over namespaces, and .namespace should refer to the namespace of the current fun rather than hardcoding it
+    namespace: Namespace,
     local_get: Local,
 
     struct_init: struct {
@@ -90,7 +92,7 @@ pub const ExprData = union(enum) {
     pub fn childCount(expr_data: ExprData, c: *Compiler) usize {
         _ = c;
         return switch (expr_data) {
-            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_any, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_list, .repr_kind_only, .repr_kind_namespace, .arg, .closure, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
+            .i64, .f64, .string, .repr_u32, .repr_i64, .repr_string, .repr_any, .repr_repr, .repr_kind_struct, .repr_kind_union, .repr_kind_list, .repr_kind_only, .repr_kind_namespace, .arg, .closure, .namespace, .local_get, .if_then, .if_else, .while_begin, .while_body, .stage_begin, .unstage_begin, .repr_of_begin => 0,
             .fun_init, .local_let, .assert_object, .assert_is_ref, .assert_has_no_ref_visible, .assert_has_no_ref, .ref_init, .ref_deref, .@"return" => 1,
             .object_get, .namespace_get, .ref_get, .ref_set, .make, .stage, .unstage, .repr_of => 2,
             .@"while" => 4,

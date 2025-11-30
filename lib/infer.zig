@@ -191,6 +191,11 @@ fn inferExprInner(
             });
             return c.infer_context.key.closure_repr;
         },
+        .namespace => |namespace| {
+            emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+            emit(c, f, .{ .namespace = .{ .namespace = namespace } });
+            return .{ .namespace = .{ .namespace = namespace } };
+        },
         .local_get => |dir_local| {
             const local = tir.Local{ .id = dir_local.id + c.infer_context.local_offset };
             emit(c, f, .{ .local_get = local });

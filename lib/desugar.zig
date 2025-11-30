@@ -312,7 +312,7 @@ fn desugarNamespace(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{Desu
         namespace_data.definition_by_name.put(name.name, definition) catch oom();
     }
 
-    emitNamespace(c, f, namespace);
+    emit(c, f, .{ .namespace = namespace });
 
     return namespace;
 }
@@ -384,7 +384,7 @@ fn desugarBinding(c: *Compiler, s: sir.SourceData, f: *dir.FunData, binding: dir
             emit(c, f, constant);
         },
         .definition => |definition| {
-            emitNamespace(c, f, definition.namespace);
+            emit(c, f, .{ .namespace = definition.namespace });
             emit(c, f, .stage_begin);
             emit(c, f, .{ .string = definition.name });
             emit(c, f, .{ .stage = .{} });
@@ -547,28 +547,6 @@ fn desugarPattern(c: *Compiler, s: sir.SourceData, f: *dir.FunData, bindings: *A
 fn emit(c: *Compiler, f: *dir.FunData, expr_data: dir.ExprData) void {
     _ = c;
     _ = f.expr_data_post.append(expr_data);
-}
-
-fn emitNamespace(c: *Compiler, f: *dir.FunData, namespace: dir.Namespace) void {
-    emit(c, f, .stage_begin);
-    {
-        emit(c, f, .stage_begin);
-        emit(c, f, .repr_kind_namespace);
-        emit(c, f, .{ .stage = .{} });
-        emit(c, f, .stage_begin);
-        emit(c, f, .{ .i64 = 0 });
-        emit(c, f, .{ .stage = .{} });
-        emit(c, f, .{ .i64 = @intCast(namespace.id) });
-        emit(c, f, .{ .struct_init = .{ .count = 1 } });
-        emit(c, f, .make);
-    }
-    emit(c, f, .{ .stage = .{} });
-    emit(c, f, .stage_begin);
-    emit(c, f, .{ .i64 = 0 });
-    emit(c, f, .{ .stage = .{} });
-    emit(c, f, .{ .struct_init = .{ .count = 0 } });
-    emit(c, f, .{ .struct_init = .{ .count = 1 } });
-    emit(c, f, .make);
 }
 
 fn take(c: *Compiler, s: sir.SourceData) sir.ExprData {

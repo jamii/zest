@@ -287,6 +287,9 @@ pub fn evalExpr(
             const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             c.value_stack.append(frame.closure) catch oom();
         },
+        .namespace => |namespace| {
+            c.value_stack.append(.{ .namespace = .{ .namespace = namespace } }) catch oom();
+        },
         .local_get => |local| {
             const value = c.local_stack.items[c.local_stack.items.len - 1 - local.id];
             c.value_stack.append(value) catch oom();
