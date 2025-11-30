@@ -299,8 +299,10 @@ fn inferExprInner(
                 }
             };
             // TODO This is a hacky way to emit the value.
+            emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
             emit(c, f, .{ .only = c.box(value) });
             emit(c, f, .{ .call_builtin = .from_only });
+            emit(c, f, .{ .block = .{ .count = 2 } });
             return value.reprOf();
         },
         .ref_get => {
