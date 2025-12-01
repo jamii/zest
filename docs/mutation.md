@@ -26,8 +26,6 @@ b mut = 2
 [a, b]
 
 [2, 1]
-
-[TODO, TODO]
 ```
 
 ```zest-test
@@ -37,8 +35,6 @@ b mut = 2
 [a, b, c]
 
 [2, 2, 1]
-
-[TODO, TODO, TODO]
 ```
 
 To pass a mutable reference to a function, mark the argument as `mut` and pass the reference with `@`.
@@ -94,7 +90,7 @@ a
 
 [b: 2]
 
-['b': TODO]
+['b': 2]
 ```
 
 ```zest-test
@@ -105,7 +101,7 @@ a
 
 [b: 2]
 
-['b': TODO]
+['b': 2]
 ```
 
 TODO Mutable references never alias - setting the value of one mutable variable will never change the value of another mutable variable. To enforce this, all of the mutable arguments to a function call must be disjoint.
@@ -120,7 +116,7 @@ a
 
 [b: 2, c: 1]
 
-['b': TODO, 'c': TODO]
+['b': 2, 'c': 1]
 ```
 
 ```zest-test
@@ -133,7 +129,7 @@ a
 
 [b: 1, c: 2]
 
-['b': TODO, 'c': TODO]
+['b': 1, 'c': 2]
 ```
 
 Only the mutable arguments are required to be disjoint - other arguments may overlap.
@@ -146,7 +142,7 @@ a
 
 [b: 1, c: 2]
 
-['b': TODO, 'c': TODO]
+['b': 1, 'c': 2]
 ```
 
 Mutable references are 2nd-class - they cannot be assigned or returned.

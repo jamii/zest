@@ -54,7 +54,7 @@ foo = 'the number'
 
 [foo: 42]
 
-['foo': TODO]
+['foo': 42]
 ```
 
 Use brackets to treat the key as a name.
@@ -76,7 +76,7 @@ foo = 'the number'
 
 [foo: 'the number']
 
-['foo': TODO]
+['foo': 'the number']
 ```
 
 Names may not be shadowed.
@@ -229,8 +229,6 @@ Assignments can pattern-match values.
 [x, y]
 
 [1, 2]
-
-[TODO, TODO]
 ```
 
 Patterns that don't match exactly will throw errors.
@@ -256,8 +254,6 @@ Patterns can use the same syntax sugar as object fields:
 [x, y, z]
 
 [1, 2, 3]
-
-[TODO, TODO, TODO]
 ```
 
 The arguments to functions are just an object pattern-match:
@@ -268,8 +264,6 @@ y = 2
 foo(1, 'z with spaces': 3, :y)
 
 [1, 2, 3]
-
-[TODO, TODO, TODO]
 ```
 
 TODO matching rest-of-object

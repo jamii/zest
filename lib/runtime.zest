@@ -39,15 +39,17 @@ print = (x) {
   } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
     %print('[')
     positional mut = 1
-    %each(only[%from-only(t).struct.keys][[]], (ix, key) {
-      if {%from-only(ix) != 0} %print(', ') else {}
-      if {only[%from-only(ix) != %from-any(%from-only(key))][[]]} { positional@ = 0 } else {}
-      if {positional == 0} {
-        print(%from-only(only[%from-any(%from-only(key))][[]]))
-        %print(': ')
-      } else {}
-      %print('TODO')
-      //print(x.{%from-any(%from-only(key))})
+    ix mut = 0
+    %each(x, (key, value) {
+        if {ix > 0} %print(', ') else {}
+        if {%from-only(key) != ix} { positional@ = 0 } else {}
+        if {positional == 0} {
+          // TODO Check if key is a valid name.
+          print(%from-only(key))
+          %print(': ')
+        } else {}
+        print(value)
+        ix@ = ix + 1
     })
     %print(']')
   } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {

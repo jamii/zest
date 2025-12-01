@@ -380,7 +380,12 @@ fn inferExprInner(
                 .equal => {
                     const arg0 = try inferExpr(c, f, dir_f, .other);
                     const arg1 = try inferExpr(c, f, dir_f, .other);
-                    if (arg0 == .i64 and arg1 == .i64) {
+                    if (std.meta.activeTag(arg0) != std.meta.activeTag(arg1)) {
+                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                        emit(c, f, .{ .only = c.box(Value{ .i64 = 0 }) });
+                        emit(c, f, .{ .block = .{ .count = 3 } });
+                        return .{ .only = c.box(Value{ .i64 = 0 }) };
+                    } else if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .equal_i64 });
                         return .i64;
                     } else if (arg0 == .u32 and arg1 == .u32) {
@@ -393,7 +398,12 @@ fn inferExprInner(
                 .@"not-equal" => {
                     const arg0 = try inferExpr(c, f, dir_f, .other);
                     const arg1 = try inferExpr(c, f, dir_f, .other);
-                    if (arg0 == .i64 and arg1 == .i64) {
+                    if (std.meta.activeTag(arg0) != std.meta.activeTag(arg1)) {
+                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                        emit(c, f, .{ .only = c.box(Value{ .i64 = 1 }) });
+                        emit(c, f, .{ .block = .{ .count = 3 } });
+                        return .{ .only = c.box(Value{ .i64 = 1 }) };
+                    } else if (arg0 == .i64 and arg1 == .i64) {
                         emit(c, f, .{ .call_builtin = .not_equal_i64 });
                         return .i64;
                     } else if (arg0 == .u32 and arg1 == .u32) {

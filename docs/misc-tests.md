@@ -1519,8 +1519,8 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/d1767886:1:186)
-    at <anonymous> (wasm://wasm/d1767886:1:177)
+    at <anonymous> (wasm://wasm/9d1845ce:1:186)
+    at <anonymous> (wasm://wasm/9d1845ce:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1538,8 +1538,8 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/17674dae:1:223)
-    at <anonymous> (wasm://wasm/17674dae:1:177)
+    at <anonymous> (wasm://wasm/be215412:1:223)
+    at <anonymous> (wasm://wasm/be215412:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1923,7 +1923,7 @@ Expected i64, found string
 
 [name: 0, still-a-name: 1, ' not': 2, '0not': 2]
 
-['name': TODO, 'still-a-name': TODO, ' not': TODO, '0not': TODO]
+['name': 0, 'still-a-name': 1, ' not': 2, '0not': 2]
 ```
 
 ```zest-test

@@ -43,7 +43,7 @@ kinds = namespace{
 
 [[]/namespace[1], []/namespace[0]]
 
-[TODO, TODO]
+[[]/namespace[TODO print], []/namespace[TODO print]]
 ```
 
 Bindings can be accessed with `..` (placeholder syntax.)
