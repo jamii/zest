@@ -1586,7 +1586,7 @@ a.none
 f = ([some: x]) x
 f(union[some: i64, none: struct[]][[some: 42]])
 
-TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24397{ .count = 1 } }
+TODO eval: dir.ExprData{ .assert_object = dir.ExprData__struct_24392{ .count = 1 } }
 
 TODO infer: dir.ExprData{ .i64 = 0 }
 ```
@@ -2012,11 +2012,6 @@ y = []/only[['a', 'b', 'c']/list[string]]
   %print(%from-only(v))
   %print('\n')
 })
-
--1 = a
--1 = b
--1 = c
-[]
 
 0 = a
 1 = b

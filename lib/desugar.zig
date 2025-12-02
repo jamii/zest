@@ -133,7 +133,14 @@ fn desugarExpr(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{DesugarEr
                 if (is_staged)
                     emit(c, f, .{ .stage = .{} });
             }
-            emit(c, f, .{ .call_builtin = builtin });
+
+            if (builtin == .each) {
+                emit(c, f, .each_begin);
+                emit(c, f, .each_body);
+                emit(c, f, .each);
+            } else {
+                emit(c, f, .{ .call_builtin = builtin });
+            }
         },
         .repr_of => {
             emit(c, f, .{ .repr_of_begin = .{} });

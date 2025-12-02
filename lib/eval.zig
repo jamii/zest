@@ -165,14 +165,7 @@ pub fn eval(c: *Compiler) error{EvalError}!Value {
                     if (c.dir_frame_stack.items.len < start_frame_index)
                         return c.value_stack.pop().?;
                     const frame_prev = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-                    const expr_data_prev = c.dir_fun_data.get(frame_prev.fun).expr_data_post.get(frame_prev.expr);
-                    if (expr_data_prev == .call_builtin and expr_data_prev.call_builtin == .each) {
-                        // Pop call result.
-                        _ = c.value_stack.pop().?;
-                        // Call each again.
-                    } else {
-                        frame_prev.expr.id += 1;
-                    }
+                    frame_prev.expr.id += 1;
                     continue :fun;
                 },
                 .stage_begin => {
@@ -694,188 +687,7 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
                     c.value_stack.append(value.only.copy(c.allocator)) catch oom();
                 },
-                .each => {
-                    const fun = c.value_stack.pop().?;
-                    const value = c.value_stack.pop().?;
-                    if (fun != .fun)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } });
-                    switch (value) {
-                        .@"struct" => |@"struct"| {
-                            if (@"struct".values.len == 0) {
-                                c.value_stack.append(Value.emptyStruct()) catch oom();
-                                return .next;
-                            }
-                            c.value_stack.append(.{ .@"struct" = .{
-                                .repr = .{
-                                    .keys = @"struct".repr.keys[1..],
-                                    .reprs = @"struct".repr.reprs[1..],
-                                },
-                                .values = @"struct".values[1..],
-                            } }) catch oom();
-                            c.value_stack.append(fun) catch oom();
-                            const key = Value{ .only = c.box(@"struct".repr.keys[0]) };
-                            const val = @"struct".values[0];
-                            const args = Value{ .@"struct" = .{
-                                .repr = .{
-                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
-                                },
-                                .values = c.dupe(Value, &.{ key, val }),
-                            } };
-                            pushFun(c, .{
-                                .fun = fun.fun.repr.fun,
-                                .closure = .{ .@"struct" = fun.fun.getClosure() },
-                                .args = c.dupe(Value, &.{args}),
-                            });
-                            return .call;
-                        },
-                        .@"union" => |@"union"| {
-                            c.value_stack.append(Value.emptyStruct()) catch oom();
-                            c.value_stack.append(fun) catch oom();
-                            const key = Value{ .only = c.box(@"union".repr.keys[@"union".tag]) };
-                            const val = @"union".value.*;
-                            const args = Value{ .@"struct" = .{
-                                .repr = .{
-                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
-                                },
-                                .values = c.dupe(Value, &.{ key, val }),
-                            } };
-                            pushFun(c, .{
-                                .fun = fun.fun.repr.fun,
-                                .closure = .{ .@"struct" = fun.fun.getClosure() },
-                                .args = c.dupe(Value, &.{args}),
-                            });
-                            return .call;
-                        },
-                        .list => |list| {
-                            if (list.elems.items.len == 0) {
-                                c.value_stack.append(Value.emptyStruct()) catch oom();
-                                return .next;
-                            }
-                            c.value_stack.append(.{
-                                .list = .{
-                                    .repr = list.repr,
-                                    .elems = .{
-                                        .items = list.elems.items[1..],
-                                        // Spicy :)
-                                        .allocator = undefined,
-                                        .capacity = undefined,
-                                    },
-                                },
-                            }) catch oom();
-                            c.value_stack.append(fun) catch oom();
-                            const key = Value{ .i64 = -1 }; // TODO Figure out how to track key nicely
-                            const val = list.elems.items[0];
-                            const args = Value{ .@"struct" = .{
-                                .repr = .{
-                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
-                                },
-                                .values = c.dupe(Value, &.{ key, val }),
-                            } };
-                            pushFun(c, .{
-                                .fun = fun.fun.repr.fun,
-                                .closure = .{ .@"struct" = fun.fun.getClosure() },
-                                .args = c.dupe(Value, &.{args}),
-                            });
-                            return .call;
-                        },
-                        .only => |only| {
-                            switch (only.*) {
-                                .@"struct" => |@"struct"| {
-                                    if (@"struct".values.len == 0) {
-                                        c.value_stack.append(Value.emptyStruct()) catch oom();
-                                        return .next;
-                                    }
-                                    c.value_stack.append(.{
-                                        // TODO avoid this box
-                                        .only = c.box(Value{ .@"struct" = .{
-                                            .repr = .{
-                                                .keys = @"struct".repr.keys[1..],
-                                                .reprs = @"struct".repr.reprs[1..],
-                                            },
-                                            .values = @"struct".values[1..],
-                                        } }),
-                                    }) catch oom();
-                                    c.value_stack.append(fun) catch oom();
-                                    const key = Value{ .only = c.box(@"struct".repr.keys[0]) };
-                                    const val = Value{ .only = c.box(@"struct".values[0]) };
-                                    const args = Value{ .@"struct" = .{
-                                        .repr = .{
-                                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                            .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
-                                        },
-                                        .values = c.dupe(Value, &.{ key, val }),
-                                    } };
-                                    pushFun(c, .{
-                                        .fun = fun.fun.repr.fun,
-                                        .closure = .{ .@"struct" = fun.fun.getClosure() },
-                                        .args = c.dupe(Value, &.{args}),
-                                    });
-                                    return .call;
-                                },
-                                .@"union" => |@"union"| {
-                                    c.value_stack.append(Value.emptyStruct()) catch oom();
-                                    c.value_stack.append(fun) catch oom();
-                                    const key = Value{ .only = c.box(@"union".repr.keys[@"union".tag]) };
-                                    const val = Value{ .only = @"union".value };
-                                    const args = Value{ .@"struct" = .{
-                                        .repr = .{
-                                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                            .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
-                                        },
-                                        .values = c.dupe(Value, &.{ key, val }),
-                                    } };
-                                    pushFun(c, .{
-                                        .fun = fun.fun.repr.fun,
-                                        .closure = .{ .@"struct" = fun.fun.getClosure() },
-                                        .args = c.dupe(Value, &.{args}),
-                                    });
-                                    return .call;
-                                },
-                                .list => |list| {
-                                    if (list.elems.items.len == 0) {
-                                        c.value_stack.append(Value.emptyStruct()) catch oom();
-                                        return .next;
-                                    }
-                                    c.value_stack.append(.{
-                                        // TODO avoid this box
-                                        .only = c.box(Value{
-                                            .list = .{
-                                                .repr = list.repr,
-                                                .elems = .{
-                                                    .items = list.elems.items[1..],
-                                                    // Spicy :)
-                                                    .allocator = undefined,
-                                                    .capacity = undefined,
-                                                },
-                                            },
-                                        }),
-                                    }) catch oom();
-                                    c.value_stack.append(fun) catch oom();
-                                    const key = Value{ .only = c.box(Value{ .i64 = -1 }) }; // TODO Figure out how to track key nicely
-                                    const val = Value{ .only = c.box(list.elems.items[0]) };
-                                    const args = Value{ .@"struct" = .{
-                                        .repr = .{
-                                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                            .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
-                                        },
-                                        .values = c.dupe(Value, &.{ key, val }),
-                                    } };
-                                    pushFun(c, .{
-                                        .fun = fun.fun.repr.fun,
-                                        .closure = .{ .@"struct" = fun.fun.getClosure() },
-                                        .args = c.dupe(Value, &.{args}),
-                                    });
-                                    return .call;
-                                },
-                                else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } }),
-                            }
-                        },
-                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ value, fun }) } }),
-                    }
-                },
+                .each => panic("Unreachable - desugared to dir.ExprData.each instead", .{}),
                 .main => {
                     pushFun(c, .{
                         .fun = c.dir_fun_main.?,
@@ -988,6 +800,85 @@ pub fn evalExpr(
             _ = c.value_stack.pop().?;
             const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
             frame.expr = @"while".begin;
+        },
+        .each_begin => {
+            c.value_stack.append(.{ .i64 = 0 }) catch oom();
+            // Dummy value
+            c.value_stack.append(.emptyStruct()) catch oom();
+        },
+        .each_body => {
+            // Dummy value, or result of call on last iteration.
+            _ = c.value_stack.pop().?;
+            const ix = c.value_stack.pop().?.i64;
+            const fun = c.value_stack.pop().?;
+            const value = c.value_stack.pop().?;
+            if (fun != .fun)
+                return fail(c, .{ .invalid_call_builtin = .{ .builtin = .each, .args = c.dupe(Value, &.{ value, fun }) } });
+
+            const len = switch (value) {
+                .@"struct" => |@"struct"| @"struct".values.len,
+                .@"union" => 1,
+                .list => |list| list.elems.items.len,
+                .only => |only| switch (only.*) {
+                    .@"struct" => |@"struct"| @"struct".values.len,
+                    .@"union" => 1,
+                    .list => |list| list.elems.items.len,
+                    else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = .each, .args = c.dupe(Value, &.{ value, fun }) } }),
+                },
+                else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = .each, .args = c.dupe(Value, &.{ value, fun }) } }),
+            };
+            if (ix >= len) {
+                c.value_stack.append(Value.emptyStruct()) catch oom();
+                skipTree(c, .each, .each_body);
+                return .next;
+            }
+
+            c.value_stack.append(value) catch oom();
+            c.value_stack.append(fun) catch oom();
+            c.value_stack.append(.{ .i64 = ix + 1 }) catch oom();
+
+            const key: Value = switch (value) {
+                .@"struct" => |@"struct"| .{ .only = c.box(@"struct".repr.keys[@intCast(ix)]) },
+                .@"union" => |@"union"| .{ .only = c.box(@"union".repr.keys[@"union".tag]) },
+                .list => .{ .i64 = ix },
+                .only => |only| switch (only.*) {
+                    .@"struct" => |@"struct"| .{ .only = c.box(@"struct".repr.keys[@intCast(ix)]) },
+                    .@"union" => |@"union"| .{ .only = c.box(@"union".repr.keys[@"union".tag]) },
+                    .list => .{ .only = c.box(Value{ .i64 = ix }) },
+                    else => unreachable,
+                },
+                else => unreachable,
+            };
+            const val: Value = switch (value) {
+                .@"struct" => |@"struct"| @"struct".values[@intCast(ix)],
+                .@"union" => |@"union"| @"union".value.*,
+                .list => |list| list.elems.items[@intCast(ix)],
+                .only => |only| switch (only.*) {
+                    .@"struct" => |@"struct"| .{ .only = c.box(@"struct".values[@intCast(ix)]) },
+                    .@"union" => |@"union"| .{ .only = c.box(@"union".value.*) },
+                    .list => |list| .{ .only = c.box(list.elems.items[@intCast(ix)]) },
+                    else => unreachable,
+                },
+                else => unreachable,
+            };
+            const args = Value{ .@"struct" = .{
+                .repr = .{
+                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
+                },
+                .values = c.dupe(Value, &.{ key, val }),
+            } };
+            pushFun(c, .{
+                .fun = fun.fun.repr.fun,
+                .closure = .{ .@"struct" = fun.fun.getClosure() },
+                .args = c.dupe(Value, &.{args}),
+            });
+            return .call;
+        },
+        .each => {
+            const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
+            // Go back to each_body.
+            frame.expr.id -= 2;
         },
         .@"return", .stage, .stage_begin, .repr_of, .repr_of_begin, .unstage, .unstage_begin => panic("Can't eval control flow expr: {}", .{expr_data}),
         .f64 => return fail(c, .todo),
