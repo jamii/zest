@@ -278,7 +278,6 @@ pub const Compiler = struct {
     dir_frame_stack: ArrayList(dir.Frame),
     value_stack: ArrayList(Value),
     local_stack: ArrayList(Value),
-    while_stack: ArrayList(dir.Expr),
     memory: ArrayList(u8),
     printed: ArrayList(u8),
     pure_depth: usize,
@@ -340,7 +339,6 @@ pub const Compiler = struct {
             .dir_frame_stack = .init(allocator),
             .value_stack = .init(allocator),
             .local_stack = .init(allocator),
-            .while_stack = .init(allocator),
             .memory = .init(allocator),
             .printed = .init(allocator),
             .pure_depth = 0,
@@ -525,6 +523,7 @@ pub const Compiler = struct {
             .call_builtin => |builtin| try writer.print(" {}", .{builtin}),
             .block => |block| try writer.print(" {}", .{block.count}),
             .stage, .repr_of_begin, .unstage_begin => |data| try writer.print(" expr_id={}", .{data.mapping.id}),
+            .@"while" => |@"while"| try writer.print(" {}", .{@"while".begin.id}),
             inline else => |data, tag| if (@TypeOf(data) != void) @compileError("Missing print case " ++ @tagName(tag)),
         }
         try writer.print("\n", .{});

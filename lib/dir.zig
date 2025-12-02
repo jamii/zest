@@ -74,7 +74,10 @@ pub const ExprData = union(enum) {
         count: usize,
     },
     @"if",
-    @"while",
+    @"while": struct {
+        // Points to expr before while condition in expr_data_post.
+        begin: Expr,
+    },
     @"return",
     stage: Mapping,
     unstage,

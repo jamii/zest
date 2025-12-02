@@ -181,10 +181,11 @@ fn desugarExpr(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{DesugarEr
         },
         .@"while" => {
             emit(c, f, .while_begin);
+            const begin = f.expr_data_post.lastKey().?;
             try desugarExpr(c, s, f);
             emit(c, f, .while_body);
             try desugarExpr(c, s, f);
-            emit(c, f, .@"while");
+            emit(c, f, .{ .@"while" = .{ .begin = begin } });
         },
         .namespace => {
             _ = try desugarNamespace(c, s, f);

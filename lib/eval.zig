@@ -974,24 +974,20 @@ pub fn evalExpr(
             skipTree(c, .@"if", .if_else);
         },
         .@"if" => {},
-        .while_begin => {
-            const frame = c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            c.while_stack.append(frame.expr) catch oom();
-        },
+        .while_begin => {},
         .while_body => {
             const cond_value = c.value_stack.pop().?;
             const cond = cond_value.asBool() orelse
                 return fail(c, .{ .not_a_bool = cond_value });
             if (!cond) {
-                _ = c.while_stack.pop().?;
                 c.value_stack.append(Value.emptyStruct()) catch oom();
                 skipTree(c, .@"while", .while_body);
             }
         },
-        .@"while" => {
+        .@"while" => |@"while"| {
             _ = c.value_stack.pop().?;
             const frame = &c.dir_frame_stack.items[c.dir_frame_stack.items.len - 1];
-            frame.expr = c.while_stack.items[c.while_stack.items.len - 1];
+            frame.expr = @"while".begin;
         },
         .@"return", .stage, .stage_begin, .repr_of, .repr_of_begin, .unstage, .unstage_begin => panic("Can't eval control flow expr: {}", .{expr_data}),
         .f64 => return fail(c, .todo),
