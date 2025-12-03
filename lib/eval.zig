@@ -837,6 +837,16 @@ pub fn evalExpr(
             c.value_stack.append(fun) catch oom();
             c.value_stack.append(.{ .i64 = ix + 1 }) catch oom();
 
+            const ix_value: Value = switch (value) {
+                .@"struct", .@"union" => .{ .only = c.box(Value{ .i64 = ix }) },
+                .list => .{ .i64 = ix },
+                .only => |only| switch (only.*) {
+                    .@"struct", .@"union" => .{ .only = c.box(Value{ .i64 = ix }) },
+                    .list => .{ .only = c.box(Value{ .i64 = ix }) },
+                    else => unreachable,
+                },
+                else => unreachable,
+            };
             const key: Value = switch (value) {
                 .@"struct" => |@"struct"| .{ .only = c.box(@"struct".repr.keys[@intCast(ix)]) },
                 .@"union" => |@"union"| .{ .only = c.box(@"union".repr.keys[@"union".tag]) },
@@ -863,10 +873,10 @@ pub fn evalExpr(
             };
             const args = Value{ .@"struct" = .{
                 .repr = .{
-                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                    .reprs = c.dupe(Repr, &.{ key.reprOf(), val.reprOf() }),
+                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 }, .{ .i64 = 2 } }),
+                    .reprs = c.dupe(Repr, &.{ ix_value.reprOf(), key.reprOf(), val.reprOf() }),
                 },
-                .values = c.dupe(Value, &.{ key, val }),
+                .values = c.dupe(Value, &.{ ix_value, key, val }),
             } };
             pushFun(c, .{
                 .fun = fun.fun.repr.fun,

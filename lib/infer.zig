@@ -747,12 +747,14 @@ fn inferExprInner(
 
             switch (object) {
                 .@"struct" => |@"struct"| {
-                    for (@"struct".keys, @"struct".reprs, 0..) |key, repr, ix| {
+                    for (0.., @"struct".keys, @"struct".reprs) |ix, key, repr| {
                         const args_repr = Repr{ .@"struct" = .{
-                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, repr }),
+                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 }, .{ .i64 = 2 } }),
+                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(Value{ .i64 = @intCast(ix) }) }, .{ .only = c.box(key) }, repr }),
                         } };
 
+                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                        emit(c, f, .{ .only = c.box(Value{ .i64 = @intCast(ix) }) });
                         emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                         emit(c, f, .{ .only = c.box(key) });
                         emit(c, f, .{ .local_get = object_local });
@@ -786,17 +788,19 @@ fn inferExprInner(
                     const tag_local = f.local_data.append(.{ .repr = .u32, .is_tmp = true });
                     emit(c, f, .{ .local_let = tag_local });
 
-                    for (@"union".keys, @"union".reprs, 0..) |key, repr, ix| {
+                    for (0.., @"union".keys, @"union".reprs) |ix, key, repr| {
                         emit(c, f, .{ .local_get = tag_local });
                         emit(c, f, .{ .i64 = @intCast(ix) });
                         emit(c, f, .{ .call_builtin = .i64_to_u32 });
                         emit(c, f, .{ .call_builtin = .equal_u32 });
 
                         const args_repr = Repr{ .@"struct" = .{
-                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, repr }),
+                            .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 }, .{ .i64 = 2 } }),
+                            .reprs = c.dupe(Repr, &.{ .{ .only = c.box(Value{ .i64 = 0 }) }, .{ .only = c.box(key) }, repr }),
                         } };
 
+                        emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                        emit(c, f, .{ .only = c.box(Value{ .i64 = 0 }) });
                         emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                         emit(c, f, .{ .only = c.box(key) });
                         emit(c, f, .{ .local_get = object_local });
@@ -831,12 +835,14 @@ fn inferExprInner(
                 .only => |only| {
                     switch (only.*) {
                         .@"struct" => |@"struct"| {
-                            for (@"struct".repr.keys, @"struct".values) |key, value| {
+                            for (0.., @"struct".repr.keys, @"struct".values) |ix, key, value| {
                                 const args_repr = Repr{ .@"struct" = .{
-                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                    .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, .{ .only = c.box(value) } }),
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 }, .{ .i64 = 2 } }),
+                                    .reprs = c.dupe(Repr, &.{ .{ .only = c.box(Value{ .i64 = @intCast(ix) }) }, .{ .only = c.box(key) }, .{ .only = c.box(value) } }),
                                 } };
 
+                                emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                emit(c, f, .{ .only = c.box(Value{ .i64 = @intCast(ix) }) });
                                 emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                                 emit(c, f, .{ .only = c.box(key) });
                                 emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
@@ -867,10 +873,12 @@ fn inferExprInner(
                         .@"union" => |@"union"| {
                             const key = @"union".repr.keys[@"union".tag];
                             const args_repr = Repr{ .@"struct" = .{
-                                .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, .{ .only = @"union".value } }),
+                                .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 }, .{ .i64 = 2 } }),
+                                .reprs = c.dupe(Repr, &.{ .{ .only = c.box(Value{ .i64 = 0 }) }, .{ .only = c.box(key) }, .{ .only = @"union".value } }),
                             } };
 
+                            emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                            emit(c, f, .{ .only = c.box(Value{ .i64 = 0 }) });
                             emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                             emit(c, f, .{ .only = c.box(key) });
                             emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
@@ -896,14 +904,17 @@ fn inferExprInner(
                             emit(c, f, .{ .block = .{ .count = 5 } });
                         },
                         .list => |list| {
-                            for (0.., list.elems.items) |key, value| {
+                            for (0.., list.elems.items) |key_usize, value| {
+                                const key = Value{ .i64 = @intCast(key_usize) };
                                 const args_repr = Repr{ .@"struct" = .{
-                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
-                                    .reprs = c.dupe(Repr, &.{ .{ .only = c.box(Value{ .i64 = @intCast(key) }) }, .{ .only = c.box(value) } }),
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 }, .{ .i64 = 2 } }),
+                                    .reprs = c.dupe(Repr, &.{ .{ .only = c.box(key) }, .{ .only = c.box(key) }, .{ .only = c.box(value) } }),
                                 } };
 
                                 emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
-                                emit(c, f, .{ .only = c.box(Value{ .i64 = @intCast(key) }) });
+                                emit(c, f, .{ .only = c.box(key) });
+                                emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                                emit(c, f, .{ .only = c.box(key) });
                                 emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
                                 emit(c, f, .{ .only = c.box(value) });
                                 emit(c, f, .{ .struct_init = args_repr.@"struct" });

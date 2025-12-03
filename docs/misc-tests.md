@@ -1519,8 +1519,8 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/9d1845ce:1:186)
-    at <anonymous> (wasm://wasm/9d1845ce:1:177)
+    at <anonymous> (wasm://wasm/d1767886:1:186)
+    at <anonymous> (wasm://wasm/d1767886:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1538,8 +1538,8 @@ a.none
 Key 'none' not found in [some: 42]/union[some: i64, none: struct[]]
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/be215412:1:223)
-    at <anonymous> (wasm://wasm/be215412:1:177)
+    at <anonymous> (wasm://wasm/17674dae:1:223)
+    at <anonymous> (wasm://wasm/17674dae:1:177)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1766,7 +1766,7 @@ while { only[0][[]] } { %print('ok') }
 ```
 
 ```zest-test
-%each(1, (k, v) %print(k))
+%each(1, (i, k, v) %print(k))
 
 Cannot call zest.Builtin.each with these args: { 1, []/fun[41] }
 
@@ -1775,7 +1775,7 @@ Cannot call zest.Builtin.each with these args: { i64, fun[41] }
 
 ```zest-test
 // TODO Add a char type
-%each('hello world', (k, v) %print(k))
+%each('hello world', (i, k, v) %print(k))
 
 Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[41] }
 
@@ -1783,125 +1783,95 @@ Cannot call zest.Builtin.each with these args: { string, fun[41] }
 ```
 
 ```zest-test
-s = [a: 1, b: 2]
-%each(s, (k, v) {
+s = [a: 'apple', b: 'bear']
+%each(s, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
-  %print('\n')
+  %print(' = ')
   %print(v)
   %print('\n')
 })
-101
 
-a
-1
-b
-2
-101
+0 = a = apple
+1 = b = bear
+[]
 ```
 
 ```zest-test
-s mut = [a: 1, b: 2]
-%each(s, (k, v) {
+s mut = [a: 'apple', b: 'bear']
+%each(s, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
-  %print('\n')
+  %print(' = ')
   %print(v)
   %print('\n')
 })
-101
 
-a
-1
-b
-2
-101
+0 = a = apple
+1 = b = bear
+[]
 ```
 
 ```zest-test
 u = union[a: i64, b: i64][[a: 1]]
-%each(u, (k, v) {
+%each(u, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
-  %print('\n')
+  %print(' = ')
   %print(v)
   %print('\n')
 })
-101
 
-a
-1
-101
+0 = a = 1
+[]
 ```
 
 ```zest-test
 u = union[a: i64, b: i64][[b: 2]]
-%each(u, (k, v) {
+%each(u, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
-  %print('\n')
+  %print(' = ')
   %print(v)
   %print('\n')
 })
-101
 
-b
-2
-101
+0 = b = 2
+[]
 ```
 
 ```zest-test
 u mut = union[a: i64, b: i64][[a: 1]]
-%each(u, (k, v) {
+%each(u, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
-  %print('\n')
+  %print(' = ')
   %print(v)
   %print('\n')
 })
-101
 
-a
-1
-101
+0 = a = 1
+[]
 ```
 
 ```zest-test
 u mut = union[a: i64, b: i64][[b: 2]]
-%each(u, (k, v) {
+%each(u, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
-  %print('\n')
+  %print(' = ')
   %print(v)
   %print('\n')
 })
-101
 
-b
-2
-101
-```
-
-```zest-test
-print = (x) {
-  t = only[%reflect(%repr-of(x))][[]]
-  if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
-    %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
-    %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
-    %print('\'')
-    // TODO escape
-    %print(x)
-    %print('\'')
-  } else {
-    %panic()
-  }
-  %print('\n')
-}
-print(u32[42])
-print(4294967295)
-print('foo')
-101
-
-42
-4294967295
-'foo'
-101
+0 = b = 2
+[]
 ```
 
 ```zest-test
@@ -1978,43 +1948,68 @@ Expected an object, found: list[string]
 
 ```zest-test
 y = []/only[['a', 'b', 'c']]
-%each(y, (k, v) {
+%each(y, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
   %print(' = ')
   %print(%from-only(v))
   %print('\n')
 })
 
-0 = a
-1 = b
-2 = c
+0 = 0 = a
+1 = 1 = b
+2 = 2 = c
 []
 ```
 
 ```zest-test
 y = []/only[[a: 1]/union[a: i64, b: string]]
-%each(y, (k, v) {
+%each(y, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
   %print(' = ')
   %print(%from-only(v))
   %print('\n')
 })
 
-a = 1
+0 = a = 1
 []
 ```
 
 ```zest-test
 y = []/only[['a', 'b', 'c']/list[string]]
-%each(y, (k, v) {
+%each(y, (i, k, v) {
+  %print(%from-only(i))
+  %print(' = ')
   %print(%from-only(k))
   %print(' = ')
   %print(%from-only(v))
   %print('\n')
 })
 
-0 = a
-1 = b
-2 = c
+0 = 0 = a
+1 = 1 = b
+2 = 2 = c
 []
+```
+
+```zest-test
+y = ['a', 'b', 'c']/list[string]
+%each(y, (i, k, v) {
+  %print(i)
+  %print(' = ')
+  %print(k)
+  %print(' = ')
+  %print(v)
+  %print('\n')
+})
+
+0 = 0 = a
+1 = 1 = b
+2 = 2 = c
+[]
+
+TODO infer: dir.ExprData{ .each_body = void }
 ```

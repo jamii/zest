@@ -808,7 +808,9 @@ fn genExprInner(
             emitEnum(f, wasm.Opcode.end);
 
             if (branch_dest != .nowhere)
-                assert(then.equal(@"else"));
+                if (!then.equal(@"else"))
+                    // In infer we sometimes produce a chain of `if`s where the last branch is a panic.
+                    assert(walueRepr(c, f, @"else").isEmptyUnion());
 
             return then;
         },
