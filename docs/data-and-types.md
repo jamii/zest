@@ -290,7 +290,7 @@ i64[42]
 ```zest-test
 i64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24819.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24820.overflow
 At 1:23:
 i64[9223372036854775808]
                        ^
@@ -321,7 +321,7 @@ TODO Represent literals as big-int/big-dec to avoid this problem.
 ```zest-test
 f64[9223372036854775808]
 
-Parse error: invalid i64: parse.ParseErrorData__enum_24819.overflow
+Parse error: invalid i64: parse.ParseErrorData__enum_24820.overflow
 At 1:23:
 f64[9223372036854775808]
                        ^
@@ -602,7 +602,7 @@ Two __data__ are equal if:
 
 Two __values__ are `~=` if their data are equal.
 
-Two __values__ are `==` if they their types are equal and their data are equal. Calling `==` with values of different types causes a type error.
+Two __values__ are `==` if they their types are equal and their data are equal. In compiled code, calling `==` with values of different types causes a type error.
 
 It's intended that `a ~= b` iff `a == b/convert(type-of(a))` ie convert should only ever change the type and not the data.
 
@@ -633,7 +633,7 @@ TODO desugar: sir.ExprData{ .f64 = 4.2e1 }
 ```zest-test
 [a: 1, b: 2] == [b: 2, a: 1]
 
-Cannot call zest.Builtin.equal with these args: { [a: 1, b: 2], [b: 2, a: 1] }
+0
 
 Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct[b: i64, a: i64] }
 ```
@@ -641,7 +641,7 @@ Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct
 ```zest-test
 [a: 1, b: 2] == [b: 100, a: 1]
 
-Cannot call zest.Builtin.equal with these args: { [a: 1, b: 2], [b: 100, a: 1] }
+0
 
 Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct[b: i64, a: i64] }
 ```
@@ -649,7 +649,7 @@ Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct
 ```zest-test
 [a: 1, b: 2] == [b: 2, a: 1, c: 3]
 
-Cannot call zest.Builtin.equal with these args: { [a: 1, b: 2], [b: 2, a: 1, c: 3] }
+0
 
 Cannot call zest.Builtin.equal with these args: { struct[a: i64, b: i64], struct[b: i64, a: i64, c: i64] }
 ```
@@ -677,7 +677,7 @@ TODO infer: dir.ExprData{ .call_builtin = zest.Builtin.equivalent }
 ```zest-test
 struct[name: string, age: i64] == struct[name: string, age: i64]
 
-Cannot call zest.Builtin.equal with these args: { struct[name: string, age: i64], struct[name: string, age: i64] }
+1
 
 TODO infer: dir.ExprData{ .repr_string = void }
 ```

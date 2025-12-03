@@ -191,7 +191,7 @@ inc = (x) x + 1
 dec = (x) x - 1
 %repr-of(inc) == %repr-of(dec)
 
-Cannot call zest.Builtin.equal with these args: { fun[46], fun[48] }
+0
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```

@@ -323,6 +323,7 @@ pub const ReprKind = enum {
     @"struct",
     @"union",
     list,
+    fun,
     only,
     namespace,
 

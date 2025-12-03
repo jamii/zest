@@ -237,6 +237,9 @@ pub fn evalExpr(
         .repr_kind_list => {
             c.value_stack.append(.{ .repr_kind = .list }) catch oom();
         },
+        .repr_kind_fun => {
+            c.value_stack.append(.{ .repr_kind = .fun }) catch oom();
+        },
         .repr_kind_only => {
             c.value_stack.append(.{ .repr_kind = .only }) catch oom();
         },
@@ -425,28 +428,12 @@ pub fn evalExpr(
                 .equal => {
                     const arg1 = c.value_stack.pop().?;
                     const arg0 = c.value_stack.pop().?;
-                    const result = if (std.meta.activeTag(arg0) != std.meta.activeTag(arg1))
-                        false
-                    else if (arg0 == .i64 and arg1 == .i64)
-                        arg0.i64 == arg1.i64
-                    else if (arg0 == .u32 and arg1 == .u32)
-                        arg0.u32 == arg1.u32
-                    else
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (result) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (arg0.equal(arg1)) 1 else 0 }) catch oom();
                 },
                 .@"not-equal" => {
                     const arg1 = c.value_stack.pop().?;
                     const arg0 = c.value_stack.pop().?;
-                    const result = if (std.meta.activeTag(arg0) != std.meta.activeTag(arg1))
-                        true
-                    else if (arg0 == .i64 and arg1 == .i64)
-                        arg0.i64 != arg1.i64
-                    else if (arg0 == .u32 and arg1 == .u32)
-                        arg0.u32 != arg1.u32
-                    else
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{ arg0, arg1 }) } });
-                    c.value_stack.append(.{ .i64 = if (result) 1 else 0 }) catch oom();
+                    c.value_stack.append(.{ .i64 = if (!arg0.equal(arg1)) 1 else 0 }) catch oom();
                 },
                 .@"less-than" => {
                     const arg1 = c.value_stack.pop().?;
@@ -696,6 +683,135 @@ pub fn evalExpr(
                     });
                     return .call;
                 },
+                .unmake => {
+                    const made = c.value_stack.pop().?;
+                    if (made != .repr)
+                        return fail(c, .{ .type_error = .{ .expected = .repr, .found = made.reprOf() } });
+                    switch (made.repr) {
+                        .u32, .i64, .string, .any, .repr, .repr_kind, .ref => {
+                            return fail(c, .{ .cannot_unmake = made });
+                        },
+                        .@"struct" => |@"struct"| {
+                            const reprs = c.allocator.alloc(Repr, @"struct".keys.len) catch oom();
+                            for (reprs) |*repr| repr.* = .repr;
+                            const values = c.allocator.alloc(Value, @"struct".keys.len) catch oom();
+                            for (values, @"struct".reprs) |*value, repr| value.* = .{ .repr = repr };
+                            const head = Value{ .repr_kind = .@"struct" };
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = @"struct".keys,
+                                    .reprs = reprs,
+                                },
+                                .values = values,
+                            } };
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ head.reprOf(), args.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ head, args }),
+                            } }) catch oom();
+                        },
+                        .@"union" => |@"union"| {
+                            const reprs = c.allocator.alloc(Repr, @"union".keys.len) catch oom();
+                            for (reprs) |*repr| repr.* = .repr;
+                            const values = c.allocator.alloc(Value, @"union".keys.len) catch oom();
+                            for (values, @"union".reprs) |*value, repr| value.* = .{ .repr = repr };
+                            const head = Value{ .repr_kind = .@"union" };
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = @"union".keys,
+                                    .reprs = reprs,
+                                },
+                                .values = values,
+                            } };
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ head.reprOf(), args.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ head, args }),
+                            } }) catch oom();
+                        },
+                        .list => |list| {
+                            const head = Value{ .repr_kind = .list };
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
+                                    .reprs = c.dupe(Repr, &.{.repr}),
+                                },
+                                .values = c.dupe(Value, &.{.{ .repr = list.elem.* }}),
+                            } };
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ head.reprOf(), args.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ head, args }),
+                            } }) catch oom();
+                        },
+                        .fun => |fun| {
+                            const keys = c.allocator.alloc(Value, fun.closure.keys.len + 1) catch oom();
+                            keys[0] = .{ .i64 = 0 };
+                            for (keys[1..], fun.closure.keys) |*key, closure_key| key.* = closure_key;
+                            const reprs = c.allocator.alloc(Repr, fun.closure.keys.len + 1) catch oom();
+                            reprs[0] = .i64;
+                            for (reprs[1..]) |*repr| repr.* = .repr;
+                            const values = c.allocator.alloc(Value, fun.closure.keys.len + 1) catch oom();
+                            values[0] = .{ .i64 = @intCast(fun.fun.id) };
+                            for (values[1..], fun.closure.reprs) |*value, repr| value.* = .{ .repr = repr };
+                            const head = Value{ .repr_kind = .fun };
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = keys,
+                                    .reprs = reprs,
+                                },
+                                .values = values,
+                            } };
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ head.reprOf(), args.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ head, args }),
+                            } }) catch oom();
+                        },
+                        .namespace => |namespace| {
+                            const head = Value{ .repr_kind = .namespace };
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
+                                    .reprs = c.dupe(Repr, &.{.i64}),
+                                },
+                                .values = c.dupe(Value, &.{.{ .i64 = @intCast(namespace.namespace.id) }}),
+                            } };
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ head.reprOf(), args.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ head, args }),
+                            } }) catch oom();
+                        },
+                        .only => |only| {
+                            const head = Value{ .repr_kind = .only };
+                            const args = Value{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
+                                    .reprs = c.dupe(Repr, &.{only.reprOf()}),
+                                },
+                                .values = c.dupe(Value, &.{only.*}),
+                            } };
+                            c.value_stack.append(.{ .@"struct" = .{
+                                .repr = .{
+                                    .keys = c.dupe(Value, &.{ .{ .i64 = 0 }, .{ .i64 = 1 } }),
+                                    .reprs = c.dupe(Repr, &.{ head.reprOf(), args.reprOf() }),
+                                },
+                                .values = c.dupe(Value, &.{ head, args }),
+                            } }) catch oom();
+                        },
+                    }
+                },
                 else => return fail(c, .todo),
             }
         },
@@ -748,6 +864,31 @@ pub fn evalExpr(
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
                         const value = args.@"struct".values[0];
                         c.value_stack.append(.{ .repr = .{ .only = c.box(value) } }) catch oom();
+                    },
+                    .fun => {
+                        if (args.@"struct".repr.keys.len == 0 or
+                            args.@"struct".repr.keys[0] != .i64 or
+                            args.@"struct".repr.keys[0].i64 != 0 or
+                            args.@"struct".values[0] != .i64)
+                            return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                        const id = args.@"struct".values[0].i64;
+                        const reprs = c.allocator.alloc(Repr, args.@"struct".values[1..].len) catch oom();
+                        for (reprs, args.@"struct".repr.keys[1..], args.@"struct".values[1..]) |*repr, key, value| {
+                            if (key != .string or
+                                !zest.isName(key.string) or
+                                value != .repr)
+                                return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
+                            repr.* = value.repr;
+                        }
+                        c.value_stack.append(.{
+                            .repr = .{ .fun = .{
+                                .fun = .{ .id = @intCast(id) },
+                                .closure = .{
+                                    .keys = args.@"struct".repr.keys[1..],
+                                    .reprs = reprs,
+                                },
+                            } },
+                        }) catch oom();
                     },
                     .namespace => {
                         if (args.@"struct".repr.keys.len != 1 or
@@ -1018,6 +1159,7 @@ pub const EvalErrorData = union(enum) {
     cannot_make_head: struct {
         head: Value,
     },
+    cannot_unmake: Value,
     out_of_bounds: struct {
         op: BoundsCheckOp,
         repr: Repr,

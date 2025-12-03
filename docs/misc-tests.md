@@ -2013,3 +2013,59 @@ y = ['a', 'b', 'c']/list[string]
 
 TODO infer: dir.ExprData{ .each_body = void }
 ```
+
+```zest-test
+%unmake(struct[a: string, b: i64])
+
+[struct, [a: string, b: i64]]
+
+The result type of %unmake cannot be inferred
+```
+
+```zest-test
+%unmake(union[a: string, b: i64])
+
+[union, [a: string, b: i64]]
+
+The result type of %unmake cannot be inferred
+```
+
+```zest-test
+%unmake(list[string])
+
+[list, [string]]
+
+The result type of %unmake cannot be inferred
+```
+
+```zest-test
+f = (a) (b) a + b
+%unmake(%repr-of(f(42)))
+
+[fun, [48, a: i64]]
+
+The result type of %unmake cannot be inferred
+```
+
+```zest-test
+n = namespace{}
+%unmake(%repr-of(n))
+
+[namespace, [1]]
+
+The result type of %unmake cannot be inferred
+```
+
+```zest-test
+%unmake(only['bob'])
+
+[only, ['bob']]
+
+The result type of %unmake cannot be inferred
+```
+
+```zest-test
+%from-only(only[%unmake(struct[a: string, b: i64]).0 == struct][[]])
+
+1
+```

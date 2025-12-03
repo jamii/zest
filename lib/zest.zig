@@ -150,11 +150,12 @@ pub const Builtin = enum {
     @"from-only",
     each,
     main,
+    unmake,
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic, .main => 0,
-            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-any", .@"from-only" => 1,
+            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .reflect, .@"from-any", .@"from-only", .unmake => 1,
             .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"bit-shift-left", .@"and", .@"or", .load, .store, .@"union-has-key", .each => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };
@@ -694,6 +695,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .invalid_call_builtin => |data| format(c, "Cannot call {} with these args: {any}", .{ data.builtin, data.args }),
                     .cannot_make => |data| format(c, "Cannot make {} with these args: {}", .{ data.head, data.args }),
                     .cannot_make_head => |data| format(c, "Cannot make {}", .{data.head}),
+                    .cannot_unmake => |data| format(c, "Cannot unmake {}", .{data}),
                     .out_of_bounds => |data| format(c, "Out of bounds {s} of {} at {}", .{ @tagName(data.op), data.repr, data.address }),
                     .division_by_zero => format(c, "Division by zero", .{}),
                     .panic => format(c, "panic", .{}),
@@ -727,7 +729,7 @@ pub fn formatError(c: *Compiler) []const u8 {
                     .definition_not_found => |data| format(c, "Cannot find definition: {}..{}", .{ data.namespace, data.key }),
                     .recursive_evaluation => |data| format(c, "Recursive evaluation: {}..{}", .{ data.namespace, data.key }),
                     .recursive_inference => |data| format(c, "Recursive inference: {}", .{data.key}),
-                    .from_any => format(c, "The result type of %from-any cannot be inferred", .{}),
+                    .cannot_infer => |data| format(c, "The result type of %{s} cannot be inferred", .{@tagName(data)}),
                     .todo => format(c, "TODO infer: {}", .{expr_data}),
                 };
             },

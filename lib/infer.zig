@@ -627,7 +627,7 @@ fn inferExprInner(
                 },
                 .each => panic("Unreachable - desugared to dir.ExprData.each instead", .{}),
                 .@"from-any" => {
-                    return fail(c, .from_any);
+                    return fail(c, .{ .cannot_infer = .@"from-any" });
                 },
                 .@"from-only" => {
                     const arg = try inferExpr(c, f, dir_f, .other);
@@ -651,6 +651,9 @@ fn inferExprInner(
                         &.{arg_local},
                     );
                     return repr;
+                },
+                .unmake => {
+                    return fail(c, .{ .cannot_infer = .unmake });
                 },
                 else => return fail(c, .todo),
             }
@@ -1117,6 +1120,6 @@ pub const InferErrorData = union(enum) {
     recursive_inference: struct {
         key: tir.FunKey,
     },
-    from_any,
+    cannot_infer: zest.Builtin,
     todo,
 };
