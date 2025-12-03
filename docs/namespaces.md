@@ -7,8 +7,6 @@ namespace{
 }
 
 []/namespace[1]
-
-[]/namespace[TODO]
 ```
 
 Destructuring is not supported.
@@ -42,8 +40,6 @@ kinds = namespace{
 [kinds, []/namespace[0]]
 
 [[]/namespace[1], []/namespace[0]]
-
-[[]/namespace[TODO], []/namespace[TODO]]
 ```
 
 Bindings can be accessed with `..` (placeholder syntax.)
@@ -66,8 +62,6 @@ namespace{
 }
 
 []/namespace[1]
-
-[]/namespace[TODO]
 ```
 
 ```zest-test
@@ -166,7 +160,7 @@ kinds..is-even(4)
 
 'true'
 
-Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 44 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
+Recursive inference: tir.FunKey{ .fun = dir.Fun{ .id = 52 }, .closure_repr = struct[], .arg_reprs = { struct[i64] } }
 ```
 
 Namespaces currently can't close over values from the outer scope.

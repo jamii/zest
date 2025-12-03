@@ -181,7 +181,7 @@ Each function has a unique nominal type.
 inc = (x) x + 1
 %repr-of(inc)
 
-fun[44]
+fun[52]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```
@@ -205,7 +205,7 @@ make-echo = (x) () x
   %repr-of(make-echo('foo')), 
 ]
 
-[fun[46, x: i64], fun[46, x: string]]
+[fun[54, x: i64], fun[54, x: string]]
 
 TODO infer: dir.ExprData{ .repr_of = void }
 ```

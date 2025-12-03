@@ -18,7 +18,7 @@ print = (x) {
         //print(%from-any(x))
         %print('TODO/any')
     } else if {only[%repr-of(x) == repr][[]]} {
-        %print('TODO')
+        print-repr(only[%repr-of(x)][[]])
     //} else if {only[%repr-of(x) == repr-kind][[]]} {
     //    %print('TODO')
     } else {
@@ -47,13 +47,17 @@ print = (x) {
                 } else {}
                 print(value)
             })
-            %print(']/union[TODO]')
+            %print(']/')
+            print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == list][[]]} {
-            %print('[TODO]/list[TODO]')
+            %print('[TODO]/')
+            print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == fun][[]]} {
-            %print('[TODO]/fun[TODO]')
+            %print('[TODO]/')
+            print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == namespace][[]]} {
-            %print('[]/namespace[TODO]')
+            %print('[]/')
+            print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == only][[]]} {
             %print('[]/only[')
             print(%from-only(x))
@@ -61,6 +65,61 @@ print = (x) {
         } else {
             %print('TODO')
         }
+    }
+}
+
+print-repr = (x) {
+    if {only[%from-only(x) == u32][[]]} {
+        %print('u32')
+    } else if {only[%from-only(x) == i64][[]]} {
+        %print('i64')
+    } else if {only[%from-only(x) == string][[]]} {
+        %print('string')
+    } else if {only[%from-only(x) == any][[]]} {
+        %print('any')
+    } else if {only[%from-only(x) == repr][[]]} {
+        %print('repr')
+        //} else if {only[%from-only(x) == repr-kind][[]]} {
+        //    %print('TODO')
+    } else {
+        unmade = only[%unmake(%from-only(x))][[]]
+        head = only[%from-only(unmade).0][[]]
+        args = only[%from-only(unmade).1][[]]
+        print-repr-kind(head)
+        %print('[')
+        positional mut = 1
+        %each(args, (ix, key, value) {
+            if {only[%from-only(ix) > 0][[]]} %print(', ') else {}
+            if {only[%from-only(key) != %from-only(ix)][[]]} { positional@ = 0 } else {}
+            if {positional == 0} {
+                print-key(%from-only(key))
+                %print(': ')
+            } else {}
+            if {only[%repr-of(%from-only(value)) == repr][[]]} {
+                print-repr(value)
+            } else {
+                print(%from-only(value))
+            }
+        })
+        %print(']')
+    }
+}
+
+print-repr-kind = (x) {
+    if {only[%from-only(x) == struct][[]]} {
+        %print('struct')
+    } else if {only[%from-only(x) == union][[]]} {
+        %print('union')
+    } else if {only[%from-only(x) == list][[]]} {
+        %print('list')
+    } else if {only[%from-only(x) == fun][[]]} {
+        %print('fun')
+    } else if {only[%from-only(x) == namespace][[]]} {
+        %print('namespace')
+    } else if {only[%from-only(x) == only][[]]} {
+        %print('only')
+    } else {
+        panic('Unreachable')
     }
 }
 

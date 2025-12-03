@@ -119,7 +119,7 @@ a.x
 
 1
 
-Cannot unstage value: fun[44, k: string]
+Cannot unstage value: fun[52, k: string]
 ```
 
 ```zest-test
@@ -426,9 +426,9 @@ p.1.0
 f mut = (x) 101
 [{f}: 1]
 
-[[]/fun[44]: 1]
+[[]/fun[52]: 1]
 
-Cannot unstage value: ref[fun[44]]
+Cannot unstage value: ref[fun[52]]
 ```
 
 ```zest-test
@@ -821,9 +821,9 @@ inc()
 inc()
 a
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[46, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[54, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[46, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[54, a: ref[i64]]
 ```
 
 ```zest-test
@@ -840,9 +840,9 @@ a mut = 42
 get = () a
 b mut = get
 
-Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[44, a: ref[i64]]
+Expected a value containing no mutable references, found: [a: 42/ref[i64]]/fun[52, a: ref[i64]]
 
-Expected a value containing no mutable references, found: fun[44, a: ref[i64]]
+Expected a value containing no mutable references, found: fun[52, a: ref[i64]]
 ```
 
 ```zest-test
@@ -1349,8 +1349,8 @@ Tried to perform a side effect during pure evaluation: zest.Builtin.print
 panic
 
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/ccc52372:1:197)
-    at <anonymous> (wasm://wasm/ccc52372:1:177)
+    at <anonymous> (wasm://wasm/335fe106:1:199)
+    at <anonymous> (wasm://wasm/335fe106:1:179)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1367,9 +1367,9 @@ panic
 
 Oh no
 RuntimeError: unreachable
-    at <anonymous> (wasm://wasm/0fd68e12:1:307)
-    at <anonymous> (wasm://wasm/0fd68e12:1:222)
-    at <anonymous> (wasm://wasm/0fd68e12:1:178)
+    at <anonymous> (wasm://wasm/cf5314c2:1:309)
+    at <anonymous> (wasm://wasm/cf5314c2:1:224)
+    at <anonymous> (wasm://wasm/cf5314c2:1:180)
     at file:///home/jamie/zest/test.js:33:24
 ```
 
@@ -1744,18 +1744,18 @@ while { only[0][[]] } { %print('ok') }
 ```zest-test
 %each(1, (i, k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 1, []/fun[44] }
+Cannot call zest.Builtin.each with these args: { 1, []/fun[52] }
 
-Cannot call zest.Builtin.each with these args: { i64, fun[44] }
+Cannot call zest.Builtin.each with these args: { i64, fun[52] }
 ```
 
 ```zest-test
 // TODO Add a char type
 %each('hello world', (i, k, v) %print(k))
 
-Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[44] }
+Cannot call zest.Builtin.each with these args: { 'hello world', []/fun[52] }
 
-Cannot call zest.Builtin.each with these args: { string, fun[44] }
+Cannot call zest.Builtin.each with these args: { string, fun[52] }
 ```
 
 ```zest-test
@@ -1908,9 +1908,9 @@ only[42][[]]
 ```zest-test
 () 1
 
-[]/fun[44]
+[]/fun[52]
 
-[TODO]/fun[TODO]
+[TODO]/fun[52]
 ```
 
 ```zest-test
@@ -2018,7 +2018,7 @@ The result type of %unmake cannot be inferred
 f = (a) (b) a + b
 %unmake(%repr-of(f(42)))
 
-[fun, [46, a: i64]]
+[fun, [54, a: i64]]
 
 The result type of %unmake cannot be inferred
 ```
@@ -2057,7 +2057,7 @@ Cannot make fun with these args: []
 
 []/fun[42]
 
-[TODO]/fun[TODO]
+[TODO]/fun[42]
 ```
 
 ```zest-test
@@ -2077,7 +2077,7 @@ Expected fun[42, x: i64], found struct[]
 
 [x: 11]/fun[42, x: i64]
 
-[TODO]/fun[TODO]
+[TODO]/fun[42, 'x': i64]
 ```
 
 ```zest-test
@@ -2085,7 +2085,7 @@ Expected fun[42, x: i64], found struct[]
 
 [a: 1, b: 2]/fun[42, a: i64, b: i64]
 
-[TODO]/fun[TODO]
+[TODO]/fun[42, 'a': i64, 'b': i64]
 ```
 
 ```zest-test
@@ -2099,7 +2099,7 @@ Expected fun[42, a: i64, b: i64], found struct[b: i64, a: i64]
 
 [x: [a: 1]/union[a: i64, b: string]]/fun[42, x: union[a: i64, b: string]]
 
-[TODO]/fun[TODO]
+[TODO]/fun[42, 'x': union['a': i64, 'b': string]]
 ```
 
 ```zest-test
