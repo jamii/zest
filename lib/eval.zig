@@ -1067,6 +1067,19 @@ fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Val
             elems.items[@intCast(key.i64)] = try convert(c, value, repr, to_repr.list.elem.*);
         }
         return .{ .list = .{ .repr = to_repr.list, .elems = elems } };
+    } else if (to_repr == .fun and from_repr == .@"struct") {
+        if (from_repr.@"struct".keys.len != to_repr.fun.closure.keys.len)
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        for (from_repr.@"struct".keys, to_repr.fun.closure.keys) |from_key, to_key|
+            if (!from_key.equal(to_key))
+                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        const closure = c.allocator.alloc(Value, from_repr.@"struct".keys.len) catch oom();
+        for (closure, from_value.@"struct".values, from_repr.@"struct".reprs, to_repr.fun.closure.reprs) |*to_value_inner, from_value_inner, from_repr_inner, to_repr_inner|
+            to_value_inner.* = try convert(c, from_value_inner, from_repr_inner, to_repr_inner);
+        return .{ .fun = .{
+            .repr = to_repr.fun,
+            .closure = closure,
+        } };
     } else if (to_repr == .any) {
         return .{ .any = c.box(from_value) };
     } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {

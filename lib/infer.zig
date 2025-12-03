@@ -1021,6 +1021,21 @@ fn convert(c: *Compiler, f: *tir.FunData, from_repr: Repr, to_repr: Repr) !void 
         }
         emit(c, f, .{ .list_init = .{ .count = len } });
         emit(c, f, .{ .block = .{ .count = 2 } });
+    } else if (to_repr == .fun and from_repr == .@"struct") {
+        if (from_repr.@"struct".keys.len != to_repr.fun.closure.keys.len)
+            return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        for (from_repr.@"struct".keys, to_repr.fun.closure.keys) |from_key, to_key|
+            if (!from_key.equal(to_key))
+                return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+        const struct_local = f.local_data.append(.{ .repr = from_repr, .is_tmp = true });
+        emit(c, f, .{ .local_let = struct_local });
+        for (0.., from_repr.@"struct".reprs, to_repr.fun.closure.reprs) |ix, from_repr_inner, to_repr_inner| {
+            emit(c, f, .{ .local_get = struct_local });
+            emit(c, f, .{ .object_get = .{ .index = ix } });
+            try convert(c, f, from_repr_inner, to_repr_inner);
+        }
+        emit(c, f, .{ .struct_init = to_repr.fun.closure });
+        emit(c, f, .{ .block = .{ .count = 2 } });
     } else if (to_repr == .any) {
         emit(c, f, .{ .any_init = from_repr });
     } else if (from_repr == .only and from_repr.only.reprOf().equal(to_repr)) {
