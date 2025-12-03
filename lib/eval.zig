@@ -659,12 +659,6 @@ pub fn evalExpr(
                         return fail(c, .{ .union_never_has_key = .{ .object = object, .key = key } });
                     c.value_stack.append(.{ .i64 = if (object.@"union".tag == index) 1 else 0 }) catch oom();
                 },
-                .reflect => {
-                    const value = c.value_stack.pop().?;
-                    if (value != .repr)
-                        return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
-                    c.value_stack.append(value.repr.reflect(c)) catch oom();
-                },
                 .@"from-any" => {
                     const value = c.value_stack.pop().?;
                     if (value != .any)

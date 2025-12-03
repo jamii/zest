@@ -203,34 +203,6 @@ pub const Repr = union(enum) {
             else => null,
         };
     }
-
-    pub fn reflect(self: Repr, c: *Compiler) Value {
-        const reflection = evalRuntimeDefinition(c, "reflection").repr.@"union";
-        const tag = @intFromEnum(std.meta.activeTag(self));
-        const value: Value = switch (self) {
-            .u32, .i64, .string, .@"union", .list, .fun, .namespace, .only, .any, .repr, .repr_kind, .ref => .emptyStruct(),
-            .@"struct" => |@"struct"| value: {
-                var keys = ArrayList(Value).initCapacity(c.allocator, @"struct".keys.len) catch oom();
-                var reprs = ArrayList(Value).initCapacity(c.allocator, @"struct".reprs.len) catch oom();
-                for (@"struct".keys, @"struct".reprs) |key, repr| {
-                    keys.appendAssumeCapacity(.{ .any = c.box(key) });
-                    reprs.appendAssumeCapacity(.{ .repr = repr });
-                }
-                break :value .{ .@"struct" = .{
-                    .repr = evalRuntimeDefinition(c, "reflection-struct").repr.@"struct",
-                    .values = c.dupe(Value, &.{
-                        .{ .list = .{ .repr = .{ .elem = c.box(Repr{ .any = {} }) }, .elems = keys } },
-                        .{ .list = .{ .repr = .{ .elem = c.box(Repr{ .repr = {} }) }, .elems = reprs } },
-                    }),
-                } };
-            },
-        };
-        return .{ .@"union" = .{
-            .repr = reflection,
-            .tag = tag,
-            .value = c.box(value),
-        } };
-    }
 };
 
 pub const ReprStruct = struct {

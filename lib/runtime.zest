@@ -1,99 +1,86 @@
-// This must be in the same order as Repr
-reflection = union[
-  u32: struct[],
-  i64: struct[],
-  string: struct[],
-  struct: reflection-struct,
-  union: struct[],
-  list: struct[],
-  fun: struct[],
-  namespace: struct[],
-  only: struct[],
-  any: struct[],
-  repr: struct[],
-  repr-kind: struct[],
-]
-
-reflection-struct = struct[
-  keys: list[any],
-  values: list[repr],
-]
-
 string-innards = struct[
-  ptr: u32,
-  len: u32,
+    ptr: u32,
+    len: u32,
 ]
 
 print = (x) {
-  t = only[%reflect(%repr-of(x))][[]]
-  if {only[%union-has-key(%from-only(t), 'u32')][[]]} {
-    %print(x)
-    %print('/u32')
-  } else if {only[%union-has-key(%from-only(t), 'i64')][[]]} {
-    %print(x)
-  } else if {only[%union-has-key(%from-only(t), 'string')][[]]} {
-    %print('\'')
-    // TODO escape
-    %print(x)
-    %print('\'')
-  } else if {only[%union-has-key(%from-only(t), 'struct')][[]]} {
-    %print('[')
-    positional mut = 1
-    %each(x, (ix, key, value) {
-        if {only[%from-only(ix) > 0][[]]} %print(', ') else {}
-        if {only[%from-only(key) != %from-only(ix)][[]]} { positional@ = 0 } else {}
-        if {positional == 0} {
-          print-key(%from-only(key))
-          %print(': ')
-        } else {}
-        print(value)
-    })
-    %print(']')
-  } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
-    %print('[')
-    %each(x, (ix, key, value) {
-        if {only[%from-only(key) != 0][[]]} {
-          print-key(%from-only(key))
-          %print(': ')
-        } else {}
-        print(value)
-    })
-    %print(']/TODO')
-  } else if {only[%union-has-key(%from-only(t), 'list')][[]]} {
-    %print('[TODO print]/list[TODO print]')
-  } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
-    %print('[TODO print]/fun[TODO print]')
-  } else if {only[%union-has-key(%from-only(t), 'namespace')][[]]} {
-    %print('[]/namespace[TODO print]')
-  } else if {only[%union-has-key(%from-only(t), 'only')][[]]} {
-    %print('[]/only[')
-    print(%from-only(x))
-    %print(']')
-  } else if {only[%union-has-key(%from-only(t), 'any')][[]]} {
-    //print(%from-any(x))
-    %print('TODO/any')
-  } else {
-    %print('TODO print')
-  }
+    if {only[%repr-of(x) == u32][[]]} {
+        %print(x)
+        %print('/u32')
+    } else if {only[%repr-of(x) == i64][[]]} {
+        %print(x)
+    } else if {only[%repr-of(x) == string][[]]} {
+        %print('\'')
+        // TODO escape
+        %print(x)
+        %print('\'')
+    } else if {only[%repr-of(x) == any][[]]} {
+        //print(%from-any(x))
+        %print('TODO/any')
+    } else if {only[%repr-of(x) == repr][[]]} {
+        %print('TODO')
+    //} else if {only[%repr-of(x) == repr-kind][[]]} {
+    //    %print('TODO')
+    } else {
+        unmade = only[%unmake(%repr-of(x))][[]]
+        head = only[%from-only(unmade).0][[]]
+        args = only[%from-only(unmade).1][[]]
+        if {only[%from-only(head) == struct][[]]} {
+            %print('[')
+            positional mut = 1
+            %each(x, (ix, key, value) {
+                if {only[%from-only(ix) > 0][[]]} %print(', ') else {}
+                if {only[%from-only(key) != %from-only(ix)][[]]} { positional@ = 0 } else {}
+                if {positional == 0} {
+                    print-key(%from-only(key))
+                    %print(': ')
+                } else {}
+                print(value)
+            })
+            %print(']')
+        } else if {only[%from-only(head) == union][[]]} {
+            %print('[')
+            %each(x, (ix, key, value) {
+                if {only[%from-only(key) != 0][[]]} {
+                    print-key(%from-only(key))
+                    %print(': ')
+                } else {}
+                print(value)
+            })
+            %print(']/union[TODO]')
+        } else if {only[%from-only(head) == list][[]]} {
+            %print('[TODO]/list[TODO]')
+        } else if {only[%from-only(head) == fun][[]]} {
+            %print('[TODO]/fun[TODO]')
+        } else if {only[%from-only(head) == namespace][[]]} {
+            %print('[]/namespace[TODO]')
+        } else if {only[%from-only(head) == only][[]]} {
+            %print('[]/only[')
+            print(%from-only(x))
+            %print(']')
+        } else {
+            %print('TODO')
+        }
+    }
 }
 
 print-key = (key) {
-  // TODO Check if key is a valid name.
-  print(key)
+    // TODO Check if key is a valid name.
+    print(key)
 }
 
 println = (x) {
-  print(x)
-  %print('\n')
+    print(x)
+    %print('\n')
 }
 
 println-main = () {
-  println(%main())
+    println(%main())
 }
 
 panic = (message) {
-  print(message)
-  %panic()
+    print(message)
+    %panic()
 }
 
 wasm-page-len-log = u32[16] // log2(64 * 1024)
