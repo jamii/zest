@@ -43,15 +43,22 @@ print = (x) {
         if {only[%from-only(ix) > 0][[]]} %print(', ') else {}
         if {only[%from-only(key) != %from-only(ix)][[]]} { positional@ = 0 } else {}
         if {positional == 0} {
-          // TODO Check if key is a valid name.
-          print(%from-only(key))
+          print-key(%from-only(key))
           %print(': ')
         } else {}
         print(value)
     })
     %print(']')
   } else if {only[%union-has-key(%from-only(t), 'union')][[]]} {
-    %print('[TODO print]/union[TODO print]')
+    %print('[')
+    %each(x, (ix, key, value) {
+        if {only[%from-only(key) != 0][[]]} {
+          print-key(%from-only(key))
+          %print(': ')
+        } else {}
+        print(value)
+    })
+    %print(']/TODO')
   } else if {only[%union-has-key(%from-only(t), 'list')][[]]} {
     %print('[TODO print]/list[TODO print]')
   } else if {only[%union-has-key(%from-only(t), 'fun')][[]]} {
@@ -65,9 +72,14 @@ print = (x) {
   } else if {only[%union-has-key(%from-only(t), 'any')][[]]} {
     //print(%from-any(x))
     %print('TODO/any')
-  }else {
+  } else {
     %print('TODO print')
   }
+}
+
+print-key = (key) {
+  // TODO Check if key is a valid name.
+  print(key)
 }
 
 println = (x) {
