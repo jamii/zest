@@ -309,6 +309,10 @@ pub const ReprList = struct {
 pub const ReprFun = struct {
     fun: dir.Fun,
     closure: ReprStruct,
+    state: enum {
+        valid,
+        unknown,
+    },
 
     pub fn sizeOf(self: ReprFun) usize {
         return self.closure.sizeOf();

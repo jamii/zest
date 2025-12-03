@@ -175,6 +175,7 @@ fn inferExprInner(
             return .{ .fun = .{
                 .fun = fun_init.fun,
                 .closure = closure.@"struct",
+                .state = .valid,
             } };
         },
         .arg => |arg| {
@@ -334,6 +335,8 @@ fn inferExprInner(
             const fun = try inferExpr(c, f, dir_f, .other);
             if (fun != .fun)
                 return fail(c, .{ .not_a_fun = fun });
+            if (!eval.isValidFun(c, fun.fun))
+                return fail(c, .todo);
 
             const must_inline = c.dir_fun_data.get(fun.fun.fun).@"inline";
             var closure_local: ?tir.Local = null;

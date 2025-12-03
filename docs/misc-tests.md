@@ -2069,3 +2069,103 @@ The result type of %unmake cannot be inferred
 
 1
 ```
+
+```zest-test
+[]/fun[]
+
+Cannot make fun with these args: []
+```
+
+```zest-test
+[]/fun[42]
+
+[]/fun[42]
+
+[TODO print]/fun[TODO print]
+```
+
+```zest-test
+[]/fun[x: i64]
+
+Cannot make fun with these args: [x: i64]
+```
+
+```zest-test
+[]/fun[42, x: i64]
+
+Expected fun[42, x: i64], found struct[]
+```
+
+```zest-test
+[x: 11]/fun[42, x: i64]
+
+[x: 11]/fun[42, x: i64]
+
+[TODO print]/fun[TODO print]
+```
+
+```zest-test
+[a: 1, b: 2]/fun[42, a: i64, b: i64]
+
+[a: 1, b: 2]/fun[42, a: i64, b: i64]
+
+[TODO print]/fun[TODO print]
+```
+
+```zest-test
+[b: 1, a: 2]/fun[42, a: i64, b: i64]
+
+Expected fun[42, a: i64, b: i64], found struct[b: i64, a: i64]
+```
+
+```zest-test
+[x: [a: 1]]/fun[42, x: union[a: i64, b: string]]
+
+[x: [a: 1]/union[a: i64, b: string]]/fun[42, x: union[a: i64, b: string]]
+
+[TODO print]/fun[TODO print]
+```
+
+```zest-test
+[x: [a: 'foo']]/fun[42, x: union[a: i64, b: string]]
+
+Expected union[a: i64, b: string], found struct[a: string]
+```
+
+```zest-test
+[]/fun['foo']
+
+Cannot make fun with these args: ['foo']
+```
+
+```zest-test
+[]/fun[42, '_': i64]
+
+Cannot make fun with these args: [42, '_': i64]
+```
+
+```zest-test
+[]/fun[42, x: 42]
+
+Cannot make fun with these args: [42, x: 42]
+```
+
+```zest-test
+f = []/fun[9999999]
+f()
+
+TODO eval: dir.ExprData{ .call = dir.ExprData__struct_24393{ .arg_count = 1 } }
+
+TODO infer: dir.ExprData{ .local_get = dir.Local{ .id = 0 } }
+```
+
+```zest-test
+g = (a) (b) a + b
+id = %unmake(%repr-of(g)).1.0
+f = [x: 42]/fun[id, x: i64]
+f()
+
+TODO eval: dir.ExprData{ .call = dir.ExprData__struct_24393{ .arg_count = 1 } }
+
+The result type of %unmake cannot be inferred
+```

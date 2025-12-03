@@ -271,6 +271,7 @@ pub fn evalExpr(
                 .repr = .{
                     .fun = fun_init.fun,
                     .closure = closure.@"struct".repr,
+                    .state = .valid,
                 },
                 .closure = closure.@"struct".values,
             } }) catch oom();
@@ -416,6 +417,8 @@ pub fn evalExpr(
             const fun = c.value_stack.pop().?;
             if (fun != .fun)
                 return fail(c, .{ .not_a_fun = fun });
+            if (!isValidFun(c, fun.fun.repr))
+                return fail(c, .todo);
             pushFun(c, .{
                 .fun = fun.fun.repr.fun,
                 .closure = .{ .@"struct" = fun.fun.getClosure() },
@@ -887,6 +890,7 @@ pub fn evalExpr(
                                     .keys = args.@"struct".repr.keys[1..],
                                     .reprs = reprs,
                                 },
+                                .state = .unknown,
                             } },
                         }) catch oom();
                     },
@@ -1090,6 +1094,15 @@ fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Val
         return .{ .namespace = .{ .namespace = to_repr.namespace.namespace } };
     } else {
         return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
+    }
+}
+
+pub fn isValidFun(c: *Compiler, fun: zest.ReprFun) bool {
+    _ = c;
+    switch (fun.state) {
+        .valid => return true,
+        // TODO Actually validate.
+        .unknown => return false,
     }
 }
 
