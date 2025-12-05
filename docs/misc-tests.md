@@ -1909,8 +1909,6 @@ only[42][[]]
 () 1
 
 []/fun[52]
-
-[TODO]/fun[52]
 ```
 
 ```zest-test
@@ -2056,8 +2054,6 @@ Cannot make fun with these args: []
 []/fun[42]
 
 []/fun[42]
-
-[TODO]/fun[42]
 ```
 
 ```zest-test
@@ -2077,7 +2073,7 @@ Expected fun[42, x: i64], found struct[]
 
 [x: 11]/fun[42, x: i64]
 
-[TODO]/fun[42, 'x': i64]
+['x': 11]/fun[42, 'x': i64]
 ```
 
 ```zest-test
@@ -2085,7 +2081,7 @@ Expected fun[42, x: i64], found struct[]
 
 [a: 1, b: 2]/fun[42, a: i64, b: i64]
 
-[TODO]/fun[42, 'a': i64, 'b': i64]
+['a': 1, 'b': 2]/fun[42, 'a': i64, 'b': i64]
 ```
 
 ```zest-test
@@ -2099,7 +2095,7 @@ Expected fun[42, a: i64, b: i64], found struct[b: i64, a: i64]
 
 [x: [a: 1]/union[a: i64, b: string]]/fun[42, x: union[a: i64, b: string]]
 
-[TODO]/fun[42, 'x': union['a': i64, 'b': string]]
+['x': ['a': 1]/union['a': i64, 'b': string]]/fun[42, 'x': union['a': i64, 'b': string]]
 ```
 
 ```zest-test
@@ -2144,4 +2140,20 @@ f()
 TODO eval: dir.ExprData{ .call = dir.ExprData__struct_24393{ .arg_count = 1 } }
 
 The result type of %unmake cannot be inferred
+```
+
+```zest-test
+f = (a) (b) a + b
+%closure(f(1))
+
+[a: 1]
+
+['a': 1]
+```
+
+```zest-test
+ns = namespace{}
+%closure(ns)
+
+[]
 ```

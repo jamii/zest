@@ -571,7 +571,7 @@ fn genExprInner(
                 .from_only => {
                     const arg = try genExpr(c, f, tir_f, .nowhere);
                     const value = walueRepr(c, f, arg).only.*;
-                    return valueToWalue(c, value);
+                    return try valueToWalue(c, value);
                 },
                 else => {},
             }
@@ -1282,7 +1282,7 @@ fn walueRepr(c: *Compiler, f: *const wir.FunData, walue: wir.Walue) Repr {
     };
 }
 
-fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
+fn valueToWalue(c: *Compiler, value: Value) error{GenerateError}!wir.Walue {
     switch (value) {
         .u32 => |u| return .{ .u32 = u },
         .i64 => |i| return .{ .i64 = i },
@@ -1290,7 +1290,7 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
         .@"struct" => |@"struct"| {
             const walues = c.allocator.alloc(wir.Walue, @"struct".values.len) catch oom();
             for (@"struct".values, walues) |val, *wal| {
-                wal.* = valueToWalue(c, val);
+                wal.* = try valueToWalue(c, val);
             }
             return .{ .@"struct" = .{
                 .repr = @"struct".repr,
@@ -1301,13 +1301,13 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
             return .{ .@"union" = .{
                 .repr = @"union".repr,
                 .tag = @intCast(@"union".tag),
-                .value = c.box(valueToWalue(c, @"union".value.*)),
+                .value = c.box(try valueToWalue(c, @"union".value.*)),
             } };
         },
         .fun => |fun| {
             return .{ .fun = .{
                 .repr = fun.repr,
-                .closure = c.box(valueToWalue(c, .{ .@"struct" = .{
+                .closure = c.box(try valueToWalue(c, .{ .@"struct" = .{
                     .repr = fun.repr.closure,
                     .values = fun.closure,
                 } })),
@@ -1317,7 +1317,7 @@ fn valueToWalue(c: *Compiler, value: Value) wir.Walue {
             return .{ .only = .{ .value = only } };
         },
         .ref => panic("Ref is not a true value, shouldn't appear in ir", .{}),
-        .list, .namespace, .any, .repr, .repr_kind => panic("TODO", .{}),
+        .list, .namespace, .any, .repr, .repr_kind => return fail(c, .todo),
     }
 }
 

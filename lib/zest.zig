@@ -150,11 +150,12 @@ pub const Builtin = enum {
     each,
     main,
     unmake,
+    closure,
 
     pub fn argCount(builtin: Builtin) usize {
         return switch (builtin) {
             .@"memory-size", .@"heap-start", .panic, .main => 0,
-            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .@"from-any", .@"from-only", .unmake => 1,
+            .negate, .not, .@"memory-grow", .@"size-of", .print, .clz, .@"repr-of", .@"from-any", .@"from-only", .unmake, .closure => 1,
             .equal, .@"not-equal", .equivalent, .@"less-than", .@"less-than-or-equal", .@"more-than", .@"more-than-or-equal", .add, .subtract, .multiply, .divide, .remainder, .@"bit-shift-left", .@"and", .@"or", .load, .store, .@"union-has-key", .each => 2,
             .@"memory-fill", .@"memory-copy" => 3,
         };

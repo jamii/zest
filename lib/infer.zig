@@ -655,8 +655,18 @@ fn inferExprInner(
                     );
                     return repr;
                 },
-                .unmake => {
-                    return fail(c, .{ .cannot_infer = .unmake });
+                .unmake => return fail(c, .{ .cannot_infer = .unmake }),
+                .closure => {
+                    const arg = try inferExpr(c, f, dir_f, .other);
+                    switch (arg) {
+                        .fun => |fun| {
+                            return .{ .@"struct" = fun.closure };
+                        },
+                        .namespace => {
+                            return .emptyStruct();
+                        },
+                        else => return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Repr, &.{arg}) } }),
+                    }
                 },
                 else => return fail(c, .todo),
             }
@@ -680,7 +690,7 @@ fn inferExprInner(
                 .repr_kind => {
                     const args = try inferExpr(c, f, dir_f, .other);
                     _ = args;
-                    panic("TODO {}", .{head});
+                    return fail(c, .todo);
                 },
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
             }

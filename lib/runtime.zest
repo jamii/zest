@@ -53,10 +53,12 @@ print = (x) {
             %print('[TODO]/')
             print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == fun][[]]} {
-            %print('[TODO]/')
+            print(%closure(x))
+            %print('/')
             print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == namespace][[]]} {
-            %print('[]/')
+            print(%closure(x))
+            %print('/')
             print-repr(only[%repr-of(x)][[]])
         } else if {only[%from-only(head) == only][[]]} {
             %print('[]/only[')
