@@ -4,100 +4,101 @@ string-innards = struct[
 ]
 
 print = (x) {
-    if {only[%repr-of(x) == u32][[]]} {
+    if {%only(%repr-of(x) == u32)} {
         %print(x)
         %print('/u32')
-    } else if {only[%repr-of(x) == i64][[]]} {
+    } else if {%only(%repr-of(x) == i64)} {
         %print(x)
-    } else if {only[%repr-of(x) == string][[]]} {
+    } else if {%only(%repr-of(x) == string)} {
         %print('\'')
         // TODO escape
         %print(x)
         %print('\'')
-    } else if {only[%repr-of(x) == any][[]]} {
-        //print(%from-any(x))
+    } else if {%only(%repr-of(x) == any)} {
+        // TODO Need to be able to jump back into interpreter for unknown types.
         %print('TODO/any')
-    } else if {only[%repr-of(x) == repr][[]]} {
-        print-repr(only[x][[]])
-    } else if {only[%repr-of(x) == repr-kind][[]]} {
-        print-repr-kind(only[x][[]])
+    } else if {%only(%repr-of(x) == repr)} {
+        print-repr(%only(x))
+    } else if {%only(%repr-of(x) == repr-kind)} {
+        print-repr-kind(%only(x))
     } else {
-        unmade = only[%unmake(%repr-of(x))][[]]
-        head = only[%from-only(unmade).0][[]]
-        args = only[%from-only(unmade).1][[]]
-        if {only[%from-only(head) == struct][[]]} {
+        unmade = %only(%unmake(%repr-of(x)))
+        head = %only(%from-only(unmade).0)
+        args = %only(%from-only(unmade).1)
+        if {%only(%from-only(head) == struct)} {
             %print('[')
             positional mut = 1
             %each(x, (ix, key, value) {
-                if {only[%from-only(ix) > 0][[]]} %print(', ') else {}
-                if {only[%from-only(key) != %from-only(ix)][[]]} { positional@ = 0 } else {}
+                if {%only(%from-only(ix) > 0)} %print(', ')
+                if {%only(%from-only(key) != %from-only(ix))} { positional@ = 0 }
                 if {positional == 0} {
                     print-key(%from-only(key))
                     %print(': ')
-                } else {}
+                }
                 print(value)
             })
             %print(']')
-        } else if {only[%from-only(head) == union][[]]} {
+        } else if {%only(%from-only(head) == union)} {
             %print('[')
             %each(x, (ix, key, value) {
-                if {only[%from-only(key) != 0][[]]} {
+                if {%only(%from-only(key) != 0)} {
                     print-key(%from-only(key))
                     %print(': ')
-                } else {}
+                }
                 print(value)
             })
             %print(']/')
-            print-repr(only[%repr-of(x)][[]])
-        } else if {only[%from-only(head) == list][[]]} {
+            print-repr(%only(%repr-of(x)))
+        } else if {%only(%from-only(head) == list)} {
             %print('[TODO]/')
-            print-repr(only[%repr-of(x)][[]])
-        } else if {only[%from-only(head) == fun][[]]} {
+            print-repr(%only(%repr-of(x)))
+        } else if {%only(%from-only(head) == fun)} {
             print(%closure(x))
             %print('/')
-            print-repr(only[%repr-of(x)][[]])
-        } else if {only[%from-only(head) == namespace][[]]} {
+            print-repr(%only(%repr-of(x)))
+        } else if {%only(%from-only(head) == namespace)} {
             print(%closure(x))
             %print('/')
-            print-repr(only[%repr-of(x)][[]])
-        } else if {only[%from-only(head) == only][[]]} {
-            %print('[]/only[')
+            print-repr(%only(%repr-of(x)))
+        } else if {%only(%from-only(head) == only)} {
+            %print('%only(')
             print(%from-only(x))
-            %print(']')
+            %print(')')
         } else {
-            %print('TODO')
+            %print('TODO/')
+            print-repr(%only(%repr-of(x)))
         }
     }
 }
 
 print-repr = (x) {
-    if {only[%from-only(x) == u32][[]]} {
+    if {%only(%from-only(x) == u32)} {
         %print('u32')
-    } else if {only[%from-only(x) == i64][[]]} {
+    } else if {%only(%from-only(x) == i64)} {
         %print('i64')
-    } else if {only[%from-only(x) == string][[]]} {
+    } else if {%only(%from-only(x) == string)} {
         %print('string')
-    } else if {only[%from-only(x) == any][[]]} {
+    } else if {%only(%from-only(x) == any)} {
         %print('any')
-    } else if {only[%from-only(x) == repr][[]]} {
+    } else if {%only(%from-only(x) == repr)} {
         %print('repr')
-    } else if {only[%repr-of(x) == repr-kind][[]]} {
-        print-repr-kind(only[x][[]])
+    } else if {%only(%repr-of(x) == repr-kind)} {
+        print-repr-kind(%only(x))
     } else {
-        unmade = only[%unmake(%from-only(x))][[]]
-        head = only[%from-only(unmade).0][[]]
-        args = only[%from-only(unmade).1][[]]
+        unmade = %only(%unmake(%from-only(x)))
+        head = %only(%from-only(unmade).0)
+        args = %only(%from-only(unmade).1)
         print-repr-kind(head)
         %print('[')
         positional mut = 1
         %each(args, (ix, key, value) {
-            if {only[%from-only(ix) > 0][[]]} %print(', ') else {}
-            if {only[%from-only(key) != %from-only(ix)][[]]} { positional@ = 0 } else {}
+            if {%only(%from-only(ix) > 0)} %print(', ')
+            if {%only(%from-only(key) != %from-only(ix))} { positional@ = 0 }
             if {positional == 0} {
                 print-key(%from-only(key))
                 %print(': ')
-            } else {}
-            if {only[%repr-of(%from-only(value)) == repr][[]]} {
+            }
+            if {%only(%repr-of(%from-only(value)) == repr)} {
                 print-repr(value)
             } else {
                 print(%from-only(value))
@@ -108,17 +109,17 @@ print-repr = (x) {
 }
 
 print-repr-kind = (x) {
-    if {only[%from-only(x) == struct][[]]} {
+    if {%only(%from-only(x) == struct)} {
         %print('struct')
-    } else if {only[%from-only(x) == union][[]]} {
+    } else if {%only(%from-only(x) == union)} {
         %print('union')
-    } else if {only[%from-only(x) == list][[]]} {
+    } else if {%only(%from-only(x) == list)} {
         %print('list')
-    } else if {only[%from-only(x) == fun][[]]} {
+    } else if {%only(%from-only(x) == fun)} {
         %print('fun')
-    } else if {only[%from-only(x) == namespace][[]]} {
+    } else if {%only(%from-only(x) == namespace)} {
         %print('namespace')
-    } else if {only[%from-only(x) == only][[]]} {
+    } else if {%only(%from-only(x) == only)} {
         %print('only')
     } else {
         panic('Unreachable')
@@ -175,7 +176,7 @@ alloc-pages = (page-count/u32) /u32 {
 }
 
 alloc = (:class/u32) /u32 {
-    // if {class >= class-count} panic('Class is too large') else {}
+    // if {class >= class-count} panic('Class is too large')
     free-ptr-ptr = alloc-free-ptr-ptr + {class * %size-of(u32)}
     free-ptr = %load(free-ptr-ptr, u32)
     if {free-ptr != u32[0]} {
@@ -196,7 +197,7 @@ alloc = (:class/u32) /u32 {
 }
 
 free = (:class/u32, :ptr/u32) /struct[] {
-    // if {class >= class-count} panic('Class is too large') else {}
+    // if {class >= class-count} panic('Class is too large')
     free-ptr-ptr = alloc-free-ptr-ptr + {class * %size-of(u32)}
     free-ptr = %load(free-ptr-ptr, u32)
     %store(ptr, free-ptr)
@@ -207,13 +208,13 @@ free = (:class/u32, :ptr/u32) /struct[] {
 }
 
 len-to-class = (len/u32) /u32 {
-    // if {len == u32[0]} panic('Cannot alloc zero bytes') else {}
+    // if {len == u32[0]} panic('Cannot alloc zero bytes')
     lower-len-log = u32[31] - %clz(len)
     upper-len-log = if {{u32[1] << lower-len-log} == len} lower-len-log else lower-len-log + u32[1]
     if {upper-len-log > class-min-len-log} upper-len-log - class-min-len-log else u32[0]
 }
 
 class-to-len = (class/u32) /u32 {
-    if {class >= class-count} panic('Class is too large') else {}
+    if {class >= class-count} panic('Class is too large')
     u32[1] << {class + class-min-len-log}
 }

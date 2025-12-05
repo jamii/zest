@@ -76,8 +76,12 @@ fn parseIf(c: *Compiler, s: *sir.SourceData) error{ParseError}!void {
     try expect(c, s, .@"if");
     try parseExprAtom(c, s, .{});
     try parseExpr(c, s);
-    try expect(c, s, .@"else");
-    try parseExpr(c, s);
+    if (peek(c, s) == .@"else") {
+        try expect(c, s, .@"else");
+        try parseExpr(c, s);
+    } else {
+        emit(c, s, .{ .block = .{ .count = 0 } });
+    }
     emit(c, s, .@"if");
 }
 

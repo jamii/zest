@@ -632,6 +632,12 @@ fn inferExprInner(
                 .@"from-any" => {
                     return fail(c, .{ .cannot_infer = .@"from-any" });
                 },
+                .only => {
+                    const arg = try inferExpr(c, f, dir_f, .other);
+                    emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
+                    emit(c, f, .{ .only = arg.only });
+                    return arg;
+                },
                 .@"from-only" => {
                     const arg = try inferExpr(c, f, dir_f, .other);
                     if (arg != .only)

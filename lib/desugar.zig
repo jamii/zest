@@ -126,12 +126,12 @@ fn desugarExpr(c: *Compiler, s: sir.SourceData, f: *dir.FunData) error{DesugarEr
             for (0..builtin.argCount()) |arg_index| {
                 const is_staged = (builtin == .load and arg_index == 1) or
                     (builtin == .@"size-of" and arg_index == 0) or
-                    (builtin == .@"union-has-key" and arg_index == 1);
+                    (builtin == .@"union-has-key" and arg_index == 1) or
+                    (builtin == .only and arg_index == 0);
                 if (is_staged)
-                    emit(c, f, .stage_begin);
-                try desugarExpr(c, s, f);
-                if (is_staged)
-                    emit(c, f, .{ .stage = .{} });
+                    try stageExpr(c, s, f)
+                else
+                    try desugarExpr(c, s, f);
             }
 
             if (builtin == .each) {

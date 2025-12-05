@@ -1903,6 +1903,8 @@ Expected union[some: i64, none: struct[]], found struct[some: i64]
 only[42][[]]
 
 []/only[42]
+
+%only(42)
 ```
 
 ```zest-test
@@ -2156,4 +2158,12 @@ ns = namespace{}
 %closure(ns)
 
 []
+```
+
+```zest-test
+%only(1)
+
+[]/only[1]
+
+%only(1)
 ```

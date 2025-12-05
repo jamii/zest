@@ -668,6 +668,9 @@ pub fn evalExpr(
                         return fail(c, .{ .invalid_call_builtin = .{ .builtin = builtin, .args = c.dupe(Value, &.{value}) } });
                     c.value_stack.append(value.any.copy(c.allocator)) catch oom();
                 },
+                .only => {
+                    // Already handled by staging annotation.
+                },
                 .@"from-only" => {
                     const value = c.value_stack.pop().?;
                     if (value != .only)
