@@ -228,23 +228,26 @@ pub fn evalExpr(
         .repr_repr => {
             c.value_stack.append(.{ .repr = .repr }) catch oom();
         },
+        .repr_repr_kind => {
+            c.value_stack.append(.{ .repr = .@"repr-kind" }) catch oom();
+        },
         .repr_kind_struct => {
-            c.value_stack.append(.{ .repr_kind = .@"struct" }) catch oom();
+            c.value_stack.append(.{ .@"repr-kind" = .@"struct" }) catch oom();
         },
         .repr_kind_union => {
-            c.value_stack.append(.{ .repr_kind = .@"union" }) catch oom();
+            c.value_stack.append(.{ .@"repr-kind" = .@"union" }) catch oom();
         },
         .repr_kind_list => {
-            c.value_stack.append(.{ .repr_kind = .list }) catch oom();
+            c.value_stack.append(.{ .@"repr-kind" = .list }) catch oom();
         },
         .repr_kind_fun => {
-            c.value_stack.append(.{ .repr_kind = .fun }) catch oom();
+            c.value_stack.append(.{ .@"repr-kind" = .fun }) catch oom();
         },
         .repr_kind_only => {
-            c.value_stack.append(.{ .repr_kind = .only }) catch oom();
+            c.value_stack.append(.{ .@"repr-kind" = .only }) catch oom();
         },
         .repr_kind_namespace => {
-            c.value_stack.append(.{ .repr_kind = .namespace }) catch oom();
+            c.value_stack.append(.{ .@"repr-kind" = .namespace }) catch oom();
         },
         .struct_init => |struct_init| {
             const keys = c.allocator.alloc(Value, struct_init.count) catch oom();
@@ -314,7 +317,7 @@ pub fn evalExpr(
                             .actual = list.elems.items.len,
                         } });
                 },
-                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .any, .ref, .namespace => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .@"repr-kind", .fun, .only, .any, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             c.value_stack.append(value) catch oom();
         },
@@ -692,7 +695,7 @@ pub fn evalExpr(
                             for (reprs) |*repr| repr.* = .repr;
                             const values = c.allocator.alloc(Value, @"struct".keys.len) catch oom();
                             for (values, @"struct".reprs) |*value, repr| value.* = .{ .repr = repr };
-                            head = Value{ .repr_kind = .@"struct" };
+                            head = Value{ .@"repr-kind" = .@"struct" };
                             args = Value{ .@"struct" = .{
                                 .repr = .{
                                     .keys = @"struct".keys,
@@ -706,7 +709,7 @@ pub fn evalExpr(
                             for (reprs) |*repr| repr.* = .repr;
                             const values = c.allocator.alloc(Value, @"union".keys.len) catch oom();
                             for (values, @"union".reprs) |*value, repr| value.* = .{ .repr = repr };
-                            head = Value{ .repr_kind = .@"union" };
+                            head = Value{ .@"repr-kind" = .@"union" };
                             args = Value{ .@"struct" = .{
                                 .repr = .{
                                     .keys = @"union".keys,
@@ -716,7 +719,7 @@ pub fn evalExpr(
                             } };
                         },
                         .list => |list| {
-                            head = Value{ .repr_kind = .list };
+                            head = Value{ .@"repr-kind" = .list };
                             args = Value{ .@"struct" = .{
                                 .repr = .{
                                     .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
@@ -735,7 +738,7 @@ pub fn evalExpr(
                             const values = c.allocator.alloc(Value, fun.closure.keys.len + 1) catch oom();
                             values[0] = .{ .i64 = @intCast(fun.fun.id) };
                             for (values[1..], fun.closure.reprs) |*value, repr| value.* = .{ .repr = repr };
-                            head = Value{ .repr_kind = .fun };
+                            head = Value{ .@"repr-kind" = .fun };
                             args = Value{ .@"struct" = .{
                                 .repr = .{
                                     .keys = keys,
@@ -745,7 +748,7 @@ pub fn evalExpr(
                             } };
                         },
                         .namespace => |namespace| {
-                            head = Value{ .repr_kind = .namespace };
+                            head = Value{ .@"repr-kind" = .namespace };
                             args = Value{ .@"struct" = .{
                                 .repr = .{
                                     .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
@@ -755,7 +758,7 @@ pub fn evalExpr(
                             } };
                         },
                         .only => |only| {
-                            head = Value{ .repr_kind = .only };
+                            head = Value{ .@"repr-kind" = .only };
                             args = Value{ .@"struct" = .{
                                 .repr = .{
                                     .keys = c.dupe(Value, &.{.{ .i64 = 0 }}),
@@ -806,7 +809,7 @@ pub fn evalExpr(
                     const to_value = try convert(c, from_value, from_repr, to_repr);
                     c.value_stack.append(to_value) catch oom();
                 },
-                .repr_kind => |repr_kind| switch (repr_kind) {
+                .@"repr-kind" => |repr_kind| switch (repr_kind) {
                     .@"struct" => {
                         const reprs = c.allocator.alloc(Repr, args.@"struct".values.len) catch oom();
                         for (reprs, args.@"struct".values) |*repr, value| {

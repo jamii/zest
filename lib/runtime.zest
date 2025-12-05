@@ -18,9 +18,9 @@ print = (x) {
         //print(%from-any(x))
         %print('TODO/any')
     } else if {only[%repr-of(x) == repr][[]]} {
-        print-repr(only[%repr-of(x)][[]])
-    //} else if {only[%repr-of(x) == repr-kind][[]]} {
-    //    %print('TODO')
+        print-repr(only[x][[]])
+    } else if {only[%repr-of(x) == repr-kind][[]]} {
+        print-repr-kind(only[x][[]])
     } else {
         unmade = only[%unmake(%repr-of(x))][[]]
         head = only[%from-only(unmade).0][[]]
@@ -81,8 +81,8 @@ print-repr = (x) {
         %print('any')
     } else if {only[%from-only(x) == repr][[]]} {
         %print('repr')
-        //} else if {only[%from-only(x) == repr-kind][[]]} {
-        //    %print('TODO')
+    } else if {only[%repr-of(x) == repr-kind][[]]} {
+        print-repr-kind(only[x][[]])
     } else {
         unmade = only[%unmake(%from-only(x))][[]]
         head = only[%from-only(unmade).0][[]]

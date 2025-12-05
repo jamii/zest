@@ -228,7 +228,7 @@ fn inferExprInner(
                 },
                 .@"union" => return fail(c, .todo),
                 .list => return fail(c, .todo), // Need to emit an assert on length
-                .u32, .i64, .string, .repr, .repr_kind, .fun, .only, .any, .ref, .namespace => return fail(c, .{ .expected_object = value }),
+                .u32, .i64, .string, .repr, .@"repr-kind", .fun, .only, .any, .ref, .namespace => return fail(c, .{ .expected_object = value }),
             }
             return value;
         },
@@ -687,7 +687,7 @@ fn inferExprInner(
                     try convert(c, f, args.@"struct".reprs[0], to_repr);
                     return to_repr;
                 },
-                .repr_kind => {
+                .@"repr-kind" => {
                     const args = try inferExpr(c, f, dir_f, .other);
                     _ = args;
                     return fail(c, .todo);

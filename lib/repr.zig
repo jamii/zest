@@ -25,7 +25,7 @@ pub const Repr = union(enum) {
     only: *Value,
     any,
     repr,
-    repr_kind,
+    @"repr-kind",
     ref: *Repr,
 
     pub fn emptyStruct() Repr {
@@ -67,7 +67,7 @@ pub const Repr = union(enum) {
             .only, .namespace => 0,
             .any => 4, // TODO will be 8 when we store repr
             .ref => 4,
-            .repr, .repr_kind => panic("TODO {}", .{self}),
+            .repr, .@"repr-kind" => panic("TODO {}", .{self}),
         };
     }
 
@@ -83,7 +83,7 @@ pub const Repr = union(enum) {
             else
                 null,
             .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
-            .u32, .i64, .string, .@"union", .list, .any, .repr, .repr_kind, .ref => null,
+            .u32, .i64, .string, .@"union", .list, .any, .repr, .@"repr-kind", .ref => null,
         };
     }
 
@@ -92,7 +92,7 @@ pub const Repr = union(enum) {
         _ = options;
         try writer.print("{s}", .{@tagName(self)});
         switch (self) {
-            .u32, .i64, .string, .any, .repr, .repr_kind => {},
+            .u32, .i64, .string, .any, .repr, .@"repr-kind" => {},
             .@"struct" => |@"struct"| {
                 try writer.writeAll("[");
                 var positional = true;
@@ -154,7 +154,7 @@ pub const Repr = union(enum) {
             .ref => {
                 return true;
             },
-            .u32, .i64, .string, .namespace, .any, .repr, .repr_kind => {
+            .u32, .i64, .string, .namespace, .any, .repr, .@"repr-kind" => {
                 return false;
             },
             .@"struct" => |@"struct"| {

@@ -1241,7 +1241,7 @@ const WasmRepr = union(enum) {
 fn wasmRepr(repr: Repr) WasmRepr {
     return switch (repr) {
         .u32, .i64, .ref => .{ .primitive = wasmAbi(repr) },
-        .string, .@"struct", .@"union", .list, .fun, .only, .any, .namespace, .repr, .repr_kind => .heap,
+        .string, .@"struct", .@"union", .list, .fun, .only, .any, .namespace, .repr, .@"repr-kind" => .heap,
     };
 }
 
@@ -1250,7 +1250,7 @@ fn wasmAbi(repr: Repr) wasm.Valtype {
         .u32 => .i32,
         .i64 => .i64,
         // Pointers.
-        .string, .@"struct", .@"union", .list, .fun, .only, .any, .namespace, .ref, .repr, .repr_kind => .i32,
+        .string, .@"struct", .@"union", .list, .fun, .only, .any, .namespace, .ref, .repr, .@"repr-kind" => .i32,
     };
 }
 
@@ -1317,7 +1317,7 @@ fn valueToWalue(c: *Compiler, value: Value) error{GenerateError}!wir.Walue {
             return .{ .only = .{ .value = only } };
         },
         .ref => panic("Ref is not a true value, shouldn't appear in ir", .{}),
-        .list, .namespace, .any, .repr, .repr_kind => return fail(c, .todo),
+        .list, .namespace, .any, .repr, .@"repr-kind" => return fail(c, .todo),
     }
 }
 

@@ -30,7 +30,7 @@ pub const Value = union(enum) {
     any: *Value,
     ref: ValueRef,
     repr: Repr,
-    repr_kind: ReprKind,
+    @"repr-kind": ReprKind,
 
     pub fn reprOf(value: Value) Repr {
         return switch (value) {
@@ -46,7 +46,7 @@ pub const Value = union(enum) {
             .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
             .ref => |ref| .{ .ref = ref.repr },
             .repr => .repr,
-            .repr_kind => .repr_kind,
+            .@"repr-kind" => .@"repr-kind",
         };
     }
 
@@ -64,7 +64,7 @@ pub const Value = union(enum) {
 
     pub fn get(self: Value, key: Value) ?Value {
         return switch (self) {
-            .u32, .i64, .string, .fun, .only, .any, .ref, .repr, .repr_kind, .namespace => null,
+            .u32, .i64, .string, .fun, .only, .any, .ref, .repr, .@"repr-kind", .namespace => null,
             .@"struct" => |@"struct"| @"struct".get(key),
             .@"union" => |@"union"| @"union".get(key),
             .list => |list| list.get(key),
@@ -73,7 +73,7 @@ pub const Value = union(enum) {
 
     pub fn getMut(self: *Value, key: Value) ?*Value {
         return switch (self.*) {
-            .u32, .i64, .string, .fun, .only, .any, .ref, .repr, .repr_kind, .namespace => null,
+            .u32, .i64, .string, .fun, .only, .any, .ref, .repr, .@"repr-kind", .namespace => null,
             .@"struct" => |*@"struct"| @"struct".getMut(key),
             .@"union" => |*@"union"| @"union".getMut(key),
             .list => |*list| list.getMut(key),
@@ -140,7 +140,7 @@ pub const Value = union(enum) {
                     self.reprOf(),
                 });
             },
-            inline .repr, .repr_kind => |data| {
+            inline .repr, .@"repr-kind" => |data| {
                 try writer.print("{}", .{data});
             },
             .only => {
@@ -151,7 +151,7 @@ pub const Value = union(enum) {
 
     pub fn copy(self: Value, allocator: Allocator) Value {
         return switch (self) {
-            .u32, .i64, .repr, .repr_kind, .namespace => self,
+            .u32, .i64, .repr, .@"repr-kind", .namespace => self,
             .string => |string| .{
                 .string = allocator.dupe(u8, string) catch oom(),
             },
@@ -221,7 +221,7 @@ pub const Value = union(enum) {
                 }
                 return .{ .@"struct" = .{ .repr = @"struct", .values = values } };
             },
-            .string, .@"union", .list, .only, .any, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO load: {}", .{repr}),
+            .string, .@"union", .list, .only, .any, .fun, .ref, .repr, .@"repr-kind", .namespace => panic("TODO load: {}", .{repr}),
         }
     }
 
@@ -240,7 +240,7 @@ pub const Value = union(enum) {
                     offset += value_repr.sizeOf();
                 }
             },
-            .string, .@"union", .list, .only, .any, .fun, .ref, .repr, .repr_kind, .namespace => panic("TODO store: {}", .{self}),
+            .string, .@"union", .list, .only, .any, .fun, .ref, .repr, .@"repr-kind", .namespace => panic("TODO store: {}", .{self}),
         }
     }
 
