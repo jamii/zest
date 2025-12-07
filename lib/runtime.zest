@@ -123,7 +123,7 @@ print-repr-kind = (x) {
 }
 
 print-key = (key) {
-    // TODO Check if key is a valid name.
+    // TODO If key is a valid name then omit the quotes.
     print(key)
 }
 
