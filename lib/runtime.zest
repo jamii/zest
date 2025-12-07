@@ -4,33 +4,29 @@ string-innards = struct[
 ]
 
 print = (x) {
-    if {%only(%repr-of(x) == u32)} {
+    if %only(%repr-of(x) == u32) {
         %print(x)
         %print('/u32')
-    } else if {%only(%repr-of(x) == i64)} {
+    } else if %only(%repr-of(x) == i64) {
         %print(x)
-    } else if {%only(%repr-of(x) == string)} {
+    } else if %only(%repr-of(x) == string) {
         %print('\'')
         // TODO escape
         %print(x)
         %print('\'')
-    } else if {%only(%repr-of(x) == any)} {
+    } else if %only(%repr-of(x) == any) {
         // TODO Need to be able to jump back into interpreter for unknown types.
         %print('TODO/any')
-    } else if {%only(%repr-of(x) == repr)} {
-        print-repr(%only(x))
-    } else if {%only(%repr-of(x) == repr-kind)} {
-        print-repr-kind(%only(x))
     } else {
         unmade = %only(%unmake(%repr-of(x)))
         head = %only(%from-only(unmade).0)
         args = %only(%from-only(unmade).1)
-        if {%only(%from-only(head) == struct)} {
+        if %only(%from-only(head) == struct) {
             %print('[')
             positional mut = 1
             %each(x, (ix, key, value) {
-                if {%only(%from-only(ix) > 0)} %print(', ')
-                if {%only(%from-only(key) != %from-only(ix))} { positional@ = 0 }
+                if %only(%from-only(ix) > 0) %print(', ')
+                if %only(%from-only(key) != %from-only(ix)) { positional@ = 0 }
                 if {positional == 0} {
                     print-key(%from-only(key))
                     %print(': ')
@@ -38,10 +34,10 @@ print = (x) {
                 print(value)
             })
             %print(']')
-        } else if {%only(%from-only(head) == union)} {
+        } else if %only(%from-only(head) == union) {
             %print('[')
             %each(x, (ix, key, value) {
-                if {%only(%from-only(key) != 0)} {
+                if %only(%from-only(key) != 0) {
                     print-key(%from-only(key))
                     %print(': ')
                 }
@@ -49,18 +45,18 @@ print = (x) {
             })
             %print(']/')
             print-repr(%only(%repr-of(x)))
-        } else if {%only(%from-only(head) == list)} {
+        } else if %only(%from-only(head) == list) {
             %print('[TODO]/')
             print-repr(%only(%repr-of(x)))
-        } else if {%only(%from-only(head) == fun)} {
+        } else if %only(%from-only(head) == fun) {
             print(%closure(x))
             %print('/')
             print-repr(%only(%repr-of(x)))
-        } else if {%only(%from-only(head) == namespace)} {
+        } else if %only(%from-only(head) == namespace) {
             print(%closure(x))
             %print('/')
             print-repr(%only(%repr-of(x)))
-        } else if {%only(%from-only(head) == only)} {
+        } else if %only(%from-only(head) == only) {
             %print('%only(')
             print(%from-only(x))
             %print(')')
@@ -72,17 +68,17 @@ print = (x) {
 }
 
 print-repr = (x) {
-    if {%only(%from-only(x) == u32)} {
+    if %only(%from-only(x) == u32) {
         %print('u32')
-    } else if {%only(%from-only(x) == i64)} {
+    } else if %only(%from-only(x) == i64) {
         %print('i64')
-    } else if {%only(%from-only(x) == string)} {
+    } else if %only(%from-only(x) == string) {
         %print('string')
-    } else if {%only(%from-only(x) == any)} {
+    } else if %only(%from-only(x) == any) {
         %print('any')
-    } else if {%only(%from-only(x) == repr)} {
+    } else if %only(%from-only(x) == repr) {
         %print('repr')
-    } else if {%only(%repr-of(x) == repr-kind)} {
+    } else if %only(%repr-of(x) == repr-kind) {
         print-repr-kind(%only(x))
     } else {
         unmade = %only(%unmake(%from-only(x)))
@@ -92,13 +88,13 @@ print-repr = (x) {
         %print('[')
         positional mut = 1
         %each(args, (ix, key, value) {
-            if {%only(%from-only(ix) > 0)} %print(', ')
-            if {%only(%from-only(key) != %from-only(ix))} { positional@ = 0 }
+            if %only(%from-only(ix) > 0) %print(', ')
+            if %only(%from-only(key) != %from-only(ix)) { positional@ = 0 }
             if {positional == 0} {
                 print-key(%from-only(key))
                 %print(': ')
             }
-            if {%only(%repr-of(%from-only(value)) == repr)} {
+            if %only(%repr-of(%from-only(value)) == repr) {
                 print-repr(value)
             } else {
                 print(%from-only(value))
@@ -109,17 +105,17 @@ print-repr = (x) {
 }
 
 print-repr-kind = (x) {
-    if {%only(%from-only(x) == struct)} {
+    if %only(%from-only(x) == struct) {
         %print('struct')
-    } else if {%only(%from-only(x) == union)} {
+    } else if %only(%from-only(x) == union) {
         %print('union')
-    } else if {%only(%from-only(x) == list)} {
+    } else if %only(%from-only(x) == list) {
         %print('list')
-    } else if {%only(%from-only(x) == fun)} {
+    } else if %only(%from-only(x) == fun) {
         %print('fun')
-    } else if {%only(%from-only(x) == namespace)} {
+    } else if %only(%from-only(x) == namespace) {
         %print('namespace')
-    } else if {%only(%from-only(x) == only)} {
+    } else if %only(%from-only(x) == only) {
         %print('only')
     } else {
         panic('Unreachable')
