@@ -175,7 +175,7 @@ fn inferExprInner(
             return .{ .fun = .{
                 .fun = fun_init.fun,
                 .closure = closure.@"struct",
-                .state = .valid,
+                .validity = .valid,
             } };
         },
         .arg => |arg| {
@@ -194,8 +194,8 @@ fn inferExprInner(
         },
         .namespace => |namespace| {
             emit(c, f, .{ .struct_init = Repr.emptyStruct().@"struct" });
-            emit(c, f, .{ .namespace = .{ .namespace = namespace } });
-            return .{ .namespace = .{ .namespace = namespace } };
+            emit(c, f, .{ .namespace = .{ .namespace = namespace, .validity = .valid } });
+            return .{ .namespace = .{ .namespace = namespace, .validity = .valid } };
         },
         .local_get => |dir_local| {
             const local = tir.Local{ .id = dir_local.id + c.infer_context.local_offset };
@@ -268,7 +268,7 @@ fn inferExprInner(
             const key = try unstage(c, try inferExpr(c, f, dir_f, .other));
             if (namespace != .namespace)
                 return fail(c, .{ .not_a_namespace = namespace });
-            if (namespace.namespace.namespace.id >= c.namespace_data.count())
+            if (!eval.isValidNamespace(c, namespace.namespace))
                 return fail(c, .{ .unknown_namespace = namespace });
             const namespace_data = c.namespace_data.get(namespace.namespace.namespace);
             if (key != .string)

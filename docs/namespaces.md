@@ -30,18 +30,6 @@ namespace{
 Namespace definitions may not be mutable
 ```
 
-Namespaces are first-class values.
-
-```zest-test
-kinds = namespace{
-  even = 4
-  odd = 7
-}
-[kinds, []/namespace[0]]
-
-[[]/namespace[1], []/namespace[0]]
-```
-
 Bindings can be accessed with `..` (placeholder syntax.)
 
 ```zest-test
@@ -173,4 +161,35 @@ n = namespace{
 n..b
 
 Name not bound: a
+```
+
+Namespaces are first-class values.
+
+```zest-test
+kinds = namespace{
+  even = 4
+  odd = 7
+}
+id = %only(%unmake(%repr-of(kinds)).1.0)
+also-kinds = []/namespace[%from-only(id)]
+also-kinds..even
+
+4
+```
+
+Invalid namespaces can be constructed, but lookups against them will fail:
+
+```zest-test
+[]/namespace[999]
+
+[]/namespace[999]
+```
+
+```zest-test
+invalid = []/namespace[999]
+invalid..foo
+
+Unknown namespace: []/namespace[999]
+
+Unknown namespace: namespace[999]
 ```

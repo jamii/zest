@@ -12,6 +12,7 @@ const ReprStruct = zest.ReprStruct;
 const ReprUnion = zest.ReprUnion;
 const ReprList = zest.ReprList;
 const ReprFun = zest.ReprFun;
+const ReprNamespace = zest.ReprNamespace;
 const ReprKind = zest.ReprKind;
 const deepEqual = zest.deepEqual;
 const isName = zest.isName;
@@ -43,7 +44,7 @@ pub const Value = union(enum) {
             .only => |only| .{ .only = only },
             .any => .any,
             .fun => |fun| .{ .fun = fun.repr },
-            .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
+            .namespace => |namespace| .{ .namespace = namespace.repr },
             .ref => |ref| .{ .ref = ref.repr },
             .repr => .repr,
             .@"repr-kind" => .@"repr-kind",
@@ -329,7 +330,7 @@ pub const ValueFun = struct {
 };
 
 pub const ValueNamespace = struct {
-    namespace: dir.Namespace,
+    repr: ReprNamespace,
 };
 
 pub const ValueRef = struct {

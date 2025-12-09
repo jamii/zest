@@ -82,7 +82,7 @@ pub const Repr = union(enum) {
                 .{ .fun = .{ .repr = fun, .closure = closure.values } }
             else
                 null,
-            .namespace => |namespace| .{ .namespace = .{ .namespace = namespace.namespace } },
+            .namespace => |namespace| .{ .namespace = .{ .repr = namespace } },
             .u32, .i64, .string, .@"union", .list, .any, .repr, .@"repr-kind", .ref => null,
         };
     }
@@ -281,10 +281,7 @@ pub const ReprList = struct {
 pub const ReprFun = struct {
     fun: dir.Fun,
     closure: ReprStruct,
-    state: enum {
-        valid,
-        unknown,
-    },
+    validity: Validity,
 
     pub fn sizeOf(self: ReprFun) usize {
         return self.closure.sizeOf();
@@ -293,6 +290,7 @@ pub const ReprFun = struct {
 
 pub const ReprNamespace = struct {
     namespace: dir.Namespace,
+    validity: Validity,
 };
 
 pub const ReprKind = enum {
@@ -313,5 +311,10 @@ pub const ReprKind = enum {
 pub const Boolish = enum {
     true,
     false,
+    unknown,
+};
+
+pub const Validity = enum {
+    valid,
     unknown,
 };

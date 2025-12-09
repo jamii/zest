@@ -55,7 +55,10 @@ pub fn evalRuntimeDefinition(c: *Compiler, name: []const u8) Value {
         },
         .evaluating => panic("{}", .{
             fail(c, .{ .recursive_evaluation = .{
-                .namespace = .{ .namespace = .{ .namespace = runtime } },
+                .namespace = .{ .namespace = .{ .repr = .{
+                    .namespace = runtime,
+                    .validity = .valid,
+                } } },
                 .key = .{ .string = name },
             } }),
         }),
@@ -274,7 +277,7 @@ pub fn evalExpr(
                 .repr = .{
                     .fun = fun_init.fun,
                     .closure = closure.@"struct".repr,
-                    .state = .valid,
+                    .validity = .valid,
                 },
                 .closure = closure.@"struct".values,
             } }) catch oom();
@@ -288,7 +291,10 @@ pub fn evalExpr(
             c.value_stack.append(frame.closure) catch oom();
         },
         .namespace => |namespace| {
-            c.value_stack.append(.{ .namespace = .{ .namespace = namespace } }) catch oom();
+            c.value_stack.append(.{ .namespace = .{ .repr = .{
+                .namespace = namespace,
+                .validity = .valid,
+            } } }) catch oom();
         },
         .local_get => |local| {
             const value = c.local_stack.items[c.local_stack.items.len - 1 - local.id];
@@ -351,9 +357,9 @@ pub fn evalExpr(
             const namespace = c.value_stack.pop().?;
             if (namespace != .namespace)
                 return fail(c, .{ .not_a_namespace = namespace });
-            if (namespace.namespace.namespace.id >= c.namespace_data.count())
+            if (!isValidNamespace(c, namespace.namespace.repr))
                 return fail(c, .{ .unknown_namespace = namespace });
-            const namespace_data = c.namespace_data.get(namespace.namespace.namespace);
+            const namespace_data = c.namespace_data.get(namespace.namespace.repr.namespace);
             if (key != .string)
                 return fail(c, .{ .definition_not_found = .{ .namespace = namespace, .key = key } });
             const definition = namespace_data.definition_by_name.get(key.string) orelse
@@ -367,7 +373,7 @@ pub fn evalExpr(
                         .closure = Value.emptyStruct(),
                         .args = &.{},
                         .memo = .{
-                            .namespace = namespace.namespace.namespace,
+                            .namespace = namespace.namespace.repr.namespace,
                             .definition = definition,
                         },
                     });
@@ -870,7 +876,7 @@ pub fn evalExpr(
                                     .keys = args.@"struct".repr.keys[1..],
                                     .reprs = reprs,
                                 },
-                                .state = .unknown,
+                                .validity = .unknown,
                             } },
                         }) catch oom();
                     },
@@ -883,7 +889,10 @@ pub fn evalExpr(
                         const id_i64 = args.@"struct".values[0].i64;
                         const id = std.math.cast(usize, id_i64) orelse
                             return fail(c, .{ .cannot_make = .{ .head = head, .args = args } });
-                        c.value_stack.append(.{ .repr = .{ .namespace = .{ .namespace = .{ .id = id } } } }) catch oom();
+                        c.value_stack.append(.{ .repr = .{ .namespace = .{
+                            .namespace = .{ .id = id },
+                            .validity = .unknown,
+                        } } }) catch oom();
                     },
                 },
                 else => return fail(c, .{ .cannot_make_head = .{ .head = head } }),
@@ -1071,7 +1080,7 @@ fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Val
     } else if (to_repr == .only and from_repr.isEmptyStruct()) {
         return .{ .only = to_repr.only };
     } else if (to_repr == .namespace and from_repr.isEmptyStruct()) {
-        return .{ .namespace = .{ .namespace = to_repr.namespace.namespace } };
+        return .{ .namespace = .{ .repr = to_repr.namespace } };
     } else {
         return fail(c, .{ .type_error = .{ .expected = to_repr, .found = from_repr } });
     }
@@ -1079,10 +1088,17 @@ fn convert(c: *Compiler, from_value: Value, from_repr: Repr, to_repr: Repr) !Val
 
 pub fn isValidFun(c: *Compiler, fun: zest.ReprFun) bool {
     _ = c;
-    switch (fun.state) {
+    switch (fun.validity) {
         .valid => return true,
         // TODO Actually validate.
         .unknown => return false,
+    }
+}
+
+pub fn isValidNamespace(c: *Compiler, namespace: zest.ReprNamespace) bool {
+    switch (namespace.validity) {
+        .valid => return true,
+        .unknown => return namespace.namespace.id < c.namespace_data.count(),
     }
 }
 
