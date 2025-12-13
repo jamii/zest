@@ -21,6 +21,8 @@ some-struct/each((k, _) ...)
 some-struct/each((k const, _) ...)
 ```
 
+But then how do we represent compile-time values that are closed over in a function?
+
 ---
 
 Would be nice to have type conversions just be function application, but then we don't know that they need to be staged until after type inference, at which point it's awkward to go back and delete all their tir.
