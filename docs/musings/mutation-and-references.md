@@ -1,6 +1,8 @@
 Desires:
 * Make costs explicit.
   * Eg don't want to accidentally copy a big value on every loop iteration.
+* Make stack allocation useful.
+  * Eg make it possible to pass a reference to a stack-allocated value without escape analysis.
 * Make sharing values easy.
 * Any expression can be turned into a function.
   * Ie no shadow checkers or unexpressible types.

@@ -275,7 +275,7 @@ is-odd = anon::is-odd
 
 ---
 
-## Decision
+## decision
 
 HANDLE requires adding some new concepts to the language - namespace types, lazy evaluation, `::` - whereas STRUCT is able to do everything with existing concepts.
 
